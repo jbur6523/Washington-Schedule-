@@ -33,7 +33,7 @@ function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
   const summary = getStaffSummary(member.name);
 
   if (summary.wantsOff > 0) {
-    return "Wants off";
+    return "Wants Off";
   }
 
   if (summary.available > 0) {
@@ -90,35 +90,30 @@ function Header() {
 
 function Legend() {
   return (
-    <section className="rounded-3xl border border-white bg-white/90 p-4 shadow-soft">
-      <div className="flex items-center gap-2">
-        <CalendarClock size={18} className="text-cyan-700" />
-        <h2 className="text-base font-black text-hospital-ink">Color legend</h2>
-      </div>
-      <div className="mt-3 grid gap-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-            Staff type
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <StaffTypeBadge staffType="Full-time" />
-            <StaffTypeBadge staffType="Per diem" />
-          </div>
+    <details className="rounded-2xl border border-white bg-white/90 p-3 shadow-soft">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-sm font-black text-hospital-ink">
+          <CalendarClock size={17} className="text-cyan-700" />
+          Color legend
+        </span>
+        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Tap to view</span>
+      </summary>
+      <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3">
+        <div className="flex flex-wrap gap-2">
+          <StaffTypeBadge staffType="Full-time" />
+          <StaffTypeBadge staffType="Per diem" />
         </div>
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-            Schedule status
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <StatusChip status="Scheduled" />
-            <StatusChip status="Available" />
-            <StatusChip status="Wants off" />
-            <StatusChip status="Switch requested" />
-            <StatusChip status="Need covered ASAP" />
-          </div>
+        <div className="flex flex-wrap gap-2">
+          <StatusChip status="Scheduled" />
+          <StatusChip status="Available" />
+          <StatusChip status="Wants Off" />
+          <StatusChip status="Switch requested" />
+          <StatusChip status="Short Shift Open" />
+          <StatusChip status="Coverage Requested" />
+          <StatusChip status="Need Covered ASAP" />
         </div>
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -196,7 +191,7 @@ function ShiftBoardScreen({ onDemoAction }: { onDemoAction: () => void }) {
           <div>
             <h2 className="text-lg font-black text-rose-950">Coverage board</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
-              Demo cards show switch requests, pickup options, and urgent coverage needs.
+              Demo cards show switch requests, short shift openings, coverage requests, and ASAP needs.
             </p>
           </div>
         </div>

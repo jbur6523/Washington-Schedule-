@@ -8,14 +8,17 @@ export type UsualShift =
 export type ScheduleStatus =
   | "Scheduled"
   | "Available"
-  | "Wants off"
-  | "Need covered ASAP"
-  | "Urgent coverage"
+  | "Wants Off"
+  | "Short Shift Open"
+  | "Coverage Requested"
+  | "Need Covered ASAP"
   | "Switch requested";
 export type ShiftPostType =
   | "Open to Switch"
-  | "Short Shift / Available to Pick Up"
+  | "Short Shift Open"
+  | "Coverage Requested"
   | "Need Covered ASAP";
+export type CoverageIntensity = "low" | "medium" | "high" | "critical";
 
 export type StaffMember = {
   id: string;
@@ -28,7 +31,7 @@ export type ScheduleEntry = {
   staffName: string;
   shiftTime: "7A-7P" | "7P-7A";
   staffType: StaffType;
-  status: Extract<ScheduleStatus, "Scheduled" | "Available" | "Wants off">;
+  status: Extract<ScheduleStatus, "Scheduled" | "Available" | "Wants Off">;
 };
 
 export type ShiftPost = {
@@ -38,9 +41,10 @@ export type ShiftPost = {
   postedBy: string;
   staffType: StaffType;
   type: ShiftPostType;
+  coverageIntensity: CoverageIntensity;
   status: Extract<
     ScheduleStatus,
-    "Need covered ASAP" | "Urgent coverage" | "Switch requested" | "Available"
+    "Short Shift Open" | "Coverage Requested" | "Need Covered ASAP" | "Switch requested"
   >;
   description: string;
 };
@@ -136,7 +140,7 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Reggie De Jesus", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
     wantsOff: [
-      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants off" }
+      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants Off" }
     ],
     shiftPosts: [
       {
@@ -146,8 +150,9 @@ export const demoSchedule: DemoDay[] = [
         postedBy: "Tom Nguyen",
         staffType: "Full-time",
         type: "Open to Switch",
+        coverageIntensity: "low",
         status: "Switch requested",
-        description: "Tom Nguyen wants to switch Monday 7A-7P."
+        description: "Employee wants to trade but is still scheduled Monday 7A-7P."
       },
       {
         id: "monday-night-short",
@@ -155,9 +160,10 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Nightshift Team",
         staffType: "Full-time",
-        type: "Need Covered ASAP",
-        status: "Urgent coverage",
-        description: "Nightshift is short one RT Monday 7P-7A."
+        type: "Short Shift Open",
+        coverageIntensity: "medium",
+        status: "Short Shift Open",
+        description: "Partial nightshift coverage is open Monday 7P-7A."
       }
     ]
   },
@@ -178,7 +184,7 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Catherine Morgan", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
     wantsOff: [
-      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants off" }
+      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants Off" }
     ],
     shiftPosts: [
       {
@@ -188,8 +194,9 @@ export const demoSchedule: DemoDay[] = [
         postedBy: "Jean Rodrillo",
         staffType: "Full-time",
         type: "Need Covered ASAP",
-        status: "Need covered ASAP",
-        description: "Jean Rodrillo needs Tuesday night covered ASAP."
+        coverageIntensity: "critical",
+        status: "Need Covered ASAP",
+        description: "Critical full-shift coverage need for Tuesday night."
       },
       {
         id: "tuesday-dayshift-pickup",
@@ -197,9 +204,10 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7A-7P",
         postedBy: "Dayshift Team",
         staffType: "Per diem",
-        type: "Short Shift / Available to Pick Up",
-        status: "Available",
-        description: "Dayshift has one available pickup option."
+        type: "Short Shift Open",
+        coverageIntensity: "medium",
+        status: "Short Shift Open",
+        description: "Partial dayshift coverage is open for pickup."
       }
     ]
   },
@@ -220,8 +228,8 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Erica Collins", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
     wantsOff: [
-      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants off" },
-      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants off" }
+      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants Off" },
+      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants Off" }
     ],
     shiftPosts: [
       {
@@ -231,8 +239,9 @@ export const demoSchedule: DemoDay[] = [
         postedBy: "Katryna Vuong",
         staffType: "Full-time",
         type: "Open to Switch",
+        coverageIntensity: "low",
         status: "Switch requested",
-        description: "Katryna Vuong is open to switch Wednesday dayshift."
+        description: "Employee wants to trade but is still scheduled Wednesday dayshift."
       },
       {
         id: "wednesday-carl-cover",
@@ -240,9 +249,10 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Carl Lin",
         staffType: "Full-time",
-        type: "Need Covered ASAP",
-        status: "Need covered ASAP",
-        description: "Carl Lin needs Wednesday night covered."
+        type: "Coverage Requested",
+        coverageIntensity: "high",
+        status: "Coverage Requested",
+        description: "Full-shift coverage requested for Wednesday night."
       },
       {
         id: "wednesday-night-urgent",
@@ -251,8 +261,9 @@ export const demoSchedule: DemoDay[] = [
         postedBy: "Nightshift Team",
         staffType: "Per diem",
         type: "Need Covered ASAP",
-        status: "Urgent coverage",
-        description: "Wednesday night has urgent coverage need."
+        coverageIntensity: "critical",
+        status: "Need Covered ASAP",
+        description: "Critical full-shift coverage need for Wednesday night."
       }
     ]
   }

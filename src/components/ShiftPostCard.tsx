@@ -10,8 +10,16 @@ type ShiftPostCardProps = {
 
 const typeIcon = {
   "Open to Switch": ArrowRightLeft,
-  "Short Shift / Available to Pick Up": SearchCheck,
+  "Short Shift Open": SearchCheck,
+  "Coverage Requested": ClipboardList,
   "Need Covered ASAP": ClipboardList
+};
+
+const typeHelp = {
+  "Open to Switch": "Employee wants to trade but is still scheduled.",
+  "Short Shift Open": "Partial shift coverage needed.",
+  "Coverage Requested": "Full shift coverage requested.",
+  "Need Covered ASAP": "Critical full-shift coverage need."
 };
 
 export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
@@ -31,6 +39,9 @@ export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
             <StatusChip status={post.status} compact />
           </div>
           <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{post.type}</h3>
+          <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+            {typeHelp[post.type]}
+          </p>
           <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{post.description}</p>
         </div>
       </div>

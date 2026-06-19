@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
-import type { DemoDay, ScheduleEntry } from "@/data/mockSchedule";
+import type { CoverageIntensity, DemoDay, ScheduleEntry, ShiftPost } from "@/data/mockSchedule";
 
 type DayScheduleCardProps = {
   day: DemoDay;
@@ -11,7 +11,7 @@ type DayScheduleCardProps = {
 
 function EntryRow({ entry }: { entry: ScheduleEntry }) {
   return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3">
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
       <div className="min-w-0">
         <p className="text-sm font-bold leading-5 text-hospital-ink">{entry.staffName}</p>
         <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
@@ -24,7 +24,65 @@ function EntryRow({ entry }: { entry: ScheduleEntry }) {
   );
 }
 
+function ScheduledRow({
+  entry,
+  wantsOff
+}: {
+  entry: ScheduleEntry;
+  wantsOff: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-5 text-hospital-ink">{entry.staffName}</p>
+        <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <StaffTypeBadge staffType={entry.staffType} compact />
+        <StatusChip status="Scheduled" compact />
+        {wantsOff && <StatusChip status="Wants Off" compact />}
+      </div>
+    </div>
+  );
+}
+
 function ShiftSection({
+  title,
+  entries,
+  wantsOffEntries = []
+}: {
+  title: string;
+  entries: ScheduleEntry[];
+  wantsOffEntries?: ScheduleEntry[];
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-extrabold text-slate-700">{title}</h4>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">
+          {entries.length}
+        </span>
+      </div>
+      <div className="space-y-2">
+        {entries.map((entry) => {
+          const wantsOff = wantsOffEntries.some(
+            (item) => item.staffName === entry.staffName && item.shiftTime === entry.shiftTime
+          );
+
+          return (
+            <ScheduledRow
+              key={`${entry.staffName}-${entry.shiftTime}-${entry.status}`}
+              entry={entry}
+              wantsOff={wantsOff}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SimpleEntrySection({
   title,
   entries
 }: {
@@ -48,14 +106,28 @@ function ShiftSection({
   );
 }
 
+const intensityRank: Record<CoverageIntensity, number> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+  critical: 4
+};
+
+function getDayAlertPosts(posts: ShiftPost[]) {
+  return [...posts]
+    .sort((a, b) => intensityRank[b.coverageIntensity] - intensityRank[a.coverageIntensity])
+    .filter(
+      (post, index, sortedPosts) =>
+        sortedPosts.findIndex((item) => item.coverageIntensity === post.coverageIntensity) === index
+    );
+}
+
 export function DayScheduleCard({ day, expanded, onToggle }: DayScheduleCardProps) {
   const dayScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7A-7P");
   const nightScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7P-7A");
-  const dayOpenItems = [...day.available, ...day.wantsOff].filter((entry) => entry.shiftTime === "7A-7P");
-  const nightOpenItems = [...day.available, ...day.wantsOff].filter((entry) => entry.shiftTime === "7P-7A");
-  const urgentCount = day.shiftPosts.filter(
-    (post) => post.status === "Need covered ASAP" || post.status === "Urgent coverage"
-  ).length;
+  const dayAvailable = day.available.filter((entry) => entry.shiftTime === "7A-7P");
+  const nightAvailable = day.available.filter((entry) => entry.shiftTime === "7P-7A");
+  const alertPosts = getDayAlertPosts(day.shiftPosts);
 
   return (
     <article className="overflow-hidden rounded-3xl border border-white bg-white/95 shadow-soft">
@@ -78,22 +150,27 @@ export function DayScheduleCard({ day, expanded, onToggle }: DayScheduleCardProp
           <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600">
             {expanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
           </span>
-          {urgentCount > 0 && <StatusChip status="Urgent coverage" compact />}
+          <div className="flex max-w-32 flex-wrap justify-end gap-1">
+            {alertPosts.map((post) => (
+              <StatusChip key={`${post.id}-${post.status}`} status={post.status} compact />
+            ))}
+          </div>
         </div>
       </button>
 
       {expanded && (
-        <div className="space-y-5 border-t border-slate-100 p-5 pt-4">
-          <ShiftSection title="Day Shift 7A-7P" entries={dayScheduled} />
-          <ShiftSection title="Night Shift 7P-7A" entries={nightScheduled} />
+        <div className="space-y-4 border-t border-slate-100 p-4 pt-4">
+          <ShiftSection title="Day Shift 7A-7P" entries={dayScheduled} wantsOffEntries={day.wantsOff} />
+          <ShiftSection title="Night Shift 7P-7A" entries={nightScheduled} wantsOffEntries={day.wantsOff} />
 
           <div className="grid gap-4">
-            <ShiftSection title="Available / Wants Off - Days" entries={dayOpenItems} />
-            <ShiftSection title="Available / Wants Off - Nights" entries={nightOpenItems} />
+            <SimpleEntrySection title="Available - Days" entries={dayAvailable} />
+            <SimpleEntrySection title="Available - Nights" entries={nightAvailable} />
+            <SimpleEntrySection title="Scheduled but Wants Off" entries={day.wantsOff} />
           </div>
 
-          <section className="rounded-2xl border border-rose-100 bg-rose-50/70 p-4">
-            <h4 className="text-sm font-extrabold text-rose-900">Open shift posts</h4>
+          <section className="rounded-2xl border border-slate-100 bg-white p-3">
+            <h4 className="text-sm font-extrabold text-slate-800">Open shift posts</h4>
             <div className="mt-3 space-y-2">
               {day.shiftPosts.map((post) => (
                 <div key={post.id} className="rounded-xl bg-white px-3.5 py-3">

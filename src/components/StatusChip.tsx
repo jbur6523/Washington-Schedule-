@@ -8,9 +8,10 @@ type StatusChipProps = {
 const statusClasses: Record<ScheduleStatus, string> = {
   Scheduled: "border-sky-200 bg-sky-100 text-sky-700",
   Available: "border-emerald-200 bg-emerald-100 text-emerald-700",
-  "Wants off": "border-amber-200 bg-amber-100 text-amber-800",
-  "Need covered ASAP": "border-red-200 bg-red-100 text-red-700",
-  "Urgent coverage": "border-rose-200 bg-rose-100 text-rose-700",
+  "Wants Off": "border-amber-200 bg-amber-100 text-amber-800",
+  "Short Shift Open": "border-orange-200 bg-orange-100 text-orange-800",
+  "Coverage Requested": "border-rose-200 bg-rose-100 text-rose-700",
+  "Need Covered ASAP": "border-red-300 bg-red-600 text-white",
   "Switch requested": "border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700"
 };
 
