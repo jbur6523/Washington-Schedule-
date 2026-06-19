@@ -15,8 +15,7 @@ import {
   getStaffSummary,
   staff,
   type ScheduleStatus,
-  type StaffMember,
-  type UsualShift
+  type StaffMember
 } from "@/data/mockSchedule";
 
 type StaffFilter = "All" | "Full-time" | "Per diem" | "Dayshift" | "Nightshift" | "Specialty / flexible";
