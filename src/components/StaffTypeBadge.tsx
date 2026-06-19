@@ -14,8 +14,8 @@ export function StaffTypeBadge({ staffType, compact = false }: StaffTypeBadgePro
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border font-semibold ${classes} ${
-        compact ? "px-2 py-0.5 text-[11px]" : "px-2.5 py-1 text-xs"
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border font-extrabold ${classes} ${
+        compact ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs"
       }`}
       title={staffType}
     >

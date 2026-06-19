@@ -11,12 +11,12 @@ type DayScheduleCardProps = {
 
 function EntryRow({ entry }: { entry: ScheduleEntry }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3">
       <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-hospital-ink">{entry.staffName}</p>
-        <p className="text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
+        <p className="text-sm font-bold leading-5 text-hospital-ink">{entry.staffName}</p>
+        <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StaffTypeBadge staffType={entry.staffType} compact />
         <StatusChip status={entry.status} compact />
       </div>
@@ -62,7 +62,7 @@ export function DayScheduleCard({ day, expanded, onToggle }: DayScheduleCardProp
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-4 p-5 text-left"
+        className="flex w-full items-start justify-between gap-3 p-5 text-left"
       >
         <div>
           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
@@ -74,11 +74,11 @@ export function DayScheduleCard({ day, expanded, onToggle }: DayScheduleCardProp
             {day.wantsOff.length} wants off
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {urgentCount > 0 && <StatusChip status="Urgent coverage" compact />}
+        <div className="flex shrink-0 flex-col items-end gap-2">
           <span className="grid h-10 w-10 place-items-center rounded-full bg-slate-100 text-slate-600">
             {expanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
           </span>
+          {urgentCount > 0 && <StatusChip status="Urgent coverage" compact />}
         </div>
       </button>
 
@@ -96,9 +96,9 @@ export function DayScheduleCard({ day, expanded, onToggle }: DayScheduleCardProp
             <h4 className="text-sm font-extrabold text-rose-900">Open shift posts</h4>
             <div className="mt-3 space-y-2">
               {day.shiftPosts.map((post) => (
-                <div key={post.id} className="rounded-xl bg-white px-3 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm font-bold text-slate-800">{post.description}</p>
+                <div key={post.id} className="rounded-xl bg-white px-3.5 py-3">
+                  <p className="text-sm font-bold leading-5 text-slate-800">{post.description}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <StatusChip status={post.status} compact />
                   </div>
                   <p className="mt-1 text-xs font-semibold text-slate-500">{post.shiftTime}</p>

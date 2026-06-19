@@ -30,7 +30,7 @@ export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
             </p>
             <StatusChip status={post.status} compact />
           </div>
-          <h3 className="mt-2 text-lg font-black text-hospital-ink">{post.type}</h3>
+          <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{post.type}</h3>
           <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">{post.description}</p>
         </div>
       </div>
@@ -38,18 +38,18 @@ export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
       <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3">
         <div className="min-w-0">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Posted by</p>
-          <p className="truncate text-sm font-extrabold text-slate-800">{post.postedBy}</p>
+          <p className="text-sm font-extrabold leading-5 text-slate-800">{post.postedBy}</p>
         </div>
         <StaffTypeBadge staffType={post.staffType} />
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
         {["I can cover", "Offer switch", "Details"].map((label) => (
           <button
             key={label}
             type="button"
             onClick={onDemoAction}
-            className="rounded-2xl border border-slate-200 bg-white px-2 py-3 text-center text-xs font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
           >
             {label}
           </button>

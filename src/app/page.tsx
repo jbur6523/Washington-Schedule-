@@ -73,12 +73,12 @@ function matchesStaffFilter(member: StaffMember, filter: StaffFilter) {
 
 function Header({ activeTab }: { activeTab: TabId }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-white/70 bg-white/80 px-5 pb-4 pt-5 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-white/70 bg-white/85 px-4 pb-4 pt-5 backdrop-blur-xl sm:px-5">
       <div className="mx-auto max-w-xl">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-black tracking-normal text-hospital-ink">
+              <h1 className="text-2xl font-black tracking-normal text-hospital-ink sm:text-3xl">
                 Washington Schedule
               </h1>
               <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
@@ -103,7 +103,7 @@ function Header({ activeTab }: { activeTab: TabId }) {
               </p>
               <h2 className="mt-1 text-xl font-black text-hospital-ink">{tabTitles[activeTab]}</h2>
               <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                Three demo days, staff type badges, coverage status, and manager-review actions.
+                Three demo days with clear staffing, availability, and coverage needs.
               </p>
             </div>
           </div>
@@ -138,8 +138,8 @@ function Legend() {
             <StatusChip status="Scheduled" />
             <StatusChip status="Available" />
             <StatusChip status="Wants off" />
-            <StatusChip status="Urgent coverage" />
             <StatusChip status="Switch requested" />
+            <StatusChip status="Need covered ASAP" />
           </div>
         </div>
       </div>
@@ -189,15 +189,17 @@ function AvailabilityScreen() {
               return (
                 <div
                   key={`${day.day}-${entry.staffName}`}
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3 py-3"
+                  className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3.5 py-3"
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-extrabold text-slate-800">{entry.staffName}</p>
+                  <div>
+                    <p className="text-sm font-extrabold leading-5 text-slate-800">{entry.staffName}</p>
                     <p className="mt-0.5 text-xs font-semibold text-slate-500">
                       {usualShift} • Available {entry.shiftTime}
                     </p>
                   </div>
-                  <StaffTypeBadge staffType={entry.staffType} />
+                  <div className="mt-2">
+                    <StaffTypeBadge staffType={entry.staffType} />
+                  </div>
                 </div>
               );
             })}
@@ -281,7 +283,7 @@ export default function Home() {
     <>
       <main className="min-h-screen pb-28">
         <Header activeTab={activeTab} />
-        <div className="mx-auto max-w-xl px-5 py-5">
+        <div className="mx-auto max-w-xl px-4 py-5 sm:px-5">
           {activeTab === "schedule" && <ScheduleScreen />}
           {activeTab === "availability" && <AvailabilityScreen />}
           {activeTab === "shift-board" && <ShiftBoardScreen onDemoAction={() => setModalOpen(true)} />}

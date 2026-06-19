@@ -31,7 +31,7 @@ export function ConfirmationModal({ open, onClose }: ConfirmationModalProps) {
             Offer sent for manager review.
           </h2>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-            Demo mode only. No message, notification, or external request was sent.
+            Demo mode only. No message or external request was sent.
           </p>
           <button
             type="button"
