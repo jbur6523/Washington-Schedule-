@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
+import { AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { ConfirmationModal } from "@/components/ConfirmationModal";
 import { DayScheduleCard } from "@/components/DayScheduleCard";
@@ -28,13 +28,6 @@ const filterOptions: StaffFilter[] = [
   "Nightshift",
   "Specialty / flexible"
 ];
-
-const tabTitles: Record<TabId, string> = {
-  schedule: "Schedule",
-  availability: "Availability",
-  "shift-board": "Shift Board",
-  staff: "Staff"
-};
 
 function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
   const summary = getStaffSummary(member.name);
@@ -70,7 +63,7 @@ function matchesStaffFilter(member: StaffMember, filter: StaffFilter) {
   return ["Pulm Rehab", "PFT", "Flexible"].includes(member.usualShift);
 }
 
-function Header({ activeTab }: { activeTab: TabId }) {
+function Header() {
   return (
     <header className="sticky top-0 z-30 border-b border-white/70 bg-white/85 px-4 pb-4 pt-5 backdrop-blur-xl sm:px-5">
       <div className="mx-auto max-w-xl">
@@ -88,23 +81,6 @@ function Header({ activeTab }: { activeTab: TabId }) {
             <p className="mt-1 text-sm font-bold text-hospital-muted">
               Respiratory Department Staffing Demo
             </p>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-3xl border border-white bg-gradient-to-br from-white to-cyan-50 p-4 shadow-soft">
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-cyan-100 text-cyan-700">
-              <Activity size={22} />
-            </span>
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                Current view
-              </p>
-              <h2 className="mt-1 text-xl font-black text-hospital-ink">{tabTitles[activeTab]}</h2>
-              <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">
-                Three demo days with clear staffing, availability, and coverage needs.
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -281,7 +257,7 @@ export default function Home() {
   return (
     <>
       <main className="min-h-screen pb-28">
-        <Header activeTab={activeTab} />
+        <Header />
         <div className="mx-auto max-w-xl px-4 py-5 sm:px-5">
           {activeTab === "schedule" && <ScheduleScreen />}
           {activeTab === "availability" && <AvailabilityScreen />}
