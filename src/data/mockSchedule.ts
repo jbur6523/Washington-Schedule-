@@ -9,16 +9,10 @@ export type ScheduleStatus =
   | "Scheduled"
   | "Available"
   | "Wants Off"
-  | "Short Shift Open"
-  | "Coverage Requested"
-  | "Need Covered ASAP"
-  | "Switch requested";
-export type ShiftPostType =
-  | "Open to Switch"
-  | "Short Shift Open"
-  | "Coverage Requested"
-  | "Need Covered ASAP";
-export type CoverageIntensity = "low" | "medium" | "high" | "critical";
+  | "Short Shift"
+  | "Switch Requested";
+export type ShiftPostType = "Open to Switch" | "Short Shift";
+export type CoverageIntensity = "low" | "medium" | "critical";
 
 export type StaffMember = {
   id: string;
@@ -42,11 +36,10 @@ export type ShiftPost = {
   staffType: StaffType;
   type: ShiftPostType;
   coverageIntensity: CoverageIntensity;
-  status: Extract<
-    ScheduleStatus,
-    "Short Shift Open" | "Coverage Requested" | "Need Covered ASAP" | "Switch requested"
-  >;
+  status: Extract<ScheduleStatus, "Short Shift" | "Switch Requested">;
   description: string;
+  targetStaffName?: string;
+  scope: "employee" | "shift";
 };
 
 export type DemoDay = {
@@ -151,8 +144,10 @@ export const demoSchedule: DemoDay[] = [
         staffType: "Full-time",
         type: "Open to Switch",
         coverageIntensity: "low",
-        status: "Switch requested",
-        description: "Employee wants to trade but is still scheduled Monday 7A-7P."
+        status: "Switch Requested",
+        description: "Wants to trade this shift.",
+        targetStaffName: "Tom Nguyen",
+        scope: "employee"
       },
       {
         id: "monday-night-short",
@@ -160,10 +155,11 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Nightshift Team",
         staffType: "Full-time",
-        type: "Short Shift Open",
+        type: "Short Shift",
         coverageIntensity: "medium",
-        status: "Short Shift Open",
-        description: "Partial nightshift coverage is open Monday 7P-7A."
+        status: "Short Shift",
+        description: "One short assignment available tonight.",
+        scope: "shift"
       }
     ]
   },
@@ -193,10 +189,12 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Jean Rodrillo",
         staffType: "Full-time",
-        type: "Need Covered ASAP",
+        type: "Short Shift",
         coverageIntensity: "critical",
-        status: "Need Covered ASAP",
-        description: "Critical full-shift coverage need for Tuesday night."
+        status: "Short Shift",
+        description: "Urgently short for this night shift.",
+        targetStaffName: "Jean Rodrillo",
+        scope: "employee"
       },
       {
         id: "tuesday-dayshift-pickup",
@@ -204,10 +202,11 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7A-7P",
         postedBy: "Dayshift Team",
         staffType: "Per diem",
-        type: "Short Shift Open",
+        type: "Short Shift",
         coverageIntensity: "medium",
-        status: "Short Shift Open",
-        description: "Partial dayshift coverage is open for pickup."
+        status: "Short Shift",
+        description: "One short assignment available dayshift.",
+        scope: "shift"
       }
     ]
   },
@@ -240,8 +239,10 @@ export const demoSchedule: DemoDay[] = [
         staffType: "Full-time",
         type: "Open to Switch",
         coverageIntensity: "low",
-        status: "Switch requested",
-        description: "Employee wants to trade but is still scheduled Wednesday dayshift."
+        status: "Switch Requested",
+        description: "Wants to trade this shift.",
+        targetStaffName: "Katryna Vuong",
+        scope: "employee"
       },
       {
         id: "wednesday-carl-cover",
@@ -249,10 +250,12 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Carl Lin",
         staffType: "Full-time",
-        type: "Coverage Requested",
-        coverageIntensity: "high",
-        status: "Coverage Requested",
-        description: "Full-shift coverage requested for Wednesday night."
+        type: "Short Shift",
+        coverageIntensity: "medium",
+        status: "Short Shift",
+        description: "Coverage help requested for this shift.",
+        targetStaffName: "Carl Lin",
+        scope: "employee"
       },
       {
         id: "wednesday-night-urgent",
@@ -260,10 +263,11 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Nightshift Team",
         staffType: "Per diem",
-        type: "Need Covered ASAP",
+        type: "Short Shift",
         coverageIntensity: "critical",
-        status: "Need Covered ASAP",
-        description: "Critical full-shift coverage need for Wednesday night."
+        status: "Short Shift",
+        description: "Urgently short one RT tonight.",
+        scope: "shift"
       }
     ]
   }

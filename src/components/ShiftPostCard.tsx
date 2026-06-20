@@ -1,4 +1,4 @@
-import { ArrowRightLeft, ClipboardList, SearchCheck } from "lucide-react";
+import { ArrowRightLeft, SearchCheck } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import type { ShiftPost } from "@/data/mockSchedule";
@@ -10,16 +10,12 @@ type ShiftPostCardProps = {
 
 const typeIcon = {
   "Open to Switch": ArrowRightLeft,
-  "Short Shift Open": SearchCheck,
-  "Coverage Requested": ClipboardList,
-  "Need Covered ASAP": ClipboardList
+  "Short Shift": SearchCheck
 };
 
 const typeHelp = {
   "Open to Switch": "Employee wants to trade but is still scheduled.",
-  "Short Shift Open": "Partial shift coverage needed.",
-  "Coverage Requested": "Full shift coverage requested.",
-  "Need Covered ASAP": "Critical full-shift coverage need."
+  "Short Shift": "Department is short for part or all of this shift."
 };
 
 export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
@@ -36,7 +32,7 @@ export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
               {post.day} • {post.shiftTime}
             </p>
-            <StatusChip status={post.status} compact />
+            <StatusChip status={post.status} intensity={post.coverageIntensity} compact />
           </div>
           <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{post.type}</h3>
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">

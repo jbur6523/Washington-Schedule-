@@ -99,18 +99,37 @@ function Legend() {
         <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Tap to view</span>
       </summary>
       <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3">
-        <div className="flex flex-wrap gap-2">
-          <StaffTypeBadge staffType="Full-time" />
-          <StaffTypeBadge staffType="Per diem" />
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff type</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <StaffTypeBadge staffType="Full-time" />
+            <StaffTypeBadge staffType="Per diem" />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <StatusChip status="Scheduled" />
-          <StatusChip status="Available" />
-          <StatusChip status="Wants Off" />
-          <StatusChip status="Switch requested" />
-          <StatusChip status="Short Shift Open" />
-          <StatusChip status="Coverage Requested" />
-          <StatusChip status="Need Covered ASAP" />
+
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Card meaning</p>
+          <div className="mt-2 grid gap-2">
+            <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
+              Light blue card = Scheduled
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+              Light green card = Available
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status chips</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <StatusChip status="Wants Off" />
+            <StatusChip status="Switch Requested" />
+            <StatusChip status="Short Shift" />
+            <StatusChip status="Short Shift" intensity="critical" />
+          </div>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+            Yellow Short Shift means short. Red Short Shift means urgently short.
+          </p>
         </div>
       </div>
     </details>
@@ -191,7 +210,7 @@ function ShiftBoardScreen({ onDemoAction }: { onDemoAction: () => void }) {
           <div>
             <h2 className="text-lg font-black text-rose-950">Coverage board</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
-              Demo cards show switch requests, short shift openings, coverage requests, and ASAP needs.
+              Demo cards show switch requests and short shift needs.
             </p>
           </div>
         </div>

@@ -13,6 +13,8 @@ type StaffCardProps = {
 };
 
 export function StaffCard({ staff, currentStatus, summary }: StaffCardProps) {
+  const showStatus = currentStatus !== "Scheduled";
+
   return (
     <article className="rounded-2xl border border-white bg-white/95 p-4 shadow-soft">
       <div className="flex items-start justify-between gap-3">
@@ -23,9 +25,9 @@ export function StaffCard({ staff, currentStatus, summary }: StaffCardProps) {
         <StaffTypeBadge staffType={staff.staffType} />
       </div>
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
-        <StatusChip status={currentStatus} compact />
+        {showStatus && <StatusChip status={currentStatus} compact />}
         <p className="text-xs font-semibold leading-5 text-slate-500">
-          {summary.scheduled} scheduled • {summary.available} available • {summary.wantsOff} wants off
+          {summary.scheduled} scheduled - {summary.available} available - {summary.wantsOff} wants off
         </p>
       </div>
     </article>
