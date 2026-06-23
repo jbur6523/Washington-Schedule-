@@ -61,15 +61,11 @@ function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
     return "Coverage Requested";
   }
 
-  if (summary.available > 0) {
-    return "Available";
-  }
-
   if (summary.scheduled > 0) {
     return "Scheduled";
   }
 
-  return member.staffType === "Per diem" ? "Available" : "Scheduled";
+  return "Scheduled";
 }
 
 function matchesStaffFilter(member: StaffMember, filter: StaffFilter) {
@@ -492,7 +488,6 @@ function ManageScheduleScreen({
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <StatusChip status="Scheduled" compact />
                 {hasSwitchRequest && <StatusChip status="Switch Requested" compact />}
                 {hasCoverageRequest && <StatusChip status="Coverage Requested" compact />}
               </div>
@@ -543,7 +538,7 @@ function ManageScheduleScreen({
                   onClick={() => applyUpdate(day, entry, { coverageRequested: true })}
                   className="rounded-2xl border border-violet-100 bg-violet-50 px-3 py-3 text-sm font-extrabold text-violet-700"
                 >
-                  Offer Shift for Coverage
+                  Request Coverage
                 </button>
                 <button
                   type="button"

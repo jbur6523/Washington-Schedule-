@@ -131,7 +131,7 @@ function ShiftGroup({
             (post) =>
               post.scope === "employee" &&
               post.targetStaffName === entry.staffName &&
-              post.status !== "Coverage Requested"
+              post.status === "Switch Requested"
           );
 
           return (
