@@ -9,6 +9,7 @@ type DayScheduleCardProps = {
   day: DemoDay;
   expanded: boolean;
   shiftFilter: ScheduleShiftFilter;
+  shiftNotes?: Record<string, string>;
   onToggle: () => void;
 };
 
@@ -22,12 +23,14 @@ function StaffScheduleRow({
   entry,
   variant,
   coverageRequested,
-  posts
+  posts,
+  note
 }: {
   entry: ScheduleEntry;
   variant: "scheduled" | "available";
   coverageRequested?: boolean;
   posts?: ShiftPost[];
+  note?: string;
 }) {
   const background =
     variant === "scheduled"
@@ -66,7 +69,13 @@ function StaffScheduleRow({
 
       {coverageRequested && (
         <p className="mt-1 text-xs font-semibold leading-4 text-slate-600">
-          Remains scheduled unless coverage is approved.
+          Coverage requested for this shift.
+        </p>
+      )}
+
+      {note && (
+        <p className="mt-2 rounded-xl bg-white/70 px-2.5 py-2 text-xs font-semibold leading-4 text-slate-600">
+          {note}
         </p>
       )}
     </div>
@@ -94,19 +103,23 @@ function ShiftAlertRow({ post }: { post: ShiftPost }) {
 }
 
 function ShiftGroup({
+  dayName,
   title,
   shiftTime,
   scheduled,
   available,
   coverageRequestEntries,
-  posts
+  posts,
+  shiftNotes
 }: {
+  dayName: DemoDay["day"];
   title: string;
   shiftTime: "7A-7P" | "7P-7A";
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
   coverageRequestEntries: ScheduleEntry[];
   posts: ShiftPost[];
+  shiftNotes?: Record<string, string>;
 }) {
   const shiftPosts = posts.filter((post) => post.shiftTime === shiftTime);
   const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift" && post.status === "Short Shift");
@@ -133,6 +146,7 @@ function ShiftGroup({
               post.targetStaffName === entry.staffName &&
               post.status === "Switch Requested"
           );
+          const note = shiftNotes?.[`${entry.staffName}-${dayName}-${entry.shiftTime}`];
 
           return (
             <StaffScheduleRow
@@ -141,6 +155,7 @@ function ShiftGroup({
               variant="scheduled"
               coverageRequested={coverageRequested}
               posts={employeePosts}
+              note={note}
             />
           );
         })}
@@ -180,7 +195,7 @@ function shouldShowShift(shiftFilter: ScheduleShiftFilter, shiftTime: "7A-7P" | 
   return shiftFilter === "day" ? shiftTime === "7A-7P" : shiftTime === "7P-7A";
 }
 
-export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DayScheduleCardProps) {
+export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onToggle }: DayScheduleCardProps) {
   const dayScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7A-7P");
   const nightScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7P-7A");
   const dayAvailable = day.available.filter((entry) => entry.shiftTime === "7A-7P");
@@ -241,22 +256,26 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
         <div className="space-y-3 border-t border-slate-100 p-3.5">
           {showDayShift && (
             <ShiftGroup
+              dayName={day.day}
               title="Day Shift 7A-7P"
               shiftTime="7A-7P"
               scheduled={dayScheduled}
               available={dayAvailable}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
+              shiftNotes={shiftNotes}
             />
           )}
           {showNightShift && (
             <ShiftGroup
+              dayName={day.day}
               title="Night Shift 7P-7A"
               shiftTime="7P-7A"
               scheduled={nightScheduled}
               available={nightAvailable}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
+              shiftNotes={shiftNotes}
             />
           )}
         </div>

@@ -15,8 +15,8 @@ const typeIcon = {
 };
 
 const typeHelp = {
-  "Switch Requested": "Employee is open to trading this scheduled shift.",
-  "Coverage Requested": "Employee remains scheduled unless coverage is approved.",
+  "Switch Requested": "Open to switching this scheduled shift.",
+  "Coverage Requested": "Coverage requested for this shift.",
   "Short Shift": "Department is short for part or all of this shift."
 };
 

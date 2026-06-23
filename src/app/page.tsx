@@ -152,7 +152,7 @@ function Legend() {
             <StatusChip status="Short Shift" intensity="critical" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Switch Requested marks a requested trade. Coverage Requested means the employee remains scheduled unless coverage is approved.
+            Switch Requested marks a requested trade. Coverage Requested marks a coverage request for that employee's shift.
             Yellow Short Shift means short. Red Short Shift means urgently short.
           </p>
         </div>
@@ -197,8 +197,8 @@ function requestPostFromUpdate(update: DemoShiftUpdate, status: EmployeeRequestS
     status,
     description:
       status === "Switch Requested"
-        ? "Open to trading this scheduled shift."
-        : "Coverage requested for this scheduled shift.",
+        ? "Open to switching this scheduled shift."
+        : "Coverage requested for this shift.",
     targetStaffName: update.staffName,
     scope: "employee"
   };
@@ -253,6 +253,18 @@ function getMergedSchedule(updates: DemoShiftUpdate[]): DemoDay[] {
       shiftPosts: [...day.shiftPosts, ...sessionPosts.filter((post) => post.day === day.day)]
     };
   });
+}
+
+function getShiftNotes(updates: DemoShiftUpdate[]) {
+  return updates.reduce<Record<string, string>>((notes, update) => {
+    const note = update.note?.trim();
+
+    if (note) {
+      notes[shiftUpdateId(update.staffName, update.day, update.shiftTime)] = note;
+    }
+
+    return notes;
+  }, {});
 }
 
 function ScheduleSummary({
@@ -347,10 +359,11 @@ function ScheduleFilterTabs({
   );
 }
 
-function ScheduleScreen({ schedule }: { schedule: DemoDay[] }) {
+function ScheduleScreen({ schedule, updates }: { schedule: DemoDay[]; updates: DemoShiftUpdate[] }) {
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState<ScheduleDay>("Monday");
   const [expandedDay, setExpandedDay] = useState("");
+  const shiftNotes = getShiftNotes(updates);
 
   return (
     <div className="space-y-3">
@@ -373,6 +386,7 @@ function ScheduleScreen({ schedule }: { schedule: DemoDay[] }) {
             day={day}
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
+            shiftNotes={shiftNotes}
             onToggle={() => {
               setSelectedDay(day.day);
               setExpandedDay((current) => (current === day.day ? "" : day.day));
@@ -391,13 +405,13 @@ function ManageScheduleScreen({
   updates: DemoShiftUpdate[];
   onUpdateShift: (update: DemoShiftUpdate) => void;
 }) {
-  const [selectedStaffName, setSelectedStaffName] = useState("Jonathan Burdick");
   const [editingShiftId, setEditingShiftId] = useState("");
   const [noteDraft, setNoteDraft] = useState("");
-  const selectedStaff = staff.find((member) => member.name === selectedStaffName) ?? staff[0];
+  const signedInStaffName = "Jonathan Burdick";
+  const selectedStaff = staff.find((member) => member.name === signedInStaffName) ?? staff[0];
   const scheduledShifts = demoSchedule.flatMap((day) =>
     day.scheduled
-      .filter((entry) => entry.staffName === selectedStaffName)
+      .filter((entry) => entry.staffName === signedInStaffName)
       .map((entry) => ({ day: day.day, entry, posts: day.shiftPosts, coverageRequests: day.coverageRequests }))
   );
 
@@ -428,25 +442,8 @@ function ManageScheduleScreen({
   return (
     <div className="space-y-4">
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <label className="text-xs font-extrabold uppercase tracking-wide text-cyan-700" htmlFor="staff-viewer">
-          Viewing as:
-        </label>
-        <select
-          id="staff-viewer"
-          value={selectedStaffName}
-          onChange={(event) => {
-            setSelectedStaffName(event.target.value);
-            setEditingShiftId("");
-            setNoteDraft("");
-          }}
-          className="mt-2 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3 text-base font-extrabold text-hospital-ink outline-none"
-        >
-          {staff.map((member) => (
-            <option key={member.id} value={member.name}>
-              {member.name}
-            </option>
-          ))}
-        </select>
+        <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
+        <p className="mt-1 text-sm font-bold text-slate-500">Manage your shift requests</p>
         <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
           Demo only: requests do not change the official schedule.
         </p>
@@ -475,6 +472,12 @@ function ManageScheduleScreen({
           const shiftLabel = getShiftLabel(selectedStaff, entry.shiftTime);
           const note = update?.note ?? "";
           const editing = editingShiftId === shiftId;
+          const requestNote = [
+            hasSwitchRequest ? "Open to switching this scheduled shift." : "",
+            hasCoverageRequest ? "Coverage requested for this shift." : ""
+          ]
+            .filter(Boolean)
+            .join(" ");
 
           return (
             <article key={shiftId} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -483,6 +486,9 @@ function ManageScheduleScreen({
                   <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{day}</p>
                   <h2 className="mt-1 text-xl font-black text-hospital-ink">{shiftLabel}</h2>
                   <p className="mt-1 text-sm font-semibold text-slate-500">{entry.shiftTime}</p>
+                  <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    Current status: Scheduled
+                  </p>
                 </div>
                 <StaffTypeBadge staffType={entry.staffType} />
               </div>
@@ -491,9 +497,11 @@ function ManageScheduleScreen({
                 {hasSwitchRequest && <StatusChip status="Switch Requested" compact />}
                 {hasCoverageRequest && <StatusChip status="Coverage Requested" compact />}
               </div>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                The employee remains scheduled unless coverage is approved.
-              </p>
+              {requestNote && (
+                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                  {requestNote}
+                </p>
+              )}
 
               {note && (
                 <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold leading-5 text-slate-600">
@@ -514,7 +522,7 @@ function ManageScheduleScreen({
                     <button
                       type="button"
                       onClick={() => {
-                        applyUpdate(day, entry, { note: noteDraft.trim() });
+                        applyUpdate(day, entry, { note: noteDraft.trim() || undefined });
                         setEditingShiftId("");
                       }}
                       className="rounded-xl bg-cyan-700 px-3 py-2 text-xs font-extrabold text-white"
@@ -528,17 +536,25 @@ function ManageScheduleScreen({
               <div className="mt-4 grid gap-2">
                 <button
                   type="button"
-                  onClick={() => applyUpdate(day, entry, { switchRequested: true })}
-                  className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-3 py-3 text-sm font-extrabold text-fuchsia-700"
+                  onClick={() => applyUpdate(day, entry, { switchRequested: !Boolean(update?.switchRequested) })}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                    update?.switchRequested
+                      ? "border-fuchsia-200 bg-white text-fuchsia-700"
+                      : "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-700"
+                  }`}
                 >
-                  Request Switch
+                  {update?.switchRequested ? "Cancel Switch Request" : "Request Switch"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => applyUpdate(day, entry, { coverageRequested: true })}
-                  className="rounded-2xl border border-violet-100 bg-violet-50 px-3 py-3 text-sm font-extrabold text-violet-700"
+                  onClick={() => applyUpdate(day, entry, { coverageRequested: !Boolean(update?.coverageRequested) })}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                    update?.coverageRequested
+                      ? "border-violet-200 bg-white text-violet-700"
+                      : "border-violet-100 bg-violet-50 text-violet-700"
+                  }`}
                 >
-                  Request Coverage
+                  {update?.coverageRequested ? "Cancel Coverage Request" : "Request Coverage"}
                 </button>
                 <button
                   type="button"
@@ -697,7 +713,7 @@ export default function Home() {
       <main className="min-h-screen pb-28">
         <Header />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
-          {activeTab === "schedule" && <ScheduleScreen schedule={mergedSchedule} />}
+          {activeTab === "schedule" && <ScheduleScreen schedule={mergedSchedule} updates={shiftUpdates} />}
           {activeTab === "manage-schedule" && (
             <ManageScheduleScreen updates={shiftUpdates} onUpdateShift={updateShift} />
           )}

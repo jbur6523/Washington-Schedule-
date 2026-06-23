@@ -146,7 +146,7 @@ export const demoSchedule: DemoDay[] = [
         type: "Switch Requested",
         coverageIntensity: "low",
         status: "Switch Requested",
-        description: "Open to trading this scheduled shift.",
+        description: "Open to switching this scheduled shift.",
         targetStaffName: "Tom Nguyen",
         scope: "employee"
       },
@@ -159,7 +159,7 @@ export const demoSchedule: DemoDay[] = [
         type: "Coverage Requested",
         coverageIntensity: "low",
         status: "Coverage Requested",
-        description: "Coverage requested for this scheduled shift.",
+        description: "Coverage requested for this shift.",
         targetStaffName: "Tom Nguyen",
         scope: "employee"
       },
@@ -206,7 +206,7 @@ export const demoSchedule: DemoDay[] = [
         type: "Coverage Requested",
         coverageIntensity: "critical",
         status: "Coverage Requested",
-        description: "Coverage requested for this scheduled night shift.",
+        description: "Coverage requested for this shift.",
         targetStaffName: "Jean Rodrillo",
         scope: "employee"
       },
@@ -254,7 +254,7 @@ export const demoSchedule: DemoDay[] = [
         type: "Switch Requested",
         coverageIntensity: "low",
         status: "Switch Requested",
-        description: "Open to trading this scheduled shift.",
+        description: "Open to switching this scheduled shift.",
         targetStaffName: "Katryna Vuong",
         scope: "employee"
       },
