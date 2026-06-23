@@ -35,6 +35,8 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
   { id: "all", label: "All" }
 ];
 
+type ScheduleDay = (typeof demoSchedule)[number]["day"];
+
 function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
   const summary = getStaffSummary(member.name);
 
@@ -156,45 +158,38 @@ function getShiftMatches(filter: ScheduleShiftFilter) {
   };
 }
 
-function ScheduleSummary({ shiftFilter }: { shiftFilter: ScheduleShiftFilter }) {
+function ScheduleSummary({
+  selectedDay,
+  shiftFilter
+}: {
+  selectedDay: ScheduleDay;
+  shiftFilter: ScheduleShiftFilter;
+}) {
+  const day = demoSchedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? demoSchedule[0];
   const matchesShift = getShiftMatches(shiftFilter);
-  const scheduled = demoSchedule.reduce(
-    (count, day) => count + day.scheduled.filter((entry) => matchesShift(entry.shiftTime)).length,
-    0
-  );
-  const available = demoSchedule.reduce(
-    (count, day) => count + day.available.filter((entry) => matchesShift(entry.shiftTime)).length,
-    0
-  );
-  const wantsOff = demoSchedule.reduce(
-    (count, day) => count + day.wantsOff.filter((entry) => matchesShift(entry.shiftTime)).length,
-    0
-  );
-  const shortShiftPosts = demoSchedule.reduce(
-    (count, day) =>
-      count +
-      day.shiftPosts.filter((post) => matchesShift(post.shiftTime) && post.status === "Short Shift").length,
-    0
-  );
-  const switchRequests = demoSchedule.reduce(
-    (count, day) =>
-      count +
-      day.shiftPosts.filter((post) => matchesShift(post.shiftTime) && post.status === "Switch Requested").length,
-    0
-  );
-  const label =
+  const scheduled = day.scheduled.filter((entry) => matchesShift(entry.shiftTime)).length;
+  const available = day.available.filter((entry) => matchesShift(entry.shiftTime)).length;
+  const wantsOff = day.wantsOff.filter((entry) => matchesShift(entry.shiftTime)).length;
+  const shortShiftPosts = day.shiftPosts.filter(
+    (post) => matchesShift(post.shiftTime) && post.status === "Short Shift"
+  ).length;
+  const switchRequests = day.shiftPosts.filter(
+    (post) => matchesShift(post.shiftTime) && post.status === "Switch Requested"
+  ).length;
+  const shiftLabel =
     shiftFilter === "all"
-      ? "All Shifts Summary"
+      ? "All Shifts"
       : shiftFilter === "day"
-        ? "Day Shift Summary"
-        : "Night Shift Summary";
+        ? "Day Shift"
+        : "Night Shift";
 
   return (
     <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">3-day demo schedule</p>
-          <h2 className="mt-1 text-lg font-black text-hospital-ink">{label}</h2>
+          <h2 className="text-lg font-black text-hospital-ink">
+            {day.day} {shiftLabel} Summary
+          </h2>
         </div>
         {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
       </div>
@@ -255,6 +250,7 @@ function ScheduleFilterTabs({
 
 function ScheduleScreen() {
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
+  const [selectedDay, setSelectedDay] = useState<ScheduleDay>("Monday");
   const [expandedDay, setExpandedDay] = useState("");
 
   return (
@@ -266,16 +262,22 @@ function ScheduleScreen() {
           setExpandedDay("");
         }}
       />
-      <ScheduleSummary shiftFilter={shiftFilter} />
+      <ScheduleSummary selectedDay={selectedDay} shiftFilter={shiftFilter} />
       <Legend />
       <div className="space-y-3">
+        <p className="px-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+          3-day demo schedule
+        </p>
         {demoSchedule.map((day) => (
           <DayScheduleCard
             key={day.day}
             day={day}
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
-            onToggle={() => setExpandedDay((current) => (current === day.day ? "" : day.day))}
+            onToggle={() => {
+              setSelectedDay(day.day);
+              setExpandedDay((current) => (current === day.day ? "" : day.day));
+            }}
           />
         ))}
       </div>
