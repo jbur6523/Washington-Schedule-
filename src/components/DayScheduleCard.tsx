@@ -12,8 +12,8 @@ type DayScheduleCardProps = {
   onToggle: () => void;
 };
 
-function hasWantsOff(entry: ScheduleEntry, wantsOffEntries: ScheduleEntry[]) {
-  return wantsOffEntries.some(
+function hasCoverageRequest(entry: ScheduleEntry, coverageRequestEntries: ScheduleEntry[]) {
+  return coverageRequestEntries.some(
     (item) => item.staffName === entry.staffName && item.shiftTime === entry.shiftTime
   );
 }
@@ -21,12 +21,12 @@ function hasWantsOff(entry: ScheduleEntry, wantsOffEntries: ScheduleEntry[]) {
 function StaffScheduleRow({
   entry,
   variant,
-  wantsOff,
+  coverageRequested,
   posts
 }: {
   entry: ScheduleEntry;
   variant: "scheduled" | "available";
-  wantsOff?: boolean;
+  coverageRequested?: boolean;
   posts?: ShiftPost[];
 }) {
   const background =
@@ -44,9 +44,9 @@ function StaffScheduleRow({
         <StaffTypeBadge staffType={entry.staffType} compact />
       </div>
 
-      {(wantsOff || Boolean(posts?.length)) && (
+      {(coverageRequested || Boolean(posts?.length)) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          {wantsOff && <StatusChip status="Wants Off" compact />}
+          {coverageRequested && <StatusChip status="Coverage Requested" compact />}
           {posts?.map((post) => (
             <StatusChip
               key={post.id}
@@ -63,6 +63,12 @@ function StaffScheduleRow({
           {post.description}
         </p>
       ))}
+
+      {coverageRequested && (
+        <p className="mt-1 text-xs font-semibold leading-4 text-slate-600">
+          Remains scheduled unless coverage is approved.
+        </p>
+      )}
     </div>
   );
 }
@@ -92,18 +98,18 @@ function ShiftGroup({
   shiftTime,
   scheduled,
   available,
-  wantsOffEntries,
+  coverageRequestEntries,
   posts
 }: {
   title: string;
   shiftTime: "7A-7P" | "7P-7A";
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
-  wantsOffEntries: ScheduleEntry[];
+  coverageRequestEntries: ScheduleEntry[];
   posts: ShiftPost[];
 }) {
   const shiftPosts = posts.filter((post) => post.shiftTime === shiftTime);
-  const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift");
+  const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift" && post.status === "Short Shift");
 
   return (
     <section className="space-y-2">
@@ -120,14 +126,20 @@ function ShiftGroup({
 
       <div className="space-y-2">
         {scheduled.map((entry) => {
-          const employeePosts = shiftPosts.filter((post) => post.targetStaffName === entry.staffName);
+          const coverageRequested = hasCoverageRequest(entry, coverageRequestEntries);
+          const employeePosts = shiftPosts.filter(
+            (post) =>
+              post.scope === "employee" &&
+              post.targetStaffName === entry.staffName &&
+              post.status !== "Coverage Requested"
+          );
 
           return (
             <StaffScheduleRow
               key={`${entry.staffName}-${entry.shiftTime}-scheduled`}
               entry={entry}
               variant="scheduled"
-              wantsOff={hasWantsOff(entry, wantsOffEntries)}
+              coverageRequested={coverageRequested}
               posts={employeePosts}
             />
           );
@@ -175,7 +187,7 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
   const nightAvailable = day.available.filter((entry) => entry.shiftTime === "7P-7A");
   const visibleScheduled = day.scheduled.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
   const visibleAvailable = day.available.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
-  const visibleWantsOff = day.wantsOff.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
+  const visibleCoverageRequests = day.coverageRequests.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
   const visiblePosts = day.shiftPosts.filter((post) => shouldShowShift(shiftFilter, post.shiftTime));
   const alertPosts = getDayAlertPosts(visiblePosts);
   const showDayShift = shouldShowShift(shiftFilter, "7A-7P");
@@ -202,7 +214,7 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
           </p>
           <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
             {visibleScheduled.length} scheduled - {visibleAvailable.length} available -{" "}
-            {visibleWantsOff.length} wants off
+            {visibleCoverageRequests.length} coverage requested
           </p>
           <span className="mt-2 inline-flex text-xs font-extrabold text-cyan-700">
             {expanded ? "View less" : "View more"}
@@ -233,7 +245,7 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
               shiftTime="7A-7P"
               scheduled={dayScheduled}
               available={dayAvailable}
-              wantsOffEntries={day.wantsOff}
+              coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
             />
           )}
@@ -243,7 +255,7 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
               shiftTime="7P-7A"
               scheduled={nightScheduled}
               available={nightAvailable}
-              wantsOffEntries={day.wantsOff}
+              coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
             />
           )}

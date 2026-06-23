@@ -8,10 +8,11 @@ export type UsualShift =
 export type ScheduleStatus =
   | "Scheduled"
   | "Available"
-  | "Wants Off"
+  | "Coverage Requested"
   | "Short Shift"
   | "Switch Requested";
-export type ShiftPostType = "Open to Switch" | "Short Shift";
+export type EmployeeRequestStatus = "Switch Requested" | "Coverage Requested";
+export type ShiftPostType = EmployeeRequestStatus | "Short Shift";
 export type CoverageIntensity = "low" | "medium" | "critical";
 
 export type StaffMember = {
@@ -25,7 +26,7 @@ export type ScheduleEntry = {
   staffName: string;
   shiftTime: "7A-7P" | "7P-7A";
   staffType: StaffType;
-  status: Extract<ScheduleStatus, "Scheduled" | "Available" | "Wants Off">;
+  status: Extract<ScheduleStatus, "Scheduled" | "Available">;
 };
 
 export type ShiftPost = {
@@ -36,7 +37,7 @@ export type ShiftPost = {
   staffType: StaffType;
   type: ShiftPostType;
   coverageIntensity: CoverageIntensity;
-  status: Extract<ScheduleStatus, "Short Shift" | "Switch Requested">;
+  status: Extract<ScheduleStatus, "Short Shift" | EmployeeRequestStatus>;
   description: string;
   targetStaffName?: string;
   scope: "employee" | "shift";
@@ -46,7 +47,7 @@ export type DemoDay = {
   day: "Monday" | "Tuesday" | "Wednesday";
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
-  wantsOff: ScheduleEntry[];
+  coverageRequests: ScheduleEntry[];
   shiftPosts: ShiftPost[];
 };
 
@@ -132,8 +133,8 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Peter Van Dal (Pete)", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
       { staffName: "Reggie De Jesus", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
-    wantsOff: [
-      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants Off" }
+    coverageRequests: [
+      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
@@ -142,10 +143,23 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7A-7P",
         postedBy: "Tom Nguyen",
         staffType: "Full-time",
-        type: "Open to Switch",
+        type: "Switch Requested",
         coverageIntensity: "low",
         status: "Switch Requested",
-        description: "Wants to trade this shift.",
+        description: "Open to trading this scheduled shift.",
+        targetStaffName: "Tom Nguyen",
+        scope: "employee"
+      },
+      {
+        id: "monday-tom-coverage",
+        day: "Monday",
+        shiftTime: "7A-7P",
+        postedBy: "Tom Nguyen",
+        staffType: "Full-time",
+        type: "Coverage Requested",
+        coverageIntensity: "low",
+        status: "Coverage Requested",
+        description: "Coverage requested for this scheduled shift.",
         targetStaffName: "Tom Nguyen",
         scope: "employee"
       },
@@ -179,8 +193,8 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Kae Alameda", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" },
       { staffName: "Catherine Morgan", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
-    wantsOff: [
-      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants Off" }
+    coverageRequests: [
+      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
@@ -189,10 +203,10 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Jean Rodrillo",
         staffType: "Full-time",
-        type: "Short Shift",
+        type: "Coverage Requested",
         coverageIntensity: "critical",
-        status: "Short Shift",
-        description: "Urgently short for this night shift.",
+        status: "Coverage Requested",
+        description: "Coverage requested for this scheduled night shift.",
         targetStaffName: "Jean Rodrillo",
         scope: "employee"
       },
@@ -226,9 +240,9 @@ export const demoSchedule: DemoDay[] = [
       { staffName: "Kaitlyn Trivisonno", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" },
       { staffName: "Erica Collins", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
     ],
-    wantsOff: [
-      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Wants Off" },
-      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Wants Off" }
+    coverageRequests: [
+      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
@@ -237,10 +251,10 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7A-7P",
         postedBy: "Katryna Vuong",
         staffType: "Full-time",
-        type: "Open to Switch",
+        type: "Switch Requested",
         coverageIntensity: "low",
         status: "Switch Requested",
-        description: "Wants to trade this shift.",
+        description: "Open to trading this scheduled shift.",
         targetStaffName: "Katryna Vuong",
         scope: "employee"
       },
@@ -250,9 +264,9 @@ export const demoSchedule: DemoDay[] = [
         shiftTime: "7P-7A",
         postedBy: "Carl Lin",
         staffType: "Full-time",
-        type: "Short Shift",
+        type: "Coverage Requested",
         coverageIntensity: "medium",
-        status: "Short Shift",
+        status: "Coverage Requested",
         description: "Coverage help requested for this shift.",
         targetStaffName: "Carl Lin",
         scope: "employee"
@@ -287,10 +301,10 @@ export const getStaffSummary = (name: string) => {
     (count, day) => count + day.available.filter((entry) => entry.staffName === name).length,
     0
   );
-  const wantsOff = demoSchedule.reduce(
-    (count, day) => count + day.wantsOff.filter((entry) => entry.staffName === name).length,
+  const coverageRequests = demoSchedule.reduce(
+    (count, day) => count + day.coverageRequests.filter((entry) => entry.staffName === name).length,
     0
   );
 
-  return { scheduled, available, wantsOff };
+  return { scheduled, available, coverageRequests };
 };

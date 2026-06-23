@@ -8,7 +8,7 @@ type StaffCardProps = {
   summary: {
     scheduled: number;
     available: number;
-    wantsOff: number;
+    coverageRequests: number;
   };
 };
 
@@ -27,7 +27,7 @@ export function StaffCard({ staff, currentStatus, summary }: StaffCardProps) {
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
         {showStatus && <StatusChip status={currentStatus} compact />}
         <p className="text-xs font-semibold leading-5 text-slate-500">
-          {summary.scheduled} scheduled - {summary.available} available - {summary.wantsOff} wants off
+          {summary.scheduled} scheduled - {summary.available} available - {summary.coverageRequests} coverage requested
         </p>
       </div>
     </article>

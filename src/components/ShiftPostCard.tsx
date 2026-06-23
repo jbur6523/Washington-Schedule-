@@ -1,4 +1,4 @@
-import { ArrowRightLeft, SearchCheck } from "lucide-react";
+import { ArrowRightLeft, ClipboardCheck, SearchCheck } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import type { ShiftPost } from "@/data/mockSchedule";
@@ -9,12 +9,14 @@ type ShiftPostCardProps = {
 };
 
 const typeIcon = {
-  "Open to Switch": ArrowRightLeft,
+  "Switch Requested": ArrowRightLeft,
+  "Coverage Requested": ClipboardCheck,
   "Short Shift": SearchCheck
 };
 
 const typeHelp = {
-  "Open to Switch": "Employee wants to trade but is still scheduled.",
+  "Switch Requested": "Employee is open to trading this scheduled shift.",
+  "Coverage Requested": "Employee remains scheduled unless coverage is approved.",
   "Short Shift": "Department is short for part or all of this shift."
 };
 

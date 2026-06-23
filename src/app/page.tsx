@@ -14,7 +14,11 @@ import {
   demoSchedule,
   getStaffSummary,
   staff,
+  type DemoDay,
+  type EmployeeRequestStatus,
+  type ScheduleEntry,
   type ScheduleStatus,
+  type ShiftPost,
   type StaffMember
 } from "@/data/mockSchedule";
 
@@ -37,11 +41,24 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
 
 type ScheduleDay = (typeof demoSchedule)[number]["day"];
 
+type DemoShiftUpdate = {
+  day: ScheduleDay;
+  shiftTime: "7A-7P" | "7P-7A";
+  staffName: string;
+  staffType: "Full-time" | "Per diem";
+  switchRequested?: boolean;
+  coverageRequested?: boolean;
+  note?: string;
+};
+
+const shiftUpdateId = (staffName: string, day: ScheduleDay, shiftTime: "7A-7P" | "7P-7A") =>
+  `${staffName}-${day}-${shiftTime}`;
+
 function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
   const summary = getStaffSummary(member.name);
 
-  if (summary.wantsOff > 0) {
-    return "Wants Off";
+  if (summary.coverageRequests > 0) {
+    return "Coverage Requested";
   }
 
   if (summary.available > 0) {
@@ -133,13 +150,13 @@ function Legend() {
         <div>
           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status chips</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <StatusChip status="Wants Off" />
             <StatusChip status="Switch Requested" />
+            <StatusChip status="Coverage Requested" />
             <StatusChip status="Short Shift" />
             <StatusChip status="Short Shift" intensity="critical" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Wants Off marks a requested day off. Switch Requested marks a requested trade.
+            Switch Requested marks a requested trade. Coverage Requested means the employee remains scheduled unless coverage is approved.
             Yellow Short Shift means short. Red Short Shift means urgently short.
           </p>
         </div>
@@ -158,18 +175,104 @@ function getShiftMatches(filter: ScheduleShiftFilter) {
   };
 }
 
+function getShiftLabel(member: StaffMember | undefined, shiftTime: "7A-7P" | "7P-7A") {
+  if (member?.usualShift === "PFT") {
+    return "PFT";
+  }
+
+  if (member?.usualShift === "Pulm Rehab") {
+    return "Pulmonary Rehab";
+  }
+
+  return shiftTime === "7A-7P" ? "Day Shift" : "Night Shift";
+}
+
+function requestPostFromUpdate(update: DemoShiftUpdate, status: EmployeeRequestStatus): ShiftPost {
+  const id = `${shiftUpdateId(update.staffName, update.day, update.shiftTime)}-${status}`;
+
+  return {
+    id,
+    day: update.day,
+    shiftTime: update.shiftTime,
+    postedBy: update.staffName,
+    staffType: update.staffType,
+    type: status,
+    coverageIntensity: "low",
+    status,
+    description:
+      status === "Switch Requested"
+        ? "Open to trading this scheduled shift."
+        : "Coverage requested for this scheduled shift.",
+    targetStaffName: update.staffName,
+    scope: "employee"
+  };
+}
+
+function getSessionShiftPosts(updates: DemoShiftUpdate[]) {
+  return updates.flatMap((update) => {
+    const posts: ShiftPost[] = [];
+
+    if (update.switchRequested) {
+      posts.push(requestPostFromUpdate(update, "Switch Requested"));
+    }
+
+    if (update.coverageRequested) {
+      posts.push(requestPostFromUpdate(update, "Coverage Requested"));
+    }
+
+    return posts;
+  });
+}
+
+function getMergedSchedule(updates: DemoShiftUpdate[]): DemoDay[] {
+  const sessionPosts = getSessionShiftPosts(updates);
+
+  return demoSchedule.map((day) => {
+    const dayUpdates = updates.filter((update) => update.day === day.day);
+    const coverageKeys = new Set(
+      day.coverageRequests.map((entry) => `${entry.staffName}-${entry.shiftTime}`)
+    );
+    const sessionCoverageRequests: ScheduleEntry[] = dayUpdates
+      .filter((update) => update.coverageRequested)
+      .filter((update) => {
+        const key = `${update.staffName}-${update.shiftTime}`;
+
+        if (coverageKeys.has(key)) {
+          return false;
+        }
+
+        coverageKeys.add(key);
+        return true;
+      })
+      .map((update) => ({
+        staffName: update.staffName,
+        shiftTime: update.shiftTime,
+        staffType: update.staffType,
+        status: "Scheduled"
+      }));
+
+    return {
+      ...day,
+      coverageRequests: [...day.coverageRequests, ...sessionCoverageRequests],
+      shiftPosts: [...day.shiftPosts, ...sessionPosts.filter((post) => post.day === day.day)]
+    };
+  });
+}
+
 function ScheduleSummary({
+  schedule,
   selectedDay,
   shiftFilter
 }: {
+  schedule: DemoDay[];
   selectedDay: ScheduleDay;
   shiftFilter: ScheduleShiftFilter;
 }) {
-  const day = demoSchedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? demoSchedule[0];
+  const day = schedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? schedule[0];
   const matchesShift = getShiftMatches(shiftFilter);
   const scheduled = day.scheduled.filter((entry) => matchesShift(entry.shiftTime)).length;
   const available = day.available.filter((entry) => matchesShift(entry.shiftTime)).length;
-  const wantsOff = day.wantsOff.filter((entry) => matchesShift(entry.shiftTime)).length;
+  const coverageRequests = day.coverageRequests.filter((entry) => matchesShift(entry.shiftTime)).length;
   const shortShiftPosts = day.shiftPosts.filter(
     (post) => matchesShift(post.shiftTime) && post.status === "Short Shift"
   ).length;
@@ -197,7 +300,7 @@ function ScheduleSummary({
         {[
           ["Scheduled", scheduled],
           ["Available", available],
-          ["Wants off", wantsOff],
+          ["Coverage", coverageRequests],
           ["Short shifts", shortShiftPosts],
           ["Switch requests", switchRequests]
         ].map(([labelText, value]) => (
@@ -248,7 +351,7 @@ function ScheduleFilterTabs({
   );
 }
 
-function ScheduleScreen() {
+function ScheduleScreen({ schedule }: { schedule: DemoDay[] }) {
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState<ScheduleDay>("Monday");
   const [expandedDay, setExpandedDay] = useState("");
@@ -262,13 +365,13 @@ function ScheduleScreen() {
           setExpandedDay("");
         }}
       />
-      <ScheduleSummary selectedDay={selectedDay} shiftFilter={shiftFilter} />
+      <ScheduleSummary schedule={schedule} selectedDay={selectedDay} shiftFilter={shiftFilter} />
       <Legend />
       <div className="space-y-3">
         <p className="px-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
           3-day demo schedule
         </p>
-        {demoSchedule.map((day) => (
+        {schedule.map((day) => (
           <DayScheduleCard
             key={day.day}
             day={day}
@@ -285,7 +388,184 @@ function ScheduleScreen() {
   );
 }
 
-function AvailabilityScreen() {
+function ManageScheduleScreen({
+  updates,
+  onUpdateShift
+}: {
+  updates: DemoShiftUpdate[];
+  onUpdateShift: (update: DemoShiftUpdate) => void;
+}) {
+  const [selectedStaffName, setSelectedStaffName] = useState("Jonathan Burdick");
+  const [editingShiftId, setEditingShiftId] = useState("");
+  const [noteDraft, setNoteDraft] = useState("");
+  const selectedStaff = staff.find((member) => member.name === selectedStaffName) ?? staff[0];
+  const scheduledShifts = demoSchedule.flatMap((day) =>
+    day.scheduled
+      .filter((entry) => entry.staffName === selectedStaffName)
+      .map((entry) => ({ day: day.day, entry, posts: day.shiftPosts, coverageRequests: day.coverageRequests }))
+  );
+
+  const getUpdate = (day: ScheduleDay, entry: ScheduleEntry) =>
+    updates.find(
+      (update) =>
+        update.staffName === entry.staffName &&
+        update.day === day &&
+        update.shiftTime === entry.shiftTime
+    );
+
+  const applyUpdate = (
+    day: ScheduleDay,
+    entry: ScheduleEntry,
+    patch: Partial<Pick<DemoShiftUpdate, "switchRequested" | "coverageRequested" | "note">>
+  ) => {
+    const current = getUpdate(day, entry);
+    onUpdateShift({
+      day,
+      shiftTime: entry.shiftTime,
+      staffName: entry.staffName,
+      staffType: entry.staffType,
+      ...current,
+      ...patch
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <label className="text-xs font-extrabold uppercase tracking-wide text-cyan-700" htmlFor="staff-viewer">
+          Viewing as:
+        </label>
+        <select
+          id="staff-viewer"
+          value={selectedStaffName}
+          onChange={(event) => {
+            setSelectedStaffName(event.target.value);
+            setEditingShiftId("");
+            setNoteDraft("");
+          }}
+          className="mt-2 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3 text-base font-extrabold text-hospital-ink outline-none"
+        >
+          {staff.map((member) => (
+            <option key={member.id} value={member.name}>
+              {member.name}
+            </option>
+          ))}
+        </select>
+        <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+          Demo only: requests do not change the official schedule.
+        </p>
+      </section>
+
+      <div className="space-y-3">
+        {scheduledShifts.length === 0 && (
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <p className="text-sm font-bold text-slate-500">No scheduled shifts in the demo schedule.</p>
+          </section>
+        )}
+
+        {scheduledShifts.map(({ day, entry, posts, coverageRequests }) => {
+          const shiftId = shiftUpdateId(entry.staffName, day, entry.shiftTime);
+          const update = getUpdate(day, entry);
+          const existingPosts = posts.filter(
+            (post) => post.scope === "employee" && post.targetStaffName === entry.staffName
+          );
+          const hasBaseCoverage = coverageRequests.some(
+            (request) => request.staffName === entry.staffName && request.shiftTime === entry.shiftTime
+          );
+          const hasSwitchRequest =
+            Boolean(update?.switchRequested) ||
+            existingPosts.some((post) => post.status === "Switch Requested");
+          const hasCoverageRequest = Boolean(update?.coverageRequested) || hasBaseCoverage;
+          const shiftLabel = getShiftLabel(selectedStaff, entry.shiftTime);
+          const note = update?.note ?? "";
+          const editing = editingShiftId === shiftId;
+
+          return (
+            <article key={shiftId} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{day}</p>
+                  <h2 className="mt-1 text-xl font-black text-hospital-ink">{shiftLabel}</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">{entry.shiftTime}</p>
+                </div>
+                <StaffTypeBadge staffType={entry.staffType} />
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <StatusChip status="Scheduled" compact />
+                {hasSwitchRequest && <StatusChip status="Switch Requested" compact />}
+                {hasCoverageRequest && <StatusChip status="Coverage Requested" compact />}
+              </div>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                The employee remains scheduled unless coverage is approved.
+              </p>
+
+              {note && (
+                <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold leading-5 text-slate-600">
+                  {note}
+                </p>
+              )}
+
+              {editing && (
+                <div className="mt-3">
+                  <textarea
+                    value={noteDraft}
+                    onChange={(event) => setNoteDraft(event.target.value.slice(0, 140))}
+                    className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-cyan-300"
+                    maxLength={140}
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-slate-400">{noteDraft.length}/140</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        applyUpdate(day, entry, { note: noteDraft.trim() });
+                        setEditingShiftId("");
+                      }}
+                      className="rounded-xl bg-cyan-700 px-3 py-2 text-xs font-extrabold text-white"
+                    >
+                      Save Note
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyUpdate(day, entry, { switchRequested: true })}
+                  className="rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-3 py-3 text-sm font-extrabold text-fuchsia-700"
+                >
+                  Request Switch
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyUpdate(day, entry, { coverageRequested: true })}
+                  className="rounded-2xl border border-violet-100 bg-violet-50 px-3 py-3 text-sm font-extrabold text-violet-700"
+                >
+                  Offer Shift for Coverage
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingShiftId(shiftId);
+                    setNoteDraft(note);
+                  }}
+                  className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700"
+                >
+                  Add/Edit Note
+                </button>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function AvailableStaffScreen() {
   return (
     <div className="space-y-4">
       {demoSchedule.map((day) => (
@@ -328,7 +608,7 @@ function AvailabilityScreen() {
   );
 }
 
-function ShiftBoardScreen({ onDemoAction }: { onDemoAction: () => void }) {
+function ShiftBoardScreen({ posts, onDemoAction }: { posts: ShiftPost[]; onDemoAction: () => void }) {
   return (
     <div className="space-y-4">
       <section className="rounded-3xl border border-rose-100 bg-rose-50/80 p-4 shadow-soft">
@@ -344,7 +624,7 @@ function ShiftBoardScreen({ onDemoAction }: { onDemoAction: () => void }) {
           </div>
         </div>
       </section>
-      {allShiftPosts.map((post) => (
+      {posts.map((post) => (
         <ShiftPostCard key={post.id} post={post} onDemoAction={onDemoAction} />
       ))}
     </div>
@@ -396,15 +676,39 @@ function StaffScreen() {
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("schedule");
   const [modalOpen, setModalOpen] = useState(false);
+  const [shiftUpdates, setShiftUpdates] = useState<DemoShiftUpdate[]>([]);
+  const mergedSchedule = getMergedSchedule(shiftUpdates);
+  const shiftBoardPosts = [...allShiftPosts, ...getSessionShiftPosts(shiftUpdates)];
+
+  const updateShift = (nextUpdate: DemoShiftUpdate) => {
+    setShiftUpdates((currentUpdates) => {
+      const id = shiftUpdateId(nextUpdate.staffName, nextUpdate.day, nextUpdate.shiftTime);
+      const existingIndex = currentUpdates.findIndex(
+        (update) => shiftUpdateId(update.staffName, update.day, update.shiftTime) === id
+      );
+
+      if (existingIndex === -1) {
+        return [...currentUpdates, nextUpdate];
+      }
+
+      return currentUpdates.map((update, index) =>
+        index === existingIndex ? { ...update, ...nextUpdate } : update
+      );
+    });
+  };
 
   return (
     <>
       <main className="min-h-screen pb-28">
         <Header />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
-          {activeTab === "schedule" && <ScheduleScreen />}
-          {activeTab === "availability" && <AvailabilityScreen />}
-          {activeTab === "shift-board" && <ShiftBoardScreen onDemoAction={() => setModalOpen(true)} />}
+          {activeTab === "schedule" && <ScheduleScreen schedule={mergedSchedule} />}
+          {activeTab === "manage-schedule" && (
+            <ManageScheduleScreen updates={shiftUpdates} onUpdateShift={updateShift} />
+          )}
+          {activeTab === "shift-board" && (
+            <ShiftBoardScreen posts={shiftBoardPosts} onDemoAction={() => setModalOpen(true)} />
+          )}
           {activeTab === "staff" && <StaffScreen />}
         </div>
       </main>

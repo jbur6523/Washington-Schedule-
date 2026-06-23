@@ -1,6 +1,6 @@
-import { CalendarDays, ClipboardList, Users, UserCheck } from "lucide-react";
+import { CalendarDays, ClipboardList, Users, UserCog } from "lucide-react";
 
-export type TabId = "schedule" | "availability" | "shift-board" | "staff";
+export type TabId = "schedule" | "manage-schedule" | "shift-board" | "staff";
 
 type BottomNavigationProps = {
   activeTab: TabId;
@@ -9,7 +9,7 @@ type BottomNavigationProps = {
 
 const tabs: Array<{ id: TabId; label: string; icon: typeof CalendarDays }> = [
   { id: "schedule", label: "Schedule", icon: CalendarDays },
-  { id: "availability", label: "Availability", icon: UserCheck },
+  { id: "manage-schedule", label: "Manage Schedule", icon: UserCog },
   { id: "shift-board", label: "Shift Board", icon: ClipboardList },
   { id: "staff", label: "Staff", icon: Users }
 ];
@@ -27,7 +27,7 @@ export function BottomNavigation({ activeTab, onTabChange }: BottomNavigationPro
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
-              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-1 text-[10px] font-extrabold leading-tight transition ${
+              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-0.5 text-[9px] font-extrabold leading-tight transition ${
                 active ? "bg-cyan-50 text-cyan-700" : "text-slate-500 hover:bg-slate-50"
               }`}
             >
