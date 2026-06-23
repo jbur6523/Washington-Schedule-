@@ -152,7 +152,7 @@ function Legend() {
             <StatusChip status="Short Shift" intensity="critical" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Switch Requested marks a requested trade. Coverage Requested marks a coverage request for that employee's shift.
+            Switch Requested marks a requested trade. Coverage Requested marks a coverage request for that employee.
             Yellow Short Shift means short. Red Short Shift means urgently short.
           </p>
         </div>
