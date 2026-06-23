@@ -176,7 +176,18 @@ function ScheduleSummary({ shiftFilter }: { shiftFilter: ScheduleShiftFilter }) 
       day.shiftPosts.filter((post) => matchesShift(post.shiftTime) && post.status === "Short Shift").length,
     0
   );
-  const label = shiftFilter === "all" ? "All shifts" : shiftFilter === "day" ? "Day shift" : "Night shift";
+  const switchRequests = demoSchedule.reduce(
+    (count, day) =>
+      count +
+      day.shiftPosts.filter((post) => matchesShift(post.shiftTime) && post.status === "Switch Requested").length,
+    0
+  );
+  const label =
+    shiftFilter === "all"
+      ? "All Shifts Summary"
+      : shiftFilter === "day"
+        ? "Day Shift Summary"
+        : "Night Shift Summary";
 
   return (
     <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
@@ -187,16 +198,17 @@ function ScheduleSummary({ shiftFilter }: { shiftFilter: ScheduleShiftFilter }) 
         </div>
         {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
       </div>
-      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+      <div className="mt-3 grid grid-cols-5 gap-1.5 text-center">
         {[
           ["Scheduled", scheduled],
           ["Available", available],
           ["Wants off", wantsOff],
-          ["Short Shift", shortShiftPosts]
+          ["Short shifts", shortShiftPosts],
+          ["Switch requests", switchRequests]
         ].map(([labelText, value]) => (
-          <div key={labelText} className="rounded-xl bg-slate-50 px-2 py-2">
+          <div key={labelText} className="rounded-xl bg-slate-50 px-1.5 py-2">
             <p className="text-base font-black leading-none text-hospital-ink">{value}</p>
-            <p className="mt-1 text-[10px] font-extrabold uppercase leading-3 text-slate-400">{labelText}</p>
+            <p className="mt-1 text-[9px] font-extrabold uppercase leading-3 text-slate-400">{labelText}</p>
           </div>
         ))}
       </div>
@@ -212,30 +224,37 @@ function ScheduleFilterTabs({
   onChange: (filter: ScheduleShiftFilter) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1 shadow-soft">
-      {scheduleFilterOptions.map((option) => {
-        const active = option.id === shiftFilter;
+    <section className="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-fuchsia-50 p-3 shadow-soft">
+      <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-hospital-ink">
+        View Schedule
+      </p>
+      <div className="grid grid-cols-3 rounded-full border border-cyan-200 bg-white/95 p-1 shadow-sm">
+        {scheduleFilterOptions.map((option) => {
+          const active = option.id === shiftFilter;
 
-        return (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onChange(option.id)}
-            className={`rounded-xl px-3 py-2 text-sm font-extrabold transition ${
-              active ? "bg-cyan-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
-            }`}
-            aria-pressed={active}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => onChange(option.id)}
+              className={`min-h-12 rounded-full px-3 text-base font-black transition ${
+                active
+                  ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
+                  : "text-slate-600 hover:bg-fuchsia-50 hover:text-fuchsia-700"
+              }`}
+              aria-pressed={active}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 function ScheduleScreen() {
-  const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("all");
+  const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [expandedDay, setExpandedDay] = useState("");
 
   return (
@@ -380,7 +399,7 @@ export default function Home() {
     <>
       <main className="min-h-screen pb-28">
         <Header />
-        <div className="mx-auto max-w-xl px-4 py-5 sm:px-5">
+        <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
           {activeTab === "schedule" && <ScheduleScreen />}
           {activeTab === "availability" && <AvailabilityScreen />}
           {activeTab === "shift-board" && <ShiftBoardScreen onDemoAction={() => setModalOpen(true)} />}

@@ -180,6 +180,12 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
   const alertPosts = getDayAlertPosts(visiblePosts);
   const showDayShift = shouldShowShift(shiftFilter, "7A-7P");
   const showNightShift = shouldShowShift(shiftFilter, "7P-7A");
+  const shiftSubtitle =
+    shiftFilter === "all"
+      ? "Day + Night"
+      : shiftFilter === "day"
+        ? "Day Shift 7A-7P"
+        : "Night Shift 7P-7A";
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white bg-white/95 shadow-soft">
@@ -191,6 +197,9 @@ export function DayScheduleCard({ day, expanded, shiftFilter, onToggle }: DaySch
       >
         <div className="min-w-0">
           <h2 className="text-xl font-black text-hospital-ink">{day.day}</h2>
+          <p className="mt-0.5 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+            {shiftSubtitle}
+          </p>
           <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
             {visibleScheduled.length} scheduled - {visibleAvailable.length} available -{" "}
             {visibleWantsOff.length} wants off
