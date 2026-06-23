@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, Sparkles } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { ConfirmationModal } from "@/components/ConfirmationModal";
-import { DayScheduleCard } from "@/components/DayScheduleCard";
+import { DayScheduleCard, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffCard } from "@/components/StaffCard";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
@@ -27,6 +27,12 @@ const filterOptions: StaffFilter[] = [
   "Dayshift",
   "Nightshift",
   "Specialty / flexible"
+];
+
+const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
+  { id: "day", label: "Day" },
+  { id: "night", label: "Night" },
+  { id: "all", label: "All" }
 ];
 
 function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
@@ -105,6 +111,9 @@ function Legend() {
             <StaffTypeBadge staffType="Full-time" />
             <StaffTypeBadge staffType="Per diem" />
           </div>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+            FT means full-time. PD means per diem.
+          </p>
         </div>
 
         <div>
@@ -128,6 +137,7 @@ function Legend() {
             <StatusChip status="Short Shift" intensity="critical" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+            Wants Off marks a requested day off. Switch Requested marks a requested trade.
             Yellow Short Shift means short. Red Short Shift means urgently short.
           </p>
         </div>
@@ -136,18 +146,116 @@ function Legend() {
   );
 }
 
-function ScheduleScreen() {
-  const [expandedDay, setExpandedDay] = useState("Monday");
+function getShiftMatches(filter: ScheduleShiftFilter) {
+  return (shiftTime: "7A-7P" | "7P-7A") => {
+    if (filter === "all") {
+      return true;
+    }
+
+    return filter === "day" ? shiftTime === "7A-7P" : shiftTime === "7P-7A";
+  };
+}
+
+function ScheduleSummary({ shiftFilter }: { shiftFilter: ScheduleShiftFilter }) {
+  const matchesShift = getShiftMatches(shiftFilter);
+  const scheduled = demoSchedule.reduce(
+    (count, day) => count + day.scheduled.filter((entry) => matchesShift(entry.shiftTime)).length,
+    0
+  );
+  const available = demoSchedule.reduce(
+    (count, day) => count + day.available.filter((entry) => matchesShift(entry.shiftTime)).length,
+    0
+  );
+  const wantsOff = demoSchedule.reduce(
+    (count, day) => count + day.wantsOff.filter((entry) => matchesShift(entry.shiftTime)).length,
+    0
+  );
+  const shortShiftPosts = demoSchedule.reduce(
+    (count, day) =>
+      count +
+      day.shiftPosts.filter((post) => matchesShift(post.shiftTime) && post.status === "Short Shift").length,
+    0
+  );
+  const label = shiftFilter === "all" ? "All shifts" : shiftFilter === "day" ? "Day shift" : "Night shift";
 
   return (
-    <div className="space-y-4">
+    <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">3-day demo schedule</p>
+          <h2 className="mt-1 text-lg font-black text-hospital-ink">{label}</h2>
+        </div>
+        {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
+      </div>
+      <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+        {[
+          ["Scheduled", scheduled],
+          ["Available", available],
+          ["Wants off", wantsOff],
+          ["Short Shift", shortShiftPosts]
+        ].map(([labelText, value]) => (
+          <div key={labelText} className="rounded-xl bg-slate-50 px-2 py-2">
+            <p className="text-base font-black leading-none text-hospital-ink">{value}</p>
+            <p className="mt-1 text-[10px] font-extrabold uppercase leading-3 text-slate-400">{labelText}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScheduleFilterTabs({
+  shiftFilter,
+  onChange
+}: {
+  shiftFilter: ScheduleShiftFilter;
+  onChange: (filter: ScheduleShiftFilter) => void;
+}) {
+  return (
+    <div className="grid grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1 shadow-soft">
+      {scheduleFilterOptions.map((option) => {
+        const active = option.id === shiftFilter;
+
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange(option.id)}
+            className={`rounded-xl px-3 py-2 text-sm font-extrabold transition ${
+              active ? "bg-cyan-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-50"
+            }`}
+            aria-pressed={active}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ScheduleScreen() {
+  const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("all");
+  const [expandedDay, setExpandedDay] = useState("");
+
+  return (
+    <div className="space-y-3">
+      <ScheduleFilterTabs
+        shiftFilter={shiftFilter}
+        onChange={(filter) => {
+          setShiftFilter(filter);
+          setExpandedDay("");
+        }}
+      />
+      <ScheduleSummary shiftFilter={shiftFilter} />
       <Legend />
-      <div className="space-y-4">
+      <div className="space-y-3">
         {demoSchedule.map((day) => (
           <DayScheduleCard
             key={day.day}
             day={day}
             expanded={expandedDay === day.day}
+            shiftFilter={shiftFilter}
             onToggle={() => setExpandedDay((current) => (current === day.day ? "" : day.day))}
           />
         ))}
