@@ -264,22 +264,6 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
     setMessage("Notifications disabled on this device.");
   };
 
-  const sendTestNotification = async () => {
-    setSaving(true);
-    setError("");
-    setMessage("");
-
-    const response = await fetch("/api/notifications/test", { method: "POST" });
-    setSaving(false);
-
-    if (!response.ok) {
-      setError("Unable to send test notification.");
-      return;
-    }
-
-    setMessage("Test notification queued for this account.");
-  };
-
   if (developmentFallback) {
     return null;
   }
@@ -339,23 +323,6 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
               {permission === "denied" ? " Permission is denied in this browser." : ""}
             </p>
           </div>
-
-          {authContext.role === "admin" && (
-            <div className="mt-4 rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-3 py-3">
-              <p className="text-sm font-black text-hospital-ink">Admin notification test</p>
-              <p className="mt-1 text-xs font-bold leading-5 text-fuchsia-900">
-                Sends a test in-app and push notification to your own account.
-              </p>
-              <button
-                type="button"
-                onClick={() => void sendTestNotification()}
-                disabled={saving}
-                className="mt-3 min-h-10 w-full rounded-2xl bg-fuchsia-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
-              >
-                Send Test Notification
-              </button>
-            </div>
-          )}
 
           <div className="mt-4 grid gap-2">
             {[

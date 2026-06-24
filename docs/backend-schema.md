@@ -1,6 +1,6 @@
 # Washington-Schedule Backend Schema
 
-This backend foundation is for an internal Washington Hospital respiratory department pilot. It prepares Supabase Auth, Postgres, Row Level Security, and future private storage without replacing the current demo UI data source yet.
+This backend foundation supports the Washington Hospital respiratory department app. It uses Supabase Auth, Postgres, Row Level Security, and future private storage while keeping schedule coordination data protected.
 
 Required public environment variables:
 
@@ -16,8 +16,8 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 ### Core
 
-- `hospitals`: top-level hospital record. The pilot starts with Washington Hospital.
-- `departments`: department records under a hospital. The pilot starts with one respiratory department and keeps `active_schedule_version_id` here.
+- `hospitals`: top-level hospital record. Washington Hospital is the initial hospital record.
+- `departments`: department records under a hospital. The respiratory department keeps `active_schedule_version_id` here.
 - `profiles`: app user profile linked to `auth.users`.
 - `department_memberships`: joins profiles to departments with an `admin`, `lead`, or `staff` role.
 
@@ -127,8 +127,8 @@ General policy rules:
 - Phone numbers should not appear on Coverage Board cards by default.
 - Phone numbers should not appear in schedule import previews unless a separate staff directory import workflow is built.
 - Phone numbers are never public and never visible to unauthenticated users.
-- Use fake/demo phone numbers only in seed data, screenshots, or examples.
-- Emergency contacts are out of scope for the pilot.
+- Use placeholder phone numbers only in seed data, screenshots, or examples.
+- Emergency contacts are out of scope.
 
 Phase 3 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff self-edit remains future functionality.
 
@@ -225,4 +225,4 @@ Assigned username rule:
 - Clinical notes.
 - Hire dates.
 - Emergency contact numbers.
-- Real staff phone numbers in seed/demo data.
+- Real staff phone numbers in seed data.

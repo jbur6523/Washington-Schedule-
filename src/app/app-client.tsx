@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Sparkles, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -34,7 +34,7 @@ import {
   type ShiftType,
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
-import { allShiftPosts, demoSchedule, type DemoDay, type ShiftPost } from "@/data/mockSchedule";
+import { allShiftPosts, fallbackSchedule, type ScheduleDay, type ShiftPost } from "@/data/mockSchedule";
 
 const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
   { id: "day", label: "Day" },
@@ -181,10 +181,6 @@ function Header({
               <h1 className="text-2xl font-black tracking-normal text-hospital-ink sm:text-3xl">
                 Washington Schedule
               </h1>
-              <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
-                <Sparkles size={13} />
-                {developmentFallback ? "Demo Mode" : "Pilot"}
-              </span>
             </div>
             <p className="mt-1 text-sm font-bold text-hospital-muted">
               Respiratory Department Staffing
@@ -235,7 +231,7 @@ function AuthNotice({
   if (developmentFallback) {
     return (
       <section className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-900">
-        Supabase environment variables are not configured, so local development is showing demo schedule data.
+        Schedule data is unavailable because the app configuration is incomplete.
       </section>
     );
   }
@@ -328,7 +324,7 @@ function ScheduleSummary({
   selectedDay,
   shiftFilter
 }: {
-  schedule: DemoDay[];
+  schedule: ScheduleDay[];
   selectedDay: string;
   shiftFilter: ScheduleShiftFilter;
 }) {
@@ -434,7 +430,7 @@ function ScheduleScreen({
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
   const days = useMemo(
-    () => (developmentFallback ? demoSchedule : schedule?.days ?? []),
+    () => (developmentFallback ? fallbackSchedule : schedule?.days ?? []),
     [developmentFallback, schedule]
   );
   const shiftNotes = useMemo(() => {
@@ -534,7 +530,7 @@ function ScheduleScreen({
 
   const toggleAvailability = async (target: AvailabilityTarget, activeOverrideId?: string) => {
     if (developmentFallback) {
-      setAvailabilityError("Live availability changes are unavailable in local demo mode.");
+      setAvailabilityError("Live availability changes are unavailable until the app configuration is complete.");
       return;
     }
 
@@ -624,7 +620,7 @@ function ScheduleScreen({
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 px-1">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-            {developmentFallback ? "Demo schedule" : schedule?.version.label}
+            {developmentFallback ? "Schedule unavailable" : schedule?.version.label}
           </p>
           {authContext.role === "admin" && !developmentFallback && (
             <Link href="/admin/schedule-versions" className="text-xs font-extrabold text-cyan-700">

@@ -1,4 +1,4 @@
-import type { DemoDay, ScheduleEntry, ShiftPost, StaffType } from "@/data/mockSchedule";
+import type { ScheduleDay, ScheduleEntry, ShiftPost, StaffType } from "@/data/mockSchedule";
 import { coworkerTitleDetails, type CoworkerTitle } from "@/lib/coworker-titles";
 
 export type ScheduleVersionStatus = "draft" | "review" | "published" | "archived";
@@ -178,7 +178,7 @@ export type ActiveSchedule = {
   requests: ShiftRequestRow[];
   offers: ShiftRequestOfferRow[];
   shortages: ShiftShortageRow[];
-  days: DemoDay[];
+  days: ScheduleDay[];
   shiftPosts: ShiftPost[];
 };
 
@@ -405,7 +405,7 @@ export function adaptActiveSchedule(
         .map((entry) => entryToScheduleEntry(entry, coworkerTitlesByStaffProfileId)),
       coverageRequests: [],
       shiftPosts: shiftPosts.filter((post) => post.day === `${dayName} ${dateLabel}`)
-    } satisfies DemoDay;
+    } satisfies ScheduleDay;
   });
 
   return { version, entries, effectiveEntries, overrides, requests, offers, shortages, days, shiftPosts };

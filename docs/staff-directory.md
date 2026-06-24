@@ -15,7 +15,7 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - Phone numbers are shown only inside Staff Directory/profile areas.
 - Phone numbers must not be shown on Schedule cards or Coverage Board cards by default.
 - Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, `shift_request_offers`, Coverage Board posts, import rows, audit summaries, or public examples.
-- Use fake/demo phone numbers only for testing or seed data.
+- Use placeholder phone numbers only for seed data and public examples.
 - Do not add patient phone numbers, emergency contacts, hire dates, payroll data, clinical notes, or EMR data.
 
 ## First-Time Contact Setup
@@ -29,7 +29,7 @@ Fields:
 
 Both fields are optional and can be skipped. If entered, the values are trimmed and saved to the linked `staff_profiles` record. Email uses basic format validation when provided.
 
-The setup copy tells users these fields are optional and visible to others in the Staff Directory. Contact email is directory visibility only; the app does not send email notifications in the current pilot.
+The setup copy tells users these fields are optional and visible to others in the Staff Directory. Contact email is directory visibility only; the app does not send email notifications.
 
 Returning claimed users are not forced through contact setup on every login. Staff can update contact information later when self-edit/settings are available.
 

@@ -1,6 +1,6 @@
-# Washington-Schedule Pilot Bootstrap
+# Washington-Schedule Department Bootstrap
 
-This file documents the manual first-admin setup for the Washington Hospital respiratory department pilot.
+This file documents the manual first-admin setup for the Washington Hospital respiratory department.
 
 The application now expects Supabase Auth plus database records that connect an authenticated user to a profile, department membership, and optional staff profile.
 
@@ -20,17 +20,17 @@ Redeploy after changing environment variables.
 
 ## Supabase Dashboard Settings
 
-Recommended pilot settings:
+Recommended settings:
 
 - Authentication > URL Configuration > Site URL: set to the production Vercel URL.
 - Authentication > URL Configuration > Redirect URLs: include the production URL and local development URL, such as `http://localhost:3000/**`.
 - Authentication > Providers > Email: enabled.
-- Authentication > Signups: disabled for invite/provision-only pilot access.
+- Authentication > Signups: disabled for invite/provision-only department access.
 - Email confirmation: choose the hospital-approved flow before inviting staff. If enabled, users must confirm email before login.
 
 ## First Admin Setup
 
-Before the first login, create the pilot records needed for username claiming:
+Before the first login, create the department records needed for username claiming:
 
 - Washington Hospital
 - Respiratory Department

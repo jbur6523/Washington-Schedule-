@@ -61,7 +61,7 @@ export type ShiftPost = {
   scope: "employee" | "shift";
 };
 
-export type DemoDay = {
+export type ScheduleDay = {
   day: string;
   dateValue?: string;
   dateLabel?: string;
@@ -137,7 +137,7 @@ export const staff: StaffMember[] = [
   { id: id("Tom Macasaet"), name: "Tom Macasaet", staffType: "Per diem", usualShift: "Dayshift" }
 ];
 
-export const demoSchedule: DemoDay[] = [
+export const fallbackSchedule: ScheduleDay[] = [
   {
     day: "Monday",
     scheduled: [
@@ -307,21 +307,21 @@ export const demoSchedule: DemoDay[] = [
   }
 ];
 
-export const allShiftPosts = demoSchedule.flatMap((day) => day.shiftPosts);
+export const allShiftPosts = fallbackSchedule.flatMap((day) => day.shiftPosts);
 
 export const findStaff = (name: string) =>
   staff.find((member) => member.name === name || member.name.includes(name) || name.includes(member.name));
 
 export const getStaffSummary = (name: string) => {
-  const scheduled = demoSchedule.reduce(
+  const scheduled = fallbackSchedule.reduce(
     (count, day) => count + day.scheduled.filter((entry) => entry.staffName === name).length,
     0
   );
-  const available = demoSchedule.reduce(
+  const available = fallbackSchedule.reduce(
     (count, day) => count + day.available.filter((entry) => entry.staffName === name).length,
     0
   );
-  const coverageRequests = demoSchedule.reduce(
+  const coverageRequests = fallbackSchedule.reduce(
     (count, day) => count + day.coverageRequests.filter((entry) => entry.staffName === name).length,
     0
   );

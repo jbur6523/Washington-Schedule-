@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
-import type { DemoDay, ScheduleEntry, ShiftPost } from "@/data/mockSchedule";
+import type { ScheduleDay, ScheduleEntry, ShiftPost } from "@/data/mockSchedule";
 import { standardShiftTimes } from "@/lib/schedule/supabase-schedule";
 
 export type ScheduleShiftFilter = "all" | "day" | "night";
@@ -13,7 +13,7 @@ export type AvailabilityTarget = {
 };
 
 type DayScheduleCardProps = {
-  day: DemoDay;
+  day: ScheduleDay;
   expanded: boolean;
   shiftFilter: ScheduleShiftFilter;
   shiftNotes?: Record<string, string>;
@@ -154,7 +154,7 @@ function ShiftGroup({
   availabilitySaving,
   onToggleAvailability
 }: {
-  dayName: DemoDay["day"];
+  dayName: ScheduleDay["day"];
   title: string;
   shiftCategory: "day" | "night";
   scheduled: ScheduleEntry[];
@@ -245,7 +245,7 @@ function availabilityKey(target: AvailabilityTarget) {
 }
 
 function getAvailabilityTarget(
-  day: DemoDay,
+  day: ScheduleDay,
   shiftCategory: "day" | "night",
   entries: ScheduleEntry[]
 ): AvailabilityTarget | null {

@@ -28,10 +28,10 @@ export function ConfirmationModal({ open, onClose }: ConfirmationModalProps) {
             <CheckCircle2 size={28} />
           </span>
           <h2 className="mt-4 text-xl font-black text-hospital-ink">
-            Offer sent for manager review.
+            Offer sent.
           </h2>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-            Demo mode only. No message or external request was sent.
+            The request has been added to Washington Schedule.
           </p>
           <button
             type="button"

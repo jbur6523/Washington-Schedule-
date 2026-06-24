@@ -6,7 +6,7 @@ import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const demoDevelopmentContext: AuthenticatedUserContext = {
+const fallbackDevelopmentContext: AuthenticatedUserContext = {
   authUserId: "local-development",
   profileId: "local-development",
   staffProfileId: "local-development",
@@ -61,7 +61,7 @@ export default async function Home() {
       return <ConfigurationRequired />;
     }
 
-    return <AppClient authContext={demoDevelopmentContext} developmentFallback />;
+    return <AppClient authContext={fallbackDevelopmentContext} developmentFallback />;
   }
 
   const auth = await getAuthenticatedUserContext();

@@ -19,7 +19,7 @@ If `active_schedule_version_id` is empty, the Schedule screen shows:
 
 `No published schedule is active yet.`
 
-Admins see a link to create a schedule version. The app does not silently fall back to demo schedule data once authenticated.
+Admins see a link to create a schedule version. The app does not silently fall back to placeholder schedule data once authenticated.
 
 ## Manual Schedule Builder
 
