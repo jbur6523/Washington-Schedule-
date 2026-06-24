@@ -33,6 +33,7 @@ The builder supports:
 - Edit version label, date range, and status
 - Add/edit/delete schedule entries on draft or review versions
 - Add/edit/delete Short Shift alerts on draft or review versions
+- Open Import Schedule for review-first schedule creation
 - Publish a version
 - Archive a version
 
@@ -67,6 +68,21 @@ The preview matches staff names against `staff_profiles`.
 - Unmatched rows are marked `Needs Review`.
 - Admins must manually select a roster match before saving unmatched rows.
 - The batch tool never creates new staff profiles.
+
+## Import Schedule
+
+Admins can also open:
+
+`/admin/import-schedule`
+
+The import workflow supports uploading source images/PDF metadata, browser image compression, manual structured paste, editable review rows, roster matching, row removal for crossed-out names, optional Short Shift alerts, and schedule version creation.
+
+Import results are review-first. They never auto-publish.
+
+Final actions:
+
+- Save as Draft/Review creates a schedule version and entries without making it active.
+- Save and Publish creates a schedule version, entries, optional Short Shift alerts, publishes it, and sets it as active.
 
 ## Short Shift Rules
 
@@ -103,8 +119,7 @@ Rollback is currently handled by publishing a previous version again. A fuller r
 
 This phase does not include:
 
-- OCR
-- Schedule photo import
+- OCR or AI extraction
 - Push notifications
 - Native mobile
 - Payroll integration

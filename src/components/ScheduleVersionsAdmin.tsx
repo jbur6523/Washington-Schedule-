@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, ClipboardList, Plus, Send, Trash2 } from "lucide-react";
+import { ArrowLeft, ClipboardList, FileUp, Plus, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
@@ -646,12 +646,21 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                 Build a draft schedule manually, review it, then publish it as the active department schedule.
               </p>
             </div>
-            <Link
-              href="/"
-              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-            >
-              View Schedule
-            </Link>
+            <div className="grid gap-2 sm:min-w-44">
+              <Link
+                href="/admin/import-schedule"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-700"
+              >
+                <FileUp size={16} />
+                Import Schedule
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+              >
+                View Schedule
+              </Link>
+            </div>
           </div>
         </section>
 

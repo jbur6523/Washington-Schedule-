@@ -56,8 +56,8 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 ### Import and Review
 
 - `schedule_imports`: admin-only schedule import jobs.
-- `schedule_import_rows`: editable extracted rows for human review before creating a schedule version.
-- Import approval should create schedule versions and entries later. OCR and import processing are out of scope for this foundation.
+- `schedule_import_rows`: editable extracted or pasted rows for human review before creating a schedule version.
+- Import approval can create schedule versions and entries after admin review. OCR remains out of scope.
 
 ### Audit
 
@@ -151,6 +151,7 @@ Assigned username rule:
 - Rollback currently means publishing a previous version again. A fuller rollback UI remains future work.
 - The admin manual builder and batch paste format are documented in `docs/schedule-versions.md`.
 - Import results must never auto-publish.
+- Review-first imports can create draft/review versions or publish only when the admin explicitly chooses Save and Publish.
 
 ## Self-Managed Schedule
 
@@ -202,10 +203,12 @@ Assigned username rule:
 ## Import and Review Foundation
 
 - Schedule imports are admin-only.
-- Uploaded images should use private storage in a later phase.
-- Source images should be deleted after approval, rejection, or a short retention window.
+- Uploaded images are kept in browser state only during the current Phase 8 workflow.
+- If image persistence is later added, uploaded images should use private storage and a short retention/deletion policy.
 - Import rows can store raw extracted names for review, but should not store phone numbers or patient data.
 - Admin review and approval must happen before imported data becomes a schedule version.
+- Crossed-out names should be removed during review before approval.
+- `schedule_import_rows.shift_start` and `shift_end` store structured shift times for version creation.
 
 ## Out of Scope
 

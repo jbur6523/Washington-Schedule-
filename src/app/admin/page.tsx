@@ -12,7 +12,8 @@ const adminAreas = [
   },
   {
     title: "Import Schedule",
-    description: "Review-first import workflow remains planned for a later phase."
+    description: "Upload, review, match roster names, and create a schedule version.",
+    href: "/admin/import-schedule"
   },
   {
     title: "Audit History",
