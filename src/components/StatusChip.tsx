@@ -11,7 +11,8 @@ const statusClasses: Record<ScheduleStatus, string> = {
   Available: "border-emerald-200 bg-emerald-100 text-emerald-700",
   "Coverage Requested": "border-violet-200 bg-violet-100 text-violet-700",
   "Short Shift": "border-amber-200 bg-amber-100 text-amber-800",
-  "Switch Requested": "border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700"
+  "Switch Requested": "border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700",
+  "Self-added": "border-cyan-200 bg-cyan-100 text-cyan-700"
 };
 
 export function StatusChip({ status, intensity, compact = false }: StatusChipProps) {

@@ -4,8 +4,13 @@ export type ScheduleVersionStatus = "draft" | "review" | "published" | "archived
 export type ScheduleEntryStatus = "scheduled" | "available";
 export type ShiftType = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
 export type ShiftShortageSeverity = "short" | "urgent";
+export type ShiftShortageStatus = "active" | "resolved" | "cancelled";
 export type EmploymentType = "full_time" | "per_diem";
 export type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self";
+export type ShiftRequestType = "switch_requested" | "coverage_requested";
+export type ShiftRequestStatus = "active" | "cancelled" | "resolved";
+export type CoverageOfferStatus = "offered" | "accepted" | "declined" | "cancelled";
 
 export type StaffProfileSummary = {
   id: string;
@@ -52,12 +57,76 @@ export type ShiftShortageRow = {
   shift_start: string;
   shift_end: string;
   severity: ShiftShortageSeverity;
+  status?: ShiftShortageStatus;
   message: string | null;
+  created_by?: string | null;
+};
+
+export type UserScheduleOverrideRow = {
+  id: string;
+  department_id: string;
+  staff_profile_id: string;
+  base_schedule_entry_id: string | null;
+  override_type: UserScheduleOverrideType;
+  shift_date: string;
+  shift_type: ShiftType;
+  shift_start: string;
+  shift_end: string;
+  note: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  staff_profiles: StaffProfileSummary | StaffProfileSummary[] | null;
+};
+
+export type ShiftRequestRow = {
+  id: string;
+  department_id: string;
+  schedule_entry_id: string | null;
+  user_schedule_override_id: string | null;
+  staff_profile_id: string;
+  request_type: ShiftRequestType;
+  status: ShiftRequestStatus;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  staff_profiles: StaffProfileSummary | StaffProfileSummary[] | null;
+  schedule_entries?: Pick<
+    ScheduleEntryRow,
+    "id" | "shift_date" | "day_of_week" | "shift_type" | "shift_start" | "shift_end"
+  > | Array<
+    Pick<
+      ScheduleEntryRow,
+      "id" | "shift_date" | "day_of_week" | "shift_type" | "shift_start" | "shift_end"
+    >
+  > | null;
+  user_schedule_overrides?: Pick<
+    UserScheduleOverrideRow,
+    "id" | "shift_date" | "shift_type" | "shift_start" | "shift_end"
+  > | Array<
+    Pick<
+      UserScheduleOverrideRow,
+      "id" | "shift_date" | "shift_type" | "shift_start" | "shift_end"
+    >
+  > | null;
+};
+
+export type CoverageOfferRow = {
+  id: string;
+  department_id: string;
+  shift_request_id: string | null;
+  shift_shortage_id: string | null;
+  offered_by_staff_profile_id: string;
+  status: CoverageOfferStatus;
+  note: string | null;
 };
 
 export type ActiveSchedule = {
   version: ScheduleVersionRow;
   entries: ScheduleEntryRow[];
+  effectiveEntries: ScheduleEntryRow[];
+  overrides: UserScheduleOverrideRow[];
+  requests: ShiftRequestRow[];
   shortages: ShiftShortageRow[];
   days: DemoDay[];
   shiftPosts: ShiftPost[];
@@ -122,12 +191,17 @@ export function staffDisplayName(staffProfile?: StaffProfileSummary | StaffProfi
 
 function entryToScheduleEntry(entry: ScheduleEntryRow): ScheduleEntry {
   return {
+    id: entry.id,
+    baseScheduleEntryId: entry.id.startsWith("override-") ? null : entry.id,
+    userScheduleOverrideId: entry.id.startsWith("override-") ? entry.id.replace("override-", "") : null,
+    staffProfileId: entry.staff_profile_id,
     staffName: staffDisplayName(entry.staff_profiles),
     shiftTime: formatShiftTime(entry.shift_start, entry.shift_end),
     shiftCategory: shiftCategoryForType(entry.shift_type),
     shiftTypeLabel: shiftTypeLabels[entry.shift_type],
     staffType: displayStaffType(entry.staff_profiles),
-    status: entry.entry_status === "scheduled" ? "Scheduled" : "Available"
+    status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
+    selfAdded: entry.id.startsWith("override-")
   };
 }
 
@@ -146,6 +220,7 @@ function shortageToPost(shortage: ShiftShortageRow): ShiftPost {
     coverageIntensity: shortage.severity === "urgent" ? "critical" : "medium",
     status: "Short Shift",
     description: shortage.message || "Short Shift alert for this shift.",
+    shiftShortageId: shortage.id,
     scope: "shift"
   };
 }
@@ -153,18 +228,46 @@ function shortageToPost(shortage: ShiftShortageRow): ShiftPost {
 export function adaptActiveSchedule(
   version: ScheduleVersionRow,
   entries: ScheduleEntryRow[],
-  shortages: ShiftShortageRow[]
+  shortages: ShiftShortageRow[],
+  overrides: UserScheduleOverrideRow[] = [],
+  requests: ShiftRequestRow[] = []
 ): ActiveSchedule {
+  const activeOverrides = overrides.filter((override) => override.is_active);
+  const removedBaseEntryIds = new Set(
+    activeOverrides
+      .filter((override) => override.override_type === "remove_self" && override.base_schedule_entry_id)
+      .map((override) => override.base_schedule_entry_id as string)
+  );
+  const addOverrides = activeOverrides.filter((override) => override.override_type === "add_self");
+  const syntheticEntries: ScheduleEntryRow[] = addOverrides.map((override) => ({
+    id: `override-${override.id}`,
+    schedule_version_id: version.id,
+    department_id: override.department_id,
+    staff_profile_id: override.staff_profile_id,
+    shift_date: override.shift_date,
+    day_of_week: dayNameFromDate(override.shift_date),
+    shift_type: override.shift_type,
+    shift_start: override.shift_start,
+    shift_end: override.shift_end,
+    entry_status: "scheduled",
+    staff_profiles: override.staff_profiles
+  }));
+  const effectiveEntries = [
+    ...entries.filter((entry) => !removedBaseEntryIds.has(entry.id)),
+    ...syntheticEntries
+  ];
   const entriesByDate = new Map<string, ScheduleEntryRow[]>();
   const shortagesByDate = new Map<string, ShiftShortageRow[]>();
 
-  entries.forEach((entry) => {
+  effectiveEntries.forEach((entry) => {
     const current = entriesByDate.get(entry.shift_date) ?? [];
     current.push(entry);
     entriesByDate.set(entry.shift_date, current);
   });
 
-  shortages.forEach((shortage) => {
+  shortages
+    .filter((shortage) => !shortage.status || shortage.status === "active")
+    .forEach((shortage) => {
     const current = shortagesByDate.get(shortage.shift_date) ?? [];
     current.push(shortage);
     shortagesByDate.set(shortage.shift_date, current);
@@ -173,10 +276,16 @@ export function adaptActiveSchedule(
   const allDates = Array.from(
     new Set([...Array.from(entriesByDate.keys()), ...Array.from(shortagesByDate.keys())])
   ).sort();
-  const shiftPosts = shortages.map(shortageToPost);
+  const requestPosts = requests
+    .filter((request) => request.status === "active")
+    .map(requestToPost)
+    .filter((post): post is ShiftPost => Boolean(post));
+  const shortagePosts = shortages
+    .filter((shortage) => !shortage.status || shortage.status === "active")
+    .map(shortageToPost);
+  const shiftPosts = [...requestPosts, ...shortagePosts];
   const days = allDates.map((dateValue) => {
     const dayEntries = entriesByDate.get(dateValue) ?? [];
-    const dayShortages = shortagesByDate.get(dateValue) ?? [];
     const dayName = dayNameFromDate(dateValue);
     const dateLabel = compactDateLabel(dateValue);
 
@@ -190,9 +299,49 @@ export function adaptActiveSchedule(
         .filter((entry) => entry.entry_status === "available")
         .map(entryToScheduleEntry),
       coverageRequests: [],
-      shiftPosts: dayShortages.map(shortageToPost)
+      shiftPosts: shiftPosts.filter((post) => post.day === `${dayName} ${dateLabel}`)
     } satisfies DemoDay;
   });
 
-  return { version, entries, shortages, days, shiftPosts };
+  return { version, entries, effectiveEntries, overrides, requests, shortages, days, shiftPosts };
+}
+
+function requestToPost(request: ShiftRequestRow): ShiftPost | null {
+  const shift = firstRelatedRow(request.schedule_entries) ?? firstRelatedRow(request.user_schedule_overrides);
+
+  if (!shift) {
+    return null;
+  }
+
+  const dayName = dayNameFromDate(shift.shift_date);
+  const dateLabel = compactDateLabel(shift.shift_date);
+  const staffProfile = firstStaffProfile(request.staff_profiles);
+  const isSwitch = request.request_type === "switch_requested";
+
+  return {
+    id: request.id,
+    day: `${dayName} ${dateLabel}`,
+    shiftTime: formatShiftTime(shift.shift_start, shift.shift_end),
+    shiftCategory: shiftCategoryForType(shift.shift_type),
+    postedBy: staffDisplayName(request.staff_profiles),
+    staffType: displayStaffType(request.staff_profiles),
+    type: isSwitch ? "Switch Requested" : "Coverage Requested",
+    coverageIntensity: "low",
+    status: isSwitch ? "Switch Requested" : "Coverage Requested",
+    description:
+      request.note ||
+      (isSwitch ? "Open to switching this scheduled shift." : "Coverage requested for this shift."),
+    targetStaffName: staffProfile?.display_name,
+    targetStaffProfileId: request.staff_profile_id,
+    shiftRequestId: request.id,
+    scope: "employee"
+  };
+}
+
+function firstRelatedRow<T>(value?: T | T[] | null) {
+  if (Array.isArray(value)) {
+    return value[0] ?? null;
+  }
+
+  return value ?? null;
 }

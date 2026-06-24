@@ -5,7 +5,9 @@ import type { ShiftPost } from "@/data/mockSchedule";
 
 type ShiftPostCardProps = {
   post: ShiftPost;
-  onDemoAction: () => void;
+  onOffer: () => void;
+  onResolve?: () => void;
+  onCancelShortShift?: () => void;
 };
 
 const typeIcon = {
@@ -20,7 +22,7 @@ const typeHelp = {
   "Short Shift": "Department is short for part or all of this shift."
 };
 
-export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
+export function ShiftPostCard({ post, onOffer, onResolve, onCancelShortShift }: ShiftPostCardProps) {
   const Icon = typeIcon[post.type];
 
   return (
@@ -53,16 +55,34 @@ export function ShiftPostCard({ post, onDemoAction }: ShiftPostCardProps) {
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {["I can cover", "Offer switch", "Details"].map((label) => (
+        {["I can cover", "Offer help"].map((label) => (
           <button
             key={label}
             type="button"
-            onClick={onDemoAction}
+            onClick={onOffer}
             className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
           >
             {label}
           </button>
         ))}
+        {onResolve && (
+          <button
+            type="button"
+            onClick={onResolve}
+            className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-center text-sm font-extrabold text-emerald-700 shadow-sm"
+          >
+            Resolve
+          </button>
+        )}
+        {onCancelShortShift && (
+          <button
+            type="button"
+            onClick={onCancelShortShift}
+            className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-center text-sm font-extrabold text-rose-700 shadow-sm"
+          >
+            Cancel Alert
+          </button>
+        )}
       </div>
     </article>
   );

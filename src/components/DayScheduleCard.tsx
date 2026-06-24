@@ -57,6 +57,7 @@ function StaffScheduleRow({
 
       {(coverageRequested || Boolean(posts?.length)) && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {entry.selfAdded && <StatusChip status="Self-added" compact />}
           {coverageRequested && <StatusChip status="Coverage Requested" compact />}
           {posts?.map((post) => (
             <StatusChip
@@ -79,6 +80,12 @@ function StaffScheduleRow({
         <p className="mt-1 text-xs font-semibold leading-4 text-slate-600">
           Coverage requested for this shift.
         </p>
+      )}
+
+      {entry.selfAdded && !(coverageRequested || Boolean(posts?.length)) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <StatusChip status="Self-added" compact />
+        </div>
       )}
 
       {note && (
@@ -151,8 +158,10 @@ function ShiftGroup({
           const employeePosts = shiftPosts.filter(
             (post) =>
               post.scope === "employee" &&
-              post.targetStaffName === entry.staffName &&
-              post.status === "Switch Requested"
+              (post.targetStaffProfileId
+                ? post.targetStaffProfileId === entry.staffProfileId
+                : post.targetStaffName === entry.staffName) &&
+              (post.status === "Switch Requested" || post.status === "Coverage Requested")
           );
           const note = shiftNotes?.[`${entry.staffName}-${dayName}-${entry.shiftTime}`];
 

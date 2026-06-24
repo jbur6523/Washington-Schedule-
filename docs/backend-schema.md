@@ -35,12 +35,14 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `schedule_versions`: draft, review, published, and archived schedule versions.
 - `schedule_entries`: scheduled or available staff rows for a specific schedule version.
 - `shift_shortages`: shift-level Short Shift alerts. This is the only table that represents Short Shift.
+- `user_schedule_overrides`: staff-owned self-managed app schedule changes layered on top of the baseline schedule.
 
 ### Requests and Offers
 
 - `shift_requests`: employee-level requests tied to a schedule entry.
   - Allowed request types are `switch_requested` and `coverage_requested`.
   - A staff member can have both request types active on the same shift.
+  - Requests can target either a baseline schedule entry or a self-added schedule override.
 - `coverage_offers`: staff offers to cover either a shift request or a Short Shift alert.
 
 ### Import and Review
@@ -141,13 +143,25 @@ Assigned username rule:
 - The admin manual builder and batch paste format are documented in `docs/schedule-versions.md`.
 - Import results must never auto-publish.
 
+## Self-Managed Schedule
+
+- The app is not the official hospital schedule.
+- The published schedule is the baseline schedule.
+- Staff-managed schedule changes are stored in `user_schedule_overrides`.
+- Staff can remove themselves from their own baseline shift with `remove_self`.
+- Staff can add themselves to another app shift with `add_self`.
+- Moves are represented as one `remove_self` plus one `add_self`.
+- Staff can update/deactivate only their own overrides.
+- Schedule rendering applies active overrides by subtracting active removals and adding active self-added shifts.
+
 ## Shift Request Rules
 
 - Employee-level request types are only `switch_requested` and `coverage_requested`.
 - Do not use Wants Off.
 - Do not use Shift Available.
-- Requests are tied to a `schedule_entry_id` and `staff_profile_id`.
-- Requests do not alter the official schedule entry.
+- Requests are tied to either `schedule_entry_id` or `user_schedule_override_id`, plus `staff_profile_id`.
+- Requests do not alter the baseline schedule entry.
+- Request notes are capped at 140 characters.
 - Cancelled and resolved requests remain in the database for history.
 
 ## Short Shift Rules
@@ -155,6 +169,8 @@ Assigned username rule:
 - Short Shift is shift-level only.
 - Short Shift belongs in `shift_shortages`, not on employee records.
 - Severity values are `short` and `urgent`.
+- Short Shift alerts have `status = active`, `resolved`, or `cancelled`.
+- Lead and admin users can create, resolve, or cancel Short Shift alerts.
 - Short Shift can appear on the Shift Board and schedule shift sections as a department need.
 
 ## Import and Review Foundation

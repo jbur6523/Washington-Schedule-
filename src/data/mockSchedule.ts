@@ -10,7 +10,8 @@ export type ScheduleStatus =
   | "Available"
   | "Coverage Requested"
   | "Short Shift"
-  | "Switch Requested";
+  | "Switch Requested"
+  | "Self-added";
 export type EmployeeRequestStatus = "Switch Requested" | "Coverage Requested";
 export type ShiftPostType = EmployeeRequestStatus | "Short Shift";
 export type CoverageIntensity = "low" | "medium" | "critical";
@@ -23,12 +24,17 @@ export type StaffMember = {
 };
 
 export type ScheduleEntry = {
+  id?: string;
+  baseScheduleEntryId?: string | null;
+  userScheduleOverrideId?: string | null;
+  staffProfileId?: string | null;
   staffName: string;
   shiftTime: string;
   shiftCategory?: "day" | "night";
   shiftTypeLabel?: string;
   staffType: StaffType;
   status: Extract<ScheduleStatus, "Scheduled" | "Available">;
+  selfAdded?: boolean;
 };
 
 export type ShiftPost = {
@@ -43,6 +49,9 @@ export type ShiftPost = {
   status: Extract<ScheduleStatus, "Short Shift" | EmployeeRequestStatus>;
   description: string;
   targetStaffName?: string;
+  targetStaffProfileId?: string | null;
+  shiftRequestId?: string;
+  shiftShortageId?: string;
   scope: "employee" | "shift";
 };
 
