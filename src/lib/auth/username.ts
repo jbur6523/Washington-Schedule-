@@ -24,6 +24,10 @@ export function generateBaseUsername(displayName: string) {
     return "yibe";
   }
 
+  if (normalizedFirst === "pawanjit" && normalizedLast === "khera") {
+    return "pawk";
+  }
+
   return `${normalizedLast.slice(0, 3)}${normalizedFirst.slice(0, 1)}`;
 }
 

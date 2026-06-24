@@ -47,7 +47,7 @@ Known preferred-name mappings:
 
 - John Roberts / Marshall Roberts imports as `robm`.
 - Yiqin Meng / Maggie imports as `menm`.
-- Pawanjit Khera / Kinty imports as `khek`.
+- Pawanjit Khera / Kinty imports as `pawk`.
 - Harjot Kaur / Joy imports as `kauj`.
 - Bei Yi imports as `yibe`.
 

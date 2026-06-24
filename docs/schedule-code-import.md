@@ -75,7 +75,7 @@ Staff Directory display names can use preferred names, but imports should use pe
 
 - John Roberts / Marshall Roberts should import as `robm`.
 - Yiqin Meng / Maggie should import as `menm`.
-- Pawanjit Khera / Kinty should import as `khek`.
+- Pawanjit Khera / Kinty should import as `pawk`.
 - Harjot Kaur / Joy should import as `kauj`.
 - Bei Yi uses `yibe` as the special short-last-name exception.
 
@@ -84,7 +84,7 @@ Username examples:
 ```text
 ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | heah | scheduled
 ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | vaya | scheduled
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | khek | scheduled
+ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | pawk | scheduled
 ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | menm | scheduled
 ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | kauj | scheduled
 ```

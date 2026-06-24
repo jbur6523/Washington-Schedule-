@@ -35,6 +35,10 @@ begin
     return 'yibe';
   end if;
 
+  if first_clean = 'pawanjit' and last_clean = 'khera' then
+    return 'pawk';
+  end if;
+
   return left(last_clean, 3) || left(first_clean, 1);
 end;
 $$;
