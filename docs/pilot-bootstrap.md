@@ -74,7 +74,7 @@ Default lead staff:
 
 ## Batch Roster Format
 
-After `burj` is claimed, the admin can batch-create staff profiles in Staff Directory using:
+After `burj` is claimed, the admin can batch-create staff profiles from `/admin/roster` using:
 
 ```text
 Allan Timbang | full_time | day_shift

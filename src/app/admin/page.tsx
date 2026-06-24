@@ -6,6 +6,11 @@ export const dynamic = "force-dynamic";
 
 const adminAreas = [
   {
+    title: "Roster Management",
+    description: "Add, edit, deactivate, and reset staff profiles.",
+    href: "/admin/roster"
+  },
+  {
     title: "Schedule Versions",
     description: "Create, edit, and publish the active schedule.",
     href: "/admin/schedule-versions"

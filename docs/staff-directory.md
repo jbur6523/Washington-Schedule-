@@ -71,7 +71,9 @@ Normal directory filters are limited to All, Full-time, Per diem, Day Shift, Nig
 
 ## Admin Roster Management
 
-Admins can open a separate `Admin Roster Management` section from Staff Directory. This admin-only panel contains roster provisioning details:
+Admins manage provisioning from the dedicated `/admin/roster` page. The normal Staff Directory may show an `Admin Roster Management` button for admins, but roster editing does not happen inside the shared directory view.
+
+The admin-only page contains roster provisioning details:
 
 - Assigned username
 - Assigned role
@@ -83,7 +85,7 @@ Admins can open a separate `Admin Roster Management` section from Staff Director
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.
 
-Admin add/edit and batch roster creation use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
+Admin add/edit, batch roster creation, and account reset use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
 
 ## Username and Role Rules
 
@@ -152,7 +154,7 @@ Possible duplicates are flagged when the display name already exists or appears 
 - The bottom navigation still uses the existing Staff tab.
 - The visible page heading is `Staff Directory`.
 - Normal Staff Directory cards show contact/profile details only.
-- Admin create/edit includes display name, employment type, home assignment, phone number, email, preferred contact method, active status, assigned username, and role.
+- Admin create/edit lives on `/admin/roster` and includes display name, employment type, home assignment, phone number, email, preferred contact method, active status, assigned username, and role.
 - Phone numbers render as tap-to-call links.
 - Email addresses render as tap-to-email links.
 - Normal filters include All, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.
