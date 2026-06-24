@@ -1,6 +1,6 @@
-# Shift Requests And Shift Board
+# Shift Requests And Coverage Board
 
-Washington-Schedule uses persistent Supabase rows for staff coordination.
+Washington-Schedule uses persistent Supabase rows for staff coordination. The app is not the official hospital schedule; it is a staff-managed coordination view layered on top of the published baseline schedule.
 
 ## Terminology
 
@@ -27,7 +27,7 @@ Staff can create or cancel their own active `shift_requests` row with:
 - `request_type = switch_requested`
 - `status = active` or `cancelled`
 
-The request does not modify the published baseline schedule.
+The request does not modify the published baseline schedule. A staff member may have Switch Requested and Coverage Requested active on the same shift.
 
 ## Coverage Requested
 
@@ -38,15 +38,15 @@ Staff can create or cancel their own active `shift_requests` row with:
 - `request_type = coverage_requested`
 - `status = active` or `cancelled`
 
-Staff can have both Switch Requested and Coverage Requested active on the same shift.
+Coverage Requested remains attached to the employee's own shift and does not mean the official schedule has changed.
 
 ## Notes
 
 Request notes live on `shift_requests.note`.
 
-Notes are capped at 140 characters and display on Manage Schedule, Schedule employee cards, and Shift Board posts.
+Notes are capped at 140 characters and display on Manage Schedule, Schedule employee cards, and Coverage Board posts.
 
-## Self-Managed Shift Targets
+## Request Targets
 
 Requests can attach to either:
 
@@ -55,9 +55,9 @@ Requests can attach to either:
 
 Exactly one target is required.
 
-## Shift Board
+## Coverage Board
 
-The Shift Board reads active Supabase data:
+The Coverage Board reads active Supabase data:
 
 - Active Switch Requested rows
 - Active Coverage Requested rows
@@ -65,18 +65,52 @@ The Shift Board reads active Supabase data:
 
 Inactive, cancelled, or resolved rows are hidden from active screens.
 
-## Coverage Offers
+## Offer Coverage
 
-Staff can offer help from the Shift Board.
+Staff can offer coverage from a Coverage Requested post.
 
-Offers are stored in `coverage_offers` and link to either:
+Coverage offers for employee requests are stored in `shift_request_offers` with:
 
+- `offer_type = coverage`
 - `shift_request_id`
-- `shift_shortage_id`
+- `offered_by_staff_profile_id`
+- `status = offered`
 
-One staff member cannot create duplicate active offers for the same request or shortage.
+The app prevents duplicate active coverage offers from the same staff member on the same request.
 
-Admin accept/decline workflow remains out of scope for this phase.
+## Offer Switch
+
+Staff can offer a switch from a Switch Requested post.
+
+Switch offers are stored in `shift_request_offers` with:
+
+- `offer_type = switch`
+- `shift_request_id`
+- `offered_by_staff_profile_id`
+- an existing offered shift target or manually entered offered shift fields
+- `status = offered`
+
+Switch offers must stay within the same department week as the requested shift. The department week starts Sunday and ends Saturday.
+
+If the staff member's app schedule is not current, the Add Date flow allows a manual offered shift with:
+
+- date
+- shift type
+- shift start
+- shift end
+- optional note up to 140 characters
+
+Manual offered dates are blocked if they fall outside the same Sunday-through-Saturday week.
+
+## Offer Responses
+
+The request owner can see received offers on Manage Schedule.
+
+- Accept Offer updates the offer to `accepted` and resolves the related request.
+- Decline Offer updates the offer to `declined`; the request remains active.
+- Accepted offers do not rewrite the official baseline schedule automatically.
+
+In-app `notification_events` can record offer-created, accepted, and declined events. Phone push notifications are future work for these request events.
 
 ## Short Shift
 
@@ -88,16 +122,19 @@ Short Shift is shift-level only.
 - Staff cannot create Short Shift alerts.
 - Lead and admin users can create, resolve, or cancel Short Shift alerts.
 
+Short Shift coverage offers still use the existing `coverage_offers` path.
+
 ## Roles
 
 Staff can:
 
 - View the schedule
-- View the Shift Board
+- View the Coverage Board
 - Create/cancel their own Switch Requested rows
 - Create/cancel their own Coverage Requested rows
 - Add/edit their own request notes
-- Create/cancel their own coverage offers
+- Offer coverage or switch
+- Accept/decline offers on their own requests
 
 Lead users can:
 
@@ -112,4 +149,4 @@ Admin users can:
 
 ## Future
 
-Push notifications are future work after the backend workflows are stable.
+Phone push notifications for Switch Requested, Coverage Requested, and offer responses are future work after the backend workflows are stable.

@@ -17,12 +17,14 @@ import {
   dayNameFromDate,
   displayStaffType,
   firstStaffProfile,
+  firstRelatedRow,
   formatShiftTime,
   shiftTypeLabels,
   type ActiveSchedule,
   type ScheduleEntryRow,
   type ScheduleVersionRow,
   type ShiftRequestRow,
+  type ShiftRequestOfferRow,
   type ShiftRequestType,
   type ShiftShortageRow,
   type ShiftShortageSeverity,
@@ -36,6 +38,7 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
   { id: "night", label: "Night" },
   { id: "all", label: "All" }
 ];
+const emptyShiftPosts: ShiftPost[] = [];
 
 type AppClientProps = {
   authContext: AuthenticatedUserContext;
@@ -73,6 +76,18 @@ type ShortShiftForm = {
   message: string;
 };
 
+type CoverageBoardAction =
+  | { kind: "coverage"; post: ShiftPost }
+  | { kind: "switch"; post: ShiftPost };
+
+type ManualSwitchForm = {
+  shift_date: string;
+  shift_type: ShiftType;
+  shift_start: string;
+  shift_end: string;
+  note: string;
+};
+
 const emptyAddShiftForm: AddShiftForm = {
   mode: "add",
   shift_date: "",
@@ -90,6 +105,41 @@ const emptyShortShiftForm: ShortShiftForm = {
   severity: "short",
   message: ""
 };
+
+const emptyManualSwitchForm: ManualSwitchForm = {
+  shift_date: "",
+  shift_type: "day_shift",
+  shift_start: "07:00",
+  shift_end: "19:00",
+  note: ""
+};
+
+function dateOnly(value: string) {
+  return new Date(`${value}T12:00:00`);
+}
+
+function isoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getWeekRange(dateValue: string) {
+  const date = dateOnly(dateValue);
+  const start = new Date(date);
+  start.setDate(date.getDate() - date.getDay());
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return { start: isoDate(start), end: isoDate(end) };
+}
+
+function isWithinWeek(dateValue: string, weekStart: string, weekEnd: string) {
+  return dateValue >= weekStart && dateValue <= weekEnd;
+}
+
+function formatDateShort(dateValue: string) {
+  const date = dateOnly(dateValue);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "numeric", day: "numeric" }).format(date);
+}
 
 function Header({
   authContext,
@@ -498,6 +548,49 @@ function requestLabel(requestType: ShiftRequestType) {
   return requestType === "switch_requested" ? "Switch Requested" : "Coverage Requested";
 }
 
+function getRequestShift(request: ShiftRequestRow) {
+  return firstRelatedRow(request.schedule_entries) ?? firstRelatedRow(request.user_schedule_overrides);
+}
+
+function getOfferShift(offer: ShiftRequestOfferRow) {
+  return firstRelatedRow(offer.schedule_entries) ?? firstRelatedRow(offer.user_schedule_overrides);
+}
+
+function getRequestForOffer(schedule: ActiveSchedule, offer: ShiftRequestOfferRow) {
+  return firstRelatedRow(offer.shift_requests) ?? schedule.requests.find((request) => request.id === offer.shift_request_id) ?? null;
+}
+
+function getShiftSummary(shift: {
+  shift_date: string;
+  shift_type: ShiftType | string;
+  shift_start: string;
+  shift_end: string;
+}) {
+  return `${formatDateShort(shift.shift_date)} ${shiftTypeLabels[shift.shift_type as ShiftType] ?? "Shift"} ${formatShiftTime(
+    shift.shift_start,
+    shift.shift_end
+  )}`;
+}
+
+function getOfferSummary(offer: ShiftRequestOfferRow) {
+  const linkedShift = getOfferShift(offer);
+
+  if (linkedShift) {
+    return getShiftSummary(linkedShift);
+  }
+
+  if (offer.offered_date && offer.offered_shift_type && offer.offered_shift_start && offer.offered_shift_end) {
+    return getShiftSummary({
+      shift_date: offer.offered_date,
+      shift_type: offer.offered_shift_type,
+      shift_start: offer.offered_shift_start,
+      shift_end: offer.offered_shift_end
+    });
+  }
+
+  return "selected shift";
+}
+
 function ManageScheduleScreen({
   authContext,
   loading,
@@ -548,6 +641,29 @@ function ManageScheduleScreen({
       }));
   }, [authContext.staffProfileId, schedule]);
 
+  const receivedOffers = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
+
+    return schedule.offers.filter((offer) => {
+      const request = getRequestForOffer(schedule, offer);
+      return request?.staff_profile_id === authContext.staffProfileId && offer.status === "offered";
+    });
+  }, [authContext.staffProfileId, schedule]);
+
+  const sentResolvedOffers = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
+
+    return schedule.offers.filter(
+      (offer) =>
+        offer.offered_by_staff_profile_id === authContext.staffProfileId &&
+        (offer.status === "accepted" || offer.status === "declined")
+    );
+  }, [authContext.staffProfileId, schedule]);
+
   const saveRequest = async (shift: ScheduleEntryRow, requestType: ShiftRequestType, activeRequest?: ShiftRequestRow) => {
     if (!schedule || !authContext.staffProfileId) {
       return;
@@ -595,6 +711,63 @@ function ManageScheduleScreen({
     }
 
     setSuccess(`${requestLabel(requestType)} saved.`);
+    await onChanged();
+  };
+
+  const respondToOffer = async (offer: ShiftRequestOfferRow, status: "accepted" | "declined") => {
+    if (!schedule) {
+      return;
+    }
+
+    const request = getRequestForOffer(schedule, offer);
+
+    if (!request || request.staff_profile_id !== authContext.staffProfileId) {
+      setActionError("Only the request owner can respond to this offer.");
+      return;
+    }
+
+    setSaving(true);
+    setActionError("");
+    setSuccess("");
+
+    const supabase = createClient();
+    const { error: offerError } = await supabase
+      .from("shift_request_offers")
+      .update({ status, responded_at: new Date().toISOString() })
+      .eq("id", offer.id);
+
+    if (offerError) {
+      setSaving(false);
+      setActionError("Unable to update this offer.");
+      return;
+    }
+
+    if (status === "accepted") {
+      const { error: requestError } = await supabase
+        .from("shift_requests")
+        .update({ status: "resolved", resolved_at: new Date().toISOString() })
+        .eq("id", offer.shift_request_id);
+
+      if (requestError) {
+        setSaving(false);
+        setActionError("Offer accepted, but the request could not be resolved.");
+        return;
+      }
+    }
+
+    await supabase.from("notification_events").insert({
+      department_id: authContext.departmentId,
+      staff_profile_id: offer.offered_by_staff_profile_id,
+      event_type: status === "accepted" ? "offer_accepted" : "offer_declined",
+      title: status === "accepted" ? "Offer accepted" : "Offer declined",
+      body: status === "accepted" ? "Your offer was accepted." : "Your offer was declined.",
+      related_entity_type: "shift_request_offer",
+      related_entity_id: offer.id,
+      delivery_status: "queued"
+    });
+
+    setSaving(false);
+    setSuccess(status === "accepted" ? "Offer accepted." : "Offer declined.");
     await onChanged();
   };
 
@@ -842,6 +1015,71 @@ function ManageScheduleScreen({
         <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
           {success}
         </p>
+      )}
+
+      {receivedOffers.length > 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Received offers</h3>
+          <div className="mt-3 space-y-2">
+            {receivedOffers.map((offer) => {
+              const offerer = firstStaffProfile(offer.staff_profiles);
+              const request = getRequestForOffer(schedule, offer);
+              const requestShift = request ? getRequestShift(request) : null;
+              const requestSummary = requestShift ? getShiftSummary(requestShift) : "this shift";
+
+              return (
+                <article key={offer.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
+                  <p className="text-sm font-black text-hospital-ink">
+                    {offer.offer_type === "coverage"
+                      ? `${offerer?.display_name ?? "A staff member"} offered to cover this shift.`
+                      : `${offerer?.display_name ?? "A staff member"} offered to switch ${getOfferSummary(offer)} for your ${requestSummary}.`}
+                  </p>
+                  {offer.note && (
+                    <p className="mt-2 rounded-xl bg-white/80 px-2.5 py-2 text-xs font-semibold leading-4 text-slate-600">
+                      {offer.note}
+                    </p>
+                  )}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void respondToOffer(offer, "accepted")}
+                      disabled={saving}
+                      className="min-h-10 rounded-2xl bg-emerald-600 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+                    >
+                      Accept Offer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void respondToOffer(offer, "declined")}
+                      disabled={saving}
+                      className="min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700 disabled:opacity-60"
+                    >
+                      Decline Offer
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {sentResolvedOffers.length > 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Offer status</h3>
+          <div className="mt-3 space-y-2">
+            {sentResolvedOffers.map((offer) => (
+              <div key={offer.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-sm font-black text-hospital-ink">
+                  Your {offer.offer_type === "coverage" ? "coverage" : "switch"} offer was {offer.status}.
+                </p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  {offer.offer_type === "switch" ? getOfferSummary(offer) : "Coverage offer"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {addFormOpen && (
@@ -1118,21 +1356,89 @@ function ShiftBoardScreen({
   developmentFallback?: boolean;
   onChanged: () => Promise<void>;
 }) {
-  const [selectedPost, setSelectedPost] = useState<ShiftPost | null>(null);
+  const [selectedAction, setSelectedAction] = useState<CoverageBoardAction | null>(null);
   const [offerNote, setOfferNote] = useState("");
+  const [manualSwitchForm, setManualSwitchForm] = useState<ManualSwitchForm>(emptyManualSwitchForm);
+  const [selectedSwitchShiftId, setSelectedSwitchShiftId] = useState("");
+  const [useManualSwitch, setUseManualSwitch] = useState(false);
   const [shortShiftForm, setShortShiftForm] = useState<ShortShiftForm>(emptyShortShiftForm);
   const [shortShiftOpen, setShortShiftOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const [success, setSuccess] = useState("");
   const canManageShortShift = authContext.role === "admin" || authContext.role === "lead";
-  const posts = developmentFallback ? allShiftPosts : schedule?.shiftPosts ?? [];
+  const posts = developmentFallback ? allShiftPosts : schedule?.shiftPosts ?? emptyShiftPosts;
+  const visiblePosts = useMemo(
+    () =>
+      posts.filter((post, index) => {
+        if (post.type === "Short Shift") {
+          return true;
+        }
 
-  const sendOffer = async (event: FormEvent<HTMLFormElement>) => {
+        return (
+          index ===
+          posts.findIndex(
+            (candidate) =>
+              candidate.type !== "Short Shift" &&
+              candidate.targetStaffProfileId === post.targetStaffProfileId &&
+              candidate.day === post.day &&
+              candidate.shiftTime === post.shiftTime
+          )
+        );
+      }),
+    [posts]
+  );
+  const selectedRequest = selectedAction?.post.shiftRequestId && schedule
+    ? schedule.requests.find((request) => request.id === selectedAction.post.shiftRequestId) ?? null
+    : null;
+  const selectedRequestShift = selectedRequest ? getRequestShift(selectedRequest) : null;
+  const selectedWeek = selectedRequestShift ? getWeekRange(selectedRequestShift.shift_date) : null;
+  const eligibleSwitchShifts = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId || !selectedWeek) {
+      return [];
+    }
+
+    return schedule.effectiveEntries.filter(
+      (entry) =>
+        entry.staff_profile_id === authContext.staffProfileId &&
+        entry.entry_status === "scheduled" &&
+        isWithinWeek(entry.shift_date, selectedWeek.start, selectedWeek.end)
+    );
+  }, [authContext.staffProfileId, schedule, selectedWeek]);
+
+  const closeOfferFlow = () => {
+    setSelectedAction(null);
+    setOfferNote("");
+    setManualSwitchForm(emptyManualSwitchForm);
+    setSelectedSwitchShiftId("");
+    setUseManualSwitch(false);
+  };
+
+  const createRequestNotification = async (
+    request: ShiftRequestRow,
+    eventType: "coverage_offer_created" | "switch_offer_created",
+    title: string,
+    body: string,
+    relatedEntityId: string
+  ) => {
+    const supabase = createClient();
+    await supabase.from("notification_events").insert({
+      department_id: authContext.departmentId,
+      staff_profile_id: request.staff_profile_id,
+      event_type: eventType,
+      title,
+      body,
+      related_entity_type: "shift_request_offer",
+      related_entity_id: relatedEntityId,
+      delivery_status: "queued"
+    });
+  };
+
+  const sendCoverageOffer = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!selectedPost || !authContext.staffProfileId) {
-      setActionError("Your staff profile must be linked before offering help.");
+    if (!selectedAction || !authContext.staffProfileId) {
+      setActionError("Your staff profile must be linked before offering coverage.");
       return;
     }
 
@@ -1141,25 +1447,141 @@ function ShiftBoardScreen({
     setSuccess("");
 
     const supabase = createClient();
-    const { error: insertError } = await supabase.from("coverage_offers").insert({
-      department_id: authContext.departmentId,
-      shift_request_id: selectedPost.shiftRequestId ?? null,
-      shift_shortage_id: selectedPost.shiftShortageId ?? null,
-      offered_by_staff_profile_id: authContext.staffProfileId,
-      status: "offered",
-      note: offerNote.trim() || null
-    });
 
-    setSaving(false);
+    if (selectedAction.post.shiftShortageId) {
+      const { error: shortShiftOfferError } = await supabase.from("coverage_offers").insert({
+        department_id: authContext.departmentId,
+        shift_request_id: null,
+        shift_shortage_id: selectedAction.post.shiftShortageId,
+        offered_by_staff_profile_id: authContext.staffProfileId,
+        status: "offered",
+        note: offerNote.trim() || null
+      });
 
-    if (insertError) {
-      setActionError("Unable to send offer. You may already have an active offer for this post.");
+      setSaving(false);
+
+      if (shortShiftOfferError) {
+        setActionError("Unable to send offer. You may already have an active offer for this Short Shift.");
+        return;
+      }
+
+      closeOfferFlow();
+      setSuccess("Offer sent.");
+      await onChanged();
       return;
     }
 
-    setSelectedPost(null);
-    setOfferNote("");
+    if (!selectedRequest) {
+      setSaving(false);
+      setActionError("This request is no longer active.");
+      return;
+    }
+
+    const { data, error: insertError } = await supabase
+      .from("shift_request_offers")
+      .insert({
+        department_id: authContext.departmentId,
+        shift_request_id: selectedRequest.id,
+        offer_type: "coverage",
+        offered_by_staff_profile_id: authContext.staffProfileId,
+        status: "offered",
+        note: offerNote.trim() || null
+      })
+      .select("id")
+      .single();
+
+    setSaving(false);
+
+    if (insertError || !data?.id) {
+      setActionError("Unable to send coverage offer. You may already have an active offer for this request.");
+      return;
+    }
+
+    await createRequestNotification(
+      selectedRequest,
+      "coverage_offer_created",
+      "Coverage offer",
+      `${authContext.displayName} offered to cover your ${selectedRequestShift ? getShiftSummary(selectedRequestShift) : "shift"}.`,
+      data.id as string
+    );
+    closeOfferFlow();
     setSuccess("Offer sent.");
+    await onChanged();
+  };
+
+  const sendSwitchOffer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!selectedAction || !selectedRequest || !selectedRequestShift || !selectedWeek || !authContext.staffProfileId) {
+      setActionError("This switch request is no longer active.");
+      return;
+    }
+
+    const selectedShift = eligibleSwitchShifts.find((entry) => entry.id === selectedSwitchShiftId);
+
+    if (!useManualSwitch && !selectedShift) {
+      setActionError("Select one of your same-week shifts or use Add Date.");
+      return;
+    }
+
+    if (useManualSwitch && !isWithinWeek(manualSwitchForm.shift_date, selectedWeek.start, selectedWeek.end)) {
+      setActionError("Switches must be within the same week, Sunday through Saturday.");
+      return;
+    }
+
+    setSaving(true);
+    setActionError("");
+    setSuccess("");
+
+    const offeredOverrideId = selectedShift?.id.startsWith("override-")
+      ? selectedShift.id.replace("override-", "")
+      : null;
+    const supabase = createClient();
+    const { data, error: insertError } = await supabase
+      .from("shift_request_offers")
+      .insert({
+        department_id: authContext.departmentId,
+        shift_request_id: selectedRequest.id,
+        offer_type: "switch",
+        offered_by_staff_profile_id: authContext.staffProfileId,
+        offered_schedule_entry_id: !useManualSwitch && selectedShift && !selectedShift.id.startsWith("override-") ? selectedShift.id : null,
+        offered_override_id: !useManualSwitch ? offeredOverrideId : null,
+        offered_date: useManualSwitch ? manualSwitchForm.shift_date : null,
+        offered_shift_type: useManualSwitch ? manualSwitchForm.shift_type : null,
+        offered_shift_start: useManualSwitch ? manualSwitchForm.shift_start : null,
+        offered_shift_end: useManualSwitch ? manualSwitchForm.shift_end : null,
+        status: "offered",
+        note: (useManualSwitch ? manualSwitchForm.note : offerNote).trim() || null
+      })
+      .select("id")
+      .single();
+
+    setSaving(false);
+
+    if (insertError || !data?.id) {
+      setActionError("Unable to send switch offer. You may already have an active offer using this shift.");
+      return;
+    }
+
+    const offeredSummary = useManualSwitch
+      ? getShiftSummary({
+          shift_date: manualSwitchForm.shift_date,
+          shift_type: manualSwitchForm.shift_type,
+          shift_start: manualSwitchForm.shift_start,
+          shift_end: manualSwitchForm.shift_end
+        })
+      : selectedShift
+        ? getShiftSummary(selectedShift)
+        : "your selected shift";
+    await createRequestNotification(
+      selectedRequest,
+      "switch_offer_created",
+      "Switch offer",
+      `${authContext.displayName} offered to switch ${offeredSummary} for your ${getShiftSummary(selectedRequestShift)}.`,
+      data.id as string
+    );
+    closeOfferFlow();
+    setSuccess("Switch offer sent.");
     await onChanged();
   };
 
@@ -1232,7 +1654,7 @@ function ShiftBoardScreen({
   if (loading) {
     return (
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <p className="text-sm font-bold text-slate-500">Loading Shift Board...</p>
+        <p className="text-sm font-bold text-slate-500">Loading Coverage Board...</p>
       </section>
     );
   }
@@ -1240,7 +1662,7 @@ function ShiftBoardScreen({
   if (error) {
     return (
       <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
-        <h2 className="text-lg font-black text-rose-950">Unable to load Shift Board</h2>
+        <h2 className="text-lg font-black text-rose-950">Unable to load Coverage Board</h2>
         <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
       </section>
     );
@@ -1254,7 +1676,7 @@ function ShiftBoardScreen({
             <AlertTriangle size={21} />
           </span>
           <div>
-            <h2 className="text-lg font-black text-rose-950">Shift Board</h2>
+            <h2 className="text-lg font-black text-rose-950">Coverage Board</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
               Live staff requests and Short Shift alerts for the coordination view.
             </p>
@@ -1375,38 +1797,93 @@ function ShiftBoardScreen({
         </form>
       )}
 
-      {posts.length === 0 && (
+      {visiblePosts.length === 0 && (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <p className="text-sm font-bold text-slate-500">No active Shift Board posts.</p>
+          <p className="text-sm font-bold text-slate-500">No active Coverage Board posts.</p>
         </section>
       )}
 
-      {posts.map((post) => (
-        <ShiftPostCard
-          key={post.id}
-          post={post}
-          onOffer={() => {
-            setSelectedPost(post);
-            setOfferNote("");
-          }}
-          onResolve={
-            canManageShortShift && post.shiftShortageId
-              ? () => void resolveShortShift(post, "resolved")
-              : undefined
-          }
-          onCancelShortShift={
-            canManageShortShift && post.shiftShortageId
-              ? () => void resolveShortShift(post, "cancelled")
-              : undefined
-          }
-        />
-      ))}
+      {visiblePosts.map((post) => {
+        const siblingCoveragePost = posts.find(
+          (candidate) =>
+            candidate.type === "Coverage Requested" &&
+            candidate.targetStaffProfileId === post.targetStaffProfileId &&
+            candidate.day === post.day &&
+            candidate.shiftTime === post.shiftTime
+        );
+        const siblingSwitchPost = posts.find(
+          (candidate) =>
+            candidate.type === "Switch Requested" &&
+            candidate.targetStaffProfileId === post.targetStaffProfileId &&
+            candidate.day === post.day &&
+            candidate.shiftTime === post.shiftTime
+        );
+        const relatedStatuses = Array.from(
+          new Set(
+            posts
+              .filter(
+                (candidate) =>
+                  candidate.type !== "Short Shift" &&
+                  candidate.targetStaffProfileId === post.targetStaffProfileId &&
+                  candidate.day === post.day &&
+                  candidate.shiftTime === post.shiftTime
+              )
+              .map((candidate) => candidate.status)
+          )
+        );
 
-      {selectedPost && (
-        <form onSubmit={sendOffer} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-          <h3 className="text-lg font-black text-hospital-ink">Offer help</h3>
+        return (
+          <ShiftPostCard
+            key={post.id}
+            post={post}
+            relatedStatuses={post.type === "Short Shift" ? undefined : relatedStatuses}
+            onOfferCoverage={
+              post.type === "Short Shift"
+                ? () => {
+                    setSelectedAction({ kind: "coverage", post });
+                    setOfferNote("");
+                  }
+                : siblingCoveragePost
+                  ? () => {
+                      setSelectedAction({ kind: "coverage", post: siblingCoveragePost });
+                      setOfferNote("");
+                    }
+                  : undefined
+            }
+            onOfferSwitch={
+              siblingSwitchPost
+                ? () => {
+                    setSelectedAction({ kind: "switch", post: siblingSwitchPost });
+                    setOfferNote("");
+                    setManualSwitchForm(emptyManualSwitchForm);
+                    setSelectedSwitchShiftId("");
+                    setUseManualSwitch(false);
+                  }
+                : undefined
+            }
+            onResolve={
+              canManageShortShift && post.shiftShortageId
+                ? () => void resolveShortShift(post, "resolved")
+                : undefined
+            }
+            onCancelShortShift={
+              canManageShortShift && post.shiftShortageId
+                ? () => void resolveShortShift(post, "cancelled")
+                : undefined
+            }
+          />
+        );
+      })}
+
+      {selectedAction?.kind === "coverage" && (
+        <form onSubmit={sendCoverageOffer} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">
+            {selectedAction.post.shiftShortageId ? "I Can Cover" : "Offer Coverage"}
+          </h3>
           <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-            {selectedPost.type} - {selectedPost.day} - {selectedPost.shiftTime}
+            {selectedAction.post.shiftShortageId
+              ? `You are offering to help with ${selectedAction.post.day} ${selectedAction.post.shiftTypeLabel ?? "Shift"}.`
+              : `You are offering to cover ${selectedAction.post.postedBy}'s ${selectedAction.post.day} ${selectedAction.post.shiftTypeLabel ?? "Shift"} shift.`}
           </p>
           <textarea
             value={offerNote}
@@ -1420,7 +1897,7 @@ function ShiftBoardScreen({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedPost(null)}
+                onClick={closeOfferFlow}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600"
               >
                 Cancel
@@ -1433,6 +1910,155 @@ function ShiftBoardScreen({
                 Send Offer
               </button>
             </div>
+          </div>
+        </form>
+      )}
+
+      {selectedAction?.kind === "switch" && selectedRequestShift && selectedWeek && (
+        <form onSubmit={sendSwitchOffer} className="rounded-3xl border border-fuchsia-100 bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Offer Switch</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+            What shift would you like to switch with {selectedAction.post.postedBy}?
+          </p>
+          <p className="mt-2 rounded-2xl bg-fuchsia-50 px-3 py-2 text-xs font-bold leading-5 text-fuchsia-900">
+            Same-week rule: {formatDateShort(selectedWeek.start)} through {formatDateShort(selectedWeek.end)}.
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {eligibleSwitchShifts.length === 0 && !useManualSwitch && (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
+                No eligible same-week shifts found. Use Add Date if your app schedule is not current.
+              </p>
+            )}
+            {!useManualSwitch &&
+              eligibleSwitchShifts.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => setSelectedSwitchShiftId(entry.id)}
+                  className={`w-full rounded-2xl border px-3 py-3 text-left ${
+                    selectedSwitchShiftId === entry.id
+                      ? "border-fuchsia-200 bg-fuchsia-50"
+                      : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <p className="text-sm font-black text-hospital-ink">{getShiftSummary(entry)}</p>
+                  <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Source: {entry.id.startsWith("override-") ? "Self-added" : "Published schedule"}
+                  </p>
+                </button>
+              ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setUseManualSwitch((current) => !current)}
+            className="mt-3 min-h-10 w-full rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-3 text-sm font-extrabold text-fuchsia-700"
+          >
+            {useManualSwitch ? "Use My Listed Shifts" : "Add Date"}
+          </button>
+
+          {useManualSwitch && (
+            <div className="mt-3 grid gap-3">
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</span>
+                <input
+                  type="date"
+                  value={manualSwitchForm.shift_date}
+                  onChange={(event) => setManualSwitchForm({ ...manualSwitchForm, shift_date: event.target.value })}
+                  required
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                />
+              </label>
+              {manualSwitchForm.shift_date &&
+                !isWithinWeek(manualSwitchForm.shift_date, selectedWeek.start, selectedWeek.end) && (
+                  <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                    Switches must be within the same week, Sunday through Saturday.
+                  </p>
+                )}
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
+                <select
+                  value={manualSwitchForm.shift_type}
+                  onChange={(event) =>
+                    setManualSwitchForm({ ...manualSwitchForm, shift_type: event.target.value as ShiftType })
+                  }
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                >
+                  {Object.entries(shiftTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Start</span>
+                  <input
+                    type="time"
+                    value={manualSwitchForm.shift_start}
+                    onChange={(event) => setManualSwitchForm({ ...manualSwitchForm, shift_start: event.target.value })}
+                    required
+                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">End</span>
+                  <input
+                    type="time"
+                    value={manualSwitchForm.shift_end}
+                    onChange={(event) => setManualSwitchForm({ ...manualSwitchForm, shift_end: event.target.value })}
+                    required
+                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                </label>
+              </div>
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Optional note</span>
+                <textarea
+                  value={manualSwitchForm.note}
+                  onChange={(event) => setManualSwitchForm({ ...manualSwitchForm, note: event.target.value.slice(0, 140) })}
+                  maxLength={140}
+                  className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                />
+                <span className="mt-1 block text-xs font-bold text-slate-400">{manualSwitchForm.note.length}/140</span>
+              </label>
+            </div>
+          )}
+
+          <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-slate-600">
+            {authContext.displayName} will switch{" "}
+            {useManualSwitch
+              ? manualSwitchForm.shift_date
+                ? getShiftSummary({
+                    shift_date: manualSwitchForm.shift_date,
+                    shift_type: manualSwitchForm.shift_type,
+                    shift_start: manualSwitchForm.shift_start,
+                    shift_end: manualSwitchForm.shift_end
+                  })
+                : "the shift you enter"
+              : eligibleSwitchShifts.find((entry) => entry.id === selectedSwitchShiftId)
+                ? getShiftSummary(eligibleSwitchShifts.find((entry) => entry.id === selectedSwitchShiftId) as ScheduleEntryRow)
+                : "your selected shift"}{" "}
+            for {selectedAction.post.postedBy}&apos;s {getShiftSummary(selectedRequestShift)}.
+          </div>
+
+          <div className="mt-3 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeOfferFlow}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-xl bg-fuchsia-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
+            >
+              Send Switch Offer
+            </button>
           </div>
         </form>
       )}
@@ -1513,7 +2139,8 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       { data: entries, error: entriesError },
       { data: shortages, error: shortagesError },
       { data: overrides, error: overridesError },
-      { data: requests, error: requestsError }
+      { data: requests, error: requestsError },
+      { data: offers, error: offersError }
     ] = await Promise.all([
       supabase
         .from("schedule_entries")
@@ -1546,9 +2173,18 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         .eq("department_id", authContext.departmentId)
         .eq("status", "active")
         .order("created_at", { ascending: false })
+      ,
+      supabase
+        .from("shift_request_offers")
+        .select(
+          "id, department_id, shift_request_id, offer_type, offered_by_staff_profile_id, offered_schedule_entry_id, offered_override_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, note, status, created_at, updated_at, responded_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active), shift_requests(id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
+        )
+        .eq("department_id", authContext.departmentId)
+        .in("status", ["offered", "accepted"])
+        .order("created_at", { ascending: false })
     ]);
 
-    if (entriesError || shortagesError || overridesError || requestsError) {
+    if (entriesError || shortagesError || overridesError || requestsError || offersError) {
       setScheduleState({
         loading: false,
         error: "Schedule coordination data could not be loaded. Confirm Phase 5 migrations are applied.",
@@ -1566,7 +2202,8 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         (entries ?? []) as ScheduleEntryRow[],
         (shortages ?? []) as ShiftShortageRow[],
         (overrides ?? []) as UserScheduleOverrideRow[],
-        (requests ?? []) as ShiftRequestRow[]
+        (requests ?? []) as ShiftRequestRow[],
+        (offers ?? []) as ShiftRequestOfferRow[]
       ),
       checked: true
     });

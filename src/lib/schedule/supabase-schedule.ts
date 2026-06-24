@@ -11,6 +11,7 @@ export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self";
 export type ShiftRequestType = "switch_requested" | "coverage_requested";
 export type ShiftRequestStatus = "active" | "cancelled" | "resolved";
 export type CoverageOfferStatus = "offered" | "accepted" | "declined" | "cancelled";
+export type ShiftRequestOfferType = "coverage" | "switch";
 
 export type StaffProfileSummary = {
   id: string;
@@ -111,6 +112,45 @@ export type ShiftRequestRow = {
   > | null;
 };
 
+export type ShiftRequestOfferRow = {
+  id: string;
+  department_id: string;
+  shift_request_id: string;
+  offer_type: ShiftRequestOfferType;
+  offered_by_staff_profile_id: string;
+  offered_schedule_entry_id: string | null;
+  offered_override_id: string | null;
+  offered_date: string | null;
+  offered_shift_type: ShiftType | null;
+  offered_shift_start: string | null;
+  offered_shift_end: string | null;
+  note: string | null;
+  status: CoverageOfferStatus;
+  created_at: string;
+  updated_at: string;
+  responded_at: string | null;
+  staff_profiles: StaffProfileSummary | StaffProfileSummary[] | null;
+  shift_requests?: ShiftRequestRow | ShiftRequestRow[] | null;
+  schedule_entries?: Pick<
+    ScheduleEntryRow,
+    "id" | "shift_date" | "day_of_week" | "shift_type" | "shift_start" | "shift_end"
+  > | Array<
+    Pick<
+      ScheduleEntryRow,
+      "id" | "shift_date" | "day_of_week" | "shift_type" | "shift_start" | "shift_end"
+    >
+  > | null;
+  user_schedule_overrides?: Pick<
+    UserScheduleOverrideRow,
+    "id" | "shift_date" | "shift_type" | "shift_start" | "shift_end"
+  > | Array<
+    Pick<
+      UserScheduleOverrideRow,
+      "id" | "shift_date" | "shift_type" | "shift_start" | "shift_end"
+    >
+  > | null;
+};
+
 export type CoverageOfferRow = {
   id: string;
   department_id: string;
@@ -127,6 +167,7 @@ export type ActiveSchedule = {
   effectiveEntries: ScheduleEntryRow[];
   overrides: UserScheduleOverrideRow[];
   requests: ShiftRequestRow[];
+  offers: ShiftRequestOfferRow[];
   shortages: ShiftShortageRow[];
   days: DemoDay[];
   shiftPosts: ShiftPost[];
@@ -214,6 +255,7 @@ function shortageToPost(shortage: ShiftShortageRow): ShiftPost {
     day: `${dayName} ${dateLabel}`,
     shiftTime: formatShiftTime(shortage.shift_start, shortage.shift_end),
     shiftCategory: shiftCategoryForType(shortage.shift_type),
+    shiftTypeLabel: shiftTypeLabels[shortage.shift_type],
     postedBy: `${shiftTypeLabels[shortage.shift_type]} Team`,
     staffType: "Full-time",
     type: "Short Shift",
@@ -230,7 +272,8 @@ export function adaptActiveSchedule(
   entries: ScheduleEntryRow[],
   shortages: ShiftShortageRow[],
   overrides: UserScheduleOverrideRow[] = [],
-  requests: ShiftRequestRow[] = []
+  requests: ShiftRequestRow[] = [],
+  offers: ShiftRequestOfferRow[] = []
 ): ActiveSchedule {
   const activeOverrides = overrides.filter((override) => override.is_active);
   const removedBaseEntryIds = new Set(
@@ -303,7 +346,7 @@ export function adaptActiveSchedule(
     } satisfies DemoDay;
   });
 
-  return { version, entries, effectiveEntries, overrides, requests, shortages, days, shiftPosts };
+  return { version, entries, effectiveEntries, overrides, requests, offers, shortages, days, shiftPosts };
 }
 
 function requestToPost(request: ShiftRequestRow): ShiftPost | null {
@@ -323,6 +366,7 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
     day: `${dayName} ${dateLabel}`,
     shiftTime: formatShiftTime(shift.shift_start, shift.shift_end),
     shiftCategory: shiftCategoryForType(shift.shift_type),
+    shiftTypeLabel: shiftTypeLabels[shift.shift_type],
     postedBy: staffDisplayName(request.staff_profiles),
     staffType: displayStaffType(request.staff_profiles),
     type: isSwitch ? "Switch Requested" : "Coverage Requested",
@@ -338,7 +382,7 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
   };
 }
 
-function firstRelatedRow<T>(value?: T | T[] | null) {
+export function firstRelatedRow<T>(value?: T | T[] | null) {
   if (Array.isArray(value)) {
     return value[0] ?? null;
   }

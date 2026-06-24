@@ -92,7 +92,7 @@ Notifications must not include:
 
 If push is unsupported or denied, the app remains usable and shows friendly fallback text:
 
-`Notifications are not enabled on this device. You can still check the Shift Board manually.`
+`Notifications are not enabled on this device. You can still check the Coverage Board manually.`
 
 ## Future Work
 

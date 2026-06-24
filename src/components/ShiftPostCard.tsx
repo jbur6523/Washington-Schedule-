@@ -1,11 +1,13 @@
 import { ArrowRightLeft, ClipboardCheck, SearchCheck } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
-import type { ShiftPost } from "@/data/mockSchedule";
+import type { ShiftPost, ShiftPostType } from "@/data/mockSchedule";
 
 type ShiftPostCardProps = {
   post: ShiftPost;
-  onOffer: () => void;
+  relatedStatuses?: ShiftPostType[];
+  onOfferCoverage?: () => void;
+  onOfferSwitch?: () => void;
   onResolve?: () => void;
   onCancelShortShift?: () => void;
 };
@@ -22,8 +24,27 @@ const typeHelp = {
   "Short Shift": "Department is short for part or all of this shift."
 };
 
-export function ShiftPostCard({ post, onOffer, onResolve, onCancelShortShift }: ShiftPostCardProps) {
+export function ShiftPostCard({
+  post,
+  relatedStatuses,
+  onOfferCoverage,
+  onOfferSwitch,
+  onResolve,
+  onCancelShortShift
+}: ShiftPostCardProps) {
   const Icon = typeIcon[post.type];
+  const statuses = relatedStatuses?.length ? relatedStatuses : [post.status];
+  const actionButtons = [
+    post.type === "Coverage Requested" && onOfferCoverage
+      ? { label: "Offer Coverage", onClick: onOfferCoverage }
+      : null,
+    post.type === "Switch Requested" && onOfferSwitch
+      ? { label: "Offer Switch", onClick: onOfferSwitch }
+      : null,
+    post.type === "Short Shift" && onOfferCoverage
+      ? { label: "I Can Cover", onClick: onOfferCoverage }
+      : null
+  ].filter((button): button is { label: string; onClick: () => void } => Boolean(button));
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
@@ -34,9 +55,11 @@ export function ShiftPostCard({ post, onOffer, onResolve, onCancelShortShift }: 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-              {post.day} • {post.shiftTime}
+              {post.day} - {post.shiftTypeLabel ?? "Shift"} - {post.shiftTime}
             </p>
-            <StatusChip status={post.status} intensity={post.coverageIntensity} compact />
+            {statuses.map((status) => (
+              <StatusChip key={status} status={status} intensity={post.coverageIntensity} compact />
+            ))}
           </div>
           <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{post.type}</h3>
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
@@ -55,14 +78,14 @@ export function ShiftPostCard({ post, onOffer, onResolve, onCancelShortShift }: 
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
-        {["I can cover", "Offer help"].map((label) => (
+        {actionButtons.map((button) => (
           <button
-            key={label}
+            key={button.label}
             type="button"
-            onClick={onOffer}
+            onClick={button.onClick}
             className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
           >
-            {label}
+            {button.label}
           </button>
         ))}
         {onResolve && (

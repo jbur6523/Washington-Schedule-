@@ -42,6 +42,7 @@ export type ShiftPost = {
   day: string;
   shiftTime: string;
   shiftCategory?: "day" | "night";
+  shiftTypeLabel?: string;
   postedBy: string;
   staffType: StaffType;
   type: ShiftPostType;

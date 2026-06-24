@@ -6,15 +6,15 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 
 - Staff Directory reads from `public.staff_profiles`.
 - Access is protected by Supabase Auth and Row Level Security.
-- The Schedule, Manage Schedule, and Shift Board tabs still use demo schedule data until later phases.
+- The Schedule, Manage Schedule, and Coverage Board tabs read schedule coordination data from Supabase in later phases.
 - If no `staff_profiles` rows exist for the user department, the app shows: `No staff profiles have been added yet.`
 
 ## Phone Number Rules
 
 - Phone numbers belong only to `staff_profiles.phone_number`.
 - Phone numbers are shown only inside Staff Directory/profile areas.
-- Phone numbers must not be shown on Schedule cards or Shift Board cards by default.
-- Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, shift board posts, import rows, audit summaries, or public examples.
+- Phone numbers must not be shown on Schedule cards or Coverage Board cards by default.
+- Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, `shift_request_offers`, Coverage Board posts, import rows, audit summaries, or public examples.
 - Use fake/demo phone numbers only for testing or seed data.
 - Do not add patient phone numbers, emergency contacts, hire dates, payroll data, clinical notes, or EMR data.
 
