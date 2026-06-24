@@ -782,7 +782,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           <p className="mt-4 text-xs font-extrabold uppercase tracking-wide text-cyan-700">Import Schedule</p>
           <h1 className="mt-1 text-2xl font-black text-hospital-ink">Review-first schedule import</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Not the official hospital schedule. Staff-managed coordination view only.
+            Not the official hospital schedule.
           </p>
           <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
             Crop photos to staffing schedule only. Do not upload patient information. If a person is crossed out on the source schedule, remove that row before approval.

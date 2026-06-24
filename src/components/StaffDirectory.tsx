@@ -12,11 +12,6 @@ type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
 type DirectoryFilter =
   | "all"
-  | "admin"
-  | "lead"
-  | "staff"
-  | "claimed"
-  | "unclaimed"
   | "full_time"
   | "per_diem"
   | "day_shift"
@@ -26,6 +21,7 @@ type DirectoryFilter =
   | "flexible"
   | "active"
   | "inactive";
+type AdminRosterFilter = DirectoryFilter | "admin" | "lead" | "staff" | "claimed" | "unclaimed";
 
 type StaffProfile = {
   id: string;
@@ -90,13 +86,8 @@ const emptyForm: StaffProfileForm = {
   is_active: true
 };
 
-const filters: Array<{ id: DirectoryFilter; label: string }> = [
+const directoryFilters: Array<{ id: DirectoryFilter; label: string }> = [
   { id: "all", label: "All" },
-  { id: "admin", label: "Admin" },
-  { id: "lead", label: "Lead" },
-  { id: "staff", label: "Staff" },
-  { id: "claimed", label: "Claimed" },
-  { id: "unclaimed", label: "Unclaimed" },
   { id: "full_time", label: "Full-time" },
   { id: "per_diem", label: "Per diem" },
   { id: "day_shift", label: "Day Shift" },
@@ -106,6 +97,16 @@ const filters: Array<{ id: DirectoryFilter; label: string }> = [
   { id: "flexible", label: "Flexible" },
   { id: "active", label: "Active" },
   { id: "inactive", label: "Inactive" }
+];
+
+const adminRosterFilters: Array<{ id: AdminRosterFilter; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "admin", label: "Admin" },
+  { id: "lead", label: "Lead" },
+  { id: "staff", label: "Staff" },
+  { id: "claimed", label: "Claimed" },
+  { id: "unclaimed", label: "Unclaimed" },
+  ...directoryFilters.filter((option) => option.id !== "all")
 ];
 
 const employmentLabels: Record<EmploymentType, string> = {
@@ -211,18 +212,11 @@ function profileToForm(profile: StaffProfile): StaffProfileForm {
 }
 
 function DirectoryCard({
-  profile,
-  canEdit,
-  onEdit
+  profile
 }: {
   profile: StaffProfile;
-  canEdit: boolean;
-  onEdit: (profile: StaffProfile) => void;
 }) {
   const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
-  const claimedDate = profile.account_claimed_at
-    ? new Date(profile.account_claimed_at).toLocaleDateString()
-    : "";
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -232,11 +226,6 @@ function DirectoryCard({
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
             {employmentLabels[profile.employment_type]} - {assignmentLabels[profile.home_assignment]}
           </p>
-          {profile.username && (
-            <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-              Username: {profile.username}
-            </p>
-          )}
         </div>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold ${
@@ -269,37 +258,72 @@ function DirectoryCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
-          {roleLabels[profile.assigned_role]}
-        </span>
         {profile.preferred_contact_method && (
           <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
             Prefers {contactLabels[profile.preferred_contact_method]}
           </span>
         )}
-        {profile.account_claimed_at && (
+      </div>
+    </article>
+  );
+}
+
+function AdminRosterCard({
+  profile,
+  onEdit
+}: {
+  profile: StaffProfile;
+  onEdit: (profile: StaffProfile) => void;
+}) {
+  const claimedDate = profile.account_claimed_at
+    ? new Date(profile.account_claimed_at).toLocaleDateString()
+    : "";
+
+  return (
+    <article className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-lg font-black leading-6 text-hospital-ink">{profile.display_name}</h3>
+          <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+            {employmentLabels[profile.employment_type]} - {assignmentLabels[profile.home_assignment]}
+          </p>
+          <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+            Username: {profile.username ?? profile.username_normalized ?? "Unassigned"}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold ${
+            profile.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {profile.is_active ? "Active" : "Inactive"}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
+          {roleLabels[profile.assigned_role]}
+        </span>
+        {profile.account_claimed_at ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
             <UserRoundCheck size={13} />
             Claimed{claimedDate ? ` ${claimedDate}` : ""}
           </span>
-        )}
-        {!profile.account_claimed_at && (
+        ) : (
           <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-700">
             Unclaimed
           </span>
         )}
       </div>
 
-      {canEdit && (
-        <button
-          type="button"
-          onClick={() => onEdit(profile)}
-          className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
-        >
-          <Pencil size={15} />
-          Edit Profile
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={() => onEdit(profile)}
+        className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
+      >
+        <Pencil size={15} />
+        Edit Profile
+      </button>
     </article>
   );
 }
@@ -498,7 +522,9 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [filter, setFilter] = useState<DirectoryFilter>("all");
+  const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilter>("all");
+  const [adminRosterFilter, setAdminRosterFilter] = useState<AdminRosterFilter>("all");
+  const [adminRosterOpen, setAdminRosterOpen] = useState(false);
   const [form, setForm] = useState<StaffProfileForm | null>(null);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchText, setBatchText] = useState("");
@@ -515,11 +541,12 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     setError("");
 
     const supabase = createClient();
+    const selectColumns = canEdit
+      ? "id, department_id, profile_id, auth_user_id, display_name, username, username_normalized, assigned_role, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at"
+      : "id, department_id, display_name, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active";
     const { data, error: loadError } = await supabase
       .from("staff_profiles")
-      .select(
-        "id, department_id, profile_id, auth_user_id, display_name, username, username_normalized, assigned_role, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at"
-      )
+      .select(selectColumns)
       .eq("department_id", authContext.departmentId)
       .order("display_name", { ascending: true });
 
@@ -527,11 +554,11 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       setError("Unable to load Staff Directory.");
       setProfiles([]);
     } else {
-      setProfiles((data ?? []) as StaffProfile[]);
+      setProfiles((data ?? []) as unknown as StaffProfile[]);
     }
 
     setLoading(false);
-  }, [authContext.departmentId, developmentFallback]);
+  }, [authContext.departmentId, canEdit, developmentFallback]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -541,35 +568,47 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     return () => window.clearTimeout(timer);
   }, [loadProfiles]);
 
+  const filterDirectoryProfiles = useCallback((profile: StaffProfile, selectedFilter: DirectoryFilter) => {
+    if (selectedFilter === "all") {
+      return true;
+    }
+
+    if (selectedFilter === "active") {
+      return profile.is_active;
+    }
+
+    if (selectedFilter === "inactive") {
+      return !profile.is_active;
+    }
+
+    return profile.employment_type === selectedFilter || profile.home_assignment === selectedFilter;
+  }, []);
+
   const filteredProfiles = useMemo(() => {
+    return profiles.filter((profile) => filterDirectoryProfiles(profile, directoryFilter));
+  }, [profiles, directoryFilter, filterDirectoryProfiles]);
+
+  const filteredAdminProfiles = useMemo(() => {
     return profiles.filter((profile) => {
-      if (filter === "all") {
+      if (adminRosterFilter === "all") {
         return true;
       }
 
-      if (filter === "admin" || filter === "lead" || filter === "staff") {
-        return profile.assigned_role === filter;
+      if (adminRosterFilter === "admin" || adminRosterFilter === "lead" || adminRosterFilter === "staff") {
+        return profile.assigned_role === adminRosterFilter;
       }
 
-      if (filter === "claimed") {
+      if (adminRosterFilter === "claimed") {
         return Boolean(profile.account_claimed_at);
       }
 
-      if (filter === "unclaimed") {
+      if (adminRosterFilter === "unclaimed") {
         return !profile.account_claimed_at;
       }
 
-      if (filter === "active") {
-        return profile.is_active;
-      }
-
-      if (filter === "inactive") {
-        return !profile.is_active;
-      }
-
-      return profile.employment_type === filter || profile.home_assignment === filter;
+      return filterDirectoryProfiles(profile, adminRosterFilter);
     });
-  }, [profiles, filter]);
+  }, [profiles, adminRosterFilter, filterDirectoryProfiles]);
 
   const updateForm = (nextForm: StaffProfileForm) => {
     if (nextForm.id) {
@@ -844,6 +883,49 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
             </p>
           </div>
           {canEdit && (
+            <button
+              type="button"
+              onClick={() => setAdminRosterOpen((current) => !current)}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
+            >
+              Admin Roster Management
+            </button>
+          )}
+        </div>
+
+        {authContext.role !== "admin" && (
+          <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+            Staff self-edit is planned for a later phase.
+          </p>
+        )}
+
+        <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
+          {directoryFilters.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setDirectoryFilter(option.id)}
+              className={`shrink-0 rounded-full border px-3 py-2 text-xs font-extrabold ${
+                directoryFilter === option.id
+                  ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {canEdit && adminRosterOpen && (
+        <section className="space-y-4 rounded-3xl border border-cyan-100 bg-cyan-50/50 p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-xl font-black text-hospital-ink">Admin Roster Management</h3>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                Username, role, claim status, and reset tools are visible only to admins.
+              </p>
+            </div>
             <div className="flex shrink-0 flex-col gap-2">
               <button
                 type="button"
@@ -859,39 +941,47 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
                   setBatchOpen((current) => !current);
                   setForm(null);
                 }}
-                className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
+                className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-cyan-100 bg-white px-3 text-xs font-extrabold text-cyan-700"
               >
                 Batch
               </button>
             </div>
-          )}
-        </div>
+          </div>
 
-        {authContext.role !== "admin" && (
-          <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-            Staff self-edit is planned for a later phase.
-          </p>
-        )}
+          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {adminRosterFilters.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setAdminRosterFilter(option.id)}
+                className={`shrink-0 rounded-full border px-3 py-2 text-xs font-extrabold ${
+                  adminRosterFilter === option.id
+                    ? "border-cyan-200 bg-white text-cyan-700"
+                    : "border-cyan-100 bg-cyan-50 text-slate-600"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
 
-        <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
-          {filters.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setFilter(option.id)}
-              className={`shrink-0 rounded-full border px-3 py-2 text-xs font-extrabold ${
-                filter === option.id
-                  ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </section>
+          <div className="grid gap-3">
+            {filteredAdminProfiles.map((profile) => (
+              <AdminRosterCard
+                key={profile.id}
+                profile={profile}
+                onEdit={(selectedProfile) => {
+                  setForm(profileToForm(selectedProfile));
+                  setSuccess("");
+                  setError("");
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-      {canEdit && batchOpen && (
+      {canEdit && adminRosterOpen && batchOpen && (
         <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
           <h3 className="text-lg font-black text-hospital-ink">Batch Add Roster</h3>
           <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
@@ -1006,12 +1096,6 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
           <DirectoryCard
             key={profile.id}
             profile={profile}
-            canEdit={canEdit}
-            onEdit={(selectedProfile) => {
-              setForm(profileToForm(selectedProfile));
-              setSuccess("");
-              setError("");
-            }}
           />
         ))}
       </div>

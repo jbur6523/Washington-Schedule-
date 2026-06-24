@@ -228,7 +228,7 @@ function AuthNotice({
   return (
     <div className="mb-3 space-y-2">
       <section className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-xs font-extrabold uppercase leading-5 tracking-wide text-cyan-900">
-        Not the official hospital schedule. Staff-managed coordination view only.
+        Not the official hospital schedule.
       </section>
       {!authContext.hasLinkedStaffProfile && (
         <section className="rounded-2xl border border-cyan-100 bg-white/90 px-4 py-3 text-sm font-bold leading-6 text-cyan-900">
@@ -1009,7 +1009,7 @@ function ManageScheduleScreen({
         <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
         <p className="mt-1 text-sm font-bold text-slate-500">Active baseline: {schedule.version.label}</p>
         <p className="mt-3 rounded-2xl bg-cyan-50 px-3 py-2 text-xs font-bold leading-5 text-cyan-900">
-          Not the official hospital schedule. Staff-managed coordination view only.
+          Not the official hospital schedule.
         </p>
         <button
           type="button"
