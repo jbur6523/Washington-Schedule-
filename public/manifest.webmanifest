@@ -1,0 +1,19 @@
+{
+  "name": "Washington Schedule",
+  "short_name": "Schedule",
+  "description": "Washington Hospital respiratory department staff coordination schedule.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eff6ff",
+  "theme_color": "#0e7490",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

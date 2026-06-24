@@ -45,6 +45,13 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
   - Requests can target either a baseline schedule entry or a self-added schedule override.
 - `coverage_offers`: staff offers to cover either a shift request or a Short Shift alert.
 
+### Notifications
+
+- `push_subscriptions`: staff-owned device subscriptions for Web Push.
+- `notification_preferences`: staff-owned alert preferences and optional quiet hours.
+- `notification_events`: delivery records for server-side notification attempts.
+- Push subscription secrets must not be public or logged.
+
 ### Import and Review
 
 - `schedule_imports`: admin-only schedule import jobs.
@@ -172,6 +179,15 @@ Assigned username rule:
 - Short Shift alerts have `status = active`, `resolved`, or `cancelled`.
 - Lead and admin users can create, resolve, or cancel Short Shift alerts.
 - Short Shift can appear on the Shift Board and schedule shift sections as a department need.
+- Creating an active Short Shift through the protected server route can send Web Push notifications to active staff who opted in.
+
+## Notification Rules
+
+- Staff can manage only their own push subscriptions and notification preferences.
+- Short Shift notification delivery runs server-side.
+- `VAPID_PRIVATE_KEY` must remain server-only.
+- Notification text should be short and generic.
+- Notification bodies must not include phone numbers, patient information, clinical notes, payroll data, EMR data, or private reasons.
 
 ## Import and Review Foundation
 

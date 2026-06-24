@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Sparkles, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { NotificationSettings } from "@/components/NotificationSettings";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
@@ -1173,23 +1174,25 @@ function ShiftBoardScreen({
     setActionError("");
     setSuccess("");
 
-    const supabase = createClient();
-    const { error: insertError } = await supabase.from("shift_shortages").insert({
-      schedule_version_id: schedule.version.id,
-      department_id: authContext.departmentId,
-      shift_date: shortShiftForm.shift_date,
-      shift_type: shortShiftForm.shift_type,
-      shift_start: shortShiftForm.shift_start,
-      shift_end: shortShiftForm.shift_end,
-      severity: shortShiftForm.severity,
-      status: "active",
-      message: shortShiftForm.message.trim() || null,
-      created_by: authContext.profileId
+    const response = await fetch("/api/short-shifts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        schedule_version_id: schedule.version.id,
+        shift_date: shortShiftForm.shift_date,
+        shift_type: shortShiftForm.shift_type,
+        shift_start: shortShiftForm.shift_start,
+        shift_end: shortShiftForm.shift_end,
+        severity: shortShiftForm.severity,
+        message: shortShiftForm.message.trim() || null
+      })
     });
 
     setSaving(false);
 
-    if (insertError) {
+    if (!response.ok) {
       setActionError("Unable to create Short Shift alert.");
       return;
     }
@@ -1446,6 +1449,18 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     checked: Boolean(developmentFallback)
   });
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+
+      if (tab === "shift-board") {
+        setActiveTab("shift-board");
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const loadActiveSchedule = useCallback(async () => {
     if (developmentFallback) {
       return;
@@ -1565,6 +1580,18 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     return () => window.clearTimeout(timer);
   }, [loadActiveSchedule]);
 
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      const timer = window.setTimeout(() => {
+        void navigator.serviceWorker.register("/sw.js");
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    return undefined;
+  }, []);
+
   return (
     <>
       <main className="min-h-screen pb-28">
@@ -1601,7 +1628,10 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
             />
           )}
           {activeTab === "staff" && (
-            <StaffDirectory authContext={authContext} developmentFallback={developmentFallback} />
+            <div className="space-y-4">
+              <StaffDirectory authContext={authContext} developmentFallback={developmentFallback} />
+              <NotificationSettings authContext={authContext} developmentFallback={developmentFallback} />
+            </div>
           )}
         </div>
       </main>
