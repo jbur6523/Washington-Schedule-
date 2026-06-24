@@ -39,6 +39,20 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - Lead defaults are Allan Timbang, Jonathan Burdick, Heather Heath, Tom Nguyen, Win Hlaing, Bei Yi, Katryna Vuong, Joann Devera, Victor Davis, Jean Rodrillo, Gene Benoza, and Stephanie Ortiz.
 - Usernames are permanent after account claim. Admins can regenerate usernames only while a profile is unclaimed.
 
+## Username-Based Imports
+
+Schedule imports should use permanent usernames whenever possible because printed schedules may use legal names, preferred names, or nicknames that differ from Staff Directory display names.
+
+Known preferred-name mappings:
+
+- John Roberts / Marshall Roberts imports as `robm`.
+- Yiqin Meng / Maggie imports as `menm`.
+- Pawanjit Khera / Kinty imports as `khek`.
+- Harjot Kaur / Joy imports as `kauj`.
+- Bei Yi imports as `yibe`.
+
+Schedule Code Import matches `staff_identifier` against `username_normalized` before trying display-name or last-name fallbacks.
+
 ## Batch Roster Provisioning
 
 Admins can paste roster lines in this format:

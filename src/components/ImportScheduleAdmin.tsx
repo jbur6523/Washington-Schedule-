@@ -20,10 +20,14 @@ type ImportScheduleAdminProps = {
 type StaffProfile = {
   id: string;
   display_name: string;
+  username: string | null;
+  username_normalized: string | null;
   employment_type: "full_time" | "per_diem";
   home_assignment: string;
   is_active: boolean;
 };
+
+type StaffMatchSource = "username" | "display_name" | "full_name" | "last_name" | "manual_review" | "unmatched" | "ambiguous";
 
 type SourceFilePreview = {
   id: string;
@@ -42,9 +46,12 @@ type ReviewRow = {
   shift_type: ShiftType | "";
   shift_start: string;
   shift_end: string;
+  original_staff_identifier: string;
+  staff_identifier: string;
   raw_staff_name: string;
   matched_staff_profile_id: string;
   employment_type: "full_time" | "per_diem" | "";
+  match_source: StaffMatchSource;
   entry_status: ScheduleEntryStatus | "";
   notes: string;
   confidence: number;
@@ -111,6 +118,18 @@ function compactName(value: string) {
   return normalizeName(value).replace(/\s/g, "");
 }
 
+function normalizeUsername(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function stripComment(value: string) {
+  return value.split("#")[0]?.trim() ?? "";
+}
+
+function lastNameFromDisplayName(value: string) {
+  return normalizeName(value).split(" ").filter(Boolean).at(-1) ?? "";
+}
+
 function isValidDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -127,30 +146,55 @@ function employmentLabel(value: string) {
   return value === "full_time" ? "Full-time" : value === "per_diem" ? "Per diem" : "Unknown";
 }
 
-function matchStaff(rawName: string, staffProfiles: StaffProfile[]) {
-  const normalizedRaw = normalizeName(rawName);
-  const compactRaw = compactName(rawName);
-  const exact = staffProfiles.find(
-    (profile) => normalizeName(profile.display_name) === normalizedRaw || compactName(profile.display_name) === compactRaw
+function matchSourceLabel(value: StaffMatchSource) {
+  const labels: Record<StaffMatchSource, string> = {
+    username: "Username match",
+    display_name: "Display name match",
+    full_name: "Full name match",
+    last_name: "Last name match",
+    manual_review: "Manual review",
+    unmatched: "Unmatched",
+    ambiguous: "Ambiguous"
+  };
+
+  return labels[value];
+}
+
+function matchStaff(staffIdentifier: string, staffProfiles: StaffProfile[]) {
+  const normalizedIdentifier = normalizeName(staffIdentifier);
+  const compactIdentifier = compactName(staffIdentifier);
+  const usernameIdentifier = normalizeUsername(staffIdentifier);
+  const usernameMatch = staffProfiles.find(
+    (profile) => normalizeUsername(profile.username_normalized ?? profile.username ?? "") === usernameIdentifier
   );
 
-  if (exact) {
-    return { staff: exact, confidence: 0.99, needsReview: false, status: "Matched" };
+  if (usernameMatch) {
+    return { staff: usernameMatch, confidence: 1, needsReview: false, status: "Username match", source: "username" as StaffMatchSource };
   }
 
-  const rawTokens = normalizedRaw.split(" ").filter(Boolean);
-  const suggested = staffProfiles.find((profile) => {
-    const normalizedProfile = normalizeName(profile.display_name);
-    const profileTokens = normalizedProfile.split(" ").filter(Boolean);
+  const exactDisplayMatch = staffProfiles.find((profile) => profile.display_name.trim().toLowerCase() === staffIdentifier.trim().toLowerCase());
 
-    return rawTokens.length > 0 && rawTokens.every((token) => profileTokens.some((profileToken) => profileToken.startsWith(token)));
-  });
-
-  if (suggested) {
-    return { staff: suggested, confidence: 0.72, needsReview: true, status: "Suggested match" };
+  if (exactDisplayMatch) {
+    return { staff: exactDisplayMatch, confidence: 0.98, needsReview: false, status: "Display name match", source: "display_name" as StaffMatchSource };
   }
 
-  return { staff: null, confidence: 0.25, needsReview: true, status: "No roster match" };
+  const exactFullNameMatch = staffProfiles.find((profile) => compactName(profile.display_name) === compactIdentifier);
+
+  if (exactFullNameMatch) {
+    return { staff: exactFullNameMatch, confidence: 0.96, needsReview: false, status: "Full name match", source: "full_name" as StaffMatchSource };
+  }
+
+  const lastNameMatches = staffProfiles.filter((profile) => lastNameFromDisplayName(profile.display_name) === normalizedIdentifier);
+
+  if (lastNameMatches.length === 1) {
+    return { staff: lastNameMatches[0], confidence: 0.88, needsReview: false, status: "Last name match", source: "last_name" as StaffMatchSource };
+  }
+
+  if (lastNameMatches.length > 1) {
+    return { staff: null, confidence: 0.35, needsReview: true, status: "Ambiguous last name", source: "ambiguous" as StaffMatchSource };
+  }
+
+  return { staff: null, confidence: 0.25, needsReview: true, status: "No roster match", source: "unmatched" as StaffMatchSource };
 }
 
 function validateReviewRow(row: ReviewRow) {
@@ -271,7 +315,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     const supabase = createClient();
     const { data, error: staffError } = await supabase
       .from("staff_profiles")
-      .select("id, display_name, employment_type, home_assignment, is_active")
+      .select("id, display_name, username, username_normalized, employment_type, home_assignment, is_active")
       .eq("department_id", authContext.departmentId)
       .eq("is_active", true)
       .order("display_name", { ascending: true });
@@ -312,12 +356,13 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     setParseErrors([]);
     const rows = pasteText
       .split(/\r?\n/)
-      .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+      .map((line, index) => ({ line: stripComment(line), lineNumber: index + 1 }))
       .filter(({ line }) => Boolean(line))
       .map(({ line, lineNumber }) => {
-        const [shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffName = "", rawStatus = ""] =
+        const [shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = ""] =
           line.split("|").map((part) => part.trim());
-        const match = matchStaff(rawStaffName, staffProfiles);
+        const staffIdentifier = stripComment(rawStaffIdentifier);
+        const match = matchStaff(staffIdentifier, staffProfiles);
         const matchedStaff = match.staff;
         const row: ReviewRow = {
           id: createRowId(),
@@ -327,9 +372,12 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           shift_type: Object.keys(shiftTypeLabels).includes(rawShiftType) ? (rawShiftType as ShiftType) : "",
           shift_start: shiftStart,
           shift_end: shiftEnd,
-          raw_staff_name: rawStaffName,
+          original_staff_identifier: staffIdentifier,
+          staff_identifier: staffIdentifier,
+          raw_staff_name: staffIdentifier,
           matched_staff_profile_id: matchedStaff?.id ?? "",
           employment_type: matchedStaff?.employment_type ?? "",
+          match_source: match.source,
           entry_status: ["scheduled", "available"].includes(rawStatus) ? (rawStatus as ScheduleEntryStatus) : "",
           notes: "",
           confidence: match.confidence,
@@ -354,7 +402,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
 
     scheduleCodeText
       .split(/\r?\n/)
-      .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+      .map((line, index) => ({ line: stripComment(line), lineNumber: index + 1 }))
       .filter(({ line }) => Boolean(line))
       .forEach(({ line, lineNumber }) => {
         const parts = line.split("|").map((part) => part.trim());
@@ -389,7 +437,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         }
 
         if (recordType === "ENTRY") {
-          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffName = "", rawStatus = ""] = parts;
+          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = ""] = parts;
+          const staffIdentifier = rawStaffIdentifier;
 
           if (parts.length !== 7) {
             errors.push(`Line ${lineNumber}: ENTRY must use 7 fields.`);
@@ -407,15 +456,15 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
             errors.push(`Line ${lineNumber}: shift_start and shift_end must use HH:mm.`);
           }
 
-          if (!rawStaffName) {
-            errors.push(`Line ${lineNumber}: staff_name is required.`);
+          if (!staffIdentifier) {
+            errors.push(`Line ${lineNumber}: staff_identifier is required.`);
           }
 
           if (!allowedEntryStatuses.has(rawStatus)) {
             errors.push(`Line ${lineNumber}: entry_status must be scheduled or available.`);
           }
 
-          const match = matchStaff(rawStaffName, staffProfiles);
+          const match = matchStaff(staffIdentifier, staffProfiles);
           const matchedStaff = match.staff;
           const row: ReviewRow = {
             id: createRowId(),
@@ -425,9 +474,12 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
             shift_type: allowedShiftTypes.has(rawShiftType) ? (rawShiftType as ShiftType) : "",
             shift_start: shiftStart,
             shift_end: shiftEnd,
-            raw_staff_name: rawStaffName,
+            original_staff_identifier: staffIdentifier,
+            staff_identifier: staffIdentifier,
+            raw_staff_name: staffIdentifier,
             matched_staff_profile_id: matchedStaff?.id ?? "",
             employment_type: matchedStaff?.employment_type ?? "",
+            match_source: match.source,
             entry_status: allowedEntryStatuses.has(rawStatus) ? (rawStatus as ScheduleEntryStatus) : "",
             notes: "",
             confidence: match.confidence,
@@ -515,7 +567,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         if (patch.matched_staff_profile_id !== undefined) {
           const staff = staffById.get(patch.matched_staff_profile_id);
           next.employment_type = staff?.employment_type ?? "";
-          next.raw_staff_name = next.raw_staff_name || staff?.display_name || "";
+          next.raw_staff_name = next.raw_staff_name || next.staff_identifier || staff?.display_name || "";
+          next.match_source = patch.matched_staff_profile_id ? "manual_review" : "unmatched";
         }
 
         next.validation_status = validateReviewRow(next);
@@ -535,9 +588,12 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         shift_type: "day_shift",
         shift_start: "07:00",
         shift_end: "19:00",
+        original_staff_identifier: "",
+        staff_identifier: "",
         raw_staff_name: "",
         matched_staff_profile_id: "",
         employment_type: "",
+        match_source: "manual_review",
         entry_status: "scheduled",
         notes: "",
         confidence: 0,
@@ -981,12 +1037,24 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                           </label>
                         </div>
                         <label className="block">
-                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Raw staff name</span>
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff identifier</span>
                           <input
-                            value={row.raw_staff_name}
-                            onChange={(event) => updateRow(row.id, { raw_staff_name: event.target.value, needs_review: true })}
+                            value={row.staff_identifier}
+                            onChange={(event) =>
+                              updateRow(row.id, {
+                                staff_identifier: event.target.value,
+                                raw_staff_name: event.target.value,
+                                matched_staff_profile_id: "",
+                                employment_type: "",
+                                match_source: "unmatched",
+                                needs_review: true
+                              })
+                            }
                             className="mt-1 min-h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
                           />
+                          <span className="mt-1 block text-xs font-bold text-slate-500">
+                            Original imported identifier: {row.original_staff_identifier || "missing"}
+                          </span>
                         </label>
                         <label className="block">
                           <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Matched staff profile</span>
@@ -998,12 +1066,14 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                             <option value="">Select staff member</option>
                             {staffProfiles.map((profile) => (
                               <option key={profile.id} value={profile.id}>
-                                {profile.display_name}
+                                {profile.display_name}{profile.username ? ` (${profile.username})` : ""}
                               </option>
                             ))}
                           </select>
                           <span className="mt-1 block text-xs font-bold text-slate-500">
-                            {staff ? `${employmentLabel(staff.employment_type)} - confidence ${Math.round(row.confidence * 100)}%` : "No match selected"}
+                            {staff
+                              ? `${staff.display_name} - ${employmentLabel(staff.employment_type)} - ${matchSourceLabel(row.match_source)} - confidence ${Math.round(row.confidence * 100)}%`
+                              : `${matchSourceLabel(row.match_source)} - no match selected`}
                           </span>
                         </label>
                         <label className="block">
