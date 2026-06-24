@@ -20,7 +20,7 @@ Multiple titles can be assigned to the same coworker.
 
 ## Staff Directory
 
-Staff can open a coworker's Staff Directory card and use the `Coworker Titles` section to select one or more titles.
+Staff can tap a coworker's Staff Directory card action to open the `Coworker Titles` bottom sheet and select one or more titles.
 
 Self-tags are not allowed in this phase. Titles are saved only for the signed-in staff member.
 

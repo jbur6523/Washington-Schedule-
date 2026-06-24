@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Mail, Phone } from "lucide-react";
+import { Mail, Phone, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { coworkerTitleDetails, coworkerTitleValues, type CoworkerTitle } from "@/lib/coworker-titles";
@@ -163,7 +163,7 @@ function DirectoryCard({
   );
 }
 
-function CoworkerTitlePanel({
+function CoworkerTitleSheet({
   profile,
   draftTitles,
   saving,
@@ -178,64 +178,150 @@ function CoworkerTitlePanel({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+    );
+
+    document.body.style.overflow = "hidden";
+    firstFocusable?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCancel();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        )
+      );
+
+      if (focusableElements.length === 0) {
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previousActiveElement?.focus();
+    };
+  }, [onCancel]);
+
   return (
-    <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Coworker Titles</p>
-          <h3 className="mt-1 text-xl font-black text-hospital-ink">{profile.display_name}</h3>
-          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-            These titles are private to you. Schedule cards show icons only.
-          </p>
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-slate-950/40 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6"
+      role="presentation"
+      onMouseDown={onCancel}
+    >
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="coworker-title-heading"
+        aria-describedby="coworker-title-description"
+        onMouseDown={(event) => event.stopPropagation()}
+        className="max-h-[88vh] w-full overflow-y-auto rounded-t-3xl border border-cyan-100 bg-white p-4 shadow-2xl sm:max-w-md sm:rounded-3xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Coworker Titles</p>
+            <h3 id="coworker-title-heading" className="mt-1 text-2xl font-black text-hospital-ink">
+              {profile.display_name}
+            </h3>
+            <p id="coworker-title-description" className="mt-1 text-sm font-bold leading-6 text-slate-500">
+              Private to you. Icons show only on your schedule.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-60"
+            aria-label="Close coworker titles"
+          >
+            <X size={18} />
+          </button>
         </div>
-      </div>
 
-      <div className="mt-4 grid gap-2">
-        {coworkerTitleValues.map((title) => {
-          const selected = draftTitles.includes(title);
-          const details = coworkerTitleDetails[title];
+        <div className="mt-4 grid gap-2">
+          {coworkerTitleValues.map((title) => {
+            const selected = draftTitles.includes(title);
+            const details = coworkerTitleDetails[title];
 
-          return (
-            <button
-              key={title}
-              type="button"
-              onClick={() => onToggleTitle(title)}
-              aria-pressed={selected}
-              className={`flex min-h-11 items-center justify-between rounded-2xl border px-3 text-left text-sm font-extrabold ${
-                selected
-                  ? "border-cyan-200 bg-cyan-50 text-cyan-800"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              <span className="inline-flex items-center gap-2">
-                <span className="text-base">{details.icon}</span>
-                {details.label}
-              </span>
-              <span className="text-xs uppercase tracking-wide">{selected ? "Selected" : "Tap"}</span>
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={title}
+                type="button"
+                onClick={() => onToggleTitle(title)}
+                aria-pressed={selected}
+                className={`flex min-h-12 items-center justify-between rounded-2xl border px-3 text-left text-sm font-extrabold transition ${
+                  selected
+                    ? "border-cyan-300 bg-cyan-50 text-cyan-900 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600"
+                }`}
+              >
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white text-base shadow-sm">
+                    {details.icon}
+                  </span>
+                  <span className="min-w-0">{details.label}</span>
+                </span>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-1 text-xs uppercase tracking-wide ${
+                    selected ? "bg-cyan-700 text-white" : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {selected ? "Selected" : "Tap"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
-        >
-          {saving ? "Saving..." : "Save Titles"}
-        </button>
-      </div>
-    </section>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Titles"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -353,6 +439,11 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         : [...current, title]
     );
   };
+
+  const closeTitleSheet = useCallback(() => {
+    setTitleProfile(null);
+    setTitleDraft([]);
+  }, []);
 
   const saveCoworkerTitles = async () => {
     if (!titleProfile || !authContext.staffProfileId) {
@@ -481,21 +572,21 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         </p>
       )}
       {success && (
-        <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+        <p
+          role="status"
+          className="fixed inset-x-3 bottom-24 z-50 mx-auto max-w-xl rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 shadow-soft"
+        >
           {success}
         </p>
       )}
 
       {titleProfile && (
-        <CoworkerTitlePanel
+        <CoworkerTitleSheet
           profile={titleProfile}
           draftTitles={titleDraft}
           saving={titleSaving}
           onToggleTitle={toggleDraftTitle}
-          onCancel={() => {
-            setTitleProfile(null);
-            setTitleDraft([]);
-          }}
+          onCancel={closeTitleSheet}
           onSave={() => void saveCoworkerTitles()}
         />
       )}

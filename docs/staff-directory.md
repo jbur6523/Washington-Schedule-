@@ -114,7 +114,7 @@ Schedule Code Import matches `staff_identifier` against `username_normalized` be
 
 ## Personal Coworker Titles
 
-Staff Directory cards include a private `Coworker Titles` control for signed-in staff.
+Staff Directory cards include a private `Coworker Titles` control for signed-in staff. The control opens as a modal bottom sheet so title selection stays in context on mobile.
 
 Allowed titles are Bestie, Work Wife, Work Husband, Ride or Die, Emotional Support Coworker, Frenemy, and Trauma Bonded. Multiple titles are allowed for the same coworker.
 
