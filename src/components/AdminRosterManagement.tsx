@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Plus, UserRoundCheck } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, UserRoundCheck, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { generateBaseUsername, normalizeUsername } from "@/lib/auth/username";
 import { createClient } from "@/lib/supabase/client";
@@ -216,183 +216,257 @@ function StaffProfileEditor({
   onResetAccount: () => void;
   onRegenerateUsername: () => void;
 }) {
+  const dialogRef = useRef<HTMLFormElement>(null);
   const isBurj = form.username_normalized === "burj";
   const canRegenerateUsername = !form.account_claimed_at;
   const canSave = Boolean(form.display_name.trim() && form.username_normalized && form.employment_type && form.home_assignment);
+  const closeEditor = useCallback(() => {
+    if (!saving) {
+      onCancel();
+    }
+  }, [onCancel, saving]);
+
+  useEffect(() => {
+    const previousActiveElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const firstFocusable = dialogRef.current?.querySelector<HTMLElement>(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+    );
+
+    document.body.style.overflow = "hidden";
+    firstFocusable?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeEditor();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+        )
+      );
+
+      if (focusableElements.length === 0) {
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previousActiveElement?.focus();
+    };
+  }, [closeEditor]);
 
   return (
-    <form onSubmit={onSubmit} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-            {form.id ? "Editing profile" : "New staff profile"}
-          </p>
-          <h2 className="mt-1 text-xl font-black text-hospital-ink">
-            {form.id ? form.display_name || "Edit Staff Profile" : "Add Staff Profile"}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="shrink-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-600"
-        >
-          Close
-        </button>
-      </div>
-
-      <div className="mt-4 grid gap-3">
-        <label className="block">
-          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff name</span>
-          <input
-            value={form.display_name}
-            onChange={(event) => onChange({ ...form, display_name: event.target.value })}
-            required
-            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Assigned username</span>
-          <input
-            value={form.username}
-            readOnly
-            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black lowercase text-hospital-ink outline-none"
-          />
-        </label>
-        {canRegenerateUsername && (
+    <div
+      className="fixed inset-0 z-50 flex items-end bg-slate-950/40 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-center sm:justify-center sm:p-6"
+      role="presentation"
+      onMouseDown={closeEditor}
+    >
+      <form
+        ref={dialogRef}
+        onSubmit={onSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="staff-profile-editor-heading"
+        onMouseDown={(event) => event.stopPropagation()}
+        className="max-h-[88vh] w-full overflow-y-auto rounded-t-3xl border border-cyan-100 bg-white p-4 shadow-2xl sm:max-w-md sm:rounded-3xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+              {form.id ? "Editing profile" : "New staff profile"}
+            </p>
+            <h2 id="staff-profile-editor-heading" className="mt-1 text-xl font-black text-hospital-ink">
+              {form.id ? form.display_name || "Edit Staff Profile" : "Add Staff Profile"}
+            </h2>
+          </div>
           <button
             type="button"
-            onClick={onRegenerateUsername}
-            className="min-h-10 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
+            onClick={closeEditor}
+            disabled={saving}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-60"
+            aria-label="Close staff profile editor"
           >
-            Regenerate Username
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff name</span>
+            <input
+              value={form.display_name}
+              onChange={(event) => onChange({ ...form, display_name: event.target.value })}
+              required
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Assigned username</span>
+            <input
+              value={form.username}
+              readOnly
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black lowercase text-hospital-ink outline-none"
+            />
+          </label>
+          {canRegenerateUsername && (
+            <button
+              type="button"
+              onClick={onRegenerateUsername}
+              className="min-h-10 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
+            >
+              Regenerate Username
+            </button>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employment</span>
+              <select
+                value={form.employment_type}
+                onChange={(event) => onChange({ ...form, employment_type: event.target.value as EmploymentType })}
+                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              >
+                <option value="full_time">Full-time</option>
+                <option value="per_diem">Per diem</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Assignment</span>
+              <select
+                value={form.home_assignment}
+                onChange={(event) => onChange({ ...form, home_assignment: event.target.value as HomeAssignment })}
+                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              >
+                <option value="day_shift">Day Shift</option>
+                <option value="night_shift">Night Shift</option>
+                <option value="pft">PFT</option>
+                <option value="pulmonary_rehab">Pulmonary Rehab</option>
+                <option value="flexible">Flexible</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Role</span>
+            {isBurj ? (
+              <input
+                value="Admin"
+                readOnly
+                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-hospital-ink outline-none"
+              />
+            ) : (
+              <select
+                value={form.assigned_role === "admin" ? "staff" : form.assigned_role}
+                onChange={(event) => onChange({ ...form, assigned_role: event.target.value as StaffRole })}
+                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              >
+                <option value="staff">Staff</option>
+                <option value="lead">Lead</option>
+              </select>
+            )}
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Phone number</span>
+            <input
+              type="tel"
+              value={form.phone_number}
+              onChange={(event) => onChange({ ...form, phone_number: event.target.value })}
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Email</span>
+            <input
+              type="email"
+              value={form.email}
+              onChange={(event) => onChange({ ...form, email: event.target.value })}
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Preferred</span>
+              <select
+                value={form.preferred_contact_method}
+                onChange={(event) =>
+                  onChange({ ...form, preferred_contact_method: event.target.value as PreferredContactMethod | "" })
+                }
+                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              >
+                <option value="">None</option>
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+                <option value="app">App</option>
+              </select>
+            </label>
+            <label className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 pb-3 text-sm font-extrabold text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(event) => onChange({ ...form, is_active: event.target.checked })}
+                className="h-4 w-4"
+              />
+              Active
+            </label>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={closeEditor}
+            disabled={saving}
+            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !canSave}
+            className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save Profile"}
+          </button>
+        </div>
+
+        {form.id && (
+          <button
+            type="button"
+            onClick={onResetAccount}
+            disabled={saving}
+            className="mt-2 min-h-11 w-full rounded-2xl border border-rose-100 bg-rose-50 px-3 text-sm font-extrabold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reset / Unclaim Account
           </button>
         )}
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Employment</span>
-            <select
-              value={form.employment_type}
-              onChange={(event) => onChange({ ...form, employment_type: event.target.value as EmploymentType })}
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-            >
-              <option value="full_time">Full-time</option>
-              <option value="per_diem">Per diem</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Assignment</span>
-            <select
-              value={form.home_assignment}
-              onChange={(event) => onChange({ ...form, home_assignment: event.target.value as HomeAssignment })}
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-            >
-              <option value="day_shift">Day Shift</option>
-              <option value="night_shift">Night Shift</option>
-              <option value="pft">PFT</option>
-              <option value="pulmonary_rehab">Pulmonary Rehab</option>
-              <option value="flexible">Flexible</option>
-            </select>
-          </label>
-        </div>
-
-        <label className="block">
-          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Role</span>
-          {isBurj ? (
-            <input
-              value="Admin"
-              readOnly
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-hospital-ink outline-none"
-            />
-          ) : (
-            <select
-              value={form.assigned_role === "admin" ? "staff" : form.assigned_role}
-              onChange={(event) => onChange({ ...form, assigned_role: event.target.value as StaffRole })}
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-            >
-              <option value="staff">Staff</option>
-              <option value="lead">Lead</option>
-            </select>
-          )}
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Phone number</span>
-          <input
-            type="tel"
-            value={form.phone_number}
-            onChange={(event) => onChange({ ...form, phone_number: event.target.value })}
-            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Email</span>
-          <input
-            type="email"
-            value={form.email}
-            onChange={(event) => onChange({ ...form, email: event.target.value })}
-            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-          />
-        </label>
-
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Preferred</span>
-            <select
-              value={form.preferred_contact_method}
-              onChange={(event) =>
-                onChange({ ...form, preferred_contact_method: event.target.value as PreferredContactMethod | "" })
-              }
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-            >
-              <option value="">None</option>
-              <option value="phone">Phone</option>
-              <option value="email">Email</option>
-              <option value="app">App</option>
-            </select>
-          </label>
-          <label className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white px-3 pb-3 text-sm font-extrabold text-slate-700">
-            <input
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(event) => onChange({ ...form, is_active: event.target.checked })}
-              className="h-4 w-4"
-            />
-            Active
-          </label>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving || !canSave}
-          className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? "Saving..." : "Save Profile"}
-        </button>
-      </div>
-
-      {form.id && (
-        <button
-          type="button"
-          onClick={onResetAccount}
-          disabled={saving}
-          className="mt-2 min-h-11 w-full rounded-2xl border border-rose-100 bg-rose-50 px-3 text-sm font-extrabold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          Reset / Unclaim Account
-        </button>
-      )}
-    </form>
+      </form>
+    </div>
   );
 }
 
@@ -559,6 +633,10 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     setSuccess("");
     setError("");
   };
+
+  const closeForm = useCallback(() => {
+    setForm(null);
+  }, []);
 
   const regenerateUsername = () => {
     if (!form || form.account_claimed_at) {
@@ -821,12 +899,18 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
         </section>
 
         {error && (
-          <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+          <p
+            role="alert"
+            className="fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-xl rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 shadow-soft"
+          >
             {error}
           </p>
         )}
         {success && (
-          <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          <p
+            role="status"
+            className="fixed inset-x-3 bottom-24 z-[60] mx-auto max-w-xl rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 shadow-soft"
+          >
             {success}
           </p>
         )}
@@ -836,7 +920,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
             form={form}
             saving={saving}
             onChange={updateForm}
-            onCancel={() => setForm(null)}
+            onCancel={closeForm}
             onSubmit={handleSubmit}
             onResetAccount={resetAccount}
             onRegenerateUsername={regenerateUsername}

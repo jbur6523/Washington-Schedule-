@@ -85,7 +85,7 @@ The admin-only page contains roster provisioning details:
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.
 
-Admin add/edit, batch roster creation, and account reset use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
+Admin add/edit opens in a modal bottom sheet from `/admin/roster`. Batch roster creation and account reset use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
 
 ## Username and Role Rules
 
