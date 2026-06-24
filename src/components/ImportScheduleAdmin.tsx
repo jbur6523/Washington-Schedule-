@@ -72,6 +72,9 @@ type VersionForm = {
 
 const steps = ["Upload", "Extract/Paste", "Review", "Create Version", "Done"] as const;
 const allowedFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+const allowedShiftTypes = new Set(Object.keys(shiftTypeLabels));
+const allowedEntryStatuses = new Set(["scheduled", "available"]);
+const allowedShortShiftSeverities = new Set(["short", "urgent"]);
 const emptyVersionForm: VersionForm = {
   label: "",
   starts_on: "",
@@ -233,6 +236,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   const [staffProfiles, setStaffProfiles] = useState<StaffProfile[]>([]);
   const [sourceFiles, setSourceFiles] = useState<SourceFilePreview[]>([]);
   const [pasteText, setPasteText] = useState("");
+  const [scheduleCodeText, setScheduleCodeText] = useState("");
+  const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [shortShiftDrafts, setShortShiftDrafts] = useState<ShortShiftDraft[]>([]);
   const [shortShiftForm, setShortShiftForm] = useState<ShortShiftDraft>(emptyShortShiftDraft);
@@ -304,6 +309,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   };
 
   const parsePasteRows = () => {
+    setParseErrors([]);
     const rows = pasteText
       .split(/\r?\n/)
       .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
@@ -338,6 +344,159 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     setReviewRows(rows);
     setStep(2);
     setSuccess(`${rows.length} draft rows created for review.`);
+  };
+
+  const parseScheduleCodeBlock = () => {
+    const errors: string[] = [];
+    const entryRows: ReviewRow[] = [];
+    const shortageRows: ShortShiftDraft[] = [];
+    let parsedVersion: VersionForm | null = null;
+
+    scheduleCodeText
+      .split(/\r?\n/)
+      .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+      .filter(({ line }) => Boolean(line))
+      .forEach(({ line, lineNumber }) => {
+        const parts = line.split("|").map((part) => part.trim());
+        const recordType = parts[0]?.toUpperCase();
+
+        if (recordType === "SCHEDULE_VERSION") {
+          const [, label = "", startsOn = "", endsOn = ""] = parts;
+
+          if (parts.length !== 4) {
+            errors.push(`Line ${lineNumber}: SCHEDULE_VERSION must use 4 fields.`);
+          }
+
+          if (!label) {
+            errors.push(`Line ${lineNumber}: schedule version label is required.`);
+          }
+
+          if (!isValidDate(startsOn)) {
+            errors.push(`Line ${lineNumber}: starts_on must use YYYY-MM-DD.`);
+          }
+
+          if (!isValidDate(endsOn)) {
+            errors.push(`Line ${lineNumber}: ends_on must use YYYY-MM-DD.`);
+          }
+
+          parsedVersion = {
+            label,
+            starts_on: startsOn,
+            ends_on: endsOn,
+            status: "review"
+          };
+          return;
+        }
+
+        if (recordType === "ENTRY") {
+          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffName = "", rawStatus = ""] = parts;
+
+          if (parts.length !== 7) {
+            errors.push(`Line ${lineNumber}: ENTRY must use 7 fields.`);
+          }
+
+          if (!isValidDate(shiftDate)) {
+            errors.push(`Line ${lineNumber}: ENTRY date must use YYYY-MM-DD.`);
+          }
+
+          if (!allowedShiftTypes.has(rawShiftType)) {
+            errors.push(`Line ${lineNumber}: invalid shift_type "${rawShiftType}".`);
+          }
+
+          if (!isValidTime(shiftStart) || !isValidTime(shiftEnd)) {
+            errors.push(`Line ${lineNumber}: shift_start and shift_end must use HH:mm.`);
+          }
+
+          if (!rawStaffName) {
+            errors.push(`Line ${lineNumber}: staff_name is required.`);
+          }
+
+          if (!allowedEntryStatuses.has(rawStatus)) {
+            errors.push(`Line ${lineNumber}: entry_status must be scheduled or available.`);
+          }
+
+          const match = matchStaff(rawStaffName, staffProfiles);
+          const matchedStaff = match.staff;
+          const row: ReviewRow = {
+            id: createRowId(),
+            rowIndex: entryRows.length + 1,
+            shift_date: shiftDate,
+            day_of_week: isValidDate(shiftDate) ? dayNameFromDate(shiftDate) : "",
+            shift_type: allowedShiftTypes.has(rawShiftType) ? (rawShiftType as ShiftType) : "",
+            shift_start: shiftStart,
+            shift_end: shiftEnd,
+            raw_staff_name: rawStaffName,
+            matched_staff_profile_id: matchedStaff?.id ?? "",
+            employment_type: matchedStaff?.employment_type ?? "",
+            entry_status: allowedEntryStatuses.has(rawStatus) ? (rawStatus as ScheduleEntryStatus) : "",
+            notes: "",
+            confidence: match.confidence,
+            needs_review: match.needsReview,
+            validation_status: match.status,
+            removed: false
+          };
+
+          entryRows.push({ ...row, validation_status: validateReviewRow(row) === "Ready" ? match.status : validateReviewRow(row) });
+          return;
+        }
+
+        if (recordType === "SHORT_SHIFT") {
+          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawSeverity = "", message = ""] = parts;
+
+          if (parts.length !== 7) {
+            errors.push(`Line ${lineNumber}: SHORT_SHIFT must use 7 fields.`);
+          }
+
+          if (!isValidDate(shiftDate)) {
+            errors.push(`Line ${lineNumber}: SHORT_SHIFT date must use YYYY-MM-DD.`);
+          }
+
+          if (!allowedShiftTypes.has(rawShiftType)) {
+            errors.push(`Line ${lineNumber}: invalid Short Shift shift_type "${rawShiftType}".`);
+          }
+
+          if (!isValidTime(shiftStart) || !isValidTime(shiftEnd)) {
+            errors.push(`Line ${lineNumber}: Short Shift start/end must use HH:mm.`);
+          }
+
+          if (!allowedShortShiftSeverities.has(rawSeverity)) {
+            errors.push(`Line ${lineNumber}: Short Shift severity must be short or urgent.`);
+          }
+
+          if (isValidDate(shiftDate) && allowedShiftTypes.has(rawShiftType) && isValidTime(shiftStart) && isValidTime(shiftEnd) && allowedShortShiftSeverities.has(rawSeverity)) {
+            shortageRows.push({
+              id: createRowId(),
+              shift_date: shiftDate,
+              shift_type: rawShiftType as ShiftType,
+              shift_start: shiftStart,
+              shift_end: shiftEnd,
+              severity: rawSeverity as ShiftShortageSeverity,
+              message: message.slice(0, 140)
+            });
+          }
+          return;
+        }
+
+        errors.push(`Line ${lineNumber}: unknown record type "${parts[0] ?? ""}".`);
+      });
+
+    if (!parsedVersion) {
+      errors.push("SCHEDULE_VERSION line is required.");
+    }
+
+    setParseErrors(errors);
+
+    if (errors.length > 0 || !parsedVersion) {
+      setError("Schedule code has parse errors. Fix them before continuing.");
+      return;
+    }
+
+    setError("");
+    setVersionForm(parsedVersion);
+    setReviewRows(entryRows);
+    setShortShiftDrafts(shortageRows);
+    setStep(2);
+    setSuccess(`${entryRows.length} ENTRY rows and ${shortageRows.length} SHORT_SHIFT alerts parsed for review.`);
   };
 
   const updateRow = (rowId: string, patch: Partial<ReviewRow>) => {
@@ -650,8 +809,43 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                 OCR is not enabled yet. Use structured paste now; every row remains editable before approval.
               </p>
             </div>
+
+            <div className="mt-4 rounded-3xl border border-cyan-100 bg-cyan-50/70 p-3">
+              <h3 className="text-lg font-black text-hospital-ink">Schedule Code Import</h3>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                Paste a schedule code block generated outside the app. This is structured schedule data, not app source code.
+              </p>
+              <p className="mt-2 text-xs font-bold leading-5 text-cyan-900">
+                Required records: SCHEDULE_VERSION, ENTRY, and optional SHORT_SHIFT. Blank lines are ignored.
+              </p>
+              <textarea
+                value={scheduleCodeText}
+                onChange={(event) => setScheduleCodeText(event.target.value)}
+                placeholder={"SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27\n\nENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled\nENTRY | 2026-06-24 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled\n\nSHORT_SHIFT | 2026-06-24 | night_shift | 19:00 | 07:00 | urgent | Night shift short one RT"}
+                className="mt-3 min-h-56 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
+              />
+              {parseErrors.length > 0 && (
+                <div className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2">
+                  <p className="text-sm font-black text-rose-800">Parse errors</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs font-bold leading-5 text-rose-700">
+                    {parseErrors.map((parseError) => (
+                      <li key={parseError}>{parseError}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={parseScheduleCodeBlock}
+                disabled={!scheduleCodeText.trim() || loading}
+                className="mt-3 min-h-11 w-full rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-50"
+              >
+                Parse Schedule Code
+              </button>
+            </div>
+
             <p className="mt-4 text-sm font-bold leading-6 text-slate-500">
-              Format: 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
+              Simple row paste format: 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
             </p>
             <textarea
               value={pasteText}

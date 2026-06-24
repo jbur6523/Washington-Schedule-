@@ -29,7 +29,66 @@ Admins are warned:
 
 OCR is not implemented in this phase.
 
-The Extract/Paste step supports manual structured paste:
+The Extract/Paste step supports Schedule Code Import and manual structured paste.
+
+## Schedule Code Import
+
+Schedule Code Import lets an admin paste structured schedule data generated outside the app, such as by ChatGPT after reading schedule images.
+
+This is not app source code. It is schedule data that the website can parse into draft rows.
+
+Format:
+
+```text
+SCHEDULE_VERSION | label | starts_on | ends_on
+
+ENTRY | date | shift_type | shift_start | shift_end | staff_name | entry_status
+
+SHORT_SHIFT | date | shift_type | shift_start | shift_end | severity | message
+```
+
+Example:
+
+```text
+SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27
+
+ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
+ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | Mona Ahmed | available
+ENTRY | 2026-06-24 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled
+
+SHORT_SHIFT | 2026-06-24 | night_shift | 19:00 | 07:00 | urgent | Night shift short one RT
+```
+
+Allowed `shift_type` values:
+
+- `day_shift`
+- `night_shift`
+- `pft`
+- `pulmonary_rehab`
+- `flexible`
+
+Allowed `entry_status` values:
+
+- `scheduled`
+- `available`
+
+Allowed Short Shift `severity` values:
+
+- `short`
+- `urgent`
+
+Validation:
+
+- `SCHEDULE_VERSION` is required for Schedule Code Import.
+- Dates must use `YYYY-MM-DD`.
+- Times must use `HH:mm`.
+- Blank lines are ignored.
+- Parse errors show line numbers.
+- Unmatched staff names are flagged as Needs Review.
+
+Admins can paste ChatGPT-generated schedule code into the Schedule Code Import field, parse it, review every row, manually correct matches, remove crossed-out names, and then choose Save as Draft/Review or Save and Publish.
+
+The older simple structured paste format is still supported:
 
 ```text
 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
