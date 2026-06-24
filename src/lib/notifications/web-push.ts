@@ -15,10 +15,19 @@ type PushSubscriptionRow = {
 type NotificationPreferenceRow = {
   staff_profile_id: string;
   short_shift_alerts: boolean;
+  coverage_request_alerts: boolean;
+  switch_request_alerts: boolean;
+  coverage_offer_alerts: boolean;
   quiet_hours_enabled: boolean;
   quiet_hours_start: string | null;
   quiet_hours_end: string | null;
 };
+
+export type NotificationPreferenceKey =
+  | "short_shift_alerts"
+  | "coverage_request_alerts"
+  | "switch_request_alerts"
+  | "coverage_offer_alerts";
 
 type SendShortShiftNotificationInput = {
   departmentId: string;
@@ -28,6 +37,18 @@ type SendShortShiftNotificationInput = {
   shiftStart: string;
   shiftEnd: string;
   severity: ShiftShortageSeverity;
+};
+
+type SendStaffNotificationInput = {
+  departmentId: string;
+  recipientStaffProfileId: string;
+  eventType: string;
+  title: string;
+  body: string;
+  relatedEntityType?: string;
+  relatedEntityId?: string;
+  url?: string;
+  preferenceKey?: NotificationPreferenceKey;
 };
 
 function hasVapidConfig() {
@@ -74,7 +95,7 @@ function isWithinQuietHours(preference: NotificationPreferenceRow) {
   return now >= start || now <= end;
 }
 
-function getPayload(input: SendShortShiftNotificationInput) {
+function getShortShiftPayload(input: SendShortShiftNotificationInput) {
   const shiftLabel = shiftTypeLabels[input.shiftType];
   const dateLabel = formatDateForNotification(input.shiftDate);
   const urgent = input.severity === "urgent";
@@ -88,13 +109,141 @@ function getPayload(input: SendShortShiftNotificationInput) {
   };
 }
 
-export async function sendShortShiftNotifications(input: SendShortShiftNotificationInput) {
-  if (!hasSupabaseAdminConfig() || !configureWebPush()) {
+function pushSubscriptionFromRow(subscription: PushSubscriptionRow) {
+  return {
+    endpoint: subscription.endpoint,
+    keys: {
+      p256dh: subscription.p256dh,
+      auth: subscription.auth
+    }
+  };
+}
+
+async function deactivateSubscription(subscriptionId: string) {
+  const supabase = createAdminClient();
+  await supabase
+    .from("push_subscriptions")
+    .update({ is_active: false, revoked_at: new Date().toISOString() })
+    .eq("id", subscriptionId);
+}
+
+async function markDeliveryEvent(
+  notificationEventId: string,
+  deliveryStatus: "sent" | "failed" | "skipped",
+  errorMessage?: string
+) {
+  const supabase = createAdminClient();
+  await supabase
+    .from("notification_events")
+    .update({
+      delivery_status: deliveryStatus,
+      sent_at: deliveryStatus === "sent" ? new Date().toISOString() : null,
+      error_message: errorMessage ?? null
+    })
+    .eq("id", notificationEventId);
+}
+
+export async function createAndSendStaffNotification(input: SendStaffNotificationInput) {
+  if (!hasSupabaseAdminConfig()) {
     return { sent: 0, skipped: true };
   }
 
   const supabase = createAdminClient();
-  const payload = getPayload(input);
+  const { data: notificationEvent, error: notificationError } = await supabase
+    .from("notification_events")
+    .insert({
+      department_id: input.departmentId,
+      staff_profile_id: input.recipientStaffProfileId,
+      recipient_staff_profile_id: input.recipientStaffProfileId,
+      event_type: input.eventType,
+      title: input.title,
+      body: input.body,
+      related_entity_type: input.relatedEntityType ?? null,
+      related_entity_id: input.relatedEntityId ?? null,
+      delivery_status: "queued"
+    })
+    .select("id")
+    .single();
+
+  if (notificationError || !notificationEvent?.id) {
+    return { sent: 0, skipped: true };
+  }
+
+  if (!configureWebPush()) {
+    await markDeliveryEvent(notificationEvent.id as string, "skipped", "Push configuration is missing.");
+    return { sent: 0, skipped: true, notificationEventId: notificationEvent.id as string };
+  }
+
+  const { data: preference } = await supabase
+    .from("notification_preferences")
+    .select(
+      "staff_profile_id, short_shift_alerts, coverage_request_alerts, switch_request_alerts, coverage_offer_alerts, quiet_hours_enabled, quiet_hours_start, quiet_hours_end"
+    )
+    .eq("department_id", input.departmentId)
+    .eq("staff_profile_id", input.recipientStaffProfileId)
+    .maybeSingle<NotificationPreferenceRow>();
+
+  if (preference?.[input.preferenceKey ?? "short_shift_alerts"] === false || (preference && isWithinQuietHours(preference))) {
+    await markDeliveryEvent(notificationEvent.id as string, "skipped", "Notification preference disabled or quiet hours active.");
+    return { sent: 0, skipped: true, notificationEventId: notificationEvent.id as string };
+  }
+
+  const { data: subscriptions } = await supabase
+    .from("push_subscriptions")
+    .select("id, staff_profile_id, endpoint, p256dh, auth")
+    .eq("department_id", input.departmentId)
+    .eq("staff_profile_id", input.recipientStaffProfileId)
+    .eq("is_active", true);
+
+  const targetSubscriptions = (subscriptions ?? []) as PushSubscriptionRow[];
+
+  if (targetSubscriptions.length === 0) {
+    await markDeliveryEvent(notificationEvent.id as string, "skipped", "No active push subscriptions.");
+    return { sent: 0, skipped: true, notificationEventId: notificationEvent.id as string };
+  }
+
+  let sent = 0;
+  let failed = 0;
+
+  await Promise.all(
+    targetSubscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification(
+          pushSubscriptionFromRow(subscription),
+          JSON.stringify({
+            title: input.title,
+            body: input.body,
+            url: input.url ?? "/"
+          })
+        );
+        sent += 1;
+      } catch (error) {
+        failed += 1;
+        const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : null;
+
+        if (statusCode === 404 || statusCode === 410) {
+          await deactivateSubscription(subscription.id);
+        }
+      }
+    })
+  );
+
+  await markDeliveryEvent(
+    notificationEvent.id as string,
+    sent > 0 ? "sent" : "failed",
+    sent > 0 ? undefined : failed > 0 ? "Push delivery failed." : undefined
+  );
+
+  return { sent, skipped: false, notificationEventId: notificationEvent.id as string };
+}
+
+export async function sendShortShiftNotifications(input: SendShortShiftNotificationInput) {
+  if (!hasSupabaseAdminConfig()) {
+    return { sent: 0, skipped: true };
+  }
+
+  const supabase = createAdminClient();
+  const payload = getShortShiftPayload(input);
   const { data: activeStaff } = await supabase
     .from("staff_profiles")
     .select("id")
@@ -106,84 +255,22 @@ export async function sendShortShiftNotifications(input: SendShortShiftNotificat
     return { sent: 0, skipped: false };
   }
 
-  const [{ data: subscriptions }, { data: preferences }] = await Promise.all([
-    supabase
-      .from("push_subscriptions")
-      .select("id, staff_profile_id, endpoint, p256dh, auth")
-      .eq("department_id", input.departmentId)
-      .eq("is_active", true),
-    supabase
-      .from("notification_preferences")
-      .select("staff_profile_id, short_shift_alerts, quiet_hours_enabled, quiet_hours_start, quiet_hours_end")
-      .eq("department_id", input.departmentId)
-  ]);
-
-  const preferenceMap = new Map(
-    ((preferences ?? []) as NotificationPreferenceRow[]).map((preference) => [preference.staff_profile_id, preference])
-  );
-  const targetSubscriptions = ((subscriptions ?? []) as PushSubscriptionRow[]).filter((subscription) => {
-    if (!activeStaffIds.has(subscription.staff_profile_id)) {
-      return false;
-    }
-
-    const preference = preferenceMap.get(subscription.staff_profile_id);
-
-    if (preference?.short_shift_alerts === false) {
-      return false;
-    }
-
-    return !preference || !isWithinQuietHours(preference);
-  });
-
   let sent = 0;
 
   await Promise.all(
-    targetSubscriptions.map(async (subscription) => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: subscription.endpoint,
-            keys: {
-              p256dh: subscription.p256dh,
-              auth: subscription.auth
-            }
-          },
-          JSON.stringify(payload)
-        );
-        sent += 1;
-        await supabase.from("notification_events").insert({
-          department_id: input.departmentId,
-          staff_profile_id: subscription.staff_profile_id,
-          event_type: "short_shift",
-          title: payload.title,
-          body: payload.body,
-          related_entity_type: "shift_shortage",
-          related_entity_id: input.shiftShortageId,
-          delivery_status: "sent",
-          sent_at: new Date().toISOString()
-        });
-      } catch (error) {
-        const statusCode = typeof error === "object" && error && "statusCode" in error ? Number(error.statusCode) : null;
-
-        if (statusCode === 404 || statusCode === 410) {
-          await supabase
-            .from("push_subscriptions")
-            .update({ is_active: false, revoked_at: new Date().toISOString() })
-            .eq("id", subscription.id);
-        }
-
-        await supabase.from("notification_events").insert({
-          department_id: input.departmentId,
-          staff_profile_id: subscription.staff_profile_id,
-          event_type: "short_shift",
-          title: payload.title,
-          body: payload.body,
-          related_entity_type: "shift_shortage",
-          related_entity_id: input.shiftShortageId,
-          delivery_status: "failed",
-          error_message: "Push delivery failed."
-        });
-      }
+    Array.from(activeStaffIds).map(async (staffProfileId) => {
+      const result = await createAndSendStaffNotification({
+        departmentId: input.departmentId,
+        recipientStaffProfileId: staffProfileId,
+        eventType: "short_shift",
+        title: payload.title,
+        body: payload.body,
+        relatedEntityType: "shift_shortage",
+        relatedEntityId: input.shiftShortageId,
+        url: payload.url,
+        preferenceKey: "short_shift_alerts"
+      });
+      sent += result.sent;
     })
   );
 

@@ -26,6 +26,7 @@ Flow:
 4. Staff taps Send Offer.
 5. App creates a `shift_request_offers` row with `offer_type = coverage`.
 6. App creates an in-app notification event for the requester.
+7. App sends push to the requester if enabled and allowed by preferences.
 
 Duplicate active coverage offers from the same staff member on the same request are blocked.
 
@@ -43,6 +44,7 @@ Flow:
 6. Staff taps Send Switch Offer.
 7. App creates a `shift_request_offers` row with `offer_type = switch`.
 8. App creates an in-app notification event for the requester.
+9. App sends push to the requester if enabled and allowed by preferences.
 
 ## Same-Week Rule
 
@@ -91,11 +93,22 @@ Accepting an offer:
 - Sets the offer status to `accepted`.
 - Resolves the original shift request.
 - Does not rewrite the official baseline schedule.
+- Sends an in-app and push notification to the offerer if enabled.
 
 Declining an offer:
 
 - Sets the offer status to `declined`.
 - Leaves the request active.
+- Sends an in-app and push notification to the offerer if enabled.
+
+## Notification States
+
+Coverage Board request cards show duplicate-offer protection:
+
+- `Offer sent` appears when the current user already has an active offer on that request.
+- `Your request` appears when the post belongs to the current user.
+- Request owners see received offers on Manage Schedule.
+- Offerers see pending, accepted, and declined offer states on Manage Schedule.
 
 ## Short Shift
 
@@ -112,7 +125,6 @@ Short Shift is shift-level only.
 This phase does not include:
 
 - Manager approval workflow
-- Phone push notifications for offer events
 - OCR
 - Schedule photo import
 - Native mobile app

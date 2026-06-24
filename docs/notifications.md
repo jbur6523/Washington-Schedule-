@@ -1,6 +1,6 @@
 # Notifications
 
-Washington-Schedule uses Web Push as the notification foundation.
+Washington-Schedule uses in-app notifications plus Web Push. Notifications are app/push based only; the app does not send email or SMS notifications.
 
 Notifications are device-specific. Staff must enable notifications on each device where they want alerts.
 
@@ -48,7 +48,16 @@ Short Shift alerts default to enabled.
 
 ### `notification_events`
 
-Stores delivery records without sensitive content.
+Stores in-app notification records and delivery state without sensitive content.
+
+Important fields:
+
+- `recipient_staff_profile_id`: intended recipient.
+- `read_at`: set when the recipient marks the notification read.
+- `dismissed_at`: reserved for hiding notifications later.
+- `delivery_status`: queued, sent, failed, or skipped.
+
+Only the intended recipient can read or update their own notification events through RLS.
 
 Do not log:
 
@@ -77,6 +86,62 @@ Example notification titles:
 
 Notification body text stays short and generic.
 
+## Coverage Board Notification Flow
+
+Offer-related notifications are sent server-side through `/api/notifications/offer-events`.
+
+Events:
+
+- `coverage_offer_created`
+  - Recipient: original request owner.
+  - Title: `Coverage Offer`.
+  - Body: `[Offerer name] offered to cover your [date] [shift type] shift.`
+- `switch_offer_created`
+  - Recipient: original request owner.
+  - Title: `Switch Offer`.
+  - Body: `[Offerer name] offered to switch [offered date] for your [requested date] shift.`
+- `offer_accepted`
+  - Recipient: offerer.
+  - Title: `Offer Accepted`.
+  - Body: `Your offer was accepted.`
+- `offer_declined`
+  - Recipient: offerer.
+  - Title: `Offer Declined`.
+  - Body: `Your offer was declined.`
+
+Push click targets:
+
+- Coverage and switch offer notifications open Manage Schedule.
+- Accepted and declined offer notifications open Manage Schedule.
+- Short Shift notifications open Coverage Board.
+
+## Notification Center
+
+The app header includes a bell notification center.
+
+The center shows:
+
+- unread count
+- unread and read notifications
+- title and body
+- created time
+- View action
+- Mark read
+- Mark all read
+
+The Notification Center remains useful even when browser push permission is denied.
+
+## Preferences
+
+Notification preferences control push delivery:
+
+- `short_shift_alerts` controls Short Shift push.
+- `coverage_request_alerts` controls Coverage Offer push to request owners.
+- `switch_request_alerts` controls Switch Offer push to request owners.
+- `coverage_offer_alerts` controls accepted/declined offer push to offerers.
+
+In-app notification records may still be created so users can see important events in the app.
+
 ## Privacy Rules
 
 Notifications must not include:
@@ -95,11 +160,5 @@ If push is unsupported or denied, the app remains usable and shows friendly fall
 `Notifications are not enabled on this device. You can still check the Coverage Board manually.`
 
 ## Future Work
-
-Possible next notification triggers:
-
-- New Coverage Requested
-- New Switch Requested
-- New coverage offer
 
 Native mobile apps remain future work.

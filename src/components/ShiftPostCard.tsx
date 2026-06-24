@@ -8,6 +8,10 @@ type ShiftPostCardProps = {
   relatedStatuses?: ShiftPostType[];
   onOfferCoverage?: () => void;
   onOfferSwitch?: () => void;
+  coverageActionLabel?: string;
+  switchActionLabel?: string;
+  coverageActionDisabled?: boolean;
+  switchActionDisabled?: boolean;
   onResolve?: () => void;
   onCancelShortShift?: () => void;
 };
@@ -29,6 +33,10 @@ export function ShiftPostCard({
   relatedStatuses,
   onOfferCoverage,
   onOfferSwitch,
+  coverageActionLabel,
+  switchActionLabel,
+  coverageActionDisabled,
+  switchActionDisabled,
   onResolve,
   onCancelShortShift
 }: ShiftPostCardProps) {
@@ -36,15 +44,15 @@ export function ShiftPostCard({
   const statuses = relatedStatuses?.length ? relatedStatuses : [post.status];
   const actionButtons = [
     post.type === "Coverage Requested" && onOfferCoverage
-      ? { label: "Offer Coverage", onClick: onOfferCoverage }
+      ? { label: coverageActionLabel ?? "Offer Coverage", onClick: onOfferCoverage, disabled: Boolean(coverageActionDisabled) }
       : null,
     post.type === "Switch Requested" && onOfferSwitch
-      ? { label: "Offer Switch", onClick: onOfferSwitch }
+      ? { label: switchActionLabel ?? "Offer Switch", onClick: onOfferSwitch, disabled: Boolean(switchActionDisabled) }
       : null,
     post.type === "Short Shift" && onOfferCoverage
-      ? { label: "I Can Cover", onClick: onOfferCoverage }
+      ? { label: coverageActionLabel ?? "I Can Cover", onClick: onOfferCoverage, disabled: Boolean(coverageActionDisabled) }
       : null
-  ].filter((button): button is { label: string; onClick: () => void } => Boolean(button));
+  ].filter((button): button is { label: string; onClick: () => void; disabled: boolean } => Boolean(button));
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
@@ -83,7 +91,8 @@ export function ShiftPostCard({
             key={button.label}
             type="button"
             onClick={button.onClick}
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50"
+            disabled={button.disabled}
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center text-sm font-extrabold text-slate-700 shadow-sm transition hover:border-cyan-200 hover:bg-cyan-50 disabled:bg-slate-100 disabled:text-slate-400"
           >
             {button.label}
           </button>

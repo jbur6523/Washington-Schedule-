@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Sparkles, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotificationSettings } from "@/components/NotificationSettings";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffDirectory } from "@/components/StaffDirectory";
@@ -143,10 +144,12 @@ function formatDateShort(dateValue: string) {
 
 function Header({
   authContext,
-  developmentFallback
+  developmentFallback,
+  onNavigate
 }: {
   authContext: AuthenticatedUserContext;
   developmentFallback?: boolean;
+  onNavigate: (tab: TabId) => void;
 }) {
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -176,6 +179,11 @@ function Header({
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
+            <NotificationCenter
+              authContext={authContext}
+              developmentFallback={developmentFallback}
+              onNavigate={onNavigate}
+            />
             {authContext.role === "admin" && (
               <Link
                 href="/admin"
@@ -664,6 +672,16 @@ function ManageScheduleScreen({
     );
   }, [authContext.staffProfileId, schedule]);
 
+  const sentPendingOffers = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
+
+    return schedule.offers.filter(
+      (offer) => offer.offered_by_staff_profile_id === authContext.staffProfileId && offer.status === "offered"
+    );
+  }, [authContext.staffProfileId, schedule]);
+
   const saveRequest = async (shift: ScheduleEntryRow, requestType: ShiftRequestType, activeRequest?: ShiftRequestRow) => {
     if (!schedule || !authContext.staffProfileId) {
       return;
@@ -755,15 +773,15 @@ function ManageScheduleScreen({
       }
     }
 
-    await supabase.from("notification_events").insert({
-      department_id: authContext.departmentId,
-      staff_profile_id: offer.offered_by_staff_profile_id,
-      event_type: status === "accepted" ? "offer_accepted" : "offer_declined",
-      title: status === "accepted" ? "Offer accepted" : "Offer declined",
-      body: status === "accepted" ? "Your offer was accepted." : "Your offer was declined.",
-      related_entity_type: "shift_request_offer",
-      related_entity_id: offer.id,
-      delivery_status: "queued"
+    await fetch("/api/notifications/offer-events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        offer_id: offer.id,
+        event_type: status === "accepted" ? "offer_accepted" : "offer_declined"
+      })
     });
 
     setSaving(false);
@@ -1074,6 +1092,24 @@ function ManageScheduleScreen({
                   Your {offer.offer_type === "coverage" ? "coverage" : "switch"} offer was {offer.status}.
                 </p>
                 <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  {offer.offer_type === "switch" ? getOfferSummary(offer) : "Coverage offer"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {sentPendingOffers.length > 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Pending offers</h3>
+          <div className="mt-3 space-y-2">
+            {sentPendingOffers.map((offer) => (
+              <div key={offer.id} className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
+                <p className="text-sm font-black text-hospital-ink">
+                  Your {offer.offer_type === "coverage" ? "coverage" : "switch"} offer is pending.
+                </p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-amber-800">
                   {offer.offer_type === "switch" ? getOfferSummary(offer) : "Coverage offer"}
                 </p>
               </div>
@@ -1393,18 +1429,17 @@ function ShiftBoardScreen({
     : null;
   const selectedRequestShift = selectedRequest ? getRequestShift(selectedRequest) : null;
   const selectedWeek = selectedRequestShift ? getWeekRange(selectedRequestShift.shift_date) : null;
-  const eligibleSwitchShifts = useMemo(() => {
-    if (!schedule || !authContext.staffProfileId || !selectedWeek) {
-      return [];
-    }
-
-    return schedule.effectiveEntries.filter(
-      (entry) =>
-        entry.staff_profile_id === authContext.staffProfileId &&
-        entry.entry_status === "scheduled" &&
-        isWithinWeek(entry.shift_date, selectedWeek.start, selectedWeek.end)
-    );
-  }, [authContext.staffProfileId, schedule, selectedWeek]);
+  const selectedWeekStart = selectedWeek?.start ?? "";
+  const selectedWeekEnd = selectedWeek?.end ?? "";
+  const eligibleSwitchShifts =
+    schedule && authContext.staffProfileId && selectedWeekStart && selectedWeekEnd
+      ? schedule.effectiveEntries.filter(
+          (entry) =>
+            entry.staff_profile_id === authContext.staffProfileId &&
+            entry.entry_status === "scheduled" &&
+            isWithinWeek(entry.shift_date, selectedWeekStart, selectedWeekEnd)
+        )
+      : [];
 
   const closeOfferFlow = () => {
     setSelectedAction(null);
@@ -1415,22 +1450,18 @@ function ShiftBoardScreen({
   };
 
   const createRequestNotification = async (
-    request: ShiftRequestRow,
     eventType: "coverage_offer_created" | "switch_offer_created",
-    title: string,
-    body: string,
     relatedEntityId: string
   ) => {
-    const supabase = createClient();
-    await supabase.from("notification_events").insert({
-      department_id: authContext.departmentId,
-      staff_profile_id: request.staff_profile_id,
-      event_type: eventType,
-      title,
-      body,
-      related_entity_type: "shift_request_offer",
-      related_entity_id: relatedEntityId,
-      delivery_status: "queued"
+    await fetch("/api/notifications/offer-events", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        offer_id: relatedEntityId,
+        event_type: eventType
+      })
     });
   };
 
@@ -1497,13 +1528,7 @@ function ShiftBoardScreen({
       return;
     }
 
-    await createRequestNotification(
-      selectedRequest,
-      "coverage_offer_created",
-      "Coverage offer",
-      `${authContext.displayName} offered to cover your ${selectedRequestShift ? getShiftSummary(selectedRequestShift) : "shift"}.`,
-      data.id as string
-    );
+    await createRequestNotification("coverage_offer_created", data.id as string);
     closeOfferFlow();
     setSuccess("Offer sent.");
     await onChanged();
@@ -1563,23 +1588,7 @@ function ShiftBoardScreen({
       return;
     }
 
-    const offeredSummary = useManualSwitch
-      ? getShiftSummary({
-          shift_date: manualSwitchForm.shift_date,
-          shift_type: manualSwitchForm.shift_type,
-          shift_start: manualSwitchForm.shift_start,
-          shift_end: manualSwitchForm.shift_end
-        })
-      : selectedShift
-        ? getShiftSummary(selectedShift)
-        : "your selected shift";
-    await createRequestNotification(
-      selectedRequest,
-      "switch_offer_created",
-      "Switch offer",
-      `${authContext.displayName} offered to switch ${offeredSummary} for your ${getShiftSummary(selectedRequestShift)}.`,
-      data.id as string
-    );
+    await createRequestNotification("switch_offer_created", data.id as string);
     closeOfferFlow();
     setSuccess("Switch offer sent.");
     await onChanged();
@@ -1831,12 +1840,37 @@ function ShiftBoardScreen({
               .map((candidate) => candidate.status)
           )
         );
+        const coverageOfferSent = Boolean(
+          siblingCoveragePost?.shiftRequestId &&
+            schedule?.offers.some(
+              (offer) =>
+                offer.shift_request_id === siblingCoveragePost.shiftRequestId &&
+                offer.offer_type === "coverage" &&
+                offer.offered_by_staff_profile_id === authContext.staffProfileId &&
+                offer.status === "offered"
+            )
+        );
+        const switchOfferSent = Boolean(
+          siblingSwitchPost?.shiftRequestId &&
+            schedule?.offers.some(
+              (offer) =>
+                offer.shift_request_id === siblingSwitchPost.shiftRequestId &&
+                offer.offer_type === "switch" &&
+                offer.offered_by_staff_profile_id === authContext.staffProfileId &&
+                offer.status === "offered"
+            )
+        );
+        const ownRequest = post.targetStaffProfileId === authContext.staffProfileId;
 
         return (
           <ShiftPostCard
             key={post.id}
             post={post}
             relatedStatuses={post.type === "Short Shift" ? undefined : relatedStatuses}
+            coverageActionLabel={ownRequest && post.type !== "Short Shift" ? "Your request" : coverageOfferSent ? "Offer sent" : undefined}
+            switchActionLabel={ownRequest ? "Your request" : switchOfferSent ? "Offer sent" : undefined}
+            coverageActionDisabled={(ownRequest && post.type !== "Short Shift") || coverageOfferSent}
+            switchActionDisabled={ownRequest || switchOfferSent}
             onOfferCoverage={
               post.type === "Short Shift"
                 ? () => {
@@ -2079,8 +2113,8 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     const timer = window.setTimeout(() => {
       const tab = new URLSearchParams(window.location.search).get("tab");
 
-      if (tab === "shift-board") {
-        setActiveTab("shift-board");
+      if (tab === "shift-board" || tab === "manage-schedule" || tab === "staff" || tab === "schedule") {
+        setActiveTab(tab);
       }
     }, 0);
 
@@ -2180,7 +2214,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
           "id, department_id, shift_request_id, offer_type, offered_by_staff_profile_id, offered_schedule_entry_id, offered_override_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, note, status, created_at, updated_at, responded_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active), shift_requests(id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
         )
         .eq("department_id", authContext.departmentId)
-        .in("status", ["offered", "accepted"])
+        .in("status", ["offered", "accepted", "declined"])
         .order("created_at", { ascending: false })
     ]);
 
@@ -2232,7 +2266,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
   return (
     <>
       <main className="min-h-screen pb-28">
-        <Header authContext={authContext} developmentFallback={developmentFallback} />
+        <Header authContext={authContext} developmentFallback={developmentFallback} onNavigate={setActiveTab} />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
           <AuthNotice authContext={authContext} developmentFallback={developmentFallback} />
           {activeTab === "schedule" && (

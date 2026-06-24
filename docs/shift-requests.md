@@ -110,7 +110,7 @@ The request owner can see received offers on Manage Schedule.
 - Decline Offer updates the offer to `declined`; the request remains active.
 - Accepted offers do not rewrite the official baseline schedule automatically.
 
-In-app `notification_events` can record offer-created, accepted, and declined events. Phone push notifications are future work for these request events.
+Offer-created, accepted, and declined events create in-app `notification_events` and attempt Web Push delivery when the recipient has enabled notifications and preferences allow it.
 
 ## Short Shift
 
@@ -149,4 +149,4 @@ Admin users can:
 
 ## Future
 
-Phone push notifications for Switch Requested, Coverage Requested, and offer responses are future work after the backend workflows are stable.
+Email, SMS, native mobile, OCR, payroll, and EMR integrations remain out of scope.

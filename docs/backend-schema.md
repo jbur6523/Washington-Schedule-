@@ -50,7 +50,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 - `push_subscriptions`: staff-owned device subscriptions for Web Push.
 - `notification_preferences`: staff-owned alert preferences and optional quiet hours.
-- `notification_events`: delivery records for server-side notification attempts.
+- `notification_events`: in-app notification records and server-side push delivery state.
 - Push subscription secrets must not be public or logged.
 
 ### Import and Review
@@ -177,6 +177,7 @@ Assigned username rule:
 - Switch offers must target a shift in the same Sunday-through-Saturday department week as the requested shift.
 - Request owners can accept or decline offers on their own requests.
 - Accepting an offer marks the offer accepted and resolves the related request, but it does not rewrite the official baseline schedule.
+- Offer created, accepted, and declined events create in-app notifications and attempt Web Push delivery when allowed by preferences.
 
 ## Short Shift Rules
 
@@ -191,10 +192,12 @@ Assigned username rule:
 ## Notification Rules
 
 - Staff can manage only their own push subscriptions and notification preferences.
-- Short Shift notification delivery runs server-side.
+- Staff can read and mark only their own notification events.
+- Short Shift and Coverage Board notification delivery runs server-side.
 - `VAPID_PRIVATE_KEY` must remain server-only.
 - Notification text should be short and generic.
 - Notification bodies must not include phone numbers, patient information, clinical notes, payroll data, EMR data, or private reasons.
+- Notifications are app/push based only. Email and SMS notifications are out of scope.
 
 ## Import and Review Foundation
 
@@ -208,7 +211,8 @@ Assigned username rule:
 
 - OCR or AI extraction.
 - OCR auto-publish.
-- Push notifications.
+- Email notifications.
+- SMS notifications.
 - Native mobile app.
 - Billing.
 - Public SaaS onboarding.
