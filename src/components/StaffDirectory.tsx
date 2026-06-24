@@ -12,6 +12,11 @@ type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
 type DirectoryFilter =
   | "all"
+  | "admin"
+  | "lead"
+  | "staff"
+  | "claimed"
+  | "unclaimed"
   | "full_time"
   | "per_diem"
   | "day_shift"
@@ -52,6 +57,19 @@ type StaffProfileForm = {
   email: string;
   preferred_contact_method: PreferredContactMethod | "";
   is_active: boolean;
+  account_claimed_at?: string | null;
+};
+
+type BatchRosterRow = {
+  lineNumber: number;
+  display_name: string;
+  employment_type: EmploymentType | "";
+  home_assignment: HomeAssignment | "";
+  username: string;
+  username_normalized: string;
+  assigned_role: StaffRole;
+  status: "ready" | "needs_review";
+  issue: string;
 };
 
 type StaffDirectoryProps = {
@@ -74,6 +92,11 @@ const emptyForm: StaffProfileForm = {
 
 const filters: Array<{ id: DirectoryFilter; label: string }> = [
   { id: "all", label: "All" },
+  { id: "admin", label: "Admin" },
+  { id: "lead", label: "Lead" },
+  { id: "staff", label: "Staff" },
+  { id: "claimed", label: "Claimed" },
+  { id: "unclaimed", label: "Unclaimed" },
   { id: "full_time", label: "Full-time" },
   { id: "per_diem", label: "Per diem" },
   { id: "day_shift", label: "Day Shift" },
@@ -110,6 +133,35 @@ const roleLabels: Record<StaffRole, string> = {
   staff: "Staff"
 };
 
+const leadDisplayNames = new Set([
+  "allantimbang",
+  "jonathanburdick",
+  "heatherheath",
+  "tomnguyen",
+  "winhlaing",
+  "beiyi",
+  "katrynavuong",
+  "joanndevera",
+  "victordavis",
+  "jeanrodrillo",
+  "genebenoza",
+  "stephanieortiz"
+]);
+
+function normalizeName(value: string) {
+  return normalizeUsername(value);
+}
+
+function roleForStaff(displayName: string, username: string): StaffRole {
+  const normalizedName = normalizeName(displayName);
+
+  if (username === "burj" && normalizedName === "jonathanburdick") {
+    return "admin";
+  }
+
+  return leadDisplayNames.has(normalizedName) ? "lead" : "staff";
+}
+
 function formatPhoneHref(phoneNumber: string) {
   const dialable = phoneNumber.replace(/[^\d+]/g, "");
   return dialable ? `tel:${dialable}` : undefined;
@@ -120,10 +172,11 @@ function normalizeOptional(value: string) {
   return trimmed ? trimmed : null;
 }
 
-function nextAvailableUsername(displayName: string, profiles: StaffProfile[]) {
+function nextAvailableUsername(displayName: string, profiles: StaffProfile[], excludeProfileId?: string) {
   const base = generateBaseUsername(displayName);
   const existing = new Set(
     profiles
+      .filter((profile) => profile.id !== excludeProfileId)
       .map((profile) => profile.username_normalized)
       .filter((username): username is string => Boolean(username))
   );
@@ -152,7 +205,8 @@ function profileToForm(profile: StaffProfile): StaffProfileForm {
     phone_number: profile.phone_number ?? "",
     email: profile.email ?? "",
     preferred_contact_method: profile.preferred_contact_method ?? "",
-    is_active: profile.is_active
+    is_active: profile.is_active,
+    account_claimed_at: profile.account_claimed_at
   };
 }
 
@@ -166,6 +220,9 @@ function DirectoryCard({
   onEdit: (profile: StaffProfile) => void;
 }) {
   const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
+  const claimedDate = profile.account_claimed_at
+    ? new Date(profile.account_claimed_at).toLocaleDateString()
+    : "";
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -223,7 +280,7 @@ function DirectoryCard({
         {profile.account_claimed_at && (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
             <UserRoundCheck size={13} />
-            Claimed
+            Claimed{claimedDate ? ` ${claimedDate}` : ""}
           </span>
         )}
         {!profile.account_claimed_at && (
@@ -253,7 +310,8 @@ function StaffProfileEditor({
   onChange,
   onCancel,
   onSubmit,
-  onResetAccount
+  onResetAccount,
+  onRegenerateUsername
 }: {
   form: StaffProfileForm;
   saving: boolean;
@@ -261,8 +319,10 @@ function StaffProfileEditor({
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onResetAccount: () => void;
+  onRegenerateUsername: () => void;
 }) {
   const isBurj = form.username_normalized === "burj";
+  const canRegenerateUsername = !form.account_claimed_at;
 
   return (
     <form onSubmit={onSubmit} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
@@ -288,6 +348,15 @@ function StaffProfileEditor({
             className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black lowercase text-hospital-ink outline-none"
           />
         </label>
+        {canRegenerateUsername && (
+          <button
+            type="button"
+            onClick={onRegenerateUsername}
+            className="min-h-10 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
+          >
+            Regenerate Username
+          </button>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <label className="block">
@@ -431,6 +500,9 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
   const [success, setSuccess] = useState("");
   const [filter, setFilter] = useState<DirectoryFilter>("all");
   const [form, setForm] = useState<StaffProfileForm | null>(null);
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchText, setBatchText] = useState("");
+  const [batchRows, setBatchRows] = useState<BatchRosterRow[]>([]);
   const canEdit = authContext.role === "admin" && !developmentFallback;
 
   const loadProfiles = useCallback(async () => {
@@ -475,6 +547,18 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         return true;
       }
 
+      if (filter === "admin" || filter === "lead" || filter === "staff") {
+        return profile.assigned_role === filter;
+      }
+
+      if (filter === "claimed") {
+        return Boolean(profile.account_claimed_at);
+      }
+
+      if (filter === "unclaimed") {
+        return !profile.account_claimed_at;
+      }
+
       if (filter === "active") {
         return profile.is_active;
       }
@@ -498,14 +582,153 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       ...nextForm,
       username,
       username_normalized: normalizeUsername(username),
-      assigned_role: username === "burj" ? "admin" : nextForm.assigned_role === "admin" ? "staff" : nextForm.assigned_role
+      assigned_role: roleForStaff(nextForm.display_name, username)
     });
   };
 
   const startCreate = () => {
-    updateForm(emptyForm);
+    setForm(emptyForm);
     setSuccess("");
     setError("");
+  };
+
+  const regenerateUsername = () => {
+    if (!form || form.account_claimed_at) {
+      return;
+    }
+
+    const username = nextAvailableUsername(form.display_name, profiles, form.id);
+    setForm({
+      ...form,
+      username,
+      username_normalized: normalizeUsername(username),
+      assigned_role: roleForStaff(form.display_name, username)
+    });
+  };
+
+  const parseBatchRows = () => {
+    const existingNames = new Set(profiles.map((profile) => normalizeName(profile.display_name)));
+    const usedUsernames = new Set(
+      profiles
+        .map((profile) => profile.username_normalized)
+        .filter((username): username is string => Boolean(username))
+    );
+    const seenNames = new Set<string>();
+    const parsed = batchText
+      .split(/\r?\n/)
+      .map((line, index) => ({ line: line.trim(), lineNumber: index + 1 }))
+      .filter(({ line }) => Boolean(line))
+      .map(({ line, lineNumber }) => {
+        const [rawName = "", rawEmployment = "", rawAssignment = ""] = line
+          .split("|")
+          .map((part) => part.trim());
+        const displayName = rawName;
+        const employmentType = rawEmployment as EmploymentType;
+        const homeAssignment = rawAssignment as HomeAssignment;
+        const normalizedName = normalizeName(displayName);
+        const username = nextAvailableUsername(displayName, [
+          ...profiles,
+          ...Array.from(usedUsernames).map((usernameValue) => ({
+            id: usernameValue,
+            department_id: authContext.departmentId,
+            profile_id: null,
+            auth_user_id: null,
+            display_name: usernameValue,
+            username: usernameValue,
+            username_normalized: usernameValue,
+            assigned_role: "staff" as StaffRole,
+            employment_type: "full_time" as EmploymentType,
+            home_assignment: "flexible" as HomeAssignment,
+            phone_number: null,
+            email: null,
+            preferred_contact_method: null,
+            is_active: true,
+            account_claimed_at: null
+          }))
+        ]);
+        const usernameNormalized = normalizeUsername(username);
+        const issues: string[] = [];
+
+        if (!displayName) {
+          issues.push("Missing display name");
+        }
+
+        if (!["full_time", "per_diem"].includes(employmentType)) {
+          issues.push("Employment type must be full_time or per_diem");
+        }
+
+        if (!["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"].includes(homeAssignment)) {
+          issues.push("Home assignment is invalid");
+        }
+
+        if (existingNames.has(normalizedName) || seenNames.has(normalizedName)) {
+          issues.push("Possible duplicate name");
+        }
+
+        if (usedUsernames.has(usernameNormalized)) {
+          issues.push("Possible duplicate username");
+        }
+
+        seenNames.add(normalizedName);
+        usedUsernames.add(usernameNormalized);
+
+        return {
+          lineNumber,
+          display_name: displayName,
+          employment_type: ["full_time", "per_diem"].includes(employmentType) ? employmentType : "",
+          home_assignment: ["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"].includes(homeAssignment)
+            ? homeAssignment
+            : "",
+          username,
+          username_normalized: usernameNormalized,
+          assigned_role: roleForStaff(displayName, username),
+          status: issues.length ? "needs_review" : "ready",
+          issue: issues.join("; ")
+        } satisfies BatchRosterRow;
+      });
+
+    setBatchRows(parsed);
+    setSuccess("");
+    setError("");
+  };
+
+  const createBatchRows = async () => {
+    if (!canEdit || batchRows.length === 0 || batchRows.some((row) => row.status !== "ready")) {
+      setError("Review batch rows before creating profiles.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    const supabase = createClient();
+    const { error: insertError } = await supabase.from("staff_profiles").insert(
+      batchRows.map((row) => ({
+        department_id: authContext.departmentId,
+        display_name: row.display_name,
+        username: row.username,
+        username_normalized: row.username_normalized,
+        assigned_role: row.assigned_role,
+        employment_type: row.employment_type,
+        home_assignment: row.home_assignment,
+        preferred_contact_method: "app",
+        is_active: true
+      }))
+    );
+
+    setSaving(false);
+
+    if (insertError) {
+      setError("Unable to create batch roster profiles.");
+      return;
+    }
+
+    setBatchText("");
+    setBatchRows([]);
+    setBatchOpen(false);
+    setSuccess("Batch roster profiles created.");
+    await loadProfiles();
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -519,17 +742,23 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     setError("");
     setSuccess("");
 
+    const finalUsername = form.username_normalized
+      ? form.username
+      : nextAvailableUsername(form.display_name, profiles, form.id);
+    const finalUsernameNormalized = normalizeUsername(finalUsername);
     const assignedRole: StaffRole =
-      form.username_normalized === "burj"
+      finalUsernameNormalized === "burj"
         ? "admin"
         : form.assigned_role === "admin"
           ? "staff"
-          : form.assigned_role;
+          : form.id
+            ? form.assigned_role
+            : roleForStaff(form.display_name, finalUsernameNormalized);
     const payload = {
       department_id: authContext.departmentId,
       display_name: form.display_name.trim(),
-      username: form.username,
-      username_normalized: form.username_normalized,
+      username: finalUsername,
+      username_normalized: finalUsernameNormalized,
       assigned_role: assignedRole,
       employment_type: form.employment_type,
       home_assignment: form.home_assignment,
@@ -615,14 +844,26 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
             </p>
           </div>
           {canEdit && (
-            <button
-              type="button"
-              onClick={startCreate}
-              className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-2xl bg-cyan-700 px-3 text-xs font-extrabold text-white"
-            >
-              <Plus size={15} />
-              Add
-            </button>
+            <div className="flex shrink-0 flex-col gap-2">
+              <button
+                type="button"
+                onClick={startCreate}
+                className="inline-flex min-h-10 items-center justify-center gap-1 rounded-2xl bg-cyan-700 px-3 text-xs font-extrabold text-white"
+              >
+                <Plus size={15} />
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBatchOpen((current) => !current);
+                  setForm(null);
+                }}
+                className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
+              >
+                Batch
+              </button>
+            </div>
           )}
         </div>
 
@@ -650,6 +891,75 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         </div>
       </section>
 
+      {canEdit && batchOpen && (
+        <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Batch Add Roster</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+            Paste one staff member per line using: Name | employment_type | home_assignment
+          </p>
+          <textarea
+            value={batchText}
+            onChange={(event) => setBatchText(event.target.value)}
+            placeholder={"Allan Timbang | full_time | day_shift\nJoann Devera | full_time | night_shift\nMona Ahmed | per_diem | day_shift"}
+            className="mt-3 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={parseBatchRows}
+              className="min-h-11 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
+            >
+              Preview Rows
+            </button>
+            <button
+              type="button"
+              onClick={createBatchRows}
+              disabled={saving || batchRows.length === 0 || batchRows.some((row) => row.status !== "ready")}
+              className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Creating..." : "Create Profiles"}
+            </button>
+          </div>
+
+          {batchRows.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {batchRows.map((row) => (
+                <div
+                  key={`${row.lineNumber}-${row.display_name}`}
+                  className={`rounded-2xl border px-3 py-2 ${
+                    row.status === "ready"
+                      ? "border-emerald-100 bg-emerald-50"
+                      : "border-amber-200 bg-amber-50"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-black text-hospital-ink">{row.display_name || "Missing name"}</p>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                        {row.employment_type || "invalid"} - {row.home_assignment || "invalid"}
+                      </p>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+                        {row.username} - {roleLabels[row.assigned_role]}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-1 text-xs font-extrabold ${
+                        row.status === "ready" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {row.status === "ready" ? "Ready" : "Needs Review"}
+                    </span>
+                  </div>
+                  {row.issue && (
+                    <p className="mt-2 text-xs font-bold leading-5 text-amber-900">{row.issue}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {error && (
         <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
           {error}
@@ -669,6 +979,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
           onCancel={() => setForm(null)}
           onSubmit={handleSubmit}
           onResetAccount={resetAccount}
+          onRegenerateUsername={regenerateUsername}
         />
       )}
 

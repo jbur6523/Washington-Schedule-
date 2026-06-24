@@ -128,6 +128,9 @@ Assigned username rule:
 - Append numbers for duplicates.
 - `Bei Yi` is `yibe`.
 - Users cannot choose arbitrary usernames.
+- Admin roster provisioning supports single-profile creation and batch pasted rows in `Name | employment_type | home_assignment` format.
+- Username regeneration is allowed only before the account is claimed.
+- Reset/unclaim clears the auth/profile link but keeps the staff profile and historical schedule/request records.
 
 ## Schedule Versioning
 

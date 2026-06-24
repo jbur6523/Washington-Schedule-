@@ -28,6 +28,38 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - Staff users can view the directory but cannot edit other staff profiles.
 - Staff self-edit is future functionality and is not implemented in Phase 3.
 
+## Username and Role Rules
+
+- Usernames are assigned by the department, not chosen by users.
+- Username format is first 3 letters of last name plus first letter of first name.
+- Normalize by lowercasing and removing spaces, hyphens, apostrophes, and punctuation.
+- Append a number for duplicates, such as `burj2`.
+- `Bei Yi` is always `yibe`.
+- `burj` is reserved for Jonathan Burdick and is the only admin username.
+- Lead defaults are Allan Timbang, Jonathan Burdick, Heather Heath, Tom Nguyen, Win Hlaing, Bei Yi, Katryna Vuong, Joann Devera, Victor Davis, Jean Rodrillo, Gene Benoza, and Stephanie Ortiz.
+- Usernames are permanent after account claim. Admins can regenerate usernames only while a profile is unclaimed.
+
+## Batch Roster Provisioning
+
+Admins can paste roster lines in this format:
+
+```text
+Allan Timbang | full_time | day_shift
+Joann Devera | full_time | night_shift
+Mona Ahmed | per_diem | day_shift
+```
+
+The preview shows display name, employment type, home assignment, generated username, assigned role, and validation status. Rows marked `Needs Review` are not created until the admin fixes the pasted input and previews again.
+
+Possible duplicates are flagged when the display name already exists or appears twice in the pasted batch. The app does not silently create duplicates.
+
+## Claimed and Unclaimed Accounts
+
+- Unclaimed staff profiles can be claimed from the username-first login screen.
+- Claimed staff profiles show claimed status and claimed date when available.
+- Admin reset/unclaim clears the auth/profile link so the staff member can create a new password again.
+- Resetting an account does not delete the staff profile and does not delete historical schedule/request records.
+
 ## UI Behavior
 
 - The bottom navigation still uses the existing Staff tab.
@@ -36,7 +68,7 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - Admin create/edit shows the assigned username and role.
 - Phone numbers render as tap-to-call links.
 - Email addresses render as tap-to-email links.
-- Filters include All, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.
+- Filters include All, Admin, Lead, Staff, Claimed, Unclaimed, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.
 
 ## Out of Scope
 

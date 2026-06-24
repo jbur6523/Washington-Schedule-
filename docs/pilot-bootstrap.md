@@ -57,6 +57,35 @@ After the bootstrap SQL is run, Jonathan can open the app, enter username `burj`
 - `burj` is the only admin username and belongs to Jonathan Burdick.
 - Leads are represented with the `lead` membership role.
 
+Default lead staff:
+
+- Allan Timbang
+- Jonathan Burdick
+- Heather Heath
+- Tom Nguyen
+- Win Hlaing
+- Bei Yi
+- Katryna Vuong
+- Joann Devera
+- Victor Davis
+- Jean Rodrillo
+- Gene Benoza
+- Stephanie Ortiz
+
+## Batch Roster Format
+
+After `burj` is claimed, the admin can batch-create staff profiles in Staff Directory using:
+
+```text
+Allan Timbang | full_time | day_shift
+Joann Devera | full_time | night_shift
+Mona Ahmed | per_diem | day_shift
+```
+
+Supported employment types are `full_time` and `per_diem`. Supported home assignments are `day_shift`, `night_shift`, `pft`, `pulmonary_rehab`, and `flexible`.
+
+The app previews generated usernames and roles before creating profiles. Possible duplicates are marked `Needs Review` and are not created silently.
+
 ## Expected App Behavior
 
 - Authenticated users with no department membership see a safe department-assignment message.
