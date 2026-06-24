@@ -5,6 +5,7 @@ import { Mail, Pencil, Phone, Plus, UserRoundCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { generateBaseUsername, normalizeUsername } from "@/lib/auth/username";
+import { coworkerTitleDetails, coworkerTitleValues, type CoworkerTitle } from "@/lib/coworker-titles";
 
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
@@ -66,6 +67,12 @@ type BatchRosterRow = {
   assigned_role: StaffRole;
   status: "ready" | "needs_review";
   issue: string;
+};
+
+type CoworkerTitleRow = {
+  id: string;
+  target_staff_profile_id: string;
+  title: CoworkerTitle;
 };
 
 type StaffDirectoryProps = {
@@ -212,11 +219,16 @@ function profileToForm(profile: StaffProfile): StaffProfileForm {
 }
 
 function DirectoryCard({
-  profile
+  profile,
+  assignedTitles,
+  onOpenTitles
 }: {
   profile: StaffProfile;
+  assignedTitles: CoworkerTitle[];
+  onOpenTitles?: (profile: StaffProfile) => void;
 }) {
   const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
+  const assignedTitleLabels = assignedTitles.map((title) => coworkerTitleDetails[title].label).join(", ");
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -263,8 +275,103 @@ function DirectoryCard({
             Prefers {contactLabels[profile.preferred_contact_method]}
           </span>
         )}
+        {assignedTitles.map((title) => (
+          <span
+            key={title}
+            title={coworkerTitleDetails[title].label}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-cyan-50 text-sm"
+          >
+            {coworkerTitleDetails[title].icon}
+          </span>
+        ))}
       </div>
+
+      {onOpenTitles && (
+        <button
+          type="button"
+          onClick={() => onOpenTitles(profile)}
+          className="mt-3 min-h-10 w-full rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
+        >
+          {assignedTitles.length ? `My Titles: ${assignedTitleLabels}` : "Add Coworker Titles"}
+        </button>
+      )}
     </article>
+  );
+}
+
+function CoworkerTitlePanel({
+  profile,
+  draftTitles,
+  saving,
+  onToggleTitle,
+  onCancel,
+  onSave
+}: {
+  profile: StaffProfile;
+  draftTitles: CoworkerTitle[];
+  saving: boolean;
+  onToggleTitle: (title: CoworkerTitle) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  return (
+    <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Coworker Titles</p>
+          <h3 className="mt-1 text-xl font-black text-hospital-ink">{profile.display_name}</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+            These titles are private to you. Schedule cards show icons only.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {coworkerTitleValues.map((title) => {
+          const selected = draftTitles.includes(title);
+          const details = coworkerTitleDetails[title];
+
+          return (
+            <button
+              key={title}
+              type="button"
+              onClick={() => onToggleTitle(title)}
+              aria-pressed={selected}
+              className={`flex min-h-11 items-center justify-between rounded-2xl border px-3 text-left text-sm font-extrabold ${
+                selected
+                  ? "border-cyan-200 bg-cyan-50 text-cyan-800"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="text-base">{details.icon}</span>
+                {details.label}
+              </span>
+              <span className="text-xs uppercase tracking-wide">{selected ? "Selected" : "Tap"}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={saving}
+          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+        >
+          {saving ? "Saving..." : "Save Titles"}
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -529,6 +636,10 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchText, setBatchText] = useState("");
   const [batchRows, setBatchRows] = useState<BatchRosterRow[]>([]);
+  const [coworkerTitles, setCoworkerTitles] = useState<Record<string, CoworkerTitle[]>>({});
+  const [titleProfile, setTitleProfile] = useState<StaffProfile | null>(null);
+  const [titleDraft, setTitleDraft] = useState<CoworkerTitle[]>([]);
+  const [titleSaving, setTitleSaving] = useState(false);
   const canEdit = authContext.role === "admin" && !developmentFallback;
 
   const loadProfiles = useCallback(async () => {
@@ -557,8 +668,32 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       setProfiles((data ?? []) as unknown as StaffProfile[]);
     }
 
+    if (!loadError && authContext.staffProfileId) {
+      const { data: titleData, error: titleError } = await supabase
+        .from("coworker_titles")
+        .select("id, target_staff_profile_id, title")
+        .eq("department_id", authContext.departmentId)
+        .eq("owner_staff_profile_id", authContext.staffProfileId);
+
+      if (titleError) {
+        setError("Staff Directory loaded, but coworker titles could not be loaded.");
+        setCoworkerTitles({});
+      } else {
+        const nextTitles: Record<string, CoworkerTitle[]> = {};
+        ((titleData ?? []) as CoworkerTitleRow[]).forEach((row) => {
+          nextTitles[row.target_staff_profile_id] = [
+            ...(nextTitles[row.target_staff_profile_id] ?? []),
+            row.title
+          ];
+        });
+        setCoworkerTitles(nextTitles);
+      }
+    } else if (!authContext.staffProfileId) {
+      setCoworkerTitles({});
+    }
+
     setLoading(false);
-  }, [authContext.departmentId, canEdit, developmentFallback]);
+  }, [authContext.departmentId, authContext.staffProfileId, canEdit, developmentFallback]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -643,6 +778,94 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       username_normalized: normalizeUsername(username),
       assigned_role: roleForStaff(form.display_name, username)
     });
+  };
+
+  const openTitlePanel = (profile: StaffProfile) => {
+    if (!authContext.staffProfileId) {
+      setError("Your account is not linked to a staff profile yet.");
+      return;
+    }
+
+    if (profile.id === authContext.staffProfileId) {
+      setError("Coworker titles are for other staff members.");
+      return;
+    }
+
+    setTitleProfile(profile);
+    setTitleDraft(coworkerTitles[profile.id] ?? []);
+    setSuccess("");
+    setError("");
+  };
+
+  const toggleDraftTitle = (title: CoworkerTitle) => {
+    setTitleDraft((current) =>
+      current.includes(title)
+        ? current.filter((item) => item !== title)
+        : [...current, title]
+    );
+  };
+
+  const saveCoworkerTitles = async () => {
+    if (!titleProfile || !authContext.staffProfileId) {
+      setError("Your account is not linked to a staff profile yet.");
+      return;
+    }
+
+    if (titleProfile.id === authContext.staffProfileId) {
+      setError("Coworker titles cannot be assigned to yourself.");
+      return;
+    }
+
+    setTitleSaving(true);
+    setError("");
+    setSuccess("");
+
+    const supabase = createClient();
+    const existingTitles = coworkerTitles[titleProfile.id] ?? [];
+    const titlesToDelete = existingTitles.filter((title) => !titleDraft.includes(title));
+    const titlesToInsert = titleDraft.filter((title) => !existingTitles.includes(title));
+
+    if (titlesToDelete.length > 0) {
+      const { error: deleteError } = await supabase
+        .from("coworker_titles")
+        .delete()
+        .eq("department_id", authContext.departmentId)
+        .eq("owner_staff_profile_id", authContext.staffProfileId)
+        .eq("target_staff_profile_id", titleProfile.id)
+        .in("title", titlesToDelete);
+
+      if (deleteError) {
+        setTitleSaving(false);
+        setError("Unable to remove coworker titles.");
+        return;
+      }
+    }
+
+    if (titlesToInsert.length > 0) {
+      const { error: insertError } = await supabase.from("coworker_titles").insert(
+        titlesToInsert.map((title) => ({
+          department_id: authContext.departmentId,
+          owner_staff_profile_id: authContext.staffProfileId,
+          target_staff_profile_id: titleProfile.id,
+          title
+        }))
+      );
+
+      if (insertError) {
+        setTitleSaving(false);
+        setError("Unable to save coworker titles.");
+        return;
+      }
+    }
+
+    setCoworkerTitles((current) => ({
+      ...current,
+      [titleProfile.id]: titleDraft
+    }));
+    setTitleSaving(false);
+    setTitleProfile(null);
+    setTitleDraft([]);
+    setSuccess("Coworker titles saved.");
   };
 
   const parseBatchRows = () => {
@@ -1061,6 +1284,20 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         </p>
       )}
 
+      {titleProfile && (
+        <CoworkerTitlePanel
+          profile={titleProfile}
+          draftTitles={titleDraft}
+          saving={titleSaving}
+          onToggleTitle={toggleDraftTitle}
+          onCancel={() => {
+            setTitleProfile(null);
+            setTitleDraft([]);
+          }}
+          onSave={() => void saveCoworkerTitles()}
+        />
+      )}
+
       {form && (
         <StaffProfileEditor
           form={form}
@@ -1096,6 +1333,12 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
           <DirectoryCard
             key={profile.id}
             profile={profile}
+            assignedTitles={coworkerTitles[profile.id] ?? []}
+            onOpenTitles={
+              authContext.staffProfileId && authContext.staffProfileId !== profile.id
+                ? openTitlePanel
+                : undefined
+            }
           />
         ))}
       </div>

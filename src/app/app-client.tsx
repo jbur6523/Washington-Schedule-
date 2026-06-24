@@ -23,6 +23,7 @@ import {
   standardTimesForShiftType,
   shiftTypeLabels,
   type ActiveSchedule,
+  type CoworkerTitleRow,
   type ScheduleEntryRow,
   type ScheduleVersionRow,
   type ShiftRequestRow,
@@ -2423,7 +2424,8 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       { data: shortages, error: shortagesError },
       { data: overrides, error: overridesError },
       { data: requests, error: requestsError },
-      { data: offers, error: offersError }
+      { data: offers, error: offersError },
+      { data: coworkerTitles, error: coworkerTitlesError }
     ] = await Promise.all([
       supabase
         .from("schedule_entries")
@@ -2465,12 +2467,20 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         .eq("department_id", authContext.departmentId)
         .in("status", ["offered", "accepted", "declined"])
         .order("created_at", { ascending: false })
+      ,
+      authContext.staffProfileId
+        ? supabase
+            .from("coworker_titles")
+            .select("id, department_id, owner_staff_profile_id, target_staff_profile_id, title")
+            .eq("department_id", authContext.departmentId)
+            .eq("owner_staff_profile_id", authContext.staffProfileId)
+        : Promise.resolve({ data: [], error: null })
     ]);
 
-    if (entriesError || shortagesError || overridesError || requestsError || offersError) {
+    if (entriesError || shortagesError || overridesError || requestsError || offersError || coworkerTitlesError) {
       setScheduleState({
         loading: false,
-        error: "Schedule coordination data could not be loaded. Confirm Phase 5 migrations are applied.",
+        error: "Schedule coordination data could not be loaded. Confirm required migrations are applied.",
         activeSchedule: null,
         checked: true
       });
@@ -2486,11 +2496,12 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         (shortages ?? []) as ShiftShortageRow[],
         (overrides ?? []) as UserScheduleOverrideRow[],
         (requests ?? []) as ShiftRequestRow[],
-        (offers ?? []) as ShiftRequestOfferRow[]
+        (offers ?? []) as ShiftRequestOfferRow[],
+        (coworkerTitles ?? []) as CoworkerTitleRow[]
       ),
       checked: true
     });
-  }, [authContext.departmentId, developmentFallback]);
+  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

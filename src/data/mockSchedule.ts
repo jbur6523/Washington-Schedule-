@@ -39,6 +39,7 @@ export type ScheduleEntry = {
   staffType: StaffType;
   status: Extract<ScheduleStatus, "Scheduled" | "Available">;
   selfAdded?: boolean;
+  coworkerTitles?: Array<{ title: string; label: string; icon: string }>;
 };
 
 export type ShiftPost = {

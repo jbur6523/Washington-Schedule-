@@ -59,7 +59,19 @@ function StaffScheduleRow({
     <div className={`rounded-2xl border px-3 py-2 ${background}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-extrabold leading-5 text-hospital-ink">{entry.staffName}</p>
+          <p className="flex flex-wrap items-center gap-1 text-sm font-extrabold leading-5 text-hospital-ink">
+            <span>{entry.staffName}</span>
+            {entry.coworkerTitles?.map((title) => (
+              <span
+                key={title.title}
+                title={title.label}
+                aria-label={title.label}
+                className="inline-grid h-5 w-5 place-items-center rounded-full bg-white/75 text-[11px] leading-none shadow-sm"
+              >
+                {title.icon}
+              </span>
+            ))}
+          </p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
         </div>
         <StaffTypeBadge staffType={entry.staffType} compact />

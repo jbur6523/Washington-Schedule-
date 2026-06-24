@@ -110,6 +110,22 @@ Known preferred-name mappings:
 
 Schedule Code Import matches `staff_identifier` against `username_normalized` before trying display-name or last-name fallbacks.
 
+## Personal Coworker Titles
+
+Staff Directory cards include a private `Coworker Titles` control for signed-in staff.
+
+Allowed titles are Bestie, Work Wife, Work Husband, Ride or Die, Emotional Support Coworker, Frenemy, and Trauma Bonded. Multiple titles are allowed for the same coworker.
+
+These titles are personal preferences:
+
+- Only the user who assigned the titles can read or change them.
+- Other staff do not see your titles.
+- The tagged coworker does not need to approve.
+- Titles are not official roles and do not affect permissions.
+- Schedule cards show compact icons only, not full title words.
+
+The `coworker_titles` table is protected by RLS so users can read and mutate only their own rows.
+
 ## Batch Roster Provisioning
 
 Admins can paste roster lines in this format:

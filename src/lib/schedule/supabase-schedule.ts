@@ -1,4 +1,5 @@
 import type { DemoDay, ScheduleEntry, ShiftPost, StaffType } from "@/data/mockSchedule";
+import { coworkerTitleDetails, type CoworkerTitle } from "@/lib/coworker-titles";
 
 export type ScheduleVersionStatus = "draft" | "review" | "published" | "archived";
 export type ScheduleEntryStatus = "scheduled" | "available";
@@ -161,6 +162,14 @@ export type CoverageOfferRow = {
   note: string | null;
 };
 
+export type CoworkerTitleRow = {
+  id: string;
+  department_id: string;
+  owner_staff_profile_id: string;
+  target_staff_profile_id: string;
+  title: CoworkerTitle;
+};
+
 export type ActiveSchedule = {
   version: ScheduleVersionRow;
   entries: ScheduleEntryRow[];
@@ -242,7 +251,31 @@ export function staffDisplayName(staffProfile?: StaffProfileSummary | StaffProfi
   return firstStaffProfile(staffProfile)?.display_name ?? "Unassigned staff";
 }
 
-function entryToScheduleEntry(entry: ScheduleEntryRow): ScheduleEntry {
+function titleIconsForStaff(
+  entry: ScheduleEntryRow,
+  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitle[]>
+) {
+  if (!entry.staff_profile_id || !coworkerTitlesByStaffProfileId) {
+    return undefined;
+  }
+
+  const titles = coworkerTitlesByStaffProfileId.get(entry.staff_profile_id) ?? [];
+
+  if (titles.length === 0) {
+    return undefined;
+  }
+
+  return titles.map((title) => ({
+    title,
+    label: coworkerTitleDetails[title].label,
+    icon: coworkerTitleDetails[title].icon
+  }));
+}
+
+function entryToScheduleEntry(
+  entry: ScheduleEntryRow,
+  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitle[]>
+): ScheduleEntry {
   return {
     id: entry.id,
     baseScheduleEntryId: entry.id.startsWith("override-") ? null : entry.id,
@@ -258,7 +291,8 @@ function entryToScheduleEntry(entry: ScheduleEntryRow): ScheduleEntry {
     shiftTypeLabel: shiftTypeLabels[entry.shift_type],
     staffType: displayStaffType(entry.staff_profiles),
     status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
-    selfAdded: entry.id.startsWith("override-")
+    selfAdded: entry.id.startsWith("override-"),
+    coworkerTitles: titleIconsForStaff(entry, coworkerTitlesByStaffProfileId)
   };
 }
 
@@ -289,8 +323,17 @@ export function adaptActiveSchedule(
   shortages: ShiftShortageRow[],
   overrides: UserScheduleOverrideRow[] = [],
   requests: ShiftRequestRow[] = [],
-  offers: ShiftRequestOfferRow[] = []
+  offers: ShiftRequestOfferRow[] = [],
+  coworkerTitles: CoworkerTitleRow[] = []
 ): ActiveSchedule {
+  const coworkerTitlesByStaffProfileId = new Map<string, CoworkerTitle[]>();
+
+  coworkerTitles.forEach((row) => {
+    const current = coworkerTitlesByStaffProfileId.get(row.target_staff_profile_id) ?? [];
+    current.push(row.title);
+    coworkerTitlesByStaffProfileId.set(row.target_staff_profile_id, current);
+  });
+
   const activeOverrides = overrides.filter((override) => override.is_active);
   const removedBaseEntryIds = new Set(
     activeOverrides
@@ -356,10 +399,10 @@ export function adaptActiveSchedule(
       dateLabel,
       scheduled: dayEntries
         .filter((entry) => entry.entry_status === "scheduled")
-        .map(entryToScheduleEntry),
+        .map((entry) => entryToScheduleEntry(entry, coworkerTitlesByStaffProfileId)),
       available: dayEntries
         .filter((entry) => entry.entry_status === "available")
-        .map(entryToScheduleEntry),
+        .map((entry) => entryToScheduleEntry(entry, coworkerTitlesByStaffProfileId)),
       coverageRequests: [],
       shiftPosts: shiftPosts.filter((post) => post.day === `${dayName} ${dateLabel}`)
     } satisfies DemoDay;
