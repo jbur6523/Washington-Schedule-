@@ -2,6 +2,7 @@ node_modules
 .next
 out
 dist
+.codex-remote-attachments/
 .env*
 !.env.example
 npm-debug.log*

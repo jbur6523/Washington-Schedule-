@@ -2,6 +2,15 @@
 
 This backend foundation is for an internal Washington Hospital respiratory department pilot. It prepares Supabase Auth, Postgres, Row Level Security, and future private storage without replacing the current demo UI data source yet.
 
+Required public environment variables:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
+
+Use the Supabase publishable key for client and SSR auth. Do not expose a secret key or service-role key in browser-readable variables.
+
 ## Table Purposes
 
 ### Core
@@ -67,6 +76,8 @@ Roles are stored in `department_memberships.role`.
   - Read allowed staff directory data for their department.
   - Create and cancel their own shift requests.
   - Create and cancel their own coverage offers.
+
+The app determines role and membership from `profiles` and `department_memberships`. It must not trust role values sent from browser state.
 
 ## RLS Strategy
 
