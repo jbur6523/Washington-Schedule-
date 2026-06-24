@@ -111,6 +111,8 @@ General policy rules:
 - Use fake/demo phone numbers only in seed data, screenshots, or examples.
 - Emergency contacts are out of scope for the pilot.
 
+Phase 3 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff self-edit remains future functionality.
+
 ## Schedule Versioning
 
 - Admins create schedule versions in `draft` or `review` status.

@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, LogOut, ShieldCheck, Sparkles } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { ConfirmationModal } from "@/components/ConfirmationModal";
 import { DayScheduleCard, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
-import { StaffCard } from "@/components/StaffCard";
+import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import { createClient } from "@/lib/supabase/client";
@@ -15,26 +15,13 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
   allShiftPosts,
   demoSchedule,
-  getStaffSummary,
   staff,
   type DemoDay,
   type EmployeeRequestStatus,
   type ScheduleEntry,
-  type ScheduleStatus,
   type ShiftPost,
   type StaffMember
 } from "@/data/mockSchedule";
-
-type StaffFilter = "All" | "Full-time" | "Per diem" | "Dayshift" | "Nightshift" | "Specialty / flexible";
-
-const filterOptions: StaffFilter[] = [
-  "All",
-  "Full-time",
-  "Per diem",
-  "Dayshift",
-  "Nightshift",
-  "Specialty / flexible"
-];
 
 const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
   { id: "day", label: "Day" },
@@ -61,36 +48,6 @@ type DemoShiftUpdate = {
 
 const shiftUpdateId = (staffName: string, day: ScheduleDay, shiftTime: "7A-7P" | "7P-7A") =>
   `${staffName}-${day}-${shiftTime}`;
-
-function getCurrentDemoStatus(member: StaffMember): ScheduleStatus {
-  const summary = getStaffSummary(member.name);
-
-  if (summary.coverageRequests > 0) {
-    return "Coverage Requested";
-  }
-
-  if (summary.scheduled > 0) {
-    return "Scheduled";
-  }
-
-  return "Scheduled";
-}
-
-function matchesStaffFilter(member: StaffMember, filter: StaffFilter) {
-  if (filter === "All") {
-    return true;
-  }
-
-  if (filter === "Full-time" || filter === "Per diem") {
-    return member.staffType === filter;
-  }
-
-  if (filter === "Dayshift" || filter === "Nightshift") {
-    return member.usualShift === filter;
-  }
-
-  return ["Pulm Rehab", "PFT", "Flexible"].includes(member.usualShift);
-}
 
 function Header({
   authContext,
@@ -712,48 +669,6 @@ function ShiftBoardScreen({ posts, onDemoAction }: { posts: ShiftPost[]; onDemoA
   );
 }
 
-function StaffScreen() {
-  const [filter, setFilter] = useState<StaffFilter>("All");
-  const filteredStaff = useMemo(
-    () => staff.filter((member) => matchesStaffFilter(member, filter)),
-    [filter]
-  );
-
-  return (
-    <div className="space-y-4">
-      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <h2 className="text-lg font-black text-hospital-ink">Staff directory</h2>
-        <div className="no-scrollbar -mx-1 mt-3 flex gap-2 overflow-x-auto px-1 pb-1">
-          {filterOptions.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setFilter(option)}
-              className={`shrink-0 rounded-full border px-3 py-2 text-xs font-extrabold ${
-                filter === option
-                  ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                  : "border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      </section>
-      <div className="grid gap-3">
-        {filteredStaff.map((member) => (
-          <StaffCard
-            key={member.id}
-            staff={member}
-            currentStatus={getCurrentDemoStatus(member)}
-            summary={getStaffSummary(member.name)}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function AppClient({ authContext, developmentFallback }: AppClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>("schedule");
   const [modalOpen, setModalOpen] = useState(false);
@@ -791,7 +706,9 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
           {activeTab === "shift-board" && (
             <ShiftBoardScreen posts={shiftBoardPosts} onDemoAction={() => setModalOpen(true)} />
           )}
-          {activeTab === "staff" && <StaffScreen />}
+          {activeTab === "staff" && (
+            <StaffDirectory authContext={authContext} developmentFallback={developmentFallback} />
+          )}
         </div>
       </main>
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
