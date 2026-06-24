@@ -4,12 +4,21 @@ import { StatusChip } from "@/components/StatusChip";
 import type { DemoDay, ScheduleEntry, ShiftPost } from "@/data/mockSchedule";
 
 export type ScheduleShiftFilter = "all" | "day" | "night";
+export type AvailabilityTarget = {
+  shift_date: string;
+  shift_type: string;
+  shift_start: string;
+  shift_end: string;
+};
 
 type DayScheduleCardProps = {
   day: DemoDay;
   expanded: boolean;
   shiftFilter: ScheduleShiftFilter;
   shiftNotes?: Record<string, string>;
+  availabilityByShift?: Record<string, string>;
+  availabilitySaving?: boolean;
+  onToggleAvailability?: (target: AvailabilityTarget, activeOverrideId?: string) => void;
   onToggle: () => void;
 };
 
@@ -55,8 +64,9 @@ function StaffScheduleRow({
         <StaffTypeBadge staffType={entry.staffType} compact />
       </div>
 
-      {(coverageRequested || Boolean(posts?.length)) && (
+      {(coverageRequested || Boolean(posts?.length) || variant === "available") && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {variant === "available" && <StatusChip status="Available" compact />}
           {entry.selfAdded && <StatusChip status="Self-added" compact />}
           {coverageRequested && <StatusChip status="Coverage Requested" compact />}
           {posts?.map((post) => (
@@ -125,7 +135,11 @@ function ShiftGroup({
   available,
   coverageRequestEntries,
   posts,
-  shiftNotes
+  shiftNotes,
+  availabilityTarget,
+  activeAvailabilityOverrideId,
+  availabilitySaving,
+  onToggleAvailability
 }: {
   dayName: DemoDay["day"];
   title: string;
@@ -135,6 +149,10 @@ function ShiftGroup({
   coverageRequestEntries: ScheduleEntry[];
   posts: ShiftPost[];
   shiftNotes?: Record<string, string>;
+  availabilityTarget?: AvailabilityTarget | null;
+  activeAvailabilityOverrideId?: string;
+  availabilitySaving?: boolean;
+  onToggleAvailability?: (target: AvailabilityTarget, activeOverrideId?: string) => void;
 }) {
   const shiftPosts = posts.filter((post) => getShiftCategory(post) === shiftCategory);
   const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift" && post.status === "Short Shift");
@@ -185,8 +203,69 @@ function ShiftGroup({
           />
         ))}
       </div>
+
+      {availabilityTarget && onToggleAvailability && (
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-2.5">
+          <button
+            type="button"
+            onClick={() => onToggleAvailability(availabilityTarget, activeAvailabilityOverrideId)}
+            disabled={availabilitySaving}
+            className={`min-h-10 w-full rounded-2xl px-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-60 ${
+              activeAvailabilityOverrideId
+                ? "border border-emerald-200 bg-white text-emerald-700"
+                : "bg-emerald-600 text-white shadow-sm shadow-emerald-900/10"
+            }`}
+          >
+            {activeAvailabilityOverrideId ? "Remove My Availability" : "Add Myself Available"}
+          </button>
+          <p className="mt-2 px-1 text-xs font-bold leading-4 text-emerald-900">
+            Availability is self-reported and does not change the official schedule.
+          </p>
+        </div>
+      )}
     </section>
   );
+}
+
+function availabilityKey(target: AvailabilityTarget) {
+  return `${target.shift_date}|${target.shift_type}|${target.shift_start.slice(0, 5)}|${target.shift_end.slice(0, 5)}`;
+}
+
+function getAvailabilityTarget(
+  day: DemoDay,
+  shiftCategory: "day" | "night",
+  entries: ScheduleEntry[]
+): AvailabilityTarget | null {
+  const entry = entries.find(
+    (item) => item.shiftDate && item.shiftType && item.shiftStart && item.shiftEnd
+  );
+
+  if (entry?.shiftDate && entry.shiftType && entry.shiftStart && entry.shiftEnd) {
+    return {
+      shift_date: entry.shiftDate,
+      shift_type: entry.shiftType,
+      shift_start: entry.shiftStart,
+      shift_end: entry.shiftEnd
+    };
+  }
+
+  if (!day.dateValue) {
+    return null;
+  }
+
+  return shiftCategory === "night"
+    ? {
+        shift_date: day.dateValue,
+        shift_type: "night_shift",
+        shift_start: "19:00",
+        shift_end: "07:00"
+      }
+    : {
+        shift_date: day.dateValue,
+        shift_type: "day_shift",
+        shift_start: "07:00",
+        shift_end: "19:00"
+      };
 }
 
 function getDayAlertPosts(posts: ShiftPost[]) {
@@ -215,7 +294,16 @@ function shouldShowShift(
   return getShiftCategory(item) === shiftFilter;
 }
 
-export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onToggle }: DayScheduleCardProps) {
+export function DayScheduleCard({
+  day,
+  expanded,
+  shiftFilter,
+  shiftNotes,
+  availabilityByShift,
+  availabilitySaving,
+  onToggleAvailability,
+  onToggle
+}: DayScheduleCardProps) {
   const dayScheduled = day.scheduled.filter((entry) => getShiftCategory(entry) === "day");
   const nightScheduled = day.scheduled.filter((entry) => getShiftCategory(entry) === "night");
   const dayAvailable = day.available.filter((entry) => getShiftCategory(entry) === "day");
@@ -227,6 +315,14 @@ export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onTogg
   const alertPosts = getDayAlertPosts(visiblePosts);
   const showDayShift = shouldShowShift(shiftFilter, { shiftTime: "7A-7P", shiftCategory: "day" });
   const showNightShift = shouldShowShift(shiftFilter, { shiftTime: "7P-7A", shiftCategory: "night" });
+  const dayAvailabilityTarget = getAvailabilityTarget(day, "day", [...dayScheduled, ...dayAvailable]);
+  const nightAvailabilityTarget = getAvailabilityTarget(day, "night", [...nightScheduled, ...nightAvailable]);
+  const dayAvailabilityOverrideId = dayAvailabilityTarget
+    ? availabilityByShift?.[availabilityKey(dayAvailabilityTarget)]
+    : undefined;
+  const nightAvailabilityOverrideId = nightAvailabilityTarget
+    ? availabilityByShift?.[availabilityKey(nightAvailabilityTarget)]
+    : undefined;
   const shiftSubtitle =
     shiftFilter === "all"
       ? "Day + Night"
@@ -284,6 +380,10 @@ export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onTogg
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}
+              availabilityTarget={dayAvailabilityTarget}
+              activeAvailabilityOverrideId={dayAvailabilityOverrideId}
+              availabilitySaving={availabilitySaving}
+              onToggleAvailability={onToggleAvailability}
             />
           )}
             {showNightShift && (
@@ -296,6 +396,10 @@ export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onTogg
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}
+              availabilityTarget={nightAvailabilityTarget}
+              activeAvailabilityOverrideId={nightAvailabilityOverrideId}
+              availabilitySaving={availabilitySaving}
+              onToggleAvailability={onToggleAvailability}
             />
           )}
         </div>

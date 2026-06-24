@@ -28,6 +28,10 @@ export type ScheduleEntry = {
   baseScheduleEntryId?: string | null;
   userScheduleOverrideId?: string | null;
   staffProfileId?: string | null;
+  shiftDate?: string;
+  shiftType?: string;
+  shiftStart?: string;
+  shiftEnd?: string;
   staffName: string;
   shiftTime: string;
   shiftCategory?: "day" | "night";
@@ -58,6 +62,7 @@ export type ShiftPost = {
 
 export type DemoDay = {
   day: string;
+  dateValue?: string;
   dateLabel?: string;
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];

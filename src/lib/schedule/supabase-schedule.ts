@@ -7,7 +7,7 @@ export type ShiftShortageSeverity = "short" | "urgent";
 export type ShiftShortageStatus = "active" | "resolved" | "cancelled";
 export type EmploymentType = "full_time" | "per_diem";
 export type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
-export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self";
+export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self" | "add_available";
 export type ShiftRequestType = "switch_requested" | "coverage_requested";
 export type ShiftRequestStatus = "active" | "cancelled" | "resolved";
 export type CoverageOfferStatus = "offered" | "accepted" | "declined" | "cancelled";
@@ -236,6 +236,10 @@ function entryToScheduleEntry(entry: ScheduleEntryRow): ScheduleEntry {
     baseScheduleEntryId: entry.id.startsWith("override-") ? null : entry.id,
     userScheduleOverrideId: entry.id.startsWith("override-") ? entry.id.replace("override-", "") : null,
     staffProfileId: entry.staff_profile_id,
+    shiftDate: entry.shift_date,
+    shiftType: entry.shift_type,
+    shiftStart: entry.shift_start,
+    shiftEnd: entry.shift_end,
     staffName: staffDisplayName(entry.staff_profiles),
     shiftTime: formatShiftTime(entry.shift_start, entry.shift_end),
     shiftCategory: shiftCategoryForType(entry.shift_type),
@@ -281,7 +285,9 @@ export function adaptActiveSchedule(
       .filter((override) => override.override_type === "remove_self" && override.base_schedule_entry_id)
       .map((override) => override.base_schedule_entry_id as string)
   );
-  const addOverrides = activeOverrides.filter((override) => override.override_type === "add_self");
+  const addOverrides = activeOverrides.filter(
+    (override) => override.override_type === "add_self" || override.override_type === "add_available"
+  );
   const syntheticEntries: ScheduleEntryRow[] = addOverrides.map((override) => ({
     id: `override-${override.id}`,
     schedule_version_id: version.id,
@@ -292,7 +298,7 @@ export function adaptActiveSchedule(
     shift_type: override.shift_type,
     shift_start: override.shift_start,
     shift_end: override.shift_end,
-    entry_status: "scheduled",
+    entry_status: override.override_type === "add_available" ? "available" : "scheduled",
     staff_profiles: override.staff_profiles
   }));
   const effectiveEntries = [
@@ -334,6 +340,7 @@ export function adaptActiveSchedule(
 
     return {
       day: `${dayName} ${dateLabel}`,
+      dateValue,
       dateLabel,
       scheduled: dayEntries
         .filter((entry) => entry.entry_status === "scheduled")

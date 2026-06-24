@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Sparkles, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
-import { DayScheduleCard, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { NotificationSettings } from "@/components/NotificationSettings";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
@@ -54,7 +54,7 @@ type ScheduleLoadState = {
 };
 
 type AddShiftForm = {
-  mode: "add" | "move";
+  mode: "add" | "move" | "available";
   baseEntryId?: string;
   shift_date: string;
   shift_type: ShiftType;
@@ -158,7 +158,7 @@ function Header({
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-white/70 bg-white/85 px-4 pb-4 pt-5 backdrop-blur-xl sm:px-5">
+    <header className="border-b border-white/70 bg-white/85 px-4 pb-4 pt-5 sm:px-5">
       <div className="mx-auto max-w-xl">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -405,14 +405,19 @@ function ScheduleScreen({
   loading,
   error,
   schedule,
-  developmentFallback
+  developmentFallback,
+  onChanged
 }: {
   authContext: AuthenticatedUserContext;
   loading: boolean;
   error: string;
   schedule: ActiveSchedule | null;
   developmentFallback?: boolean;
+  onChanged: () => Promise<void>;
 }) {
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+  const [availabilityMessage, setAvailabilityMessage] = useState("");
+  const [availabilityError, setAvailabilityError] = useState("");
   const days = useMemo(
     () => (developmentFallback ? demoSchedule : schedule?.days ?? []),
     [developmentFallback, schedule]
@@ -420,7 +425,12 @@ function ScheduleScreen({
   const shiftNotes = useMemo(() => {
     const notes: Record<string, string> = {};
     schedule?.overrides
-      .filter((override) => override.is_active && override.override_type === "add_self" && override.note)
+      .filter(
+        (override) =>
+          override.is_active &&
+          (override.override_type === "add_self" || override.override_type === "add_available") &&
+          override.note
+      )
       .forEach((override) => {
         const staffProfile = firstStaffProfile(override.staff_profiles);
         const day = `${dayNameFromDate(override.shift_date)} ${new Date(`${override.shift_date}T12:00:00`).toLocaleDateString("en-US", {
@@ -432,6 +442,28 @@ function ScheduleScreen({
       });
     return notes;
   }, [schedule]);
+  const availabilityByShift = useMemo(() => {
+    const availability: Record<string, string> = {};
+
+    if (!schedule || !authContext.staffProfileId) {
+      return availability;
+    }
+
+    schedule.overrides
+      .filter(
+        (override) =>
+          override.is_active &&
+          override.override_type === "add_available" &&
+          override.staff_profile_id === authContext.staffProfileId
+      )
+      .forEach((override) => {
+        availability[
+          `${override.shift_date}|${override.shift_type}|${override.shift_start.slice(0, 5)}|${override.shift_end.slice(0, 5)}`
+        ] = override.id;
+      });
+
+    return availability;
+  }, [authContext.staffProfileId, schedule]);
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [expandedDay, setExpandedDay] = useState("");
@@ -485,6 +517,59 @@ function ScheduleScreen({
     );
   }
 
+  const toggleAvailability = async (target: AvailabilityTarget, activeOverrideId?: string) => {
+    if (!authContext.staffProfileId || developmentFallback) {
+      return;
+    }
+
+    setAvailabilitySaving(true);
+    setAvailabilityError("");
+    setAvailabilityMessage("");
+
+    const supabase = createClient();
+
+    if (activeOverrideId) {
+      const { error: updateError } = await supabase
+        .from("user_schedule_overrides")
+        .update({ is_active: false })
+        .eq("id", activeOverrideId);
+
+      setAvailabilitySaving(false);
+
+      if (updateError) {
+        setAvailabilityError("Unable to remove your availability.");
+        return;
+      }
+
+      setAvailabilityMessage("Availability removed.");
+      await onChanged();
+      return;
+    }
+
+    const { error: insertError } = await supabase.from("user_schedule_overrides").insert({
+      department_id: authContext.departmentId,
+      staff_profile_id: authContext.staffProfileId,
+      base_schedule_entry_id: null,
+      override_type: "add_available",
+      shift_date: target.shift_date,
+      shift_type: target.shift_type,
+      shift_start: target.shift_start,
+      shift_end: target.shift_end,
+      note: "Self-reported availability.",
+      is_active: true
+    });
+
+    setAvailabilitySaving(false);
+
+    if (insertError) {
+      setAvailabilityError("Unable to add your availability. You may already be available for this shift.");
+      return;
+    }
+
+    setAvailabilityMessage("Availability added.");
+    await onChanged();
+  };
+
   return (
     <div className="space-y-3">
       <ScheduleFilterTabs
@@ -495,6 +580,16 @@ function ScheduleScreen({
         }}
       />
       <ScheduleSummary schedule={days} selectedDay={effectiveSelectedDay} shiftFilter={shiftFilter} />
+      {availabilityError && (
+        <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+          {availabilityError}
+        </p>
+      )}
+      {availabilityMessage && (
+        <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          {availabilityMessage}
+        </p>
+      )}
       <Legend />
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3 px-1">
@@ -514,6 +609,11 @@ function ScheduleScreen({
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
             shiftNotes={shiftNotes}
+            availabilityByShift={availabilityByShift}
+            availabilitySaving={availabilitySaving}
+            onToggleAvailability={(target, activeOverrideId) => {
+              void toggleAvailability(target, activeOverrideId);
+            }}
             onToggle={() => {
               setSelectedDay(day.day);
               setExpandedDay((current) => (current === day.day ? "" : day.day));
@@ -628,6 +728,19 @@ function ManageScheduleScreen({
 
     return schedule.effectiveEntries.filter(
       (entry) => entry.staff_profile_id === authContext.staffProfileId && entry.entry_status === "scheduled"
+    );
+  }, [authContext.staffProfileId, schedule]);
+
+  const availabilityOverrides = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
+
+    return schedule.overrides.filter(
+      (override) =>
+        override.is_active &&
+        override.override_type === "add_available" &&
+        override.staff_profile_id === authContext.staffProfileId
     );
   }, [authContext.staffProfileId, schedule]);
 
@@ -904,6 +1017,25 @@ function ManageScheduleScreen({
     const supabase = createClient();
     const operations = [];
 
+    if (addForm.mode === "available" && schedule) {
+      const existingAvailability = schedule.overrides.find(
+        (override) =>
+          override.is_active &&
+          override.override_type === "add_available" &&
+          override.staff_profile_id === authContext.staffProfileId &&
+          override.shift_date === addForm.shift_date &&
+          override.shift_type === addForm.shift_type &&
+          override.shift_start.slice(0, 5) === addForm.shift_start &&
+          override.shift_end.slice(0, 5) === addForm.shift_end
+      );
+
+      if (existingAvailability) {
+        setSaving(false);
+        setActionError("You are already marked available for that shift.");
+        return;
+      }
+    }
+
     if (addForm.mode === "move" && addForm.baseEntryId && schedule) {
       const sourceEntry = schedule.entries.find((entry) => entry.id === addForm.baseEntryId);
 
@@ -929,7 +1061,7 @@ function ManageScheduleScreen({
         department_id: authContext.departmentId,
         staff_profile_id: authContext.staffProfileId,
         base_schedule_entry_id: null,
-        override_type: "add_self",
+        override_type: addForm.mode === "available" ? "add_available" : "add_self",
         shift_date: addForm.shift_date,
         shift_type: addForm.shift_type,
         shift_start: addForm.shift_start,
@@ -949,7 +1081,13 @@ function ManageScheduleScreen({
 
     setAddFormOpen(false);
     setAddForm(emptyAddShiftForm);
-    setSuccess(addForm.mode === "move" ? "Shift moved in your app schedule." : "Shift added to your app schedule.");
+    setSuccess(
+      addForm.mode === "move"
+        ? "Shift moved in your app schedule."
+        : addForm.mode === "available"
+          ? "Availability added."
+          : "Shift added to your app schedule."
+    );
     await onChanged();
   };
 
@@ -1022,6 +1160,20 @@ function ManageScheduleScreen({
           <Plus size={16} />
           Add Myself to Another Shift
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            setAddFormOpen(true);
+            setAddForm({ ...emptyAddShiftForm, mode: "available" });
+          }}
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-sm font-extrabold text-emerald-700"
+        >
+          <Plus size={16} />
+          Add Myself Available
+        </button>
+        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+          Availability is self-reported and does not change the official schedule.
+        </p>
       </section>
 
       {actionError && (
@@ -1121,8 +1273,17 @@ function ManageScheduleScreen({
       {addFormOpen && (
         <form onSubmit={saveAddedShift} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
           <h3 className="text-lg font-black text-hospital-ink">
-            {addForm.mode === "move" ? "Move Myself to Another Shift" : "Add Myself to Another Shift"}
+            {addForm.mode === "move"
+              ? "Move Myself to Another Shift"
+              : addForm.mode === "available"
+                ? "Add availability"
+                : "Add Myself to Another Shift"}
           </h3>
+          {addForm.mode === "available" && (
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+              Availability is self-reported and does not change the official schedule.
+            </p>
+          )}
           <div className="mt-4 grid gap-3">
             <label className="block">
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</span>
@@ -1192,12 +1353,53 @@ function ManageScheduleScreen({
             <button
               type="submit"
               disabled={saving}
-              className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+              className={`min-h-11 rounded-2xl px-3 text-sm font-extrabold text-white disabled:opacity-60 ${
+                addForm.mode === "available" ? "bg-emerald-600" : "bg-cyan-700"
+              }`}
             >
-              {saving ? "Saving..." : "Save Shift"}
+              {saving ? "Saving..." : addForm.mode === "available" ? "Save Availability" : "Save Shift"}
             </button>
           </div>
         </form>
+      )}
+
+      {availabilityOverrides.length > 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">My availability</h3>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+            Self-reported availability does not change the official schedule.
+          </p>
+          <div className="mt-3 space-y-2">
+            {availabilityOverrides.map((override) => (
+              <div key={override.id} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-hospital-ink">
+                      {formatDateShort(override.shift_date)}
+                    </p>
+                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-800">
+                      {shiftTypeLabels[override.shift_type]} - {formatShiftTime(override.shift_start, override.shift_end)}
+                    </p>
+                  </div>
+                  <StatusChip status="Available" compact />
+                </div>
+                {override.note && (
+                  <p className="mt-2 rounded-xl bg-white/70 px-2.5 py-2 text-xs font-semibold leading-4 text-slate-600">
+                    {override.note}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void undoOverride(override.id)}
+                  disabled={saving}
+                  className="mt-3 min-h-10 w-full rounded-2xl border border-emerald-200 bg-white px-3 text-sm font-extrabold text-emerald-700 disabled:opacity-60"
+                >
+                  Remove My Availability
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {scheduledEntries.length === 0 && (
@@ -2276,6 +2478,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               error={scheduleState.error}
               schedule={scheduleState.activeSchedule}
               developmentFallback={developmentFallback}
+              onChanged={loadActiveSchedule}
             />
           )}
           {activeTab === "manage-schedule" && (
