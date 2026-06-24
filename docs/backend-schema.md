@@ -137,7 +137,8 @@ Assigned username rule:
 - Admins create schedule versions in `draft` or `review` status.
 - Admins publish a reviewed version by setting `schedule_versions.status = 'published'` and updating `departments.active_schedule_version_id`.
 - Staff schedule reads are scoped to the active published version.
-- Rollback means pointing `active_schedule_version_id` back to a previous published version and writing an audit event.
+- Rollback currently means publishing a previous version again. A fuller rollback UI remains future work.
+- The admin manual builder and batch paste format are documented in `docs/schedule-versions.md`.
 - Import results must never auto-publish.
 
 ## Shift Request Rules

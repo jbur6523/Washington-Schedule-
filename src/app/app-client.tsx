@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarClock, LogOut, ShieldCheck, Sparkles } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
@@ -13,15 +13,16 @@ import { StatusChip } from "@/components/StatusChip";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
-  allShiftPosts,
-  demoSchedule,
-  staff,
-  type DemoDay,
-  type EmployeeRequestStatus,
-  type ScheduleEntry,
-  type ShiftPost,
-  type StaffMember
-} from "@/data/mockSchedule";
+  adaptActiveSchedule,
+  displayStaffType,
+  formatShiftTime,
+  shiftTypeLabels,
+  type ActiveSchedule,
+  type ScheduleEntryRow,
+  type ScheduleVersionRow,
+  type ShiftShortageRow
+} from "@/lib/schedule/supabase-schedule";
+import { allShiftPosts, demoSchedule, type DemoDay, type ShiftPost } from "@/data/mockSchedule";
 
 const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
   { id: "day", label: "Day" },
@@ -29,25 +30,17 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
   { id: "all", label: "All" }
 ];
 
-type ScheduleDay = (typeof demoSchedule)[number]["day"];
-
 type AppClientProps = {
   authContext: AuthenticatedUserContext;
   developmentFallback?: boolean;
 };
 
-type DemoShiftUpdate = {
-  day: ScheduleDay;
-  shiftTime: "7A-7P" | "7P-7A";
-  staffName: string;
-  staffType: "Full-time" | "Per diem";
-  switchRequested?: boolean;
-  coverageRequested?: boolean;
-  note?: string;
+type ScheduleLoadState = {
+  loading: boolean;
+  error: string;
+  activeSchedule: ActiveSchedule | null;
+  checked: boolean;
 };
-
-const shiftUpdateId = (staffName: string, day: ScheduleDay, shiftTime: "7A-7P" | "7P-7A") =>
-  `${staffName}-${day}-${shiftTime}`;
 
 function Header({
   authContext,
@@ -73,14 +66,14 @@ function Header({
               </h1>
               <span className="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
                 <Sparkles size={13} />
-                Demo Mode
+                {developmentFallback ? "Demo Mode" : "Pilot"}
               </span>
             </div>
             <p className="mt-1 text-sm font-bold text-hospital-muted">
-              Respiratory Department Staffing Demo
+              Respiratory Department Staffing
             </p>
             <p className="mt-2 text-xs font-extrabold uppercase tracking-wide text-slate-400">
-              {authContext.displayName} · {authContext.departmentName} · {authContext.role}
+              {authContext.displayName} - {authContext.departmentName} - {authContext.role}
             </p>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -120,7 +113,7 @@ function AuthNotice({
   if (developmentFallback) {
     return (
       <section className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-900">
-        Supabase environment variables are not configured, so local development is showing the demo UI without authentication.
+        Supabase environment variables are not configured, so local development is showing demo schedule data.
       </section>
     );
   }
@@ -157,7 +150,6 @@ function Legend() {
             FT means full-time. PD means per diem.
           </p>
         </div>
-
         <div>
           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Card meaning</p>
           <div className="mt-2 grid gap-2">
@@ -169,7 +161,6 @@ function Legend() {
             </div>
           </div>
         </div>
-
         <div>
           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status chips</p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -179,8 +170,8 @@ function Legend() {
             <StatusChip status="Short Shift" intensity="critical" />
           </div>
           <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Switch Requested marks a requested trade. Coverage Requested marks a coverage request for that employee.
-            Yellow Short Shift means short. Red Short Shift means urgently short.
+            Switch Requested and Coverage Requested are employee request chips. Yellow Short Shift means short.
+            Red Short Shift means urgently short.
           </p>
         </div>
       </div>
@@ -188,110 +179,22 @@ function Legend() {
   );
 }
 
+function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "night" }) {
+  if (item.shiftCategory) {
+    return item.shiftCategory;
+  }
+
+  return item.shiftTime.includes("7P") ? "night" : "day";
+}
+
 function getShiftMatches(filter: ScheduleShiftFilter) {
-  return (shiftTime: "7A-7P" | "7P-7A") => {
+  return (item: { shiftTime: string; shiftCategory?: "day" | "night" }) => {
     if (filter === "all") {
       return true;
     }
 
-    return filter === "day" ? shiftTime === "7A-7P" : shiftTime === "7P-7A";
+    return getShiftCategory(item) === filter;
   };
-}
-
-function getShiftLabel(member: StaffMember | undefined, shiftTime: "7A-7P" | "7P-7A") {
-  if (member?.usualShift === "PFT") {
-    return "PFT";
-  }
-
-  if (member?.usualShift === "Pulm Rehab") {
-    return "Pulmonary Rehab";
-  }
-
-  return shiftTime === "7A-7P" ? "Day Shift" : "Night Shift";
-}
-
-function requestPostFromUpdate(update: DemoShiftUpdate, status: EmployeeRequestStatus): ShiftPost {
-  const id = `${shiftUpdateId(update.staffName, update.day, update.shiftTime)}-${status}`;
-
-  return {
-    id,
-    day: update.day,
-    shiftTime: update.shiftTime,
-    postedBy: update.staffName,
-    staffType: update.staffType,
-    type: status,
-    coverageIntensity: "low",
-    status,
-    description:
-      status === "Switch Requested"
-        ? "Open to switching this scheduled shift."
-        : "Coverage requested for this shift.",
-    targetStaffName: update.staffName,
-    scope: "employee"
-  };
-}
-
-function getSessionShiftPosts(updates: DemoShiftUpdate[]) {
-  return updates.flatMap((update) => {
-    const posts: ShiftPost[] = [];
-
-    if (update.switchRequested) {
-      posts.push(requestPostFromUpdate(update, "Switch Requested"));
-    }
-
-    if (update.coverageRequested) {
-      posts.push(requestPostFromUpdate(update, "Coverage Requested"));
-    }
-
-    return posts;
-  });
-}
-
-function getMergedSchedule(updates: DemoShiftUpdate[]): DemoDay[] {
-  const sessionPosts = getSessionShiftPosts(updates);
-
-  return demoSchedule.map((day) => {
-    const dayUpdates = updates.filter((update) => update.day === day.day);
-    const coverageKeys = new Set(
-      day.coverageRequests.map((entry) => `${entry.staffName}-${entry.shiftTime}`)
-    );
-    const sessionCoverageRequests: ScheduleEntry[] = dayUpdates
-      .filter((update) => update.coverageRequested)
-      .filter((update) => {
-        const key = `${update.staffName}-${update.shiftTime}`;
-
-        if (coverageKeys.has(key)) {
-          return false;
-        }
-
-        coverageKeys.add(key);
-        return true;
-      })
-      .map((update) => ({
-        staffName: update.staffName,
-        shiftTime: update.shiftTime,
-        staffType: update.staffType,
-        status: "Scheduled"
-      }));
-
-    return {
-      ...day,
-      coverageRequests: [...day.coverageRequests, ...sessionCoverageRequests],
-      shiftPosts: [...day.shiftPosts, ...sessionPosts.filter((post) => post.day === day.day)]
-    };
-  });
-}
-
-function getShiftNotes(updates: DemoShiftUpdate[]) {
-  return updates.reduce<Record<string, string>>((notes, update) => {
-    const note = update.note?.trim();
-
-    if (note) {
-      notes[shiftUpdateId(update.staffName, update.day, update.shiftTime)] = note;
-    }
-
-    return notes;
-  }, {});
 }
 
 function ScheduleSummary({
@@ -300,35 +203,29 @@ function ScheduleSummary({
   shiftFilter
 }: {
   schedule: DemoDay[];
-  selectedDay: ScheduleDay;
+  selectedDay: string;
   shiftFilter: ScheduleShiftFilter;
 }) {
   const day = schedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? schedule[0];
   const matchesShift = getShiftMatches(shiftFilter);
-  const scheduled = day.scheduled.filter((entry) => matchesShift(entry.shiftTime)).length;
-  const available = day.available.filter((entry) => matchesShift(entry.shiftTime)).length;
-  const coverageRequests = day.coverageRequests.filter((entry) => matchesShift(entry.shiftTime)).length;
+  const scheduled = day.scheduled.filter(matchesShift).length;
+  const available = day.available.filter(matchesShift).length;
+  const coverageRequests = day.coverageRequests.filter(matchesShift).length;
   const shortShiftPosts = day.shiftPosts.filter(
-    (post) => matchesShift(post.shiftTime) && post.status === "Short Shift"
+    (post) => matchesShift(post) && post.status === "Short Shift"
   ).length;
   const switchRequests = day.shiftPosts.filter(
-    (post) => matchesShift(post.shiftTime) && post.status === "Switch Requested"
+    (post) => matchesShift(post) && post.status === "Switch Requested"
   ).length;
   const shiftLabel =
-    shiftFilter === "all"
-      ? "All Shifts"
-      : shiftFilter === "day"
-        ? "Day Shift"
-        : "Night Shift";
+    shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
 
   return (
     <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
       <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-black text-hospital-ink">
-            {day.day} {shiftLabel} Summary
-          </h2>
-        </div>
+        <h2 className="min-w-0 text-lg font-black text-hospital-ink">
+          {day.day} {shiftLabel} Summary
+        </h2>
         {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
       </div>
       <div className="mt-3 grid grid-cols-5 gap-1.5 text-center">
@@ -386,11 +283,75 @@ function ScheduleFilterTabs({
   );
 }
 
-function ScheduleScreen({ schedule, updates }: { schedule: DemoDay[]; updates: DemoShiftUpdate[] }) {
+function ScheduleScreen({
+  authContext,
+  loading,
+  error,
+  schedule,
+  developmentFallback
+}: {
+  authContext: AuthenticatedUserContext;
+  loading: boolean;
+  error: string;
+  schedule: ActiveSchedule | null;
+  developmentFallback?: boolean;
+}) {
+  const days = useMemo(
+    () => (developmentFallback ? demoSchedule : schedule?.days ?? []),
+    [developmentFallback, schedule]
+  );
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
-  const [selectedDay, setSelectedDay] = useState<ScheduleDay>("Monday");
+  const [selectedDay, setSelectedDay] = useState("");
   const [expandedDay, setExpandedDay] = useState("");
-  const shiftNotes = getShiftNotes(updates);
+  const effectiveSelectedDay =
+    days.some((day) => day.day === selectedDay) ? selectedDay : days[0]?.day ?? "";
+
+  if (loading) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <p className="text-sm font-bold text-slate-500">Loading schedule...</p>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
+        <h2 className="text-lg font-black text-rose-950">Failed to load schedule</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
+      </section>
+    );
+  }
+
+  if (!developmentFallback && !schedule) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <h2 className="text-xl font-black text-hospital-ink">No published schedule is active yet.</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+          An admin needs to create and publish a schedule version before staff can view the live schedule.
+        </p>
+        {authContext.role === "admin" && (
+          <Link
+            href="/admin/schedule-versions"
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white"
+          >
+            Create Schedule Version
+          </Link>
+        )}
+      </section>
+    );
+  }
+
+  if (days.length === 0) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <h2 className="text-xl font-black text-hospital-ink">No schedule entries.</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+          The active schedule version exists, but no schedule rows have been added yet.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -401,19 +362,25 @@ function ScheduleScreen({ schedule, updates }: { schedule: DemoDay[]; updates: D
           setExpandedDay("");
         }}
       />
-      <ScheduleSummary schedule={schedule} selectedDay={selectedDay} shiftFilter={shiftFilter} />
+      <ScheduleSummary schedule={days} selectedDay={effectiveSelectedDay} shiftFilter={shiftFilter} />
       <Legend />
       <div className="space-y-3">
-        <p className="px-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-          3-day demo schedule
-        </p>
-        {schedule.map((day) => (
+        <div className="flex items-center justify-between gap-3 px-1">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+            {developmentFallback ? "Demo schedule" : schedule?.version.label}
+          </p>
+          {authContext.role === "admin" && !developmentFallback && (
+            <Link href="/admin/schedule-versions" className="text-xs font-extrabold text-cyan-700">
+              Manage versions
+            </Link>
+          )}
+        </div>
+        {days.map((day) => (
           <DayScheduleCard
             key={day.day}
             day={day}
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
-            shiftNotes={shiftNotes}
             onToggle={() => {
               setSelectedDay(day.day);
               setExpandedDay((current) => (current === day.day ? "" : day.day));
@@ -426,222 +393,117 @@ function ScheduleScreen({ schedule, updates }: { schedule: DemoDay[]; updates: D
 }
 
 function ManageScheduleScreen({
-  updates,
-  onUpdateShift
+  authContext,
+  loading,
+  error,
+  schedule,
+  developmentFallback
 }: {
-  updates: DemoShiftUpdate[];
-  onUpdateShift: (update: DemoShiftUpdate) => void;
+  authContext: AuthenticatedUserContext;
+  loading: boolean;
+  error: string;
+  schedule: ActiveSchedule | null;
+  developmentFallback?: boolean;
 }) {
-  const [editingShiftId, setEditingShiftId] = useState("");
-  const [noteDraft, setNoteDraft] = useState("");
-  const signedInStaffName = "Jonathan Burdick";
-  const selectedStaff = staff.find((member) => member.name === signedInStaffName) ?? staff[0];
-  const scheduledShifts = demoSchedule.flatMap((day) =>
-    day.scheduled
-      .filter((entry) => entry.staffName === signedInStaffName)
-      .map((entry) => ({ day: day.day, entry, posts: day.shiftPosts, coverageRequests: day.coverageRequests }))
-  );
+  const scheduledEntries = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
 
-  const getUpdate = (day: ScheduleDay, entry: ScheduleEntry) =>
-    updates.find(
-      (update) =>
-        update.staffName === entry.staffName &&
-        update.day === day &&
-        update.shiftTime === entry.shiftTime
+    return schedule.entries.filter(
+      (entry) => entry.staff_profile_id === authContext.staffProfileId && entry.entry_status === "scheduled"
     );
+  }, [authContext.staffProfileId, schedule]);
 
-  const applyUpdate = (
-    day: ScheduleDay,
-    entry: ScheduleEntry,
-    patch: Partial<Pick<DemoShiftUpdate, "switchRequested" | "coverageRequested" | "note">>
-  ) => {
-    const current = getUpdate(day, entry);
-    onUpdateShift({
-      day,
-      shiftTime: entry.shiftTime,
-      staffName: entry.staffName,
-      staffType: entry.staffType,
-      ...current,
-      ...patch
-    });
-  };
+  if (developmentFallback) {
+    return (
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 p-4 shadow-soft">
+        <h2 className="text-2xl font-black text-amber-950">My Schedule</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-amber-900">
+          Supabase is not configured locally, so live staff schedule entries are unavailable.
+        </p>
+      </section>
+    );
+  }
+
+  if (!authContext.staffProfileId) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+          Your account is not linked to a staff profile yet. Ask the schedule admin to finish provisioning your profile.
+        </p>
+      </section>
+    );
+  }
+
+  if (loading) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <p className="text-sm font-bold text-slate-500">Loading your schedule...</p>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
+        <h2 className="text-lg font-black text-rose-950">Unable to load your schedule</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
+      </section>
+    );
+  }
+
+  if (!schedule) {
+    return (
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
+        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+          No published schedule is active yet.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
         <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
-        <p className="mt-1 text-sm font-bold text-slate-500">Manage your shift requests</p>
+        <p className="mt-1 text-sm font-bold text-slate-500">Active version: {schedule.version.label}</p>
         <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-          Demo only: requests do not change the official schedule.
+          Switch Requested and Coverage Requested actions will connect to Supabase in the next phase.
         </p>
       </section>
 
-      <div className="space-y-3">
-        {scheduledShifts.length === 0 && (
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <p className="text-sm font-bold text-slate-500">No scheduled shifts in the demo schedule.</p>
-          </section>
-        )}
-
-        {scheduledShifts.map(({ day, entry, posts, coverageRequests }) => {
-          const shiftId = shiftUpdateId(entry.staffName, day, entry.shiftTime);
-          const update = getUpdate(day, entry);
-          const existingPosts = posts.filter(
-            (post) => post.scope === "employee" && post.targetStaffName === entry.staffName
-          );
-          const hasBaseCoverage = coverageRequests.some(
-            (request) => request.staffName === entry.staffName && request.shiftTime === entry.shiftTime
-          );
-          const hasSwitchRequest =
-            Boolean(update?.switchRequested) ||
-            existingPosts.some((post) => post.status === "Switch Requested");
-          const hasCoverageRequest = Boolean(update?.coverageRequested) || hasBaseCoverage;
-          const shiftLabel = getShiftLabel(selectedStaff, entry.shiftTime);
-          const note = update?.note ?? "";
-          const editing = editingShiftId === shiftId;
-          const requestNote = [
-            hasSwitchRequest ? "Open to switching this scheduled shift." : "",
-            hasCoverageRequest ? "Coverage requested for this shift." : ""
-          ]
-            .filter(Boolean)
-            .join(" ");
-
-          return (
-            <article key={shiftId} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{day}</p>
-                  <h2 className="mt-1 text-xl font-black text-hospital-ink">{shiftLabel}</h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">{entry.shiftTime}</p>
-                  <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                    Current status: Scheduled
-                  </p>
-                </div>
-                <StaffTypeBadge staffType={entry.staffType} />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {hasSwitchRequest && <StatusChip status="Switch Requested" compact />}
-                {hasCoverageRequest && <StatusChip status="Coverage Requested" compact />}
-              </div>
-              {requestNote && (
-                <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                  {requestNote}
-                </p>
-              )}
-
-              {note && (
-                <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold leading-5 text-slate-600">
-                  {note}
-                </p>
-              )}
-
-              {editing && (
-                <div className="mt-3">
-                  <textarea
-                    value={noteDraft}
-                    onChange={(event) => setNoteDraft(event.target.value.slice(0, 140))}
-                    className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-cyan-300"
-                    maxLength={140}
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-400">{noteDraft.length}/140</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        applyUpdate(day, entry, { note: noteDraft.trim() || undefined });
-                        setEditingShiftId("");
-                      }}
-                      className="rounded-xl bg-cyan-700 px-3 py-2 text-xs font-extrabold text-white"
-                    >
-                      Save Note
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => applyUpdate(day, entry, { switchRequested: !Boolean(update?.switchRequested) })}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
-                    update?.switchRequested
-                      ? "border-fuchsia-200 bg-white text-fuchsia-700"
-                      : "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-700"
-                  }`}
-                >
-                  {update?.switchRequested ? "Cancel Switch Request" : "Request Switch"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyUpdate(day, entry, { coverageRequested: !Boolean(update?.coverageRequested) })}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
-                    update?.coverageRequested
-                      ? "border-violet-200 bg-white text-violet-700"
-                      : "border-violet-100 bg-violet-50 text-violet-700"
-                  }`}
-                >
-                  {update?.coverageRequested ? "Cancel Coverage Request" : "Request Coverage"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingShiftId(shiftId);
-                    setNoteDraft(note);
-                  }}
-                  className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700"
-                >
-                  Add/Edit Note
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function AvailableStaffScreen() {
-  return (
-    <div className="space-y-4">
-      {demoSchedule.map((day) => (
-        <section key={day.day} className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-600">
-                Available staff
-              </p>
-              <h2 className="mt-1 text-2xl font-black text-hospital-ink">{day.day}</h2>
-            </div>
-            <StatusChip status="Available" />
-          </div>
-          <div className="mt-4 space-y-2">
-            {day.available.map((entry) => {
-              const member = staff.find((person) => person.name === entry.staffName);
-              const usualShift = member?.usualShift ?? "Flexible";
-
-              return (
-                <div
-                  key={`${day.day}-${entry.staffName}`}
-                  className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3.5 py-3"
-                >
-                  <div>
-                    <p className="text-sm font-extrabold leading-5 text-slate-800">{entry.staffName}</p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                      {usualShift} • Available {entry.shiftTime}
-                    </p>
-                  </div>
-                  <div className="mt-2">
-                    <StaffTypeBadge staffType={entry.staffType} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {scheduledEntries.length === 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <p className="text-sm font-bold text-slate-500">No scheduled shifts found for your staff profile.</p>
         </section>
-      ))}
+      )}
+
+      <div className="space-y-3">
+        {scheduledEntries.map((entry) => (
+          <article key={entry.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+                  {entry.day_of_week} - {entry.shift_date}
+                </p>
+                <h2 className="mt-1 text-xl font-black text-hospital-ink">
+                  {shiftTypeLabels[entry.shift_type]}
+                </h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {formatShiftTime(entry.shift_start, entry.shift_end)}
+                </p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                  Current status: Scheduled
+                </p>
+              </div>
+              <StaffTypeBadge staffType={displayStaffType(entry.staff_profiles)} />
+            </div>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
@@ -657,11 +519,16 @@ function ShiftBoardScreen({ posts, onDemoAction }: { posts: ShiftPost[]; onDemoA
           <div>
             <h2 className="text-lg font-black text-rose-950">Coverage board</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
-              Demo cards show switch requests and short shift needs.
+              Active board posts will expand when staff requests are connected in the next phase.
             </p>
           </div>
         </div>
       </section>
+      {posts.length === 0 && (
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <p className="text-sm font-bold text-slate-500">No active Shift Board posts.</p>
+        </section>
+      )}
       {posts.map((post) => (
         <ShiftPostCard key={post.id} post={post} onDemoAction={onDemoAction} />
       ))}
@@ -672,26 +539,111 @@ function ShiftBoardScreen({ posts, onDemoAction }: { posts: ShiftPost[]; onDemoA
 export default function AppClient({ authContext, developmentFallback }: AppClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>("schedule");
   const [modalOpen, setModalOpen] = useState(false);
-  const [shiftUpdates, setShiftUpdates] = useState<DemoShiftUpdate[]>([]);
-  const mergedSchedule = getMergedSchedule(shiftUpdates);
-  const shiftBoardPosts = [...allShiftPosts, ...getSessionShiftPosts(shiftUpdates)];
+  const [scheduleState, setScheduleState] = useState<ScheduleLoadState>({
+    loading: !developmentFallback,
+    error: "",
+    activeSchedule: null,
+    checked: Boolean(developmentFallback)
+  });
 
-  const updateShift = (nextUpdate: DemoShiftUpdate) => {
-    setShiftUpdates((currentUpdates) => {
-      const id = shiftUpdateId(nextUpdate.staffName, nextUpdate.day, nextUpdate.shiftTime);
-      const existingIndex = currentUpdates.findIndex(
-        (update) => shiftUpdateId(update.staffName, update.day, update.shiftTime) === id
-      );
+  const loadActiveSchedule = useCallback(async () => {
+    if (developmentFallback) {
+      return;
+    }
 
-      if (existingIndex === -1) {
-        return [...currentUpdates, nextUpdate];
-      }
+    setScheduleState((current) => ({ ...current, loading: true, error: "" }));
 
-      return currentUpdates.map((update, index) =>
-        index === existingIndex ? { ...update, ...nextUpdate } : update
-      );
+    const supabase = createClient();
+    const { data: department, error: departmentError } = await supabase
+      .from("departments")
+      .select("active_schedule_version_id")
+      .eq("id", authContext.departmentId)
+      .maybeSingle();
+
+    if (departmentError) {
+      setScheduleState({
+        loading: false,
+        error: "Permission denied or department schedule settings could not be loaded.",
+        activeSchedule: null,
+        checked: true
+      });
+      return;
+    }
+
+    const activeVersionId = department?.active_schedule_version_id as string | null | undefined;
+
+    if (!activeVersionId) {
+      setScheduleState({ loading: false, error: "", activeSchedule: null, checked: true });
+      return;
+    }
+
+    const { data: version, error: versionError } = await supabase
+      .from("schedule_versions")
+      .select("*")
+      .eq("id", activeVersionId)
+      .eq("status", "published")
+      .maybeSingle();
+
+    if (versionError || !version) {
+      setScheduleState({
+        loading: false,
+        error: "The active schedule version could not be loaded.",
+        activeSchedule: null,
+        checked: true
+      });
+      return;
+    }
+
+    const [{ data: entries, error: entriesError }, { data: shortages, error: shortagesError }] = await Promise.all([
+      supabase
+        .from("schedule_entries")
+        .select(
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
+        )
+        .eq("schedule_version_id", activeVersionId)
+        .order("shift_date", { ascending: true })
+        .order("shift_start", { ascending: true }),
+      supabase
+        .from("shift_shortages")
+        .select("*")
+        .eq("schedule_version_id", activeVersionId)
+        .order("shift_date", { ascending: true })
+        .order("shift_start", { ascending: true })
+    ]);
+
+    if (entriesError || shortagesError) {
+      setScheduleState({
+        loading: false,
+        error: "Schedule rows could not be loaded.",
+        activeSchedule: null,
+        checked: true
+      });
+      return;
+    }
+
+    setScheduleState({
+      loading: false,
+      error: "",
+      activeSchedule: adaptActiveSchedule(
+        version as ScheduleVersionRow,
+        (entries ?? []) as ScheduleEntryRow[],
+        (shortages ?? []) as ShiftShortageRow[]
+      ),
+      checked: true
     });
-  };
+  }, [authContext.departmentId, developmentFallback]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadActiveSchedule();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadActiveSchedule]);
+
+  const shiftBoardPosts = developmentFallback
+    ? allShiftPosts
+    : scheduleState.activeSchedule?.shiftPosts ?? [];
 
   return (
     <>
@@ -699,9 +651,23 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         <Header authContext={authContext} developmentFallback={developmentFallback} />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
           <AuthNotice authContext={authContext} developmentFallback={developmentFallback} />
-          {activeTab === "schedule" && <ScheduleScreen schedule={mergedSchedule} updates={shiftUpdates} />}
+          {activeTab === "schedule" && (
+            <ScheduleScreen
+              authContext={authContext}
+              loading={scheduleState.loading}
+              error={scheduleState.error}
+              schedule={scheduleState.activeSchedule}
+              developmentFallback={developmentFallback}
+            />
+          )}
           {activeTab === "manage-schedule" && (
-            <ManageScheduleScreen updates={shiftUpdates} onUpdateShift={updateShift} />
+            <ManageScheduleScreen
+              authContext={authContext}
+              loading={scheduleState.loading}
+              error={scheduleState.error}
+              schedule={scheduleState.activeSchedule}
+              developmentFallback={developmentFallback}
+            />
           )}
           {activeTab === "shift-board" && (
             <ShiftBoardScreen posts={shiftBoardPosts} onDemoAction={() => setModalOpen(true)} />

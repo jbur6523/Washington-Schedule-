@@ -24,15 +24,18 @@ export type StaffMember = {
 
 export type ScheduleEntry = {
   staffName: string;
-  shiftTime: "7A-7P" | "7P-7A";
+  shiftTime: string;
+  shiftCategory?: "day" | "night";
+  shiftTypeLabel?: string;
   staffType: StaffType;
   status: Extract<ScheduleStatus, "Scheduled" | "Available">;
 };
 
 export type ShiftPost = {
   id: string;
-  day: "Monday" | "Tuesday" | "Wednesday";
-  shiftTime: "7A-7P" | "7P-7A";
+  day: string;
+  shiftTime: string;
+  shiftCategory?: "day" | "night";
   postedBy: string;
   staffType: StaffType;
   type: ShiftPostType;
@@ -44,7 +47,8 @@ export type ShiftPost = {
 };
 
 export type DemoDay = {
-  day: "Monday" | "Tuesday" | "Wednesday";
+  day: string;
+  dateLabel?: string;
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
   coverageRequests: ScheduleEntry[];

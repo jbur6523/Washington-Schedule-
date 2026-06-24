@@ -5,10 +5,19 @@ import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 export const dynamic = "force-dynamic";
 
 const adminAreas = [
-  "Schedule Administration",
-  "Import Schedule",
-  "Schedule Versions",
-  "Audit History"
+  {
+    title: "Schedule Versions",
+    description: "Create, edit, and publish the active schedule.",
+    href: "/admin/schedule-versions"
+  },
+  {
+    title: "Import Schedule",
+    description: "Review-first import workflow remains planned for a later phase."
+  },
+  {
+    title: "Audit History",
+    description: "Audit review remains planned for a later phase."
+  }
 ];
 
 export default async function AdminPage() {
@@ -32,14 +41,25 @@ export default async function AdminPage() {
           Washington Schedule Administration
         </h1>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-          These tools are protected for department admins and will be completed in later phases.
+          These tools are protected for department admins.
         </p>
         <div className="mt-5 grid gap-3">
           {adminAreas.map((area) => (
-            <div key={area} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
-              <p className="text-sm font-black text-hospital-ink">{area}</p>
-              <p className="mt-1 text-xs font-bold text-slate-500">Coming in a later phase.</p>
-            </div>
+            area.href ? (
+              <Link
+                key={area.title}
+                href={area.href}
+                className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3 transition hover:border-cyan-200 hover:bg-cyan-50"
+              >
+                <p className="text-sm font-black text-hospital-ink">{area.title}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{area.description}</p>
+              </Link>
+            ) : (
+              <div key={area.title} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-4 py-3">
+                <p className="text-sm font-black text-hospital-ink">{area.title}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{area.description}</p>
+              </div>
+            )
           ))}
         </div>
         <Link

@@ -19,6 +19,14 @@ function hasCoverageRequest(entry: ScheduleEntry, coverageRequestEntries: Schedu
   );
 }
 
+function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "night" }) {
+  if (item.shiftCategory) {
+    return item.shiftCategory;
+  }
+
+  return item.shiftTime.includes("7P") ? "night" : "day";
+}
+
 function StaffScheduleRow({
   entry,
   variant,
@@ -105,7 +113,7 @@ function ShiftAlertRow({ post }: { post: ShiftPost }) {
 function ShiftGroup({
   dayName,
   title,
-  shiftTime,
+  shiftCategory,
   scheduled,
   available,
   coverageRequestEntries,
@@ -114,14 +122,14 @@ function ShiftGroup({
 }: {
   dayName: DemoDay["day"];
   title: string;
-  shiftTime: "7A-7P" | "7P-7A";
+  shiftCategory: "day" | "night";
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
   coverageRequestEntries: ScheduleEntry[];
   posts: ShiftPost[];
   shiftNotes?: Record<string, string>;
 }) {
-  const shiftPosts = posts.filter((post) => post.shiftTime === shiftTime);
+  const shiftPosts = posts.filter((post) => getShiftCategory(post) === shiftCategory);
   const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift" && post.status === "Short Shift");
 
   return (
@@ -187,26 +195,29 @@ function getDayAlertPosts(posts: ShiftPost[]) {
   });
 }
 
-function shouldShowShift(shiftFilter: ScheduleShiftFilter, shiftTime: "7A-7P" | "7P-7A") {
+function shouldShowShift(
+  shiftFilter: ScheduleShiftFilter,
+  item: { shiftTime: string; shiftCategory?: "day" | "night" }
+) {
   if (shiftFilter === "all") {
     return true;
   }
 
-  return shiftFilter === "day" ? shiftTime === "7A-7P" : shiftTime === "7P-7A";
+  return getShiftCategory(item) === shiftFilter;
 }
 
 export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onToggle }: DayScheduleCardProps) {
-  const dayScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7A-7P");
-  const nightScheduled = day.scheduled.filter((entry) => entry.shiftTime === "7P-7A");
-  const dayAvailable = day.available.filter((entry) => entry.shiftTime === "7A-7P");
-  const nightAvailable = day.available.filter((entry) => entry.shiftTime === "7P-7A");
-  const visibleScheduled = day.scheduled.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
-  const visibleAvailable = day.available.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
-  const visibleCoverageRequests = day.coverageRequests.filter((entry) => shouldShowShift(shiftFilter, entry.shiftTime));
-  const visiblePosts = day.shiftPosts.filter((post) => shouldShowShift(shiftFilter, post.shiftTime));
+  const dayScheduled = day.scheduled.filter((entry) => getShiftCategory(entry) === "day");
+  const nightScheduled = day.scheduled.filter((entry) => getShiftCategory(entry) === "night");
+  const dayAvailable = day.available.filter((entry) => getShiftCategory(entry) === "day");
+  const nightAvailable = day.available.filter((entry) => getShiftCategory(entry) === "night");
+  const visibleScheduled = day.scheduled.filter((entry) => shouldShowShift(shiftFilter, entry));
+  const visibleAvailable = day.available.filter((entry) => shouldShowShift(shiftFilter, entry));
+  const visibleCoverageRequests = day.coverageRequests.filter((entry) => shouldShowShift(shiftFilter, entry));
+  const visiblePosts = day.shiftPosts.filter((post) => shouldShowShift(shiftFilter, post));
   const alertPosts = getDayAlertPosts(visiblePosts);
-  const showDayShift = shouldShowShift(shiftFilter, "7A-7P");
-  const showNightShift = shouldShowShift(shiftFilter, "7P-7A");
+  const showDayShift = shouldShowShift(shiftFilter, { shiftTime: "7A-7P", shiftCategory: "day" });
+  const showNightShift = shouldShowShift(shiftFilter, { shiftTime: "7P-7A", shiftCategory: "night" });
   const shiftSubtitle =
     shiftFilter === "all"
       ? "Day + Night"
@@ -254,25 +265,25 @@ export function DayScheduleCard({ day, expanded, shiftFilter, shiftNotes, onTogg
 
       {expanded && (
         <div className="space-y-3 border-t border-slate-100 p-3.5">
-          {showDayShift && (
-            <ShiftGroup
-              dayName={day.day}
-              title="Day Shift 7A-7P"
-              shiftTime="7A-7P"
-              scheduled={dayScheduled}
-              available={dayAvailable}
+            {showDayShift && (
+              <ShiftGroup
+                dayName={day.day}
+                title="Day Shift 7A-7P"
+                shiftCategory="day"
+                scheduled={dayScheduled}
+                available={dayAvailable}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}
             />
           )}
-          {showNightShift && (
-            <ShiftGroup
-              dayName={day.day}
-              title="Night Shift 7P-7A"
-              shiftTime="7P-7A"
-              scheduled={nightScheduled}
-              available={nightAvailable}
+            {showNightShift && (
+              <ShiftGroup
+                dayName={day.day}
+                title="Night Shift 7P-7A"
+                shiftCategory="night"
+                scheduled={nightScheduled}
+                available={nightAvailable}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}
