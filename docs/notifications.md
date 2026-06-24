@@ -4,6 +4,26 @@ Washington-Schedule uses in-app notifications plus Web Push. Notifications are a
 
 Notifications are device-specific. Staff must enable notifications on each device where they want alerts.
 
+## First-Time Notification Setup
+
+After an unclaimed user creates their password and finishes or skips Contact Info, the app shows a Notification Settings step.
+
+The step includes:
+
+- Enable notifications on this device
+- Short Shift alerts
+- Coverage request alerts
+- Switch request alerts
+- Coverage offer alerts
+
+Users can skip notification setup. Notifications are never required to use the app. If push is unsupported or permission is denied, the app shows a friendly fallback and continues into the app.
+
+The onboarding copy includes: `For best notification support on iPhone, add this app to your Home Screen.`
+
+Preferences are saved to `notification_preferences` when the user continues. Device push subscriptions are saved to `push_subscriptions` only after the user enables browser push permission on that device.
+
+Returning claimed users are not forced through notification setup every login. Existing notification settings can be changed later from the app notification settings area.
+
 ## Required Environment Variables
 
 Set these in Vercel:
@@ -152,6 +172,8 @@ Notifications must not include:
 - EMR data
 - Phone numbers
 - Private reasons or sensitive notes
+
+The app does not send email or SMS notifications. Staff Directory email is contact information only unless a future phase intentionally adds email features.
 
 ## App Behavior
 

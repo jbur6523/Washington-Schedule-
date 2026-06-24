@@ -18,6 +18,21 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - Use fake/demo phone numbers only for testing or seed data.
 - Do not add patient phone numbers, emergency contacts, hire dates, payroll data, clinical notes, or EMR data.
 
+## First-Time Contact Setup
+
+After an unclaimed user creates their password, the app shows an optional Contact Info step before entering the app.
+
+Fields:
+
+- Phone Number
+- Email
+
+Both fields are optional and can be skipped. If entered, the values are trimmed and saved to the linked `staff_profiles` record. Email uses basic format validation when provided.
+
+The setup copy tells users these fields are optional and visible to others in the Staff Directory. Contact email is directory visibility only; the app does not send email notifications in the current pilot.
+
+Returning claimed users are not forced through contact setup on every login. Staff can update contact information later when self-edit/settings are available.
+
 ## Permissions
 
 - Authenticated department members can view Staff Directory records allowed by RLS.

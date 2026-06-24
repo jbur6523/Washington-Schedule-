@@ -110,6 +110,10 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     authEmail,
-    username: staffProfile.username ?? username
+    username: staffProfile.username ?? username,
+    staffProfileId: staffProfile.id,
+    departmentId: staffProfile.department_id,
+    role,
+    displayName: staffProfile.display_name
   });
 }
