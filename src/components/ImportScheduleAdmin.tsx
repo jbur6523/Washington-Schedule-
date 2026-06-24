@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
   dayNameFromDate,
+  standardTimesForShiftType,
   shiftTypeLabels,
   type ScheduleEntryStatus,
   type ShiftShortageSeverity,
@@ -92,11 +93,24 @@ const emptyShortShiftDraft: ShortShiftDraft = {
   id: "",
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   severity: "short",
   message: ""
 };
+
+function applyStandardShiftTimes<T extends { shift_type: ShiftType; shift_start: string; shift_end: string }>(
+  form: T,
+  shiftType: ShiftType
+): T {
+  const standardTimes = standardTimesForShiftType(shiftType);
+
+  return {
+    ...form,
+    shift_type: shiftType,
+    ...(standardTimes ?? {})
+  };
+}
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) {
@@ -564,6 +578,14 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           next.day_of_week = isValidDate(patch.shift_date) ? dayNameFromDate(patch.shift_date) : "";
         }
 
+        if (patch.shift_type) {
+          const standardTimes = standardTimesForShiftType(patch.shift_type as ShiftType);
+          if (standardTimes) {
+            next.shift_start = standardTimes.shift_start;
+            next.shift_end = standardTimes.shift_end;
+          }
+        }
+
         if (patch.matched_staff_profile_id !== undefined) {
           const staff = staffById.get(patch.matched_staff_profile_id);
           next.employment_type = staff?.employment_type ?? "";
@@ -586,7 +608,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         shift_date: "",
         day_of_week: "",
         shift_type: "day_shift",
-        shift_start: "07:00",
+        shift_start: "06:30",
         shift_end: "19:00",
         original_staff_identifier: "",
         staff_identifier: "",
@@ -877,7 +899,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
               <textarea
                 value={scheduleCodeText}
                 onChange={(event) => setScheduleCodeText(event.target.value)}
-                placeholder={"SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27\n\nENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled\nENTRY | 2026-06-24 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled\n\nSHORT_SHIFT | 2026-06-24 | night_shift | 19:00 | 07:00 | urgent | Night shift short one RT"}
+                placeholder={"SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27\n\nENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled\nENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled\n\nSHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT"}
                 className="mt-3 min-h-56 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
               />
               {parseErrors.length > 0 && (
@@ -901,12 +923,12 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
             </div>
 
             <p className="mt-4 text-sm font-bold leading-6 text-slate-500">
-              Simple row paste format: 2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
+              Simple row paste format: 2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled
             </p>
             <textarea
               value={pasteText}
               onChange={(event) => setPasteText(event.target.value)}
-              placeholder={"2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled\n2026-06-24 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled"}
+              placeholder={"2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled\n2026-06-24 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled"}
               className="mt-3 min-h-52 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -1184,7 +1206,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
               <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Optional shift-level alerts. Short Shift is never attached to a staff member.</p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <input type="date" value={shortShiftForm.shift_date} onChange={(event) => setShortShiftForm({ ...shortShiftForm, shift_date: event.target.value })} required className="min-h-10 rounded-2xl border border-slate-200 px-3 text-sm font-bold" />
-                <select value={shortShiftForm.shift_type} onChange={(event) => setShortShiftForm({ ...shortShiftForm, shift_type: event.target.value as ShiftType })} className="min-h-10 rounded-2xl border border-slate-200 px-3 text-sm font-bold">
+                <select value={shortShiftForm.shift_type} onChange={(event) => setShortShiftForm(applyStandardShiftTimes(shortShiftForm, event.target.value as ShiftType))} className="min-h-10 rounded-2xl border border-slate-200 px-3 text-sm font-bold">
                   {Object.entries(shiftTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                 </select>
                 <input type="time" value={shortShiftForm.shift_start} onChange={(event) => setShortShiftForm({ ...shortShiftForm, shift_start: event.target.value })} required className="min-h-10 rounded-2xl border border-slate-200 px-3 text-sm font-bold" />

@@ -741,25 +741,31 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     setError("");
     setSuccess("");
 
-    const supabase = createClient();
-    const { error: insertError } = await supabase.from("staff_profiles").insert(
-      batchRows.map((row) => ({
-        department_id: authContext.departmentId,
-        display_name: row.display_name,
-        username: row.username,
-        username_normalized: row.username_normalized,
-        assigned_role: row.assigned_role,
-        employment_type: row.employment_type,
-        home_assignment: row.home_assignment,
-        preferred_contact_method: "app",
-        is_active: true
-      }))
-    );
+    const response = await fetch("/api/admin/staff-profiles", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        profiles: batchRows.map((row) => ({
+          department_id: authContext.departmentId,
+          display_name: row.display_name,
+          username: row.username,
+          username_normalized: row.username_normalized,
+          assigned_role: row.assigned_role,
+          employment_type: row.employment_type,
+          home_assignment: row.home_assignment,
+          preferred_contact_method: "app",
+          is_active: true
+        }))
+      })
+    });
+    const result = await response.json().catch(() => null);
 
     setSaving(false);
 
-    if (insertError) {
-      setError("Unable to create batch roster profiles.");
+    if (!response.ok) {
+      setError(result?.message ?? "Unable to create batch roster profiles.");
       return;
     }
 
@@ -806,26 +812,20 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       preferred_contact_method: form.preferred_contact_method || null,
       is_active: form.is_active
     };
-    const supabase = createClient();
-    const result = form.id
-      ? await supabase.from("staff_profiles").update(payload).eq("id", form.id)
-      : await supabase.from("staff_profiles").insert(payload);
+    const response = await fetch(form.id ? `/api/admin/staff-profiles/${form.id}` : "/api/admin/staff-profiles", {
+      method: form.id ? "PATCH" : "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json().catch(() => null);
 
     setSaving(false);
 
-    if (result.error) {
-      setError("Unable to save staff profile.");
+    if (!response.ok) {
+      setError(result?.message ?? "Unable to save staff profile.");
       return;
-    }
-
-    const existingProfile = profiles.find((profile) => profile.id === form.id);
-
-    if (existingProfile?.profile_id) {
-      await supabase
-        .from("department_memberships")
-        .update({ role: assignedRole })
-        .eq("department_id", authContext.departmentId)
-        .eq("profile_id", existingProfile.profile_id);
     }
 
     setForm(null);

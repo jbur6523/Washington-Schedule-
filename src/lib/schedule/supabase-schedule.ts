@@ -181,6 +181,15 @@ export const shiftTypeLabels: Record<ShiftType, string> = {
   flexible: "Flexible"
 };
 
+export const standardShiftTimes: Partial<Record<ShiftType, { shift_start: string; shift_end: string }>> = {
+  day_shift: { shift_start: "06:30", shift_end: "19:00" },
+  night_shift: { shift_start: "18:30", shift_end: "07:00" }
+};
+
+export function standardTimesForShiftType(shiftType: ShiftType) {
+  return standardShiftTimes[shiftType] ?? null;
+}
+
 export const employmentLabels: Record<EmploymentType, StaffType> = {
   full_time: "Full-time",
   per_diem: "Per diem"
@@ -201,12 +210,15 @@ export function compactDateLabel(dateValue: string) {
 }
 
 function formatTimeValue(value: string) {
-  const [rawHour = "0", rawMinute = "0"] = value.split(":");
+  const [rawHour = "00", rawMinute = "00"] = value.split(":");
   const hour = Number(rawHour);
   const minute = Number(rawMinute);
-  const period = hour >= 12 ? "P" : "A";
-  const twelveHour = hour % 12 || 12;
-  return `${twelveHour}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${period}`;
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return value.slice(0, 5);
+  }
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
 export function formatShiftTime(start: string, end: string) {

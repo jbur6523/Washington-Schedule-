@@ -140,26 +140,26 @@ export const demoSchedule: DemoDay[] = [
   {
     day: "Monday",
     scheduled: [
-      { staffName: "Jonathan Burdick", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Anna Vaysburg", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Joann Devera", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Meldy Pak", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Victor Davis", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Jonathan Burdick", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Anna Vaysburg", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Tom Nguyen", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Joann Devera", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Meldy Pak", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Victor Davis", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" }
     ],
     available: [
-      { staffName: "Mona Ahmed", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Peter Van Dal (Pete)", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Reggie De Jesus", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
+      { staffName: "Mona Ahmed", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Peter Van Dal (Pete)", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Reggie De Jesus", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" }
     ],
     coverageRequests: [
-      { staffName: "Tom Nguyen", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Tom Nguyen", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
         id: "monday-tom-switch",
         day: "Monday",
-        shiftTime: "7A-7P",
+        shiftTime: "06:30-19:00",
         postedBy: "Tom Nguyen",
         staffType: "Full-time",
         type: "Switch Requested",
@@ -172,7 +172,7 @@ export const demoSchedule: DemoDay[] = [
       {
         id: "monday-tom-coverage",
         day: "Monday",
-        shiftTime: "7A-7P",
+        shiftTime: "06:30-19:00",
         postedBy: "Tom Nguyen",
         staffType: "Full-time",
         type: "Coverage Requested",
@@ -185,7 +185,7 @@ export const demoSchedule: DemoDay[] = [
       {
         id: "monday-night-short",
         day: "Monday",
-        shiftTime: "7P-7A",
+        shiftTime: "18:30-07:00",
         postedBy: "Nightshift Team",
         staffType: "Full-time",
         type: "Short Shift",
@@ -199,27 +199,27 @@ export const demoSchedule: DemoDay[] = [
   {
     day: "Tuesday",
     scheduled: [
-      { staffName: "Heather Heath", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Cecilia Martinez", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Gina Martinez", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Pablo Baluyut", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Renae Waldschmidt", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Heather Heath", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Cecilia Martinez", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Gina Martinez", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Pablo Baluyut", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Jean Rodrillo", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Renae Waldschmidt", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" }
     ],
     available: [
-      { staffName: "Leticia Bartolome", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Aisha Bahrami", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Kae Alameda", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" },
-      { staffName: "Catherine Morgan", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
+      { staffName: "Leticia Bartolome", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Aisha Bahrami", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Kae Alameda", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Catherine Morgan", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" }
     ],
     coverageRequests: [
-      { staffName: "Jean Rodrillo", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Jean Rodrillo", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
         id: "tuesday-jean-asap",
         day: "Tuesday",
-        shiftTime: "7P-7A",
+        shiftTime: "18:30-07:00",
         postedBy: "Jean Rodrillo",
         staffType: "Full-time",
         type: "Coverage Requested",
@@ -232,7 +232,7 @@ export const demoSchedule: DemoDay[] = [
       {
         id: "tuesday-dayshift-pickup",
         day: "Tuesday",
-        shiftTime: "7A-7P",
+        shiftTime: "06:30-19:00",
         postedBy: "Dayshift Team",
         staffType: "Per diem",
         type: "Short Shift",
@@ -246,28 +246,28 @@ export const demoSchedule: DemoDay[] = [
   {
     day: "Wednesday",
     scheduled: [
-      { staffName: "Diana Oblitas", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "David Winters", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Yu Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Eduardo Gonzalez", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Diana Oblitas", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "David Winters", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Katryna Vuong", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Carl Lin", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Yu Lin", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Eduardo Gonzalez", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" }
     ],
     available: [
-      { staffName: "Victoria Mohseni", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Harjot Kaur (Joy)", shiftTime: "7A-7P", staffType: "Per diem", status: "Available" },
-      { staffName: "Kaitlyn Trivisonno", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" },
-      { staffName: "Erica Collins", shiftTime: "7P-7A", staffType: "Per diem", status: "Available" }
+      { staffName: "Victoria Mohseni", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Harjot Kaur (Joy)", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Kaitlyn Trivisonno", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Erica Collins", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" }
     ],
     coverageRequests: [
-      { staffName: "Katryna Vuong", shiftTime: "7A-7P", staffType: "Full-time", status: "Scheduled" },
-      { staffName: "Carl Lin", shiftTime: "7P-7A", staffType: "Full-time", status: "Scheduled" }
+      { staffName: "Katryna Vuong", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Scheduled" },
+      { staffName: "Carl Lin", shiftTime: "18:30-07:00", staffType: "Full-time", status: "Scheduled" }
     ],
     shiftPosts: [
       {
         id: "wednesday-katryna-switch",
         day: "Wednesday",
-        shiftTime: "7A-7P",
+        shiftTime: "06:30-19:00",
         postedBy: "Katryna Vuong",
         staffType: "Full-time",
         type: "Switch Requested",
@@ -280,7 +280,7 @@ export const demoSchedule: DemoDay[] = [
       {
         id: "wednesday-carl-cover",
         day: "Wednesday",
-        shiftTime: "7P-7A",
+        shiftTime: "18:30-07:00",
         postedBy: "Carl Lin",
         staffType: "Full-time",
         type: "Coverage Requested",
@@ -293,7 +293,7 @@ export const demoSchedule: DemoDay[] = [
       {
         id: "wednesday-night-urgent",
         day: "Wednesday",
-        shiftTime: "7P-7A",
+        shiftTime: "18:30-07:00",
         postedBy: "Nightshift Team",
         staffType: "Per diem",
         type: "Short Shift",

@@ -20,6 +20,7 @@ import {
   firstStaffProfile,
   firstRelatedRow,
   formatShiftTime,
+  standardTimesForShiftType,
   shiftTypeLabels,
   type ActiveSchedule,
   type ScheduleEntryRow,
@@ -93,7 +94,7 @@ const emptyAddShiftForm: AddShiftForm = {
   mode: "add",
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   note: ""
 };
@@ -101,7 +102,7 @@ const emptyAddShiftForm: AddShiftForm = {
 const emptyShortShiftForm: ShortShiftForm = {
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   severity: "short",
   message: ""
@@ -110,10 +111,23 @@ const emptyShortShiftForm: ShortShiftForm = {
 const emptyManualSwitchForm: ManualSwitchForm = {
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   note: ""
 };
+
+function applyStandardShiftTimes<T extends { shift_type: ShiftType; shift_start: string; shift_end: string }>(
+  form: T,
+  shiftType: ShiftType
+): T {
+  const standardTimes = standardTimesForShiftType(shiftType);
+
+  return {
+    ...form,
+    shift_type: shiftType,
+    ...(standardTimes ?? {})
+  };
+}
 
 function dateOnly(value: string) {
   return new Date(`${value}T12:00:00`);
@@ -295,7 +309,7 @@ function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "ni
     return item.shiftCategory;
   }
 
-  return item.shiftTime.includes("7P") ? "night" : "day";
+  return item.shiftTime.startsWith("18:") || item.shiftTime.startsWith("19:") ? "night" : "day";
 }
 
 function getShiftMatches(filter: ScheduleShiftFilter) {
@@ -518,7 +532,18 @@ function ScheduleScreen({
   }
 
   const toggleAvailability = async (target: AvailabilityTarget, activeOverrideId?: string) => {
-    if (!authContext.staffProfileId || developmentFallback) {
+    if (developmentFallback) {
+      setAvailabilityError("Live availability changes are unavailable in local demo mode.");
+      return;
+    }
+
+    if (!authContext.staffProfileId) {
+      setAvailabilityError("Your account is not linked to a staff profile yet.");
+      return;
+    }
+
+    if (!authContext.departmentId) {
+      setAvailabilityError("Your department could not be loaded. Please sign out and back in.");
       return;
     }
 
@@ -541,7 +566,7 @@ function ScheduleScreen({
         return;
       }
 
-      setAvailabilityMessage("Availability removed.");
+      setAvailabilityMessage("Your availability was removed.");
       await onChanged();
       return;
     }
@@ -562,11 +587,15 @@ function ScheduleScreen({
     setAvailabilitySaving(false);
 
     if (insertError) {
-      setAvailabilityError("Unable to add your availability. You may already be available for this shift.");
+      setAvailabilityError(
+        insertError.message.includes("add_available")
+          ? "Unable to add availability. The self-reported availability migration may need to be applied."
+          : "Unable to add your availability. You may already be available for this shift."
+      );
       return;
     }
 
-    setAvailabilityMessage("Availability added.");
+    setAvailabilityMessage("You're marked available for this shift.");
     await onChanged();
   };
 
@@ -1007,6 +1036,17 @@ function ManageScheduleScreen({
     event.preventDefault();
 
     if (!authContext.staffProfileId) {
+      setActionError("Your account is not linked to a staff profile yet.");
+      return;
+    }
+
+    if (!authContext.departmentId) {
+      setActionError("Your department could not be loaded. Please sign out and back in.");
+      return;
+    }
+
+    if (!/^\d{2}:\d{2}$/.test(addForm.shift_start) || !/^\d{2}:\d{2}$/.test(addForm.shift_end)) {
+      setActionError("Shift start and end must use HH:mm military time.");
       return;
     }
 
@@ -1075,7 +1115,12 @@ function ManageScheduleScreen({
     setSaving(false);
 
     if (results.some((result) => result.error)) {
-      setActionError("Unable to save your self-managed schedule change.");
+      const failed = results.find((result) => result.error)?.error;
+      setActionError(
+        failed?.message.includes("add_available")
+          ? "Unable to save availability. The self-reported availability migration may need to be applied."
+          : "Unable to save your self-managed schedule change."
+      );
       return;
     }
 
@@ -1085,7 +1130,7 @@ function ManageScheduleScreen({
       addForm.mode === "move"
         ? "Shift moved in your app schedule."
         : addForm.mode === "available"
-          ? "Availability added."
+          ? "You're marked available for this shift."
           : "Shift added to your app schedule."
     );
     await onChanged();
@@ -1299,7 +1344,7 @@ function ManageScheduleScreen({
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
               <select
                 value={addForm.shift_type}
-                onChange={(event) => setAddForm({ ...addForm, shift_type: event.target.value as ShiftType })}
+                onChange={(event) => setAddForm(applyStandardShiftTimes(addForm, event.target.value as ShiftType))}
                 className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               >
                 {Object.entries(shiftTypeLabels).map(([value, label]) => (
@@ -1933,7 +1978,9 @@ function ShiftBoardScreen({
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
               <select
                 value={shortShiftForm.shift_type}
-                onChange={(event) => setShortShiftForm({ ...shortShiftForm, shift_type: event.target.value as ShiftType })}
+                onChange={(event) =>
+                  setShortShiftForm(applyStandardShiftTimes(shortShiftForm, event.target.value as ShiftType))
+                }
                 className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               >
                 {Object.entries(shiftTypeLabels).map(([value, label]) => (
@@ -2217,7 +2264,7 @@ function ShiftBoardScreen({
                 <select
                   value={manualSwitchForm.shift_type}
                   onChange={(event) =>
-                    setManualSwitchForm({ ...manualSwitchForm, shift_type: event.target.value as ShiftType })
+                    setManualSwitchForm(applyStandardShiftTimes(manualSwitchForm, event.target.value as ShiftType))
                   }
                   className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                 >

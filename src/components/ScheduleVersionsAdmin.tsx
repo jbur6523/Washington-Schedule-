@@ -10,6 +10,7 @@ import {
   displayStaffType,
   firstStaffProfile,
   formatShiftTime,
+  standardTimesForShiftType,
   shiftTypeLabels,
   type ScheduleEntryRow,
   type ScheduleEntryStatus,
@@ -78,7 +79,7 @@ const emptyVersionForm: VersionForm = {
 const emptyEntryForm: EntryForm = {
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   staff_profile_id: "",
   entry_status: "scheduled"
@@ -87,7 +88,7 @@ const emptyEntryForm: EntryForm = {
 const emptyShortageForm: ShortageForm = {
   shift_date: "",
   shift_type: "day_shift",
-  shift_start: "07:00",
+  shift_start: "06:30",
   shift_end: "19:00",
   severity: "short",
   message: ""
@@ -125,6 +126,19 @@ function versionToForm(version: ScheduleVersionRow): VersionForm {
     starts_on: version.starts_on ?? "",
     ends_on: version.ends_on ?? "",
     status: version.status
+  };
+}
+
+function applyStandardShiftTimes<T extends { shift_type: ShiftType; shift_start: string; shift_end: string }>(
+  form: T,
+  shiftType: ShiftType
+): T {
+  const standardTimes = standardTimesForShiftType(shiftType);
+
+  return {
+    ...form,
+    shift_type: shiftType,
+    ...(standardTimes ?? {})
   };
 }
 
@@ -874,7 +888,9 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                       <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
                       <select
                         value={entryForm.shift_type}
-                        onChange={(event) => setEntryForm({ ...entryForm, shift_type: event.target.value as ShiftType })}
+                        onChange={(event) =>
+                          setEntryForm(applyStandardShiftTimes(entryForm, event.target.value as ShiftType))
+                        }
                         disabled={!selectedVersionCanEdit}
                         className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:bg-slate-50"
                       >
@@ -961,13 +977,13 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                 <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
                   <h2 className="text-lg font-black text-hospital-ink">Batch Paste Entries</h2>
                   <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                    Use: 2026-06-23 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
+                    Use: 2026-06-23 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled
                   </p>
                   <textarea
                     value={batchText}
                     onChange={(event) => setBatchText(event.target.value)}
                     disabled={!selectedVersionCanEdit}
-                    placeholder={"2026-06-23 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled\n2026-06-23 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled"}
+                    placeholder={"2026-06-23 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled\n2026-06-23 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled"}
                     className="mt-3 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:bg-slate-50"
                   />
                   <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1060,7 +1076,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                       <select
                         value={shortageForm.shift_type}
                         onChange={(event) =>
-                          setShortageForm({ ...shortageForm, shift_type: event.target.value as ShiftType })
+                          setShortageForm(applyStandardShiftTimes(shortageForm, event.target.value as ShiftType))
                         }
                         disabled={!selectedVersionCanEdit}
                         className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:bg-slate-50"

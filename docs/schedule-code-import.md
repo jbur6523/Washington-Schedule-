@@ -19,17 +19,17 @@ Example:
 ```text
 SCHEDULE_VERSION | Week 5 Remaining Schedule | 2026-06-24 | 2026-06-25
 
-ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | hlaw | scheduled
-ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | robm | available
-ENTRY | 2026-06-24 | night_shift | 19:00 | 07:00 | rodj | scheduled
+ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
+ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available
+ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled
 
-SHORT_SHIFT | 2026-06-24 | night_shift | 19:00 | 07:00 | urgent | Night shift short one RT
+SHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
 ```
 
 Blank lines are ignored. Comments after `#` are ignored:
 
 ```text
-ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | robm | available # Marshall Roberts
+ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available # Marshall Roberts
 ```
 
 ## Allowed Values
@@ -74,7 +74,7 @@ The import never creates staff profiles silently. After matching, the app stores
 Staff Directory display names can use preferred names, but imports should use permanent usernames whenever possible.
 
 - John Roberts / Marshall Roberts should import as `robm`.
-- Yiqin Meng / Maggie should import as `menm`.
+- Yiqin Meng / Maggie should import as `yiqm`.
 - Pawanjit Khera / Kinty should import as `pawk`.
 - Harjot Kaur / Joy should import as `kauj`.
 - Bei Yi uses `yibe` as the special short-last-name exception.
@@ -82,11 +82,11 @@ Staff Directory display names can use preferred names, but imports should use pe
 Username examples:
 
 ```text
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | heah | scheduled
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | vaya | scheduled
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | pawk | scheduled
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | menm | scheduled
-ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | kauj | scheduled
+ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | heah | scheduled
+ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | vaya | scheduled
+ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | pawk | scheduled
+ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | yiqm | scheduled
+ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | kauj | scheduled
 ```
 
 ## Daily RVU Sheet Interpretation
@@ -94,8 +94,8 @@ ENTRY | 2026-06-25 | day_shift | 07:00 | 19:00 | kauj | scheduled
 When ChatGPT converts Daily RVU sheets:
 
 - The sheet date at the top controls all entries on that image/page.
-- Day shift images use `day_shift` and default time `07:00` to `19:00`.
-- Night shift images use `night_shift` and default time `19:00` to `07:00`.
+- Day shift images use `day_shift` and default time `06:30` to `19:00`.
+- Night shift images use `night_shift` and default time `18:30` to `07:00`.
 - PFT entries use `pft`.
 - Pulmonary Rehab entries use `pulmonary_rehab` if included.
 - Names marked `PD-Avail` should be imported as `available`.

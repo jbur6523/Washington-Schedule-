@@ -24,8 +24,20 @@ export function generateBaseUsername(displayName: string) {
     return "yibe";
   }
 
+  if (normalizedFirst === "reggie" && normalizedLast === "jesus") {
+    return "jesr";
+  }
+
   if (normalizedFirst === "pawanjit" && normalizedLast === "khera") {
     return "pawk";
+  }
+
+  if (normalizedFirst === "yiqin" && normalizedLast === "meng") {
+    return "yiqm";
+  }
+
+  if (normalizedLast === "roberts" && (normalizedFirst === "john" || normalizedFirst === "marshall")) {
+    return "robm";
   }
 
   return `${normalizedLast.slice(0, 3)}${normalizedFirst.slice(0, 1)}`;

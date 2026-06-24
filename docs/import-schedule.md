@@ -52,11 +52,11 @@ Example:
 ```text
 SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27
 
-ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | hlaw | scheduled
-ENTRY | 2026-06-24 | day_shift | 07:00 | 19:00 | robm | available
-ENTRY | 2026-06-24 | night_shift | 19:00 | 07:00 | rodj | scheduled
+ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
+ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available
+ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled
 
-SHORT_SHIFT | 2026-06-24 | night_shift | 19:00 | 07:00 | urgent | Night shift short one RT
+SHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
 ```
 
 Allowed `shift_type` values:
@@ -94,9 +94,9 @@ Staff identifiers should be permanent usernames whenever possible. The app match
 The older simple structured paste format is still supported:
 
 ```text
-2026-06-24 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
-2026-06-24 | day_shift | 07:00 | 19:00 | Mona Ahmed | available
-2026-06-24 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled
+2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled
+2026-06-24 | day_shift | 06:30 | 19:00 | Mona Ahmed | available
+2026-06-24 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled
 ```
 
 Every draft row is editable before approval. Import results never auto-publish.

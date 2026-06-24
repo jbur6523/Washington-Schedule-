@@ -83,6 +83,8 @@ Admins can open a separate `Admin Roster Management` section from Staff Director
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.
 
+Admin add/edit and batch roster creation use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
+
 ## Username and Role Rules
 
 - Usernames are assigned by the department, not chosen by users.
@@ -101,7 +103,7 @@ Schedule imports should use permanent usernames whenever possible because printe
 Known preferred-name mappings:
 
 - John Roberts / Marshall Roberts imports as `robm`.
-- Yiqin Meng / Maggie imports as `menm`.
+- Yiqin Meng / Maggie imports as `yiqm`.
 - Pawanjit Khera / Kinty imports as `pawk`.
 - Harjot Kaur / Joy imports as `kauj`.
 - Bei Yi imports as `yibe`.

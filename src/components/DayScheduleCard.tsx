@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import type { DemoDay, ScheduleEntry, ShiftPost } from "@/data/mockSchedule";
+import { standardShiftTimes } from "@/lib/schedule/supabase-schedule";
 
 export type ScheduleShiftFilter = "all" | "day" | "night";
 export type AvailabilityTarget = {
@@ -33,7 +34,7 @@ function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "ni
     return item.shiftCategory;
   }
 
-  return item.shiftTime.includes("7P") ? "night" : "day";
+  return item.shiftTime.startsWith("18:") || item.shiftTime.startsWith("19:") ? "night" : "day";
 }
 
 function StaffScheduleRow({
@@ -257,14 +258,14 @@ function getAvailabilityTarget(
     ? {
         shift_date: day.dateValue,
         shift_type: "night_shift",
-        shift_start: "19:00",
-        shift_end: "07:00"
+        shift_start: standardShiftTimes.night_shift?.shift_start ?? "18:30",
+        shift_end: standardShiftTimes.night_shift?.shift_end ?? "07:00"
       }
     : {
         shift_date: day.dateValue,
         shift_type: "day_shift",
-        shift_start: "07:00",
-        shift_end: "19:00"
+        shift_start: standardShiftTimes.day_shift?.shift_start ?? "06:30",
+        shift_end: standardShiftTimes.day_shift?.shift_end ?? "19:00"
       };
 }
 
@@ -313,8 +314,8 @@ export function DayScheduleCard({
   const visibleCoverageRequests = day.coverageRequests.filter((entry) => shouldShowShift(shiftFilter, entry));
   const visiblePosts = day.shiftPosts.filter((post) => shouldShowShift(shiftFilter, post));
   const alertPosts = getDayAlertPosts(visiblePosts);
-  const showDayShift = shouldShowShift(shiftFilter, { shiftTime: "7A-7P", shiftCategory: "day" });
-  const showNightShift = shouldShowShift(shiftFilter, { shiftTime: "7P-7A", shiftCategory: "night" });
+  const showDayShift = shouldShowShift(shiftFilter, { shiftTime: "06:30-19:00", shiftCategory: "day" });
+  const showNightShift = shouldShowShift(shiftFilter, { shiftTime: "18:30-07:00", shiftCategory: "night" });
   const dayAvailabilityTarget = getAvailabilityTarget(day, "day", [...dayScheduled, ...dayAvailable]);
   const nightAvailabilityTarget = getAvailabilityTarget(day, "night", [...nightScheduled, ...nightAvailable]);
   const dayAvailabilityOverrideId = dayAvailabilityTarget
@@ -327,8 +328,8 @@ export function DayScheduleCard({
     shiftFilter === "all"
       ? "Day + Night"
       : shiftFilter === "day"
-        ? "Day Shift 7A-7P"
-        : "Night Shift 7P-7A";
+        ? "Day Shift 06:30-19:00"
+        : "Night Shift 18:30-07:00";
 
   return (
     <article className="overflow-hidden rounded-2xl border border-white bg-white/95 shadow-soft">
@@ -373,7 +374,7 @@ export function DayScheduleCard({
             {showDayShift && (
               <ShiftGroup
                 dayName={day.day}
-                title="Day Shift 7A-7P"
+                title="Day Shift 06:30-19:00"
                 shiftCategory="day"
                 scheduled={dayScheduled}
                 available={dayAvailable}
@@ -389,7 +390,7 @@ export function DayScheduleCard({
             {showNightShift && (
               <ShiftGroup
                 dayName={day.day}
-                title="Night Shift 7P-7A"
+                title="Night Shift 18:30-07:00"
                 shiftCategory="night"
                 scheduled={nightScheduled}
                 available={nightAvailable}

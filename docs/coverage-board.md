@@ -72,6 +72,13 @@ Fields:
 
 The manually entered date must still be in the same Sunday-through-Saturday week.
 
+The Add Date and Short Shift forms use military-time department defaults:
+
+- Day Shift: `06:30` to `19:00`
+- Night Shift: `18:30` to `07:00`
+
+Changing the shift type to `day_shift` or `night_shift` auto-fills those times, while still allowing a manual edit afterward.
+
 ## Accept Or Decline Offers
 
 Request owners see received offers on Manage Schedule.

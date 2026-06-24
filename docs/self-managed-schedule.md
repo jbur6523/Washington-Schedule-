@@ -43,6 +43,13 @@ Notes are capped at 140 characters.
 
 The Add availability form asks for date, shift type, start time, end time, and an optional note. It creates an active `add_available` override for the signed-in staff member only.
 
+Standard department shift defaults use military time:
+
+- Day Shift: `06:30` to `19:00`
+- Night Shift: `18:30` to `07:00`
+
+Changing the shift type to `day_shift` or `night_shift` auto-fills those standard times. Staff can still edit the times afterward for a self-managed exception.
+
 ## Schedule Screen
 
 The Schedule screen renders:

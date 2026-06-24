@@ -52,14 +52,21 @@ Manual entry fields:
 
 The UI flags obvious duplicate entries for the same staff member, date, shift type, and status.
 
+Standard department shifts display and default to military time:
+
+- Day Shift: `06:30` to `19:00`
+- Night Shift: `18:30` to `07:00`
+
+When an admin selects `day_shift` or `night_shift`, the builder auto-fills the matching standard start/end times. Admins can still edit the times for non-standard entries.
+
 ## Batch Paste Format
 
 Admins can paste schedule rows in this format:
 
 ```text
-2026-06-23 | day_shift | 07:00 | 19:00 | Jonathan Burdick | scheduled
-2026-06-23 | day_shift | 07:00 | 19:00 | Mona Ahmed | available
-2026-06-23 | night_shift | 19:00 | 07:00 | Joann Devera | scheduled
+2026-06-23 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled
+2026-06-23 | day_shift | 06:30 | 19:00 | Mona Ahmed | available
+2026-06-23 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled
 ```
 
 The preview matches staff names against `staff_profiles`.
