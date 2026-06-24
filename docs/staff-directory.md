@@ -22,6 +22,8 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 
 - Authenticated department members can view Staff Directory records allowed by RLS.
 - Admin users can create and edit staff profiles.
+- Admin users can assign `lead` or `staff` roles. Only username `burj` is admin.
+- Admin users can reset/unclaim staff accounts without deleting the staff profile.
 - Admin users mark staff inactive instead of deleting records.
 - Staff users can view the directory but cannot edit other staff profiles.
 - Staff self-edit is future functionality and is not implemented in Phase 3.
@@ -31,6 +33,7 @@ Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
 - The bottom navigation still uses the existing Staff tab.
 - The visible page heading is `Staff Directory`.
 - Admin create/edit includes display name, employment type, home assignment, phone number, email, preferred contact method, and active status.
+- Admin create/edit shows the assigned username and role.
 - Phone numbers render as tap-to-call links.
 - Email addresses render as tap-to-email links.
 - Filters include All, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.

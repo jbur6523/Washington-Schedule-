@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Mail, Pencil, Phone, Plus, UserRoundCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { generateBaseUsername, normalizeUsername } from "@/lib/auth/username";
 
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
+type StaffRole = "admin" | "lead" | "staff";
 type DirectoryFilter =
   | "all"
   | "full_time"
@@ -24,18 +26,26 @@ type StaffProfile = {
   id: string;
   department_id: string;
   profile_id: string | null;
+  auth_user_id: string | null;
   display_name: string;
+  username: string | null;
+  username_normalized: string | null;
+  assigned_role: StaffRole;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
   phone_number: string | null;
   email: string | null;
   preferred_contact_method: PreferredContactMethod | null;
   is_active: boolean;
+  account_claimed_at: string | null;
 };
 
 type StaffProfileForm = {
   id?: string;
   display_name: string;
+  username: string;
+  username_normalized: string;
+  assigned_role: StaffRole;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
   phone_number: string;
@@ -51,6 +61,9 @@ type StaffDirectoryProps = {
 
 const emptyForm: StaffProfileForm = {
   display_name: "",
+  username: "",
+  username_normalized: "",
+  assigned_role: "staff",
   employment_type: "full_time",
   home_assignment: "day_shift",
   phone_number: "",
@@ -91,15 +104,49 @@ const contactLabels: Record<PreferredContactMethod, string> = {
   app: "App"
 };
 
+const roleLabels: Record<StaffRole, string> = {
+  admin: "Admin",
+  lead: "Lead",
+  staff: "Staff"
+};
+
 function formatPhoneHref(phoneNumber: string) {
   const dialable = phoneNumber.replace(/[^\d+]/g, "");
   return dialable ? `tel:${dialable}` : undefined;
+}
+
+function normalizeOptional(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function nextAvailableUsername(displayName: string, profiles: StaffProfile[]) {
+  const base = generateBaseUsername(displayName);
+  const existing = new Set(
+    profiles
+      .map((profile) => profile.username_normalized)
+      .filter((username): username is string => Boolean(username))
+  );
+
+  if (!existing.has(base)) {
+    return base;
+  }
+
+  let index = 2;
+  while (existing.has(`${base}${index}`)) {
+    index += 1;
+  }
+
+  return `${base}${index}`;
 }
 
 function profileToForm(profile: StaffProfile): StaffProfileForm {
   return {
     id: profile.id,
     display_name: profile.display_name,
+    username: profile.username ?? profile.username_normalized ?? "",
+    username_normalized: profile.username_normalized ?? normalizeUsername(profile.username ?? ""),
+    assigned_role: profile.assigned_role,
     employment_type: profile.employment_type,
     home_assignment: profile.home_assignment,
     phone_number: profile.phone_number ?? "",
@@ -107,11 +154,6 @@ function profileToForm(profile: StaffProfile): StaffProfileForm {
     preferred_contact_method: profile.preferred_contact_method ?? "",
     is_active: profile.is_active
   };
-}
-
-function normalizeOptional(value: string) {
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
 }
 
 function DirectoryCard({
@@ -131,8 +173,13 @@ function DirectoryCard({
         <div className="min-w-0">
           <h3 className="text-lg font-black leading-6 text-hospital-ink">{profile.display_name}</h3>
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
-            {employmentLabels[profile.employment_type]} · {assignmentLabels[profile.home_assignment]}
+            {employmentLabels[profile.employment_type]} - {assignmentLabels[profile.home_assignment]}
           </p>
+          {profile.username && (
+            <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+              Username: {profile.username}
+            </p>
+          )}
         </div>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-extrabold ${
@@ -165,15 +212,23 @@ function DirectoryCard({
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
+          {roleLabels[profile.assigned_role]}
+        </span>
         {profile.preferred_contact_method && (
           <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
             Prefers {contactLabels[profile.preferred_contact_method]}
           </span>
         )}
-        {profile.profile_id && (
+        {profile.account_claimed_at && (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
             <UserRoundCheck size={13} />
-            Account linked
+            Claimed
+          </span>
+        )}
+        {!profile.account_claimed_at && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-extrabold text-amber-700">
+            Unclaimed
           </span>
         )}
       </div>
@@ -197,14 +252,18 @@ function StaffProfileEditor({
   saving,
   onChange,
   onCancel,
-  onSubmit
+  onSubmit,
+  onResetAccount
 }: {
   form: StaffProfileForm;
   saving: boolean;
   onChange: (form: StaffProfileForm) => void;
   onCancel: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onResetAccount: () => void;
 }) {
+  const isBurj = form.username_normalized === "burj";
+
   return (
     <form onSubmit={onSubmit} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
       <h3 className="text-lg font-black text-hospital-ink">
@@ -218,6 +277,15 @@ function StaffProfileEditor({
             onChange={(event) => onChange({ ...form, display_name: event.target.value })}
             required
             className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Assigned username</span>
+          <input
+            value={form.username}
+            readOnly
+            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black lowercase text-hospital-ink outline-none"
           />
         </label>
 
@@ -252,6 +320,26 @@ function StaffProfileEditor({
             </select>
           </label>
         </div>
+
+        <label className="block">
+          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Role</span>
+          {isBurj ? (
+            <input
+              value="Admin"
+              readOnly
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-hospital-ink outline-none"
+            />
+          ) : (
+            <select
+              value={form.assigned_role === "admin" ? "staff" : form.assigned_role}
+              onChange={(event) => onChange({ ...form, assigned_role: event.target.value as StaffRole })}
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            >
+              <option value="staff">Staff</option>
+              <option value="lead">Lead</option>
+            </select>
+          )}
+        </label>
 
         <label className="block">
           <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Phone number</span>
@@ -320,6 +408,17 @@ function StaffProfileEditor({
           {saving ? "Saving..." : "Save Profile"}
         </button>
       </div>
+
+      {form.id && (
+        <button
+          type="button"
+          onClick={onResetAccount}
+          disabled={saving}
+          className="mt-2 min-h-11 w-full rounded-2xl border border-rose-100 bg-rose-50 px-3 text-sm font-extrabold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Reset / Unclaim Account
+        </button>
+      )}
     </form>
   );
 }
@@ -347,7 +446,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     const { data, error: loadError } = await supabase
       .from("staff_profiles")
       .select(
-        "id, department_id, profile_id, display_name, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active"
+        "id, department_id, profile_id, auth_user_id, display_name, username, username_normalized, assigned_role, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at"
       )
       .eq("department_id", authContext.departmentId)
       .order("display_name", { ascending: true });
@@ -388,6 +487,27 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     });
   }, [profiles, filter]);
 
+  const updateForm = (nextForm: StaffProfileForm) => {
+    if (nextForm.id) {
+      setForm(nextForm);
+      return;
+    }
+
+    const username = nextAvailableUsername(nextForm.display_name, profiles);
+    setForm({
+      ...nextForm,
+      username,
+      username_normalized: normalizeUsername(username),
+      assigned_role: username === "burj" ? "admin" : nextForm.assigned_role === "admin" ? "staff" : nextForm.assigned_role
+    });
+  };
+
+  const startCreate = () => {
+    updateForm(emptyForm);
+    setSuccess("");
+    setError("");
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -399,9 +519,18 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     setError("");
     setSuccess("");
 
+    const assignedRole: StaffRole =
+      form.username_normalized === "burj"
+        ? "admin"
+        : form.assigned_role === "admin"
+          ? "staff"
+          : form.assigned_role;
     const payload = {
       department_id: authContext.departmentId,
       display_name: form.display_name.trim(),
+      username: form.username,
+      username_normalized: form.username_normalized,
+      assigned_role: assignedRole,
       employment_type: form.employment_type,
       home_assignment: form.home_assignment,
       phone_number: normalizeOptional(form.phone_number),
@@ -421,8 +550,43 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       return;
     }
 
+    const existingProfile = profiles.find((profile) => profile.id === form.id);
+
+    if (existingProfile?.profile_id) {
+      await supabase
+        .from("department_memberships")
+        .update({ role: assignedRole })
+        .eq("department_id", authContext.departmentId)
+        .eq("profile_id", existingProfile.profile_id);
+    }
+
     setForm(null);
     setSuccess(form.id ? "Staff profile updated." : "Staff profile created.");
+    await loadProfiles();
+  };
+
+  const resetAccount = async () => {
+    if (!form?.id || !canEdit) {
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    const response = await fetch(`/api/admin/staff-profiles/${form.id}/reset-account`, {
+      method: "POST"
+    });
+
+    setSaving(false);
+
+    if (!response.ok) {
+      setError("Unable to reset account.");
+      return;
+    }
+
+    setForm(null);
+    setSuccess("Account reset. The assigned username can be claimed again.");
     await loadProfiles();
   };
 
@@ -453,11 +617,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
           {canEdit && (
             <button
               type="button"
-              onClick={() => {
-                setForm(emptyForm);
-                setSuccess("");
-                setError("");
-              }}
+              onClick={startCreate}
               className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-2xl bg-cyan-700 px-3 text-xs font-extrabold text-white"
             >
               <Plus size={15} />
@@ -466,7 +626,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
           )}
         </div>
 
-        {authContext.role === "staff" && (
+        {authContext.role !== "admin" && (
           <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
             Staff self-edit is planned for a later phase.
           </p>
@@ -505,9 +665,10 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         <StaffProfileEditor
           form={form}
           saving={saving}
-          onChange={setForm}
+          onChange={updateForm}
           onCancel={() => setForm(null)}
           onSubmit={handleSubmit}
+          onResetAccount={resetAccount}
         />
       )}
 

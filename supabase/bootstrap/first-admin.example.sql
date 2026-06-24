@@ -1,5 +1,5 @@
 -- Manual first-admin bootstrap for the Washington-Schedule internal pilot.
--- Review and run this manually after creating the first Supabase Auth user.
+-- Review and run this manually before the first admin claims username burj.
 -- This is not an automatic migration.
 -- Do not include real phone numbers unless approved by hospital policy.
 
@@ -15,41 +15,28 @@ department as (
   select id, 'Respiratory Department', 'America/Los_Angeles'
   from hospital
   returning id
-),
-profile as (
-  insert into public.profiles (auth_user_id, display_name, email)
-  values (
-    '00000000-0000-0000-0000-000000000000',
-    'First Admin Name',
-    'admin@example.invalid'
-  )
-  returning id
-),
-membership as (
-  insert into public.department_memberships (department_id, profile_id, role)
-  select department.id, profile.id, 'admin'
-  from department, profile
-  returning department_id, profile_id
 )
 insert into public.staff_profiles (
   department_id,
-  profile_id,
   display_name,
+  username,
+  username_normalized,
+  assigned_role,
   employment_type,
   home_assignment,
-  email,
   preferred_contact_method,
   is_active
 )
 select
-  membership.department_id,
-  membership.profile_id,
-  'First Admin Name',
+  department.id,
+  'Jonathan Burdick',
+  'burj',
+  'burj',
+  'admin',
   'full_time',
   'day_shift',
-  'admin@example.invalid',
-  'email',
+  'app',
   true
-from membership;
+from department;
 
 commit;

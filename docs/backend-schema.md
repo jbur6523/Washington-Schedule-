@@ -7,9 +7,10 @@ Required public environment variables:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
-Use the Supabase publishable key for client and SSR auth. Do not expose a secret key or service-role key in browser-readable variables.
+Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` is server-only and is used only by route handlers that create/link/reset Supabase Auth users. Do not expose a secret key or service-role key in browser-readable variables.
 
 ## Table Purposes
 
@@ -18,11 +19,14 @@ Use the Supabase publishable key for client and SSR auth. Do not expose a secret
 - `hospitals`: top-level hospital record. The pilot starts with Washington Hospital.
 - `departments`: department records under a hospital. The pilot starts with one respiratory department and keeps `active_schedule_version_id` here.
 - `profiles`: app user profile linked to `auth.users`.
-- `department_memberships`: joins profiles to departments with an `admin` or `staff` role.
+- `department_memberships`: joins profiles to departments with an `admin`, `lead`, or `staff` role.
 
 ### Staff Directory
 
 - `staff_profiles`: department staff directory records. Staff can exist before they create an account, so `profile_id` is nullable.
+- `staff_profiles.username` and `staff_profiles.username_normalized`: permanent department-assigned username.
+- `staff_profiles.account_claimed_at` and `staff_profiles.auth_user_id`: account claim/link state.
+- `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - Staff contact data is separate from schedule entries, requests, offers, import rows, and shift board data.
 
@@ -71,13 +75,17 @@ Roles are stored in `department_memberships.role`.
   - Manage schedule imports and review rows.
   - Resolve requests and coverage offers.
   - Read audit events.
+- `lead`
+  - Has staff permissions.
+  - Can manage Short Shift alerts in supported workflows.
+  - Does not publish schedules, run imports, edit staff profiles, or manage admin settings.
 - `staff`
   - Read active published schedule data for their department.
   - Read allowed staff directory data for their department.
   - Create and cancel their own shift requests.
   - Create and cancel their own coverage offers.
 
-The app determines role and membership from `profiles` and `department_memberships`. It must not trust role values sent from browser state.
+The app determines role and membership from `profiles` and `department_memberships`. It must not trust role values sent from browser state. `burj` is the only admin username. Other lead users use the `lead` role.
 
 ## RLS Strategy
 
@@ -112,6 +120,14 @@ General policy rules:
 - Emergency contacts are out of scope for the pilot.
 
 Phase 3 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff self-edit remains future functionality.
+
+Assigned username rule:
+
+- First 3 letters of last name plus first letter of first name.
+- Lowercase and remove spaces, hyphens, apostrophes, and punctuation.
+- Append numbers for duplicates.
+- `Bei Yi` is `yibe`.
+- Users cannot choose arbitrary usernames.
 
 ## Schedule Versioning
 

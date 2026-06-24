@@ -34,7 +34,7 @@ export default async function LoginPage() {
           </span>
         </div>
         <p className="mt-2 text-sm font-bold text-hospital-muted">
-          Respiratory Department
+          Respiratory Department · Assigned username access
         </p>
         {hasSupabaseServerConfig() ? <LoginForm /> : <LoginConfigurationMessage />}
       </section>

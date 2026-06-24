@@ -24,7 +24,8 @@ function ConfigurationRequired() {
         <h1 className="text-2xl font-black text-amber-950">Supabase configuration required</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-amber-900">
           Authentication is required in production. Add NEXT_PUBLIC_SUPABASE_URL and
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, then redeploy.
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, then redeploy. Username claim/reset also needs
+          the server-only SUPABASE_SECRET_KEY.
         </p>
       </section>
     </main>
