@@ -297,8 +297,7 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
         <div className="flex gap-2">
           <Smartphone size={17} className="mt-0.5 shrink-0 text-cyan-700" />
           <p className="text-xs font-bold leading-5 text-cyan-900">
-            On iPhone, install the app to your Home Screen before enabling notifications: open in Safari, tap Share,
-            then tap Add to Home Screen.
+            For best notification support on iPhone, add this app to your Home Screen and open it from the app icon.
           </p>
         </div>
       </div>
@@ -307,6 +306,11 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
         <p className="mt-3 text-sm font-bold text-slate-500">Loading notification settings...</p>
       ) : (
         <>
+          {!supported && (
+            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+              Notifications are not supported on this device/browser.
+            </p>
+          )}
           <div className="mt-4 grid gap-2">
             <button
               type="button"

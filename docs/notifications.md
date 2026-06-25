@@ -22,7 +22,7 @@ The onboarding copy includes: `For best notification support on iPhone, add this
 
 Preferences are saved to `notification_preferences` when the user continues. Device push subscriptions are saved to `push_subscriptions` only after the user enables browser push permission on that device.
 
-Returning claimed users are not forced through notification setup every login. Existing notification settings can be changed later from the app notification settings area.
+Returning claimed users are not forced through notification setup every login. Existing notification settings can be changed later from `My Settings`.
 
 ## Required Environment Variables
 
@@ -137,7 +137,7 @@ Push click targets:
 
 ## Notification Center
 
-The app header includes a bell notification center.
+The app header includes a bell notification center. `My Settings` sits between Alerts and Sign out and includes notification preferences.
 
 The center shows:
 
@@ -180,6 +180,12 @@ The app does not send email or SMS notifications. Staff Directory email is conta
 If push is unsupported or denied, the app remains usable and shows friendly fallback text:
 
 `Notifications are not enabled on this device. You can still check the Coverage Board manually.`
+
+The settings UI also shows:
+
+`Notifications are not supported on this device/browser.`
+
+For iPhone, staff should add the app to the Home Screen and open it from the app icon for best notification support.
 
 ## Future Work
 

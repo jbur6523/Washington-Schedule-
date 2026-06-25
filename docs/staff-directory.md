@@ -31,7 +31,7 @@ Both fields are optional and can be skipped. If entered, the values are trimmed 
 
 The setup copy tells users these fields are optional and visible to others in the Staff Directory. Contact email is directory visibility only; the app does not send email notifications.
 
-Returning claimed users are not forced through contact setup on every login. Staff can update contact information later when self-edit/settings are available.
+Returning claimed users are not forced through contact setup on every login. Staff can update phone number, email, and preferred contact method from `My Settings`.
 
 ## Permissions
 
@@ -41,9 +41,9 @@ Returning claimed users are not forced through contact setup on every login. Sta
 - Admin users can assign `lead` or `staff` roles. Only username `burj` is admin.
 - Admin users can reset/unclaim staff accounts without deleting the staff profile.
 - Admin users mark staff inactive instead of deleting records.
-- Staff users can view the directory but cannot edit other staff profiles.
+- Staff users can view the directory and update only their own optional contact fields from `My Settings`.
 - Lead users have the same Staff Directory privacy as staff unless they also have admin permissions.
-- Staff self-edit is future functionality and is not implemented in Phase 3.
+- Staff cannot edit their username, role, account claim state, employment type, home assignment, active status, or another staff member's profile.
 
 ## Normal Directory Visibility
 
@@ -155,6 +155,7 @@ Possible duplicates are flagged when the display name already exists or appears 
 - The visible page heading is `Staff Directory`.
 - Normal Staff Directory cards show contact/profile details only.
 - Admin create/edit lives on `/admin/roster` and includes display name, employment type, home assignment, phone number, email, preferred contact method, active status, assigned username, and role.
+- Staff self-edit lives in the header `My Settings` action and is limited to phone number, email, and preferred contact method.
 - Phone numbers render as tap-to-call links.
 - Email addresses render as tap-to-email links.
 - Normal filters include All, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.
@@ -163,7 +164,7 @@ Possible duplicates are flagged when the display name already exists or appears 
 ## Out of Scope
 
 - Moving schedule data to Supabase.
-- Staff self-edit.
+- Staff editing other staff profiles.
 - Deleting staff profiles.
 - Importing staff directory records from images or files.
 - OCR, push notifications, native mobile, billing, payroll, EMR, or patient information.

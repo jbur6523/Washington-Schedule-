@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, LogOut, Plus, ShieldCheck, Undo2 } from "lucide-react";
+import { AlertTriangle, CalendarClock, LogOut, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { MySettings } from "@/components/MySettings";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { NotificationSettings } from "@/components/NotificationSettings";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
@@ -160,11 +160,13 @@ function formatDateShort(dateValue: string) {
 function Header({
   authContext,
   developmentFallback,
-  onNavigate
+  onNavigate,
+  onOpenSettings
 }: {
   authContext: AuthenticatedUserContext;
   developmentFallback?: boolean;
   onNavigate: (tab: TabId) => void;
+  onOpenSettings: () => void;
 }) {
   const handleSignOut = async () => {
     const supabase = createClient();
@@ -195,14 +197,15 @@ function Header({
               developmentFallback={developmentFallback}
               onNavigate={onNavigate}
             />
-            {authContext.role === "admin" && (
-              <Link
-                href="/admin"
-                className="inline-flex min-h-9 items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
+            {!developmentFallback && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="inline-flex min-h-9 items-center gap-1 rounded-full border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600"
               >
-                <ShieldCheck size={14} />
-                Admin
-              </Link>
+                <Settings size={14} />
+                My Settings
+              </button>
             )}
             {!developmentFallback && (
               <button
@@ -213,6 +216,15 @@ function Header({
                 <LogOut size={14} />
                 Sign out
               </button>
+            )}
+            {authContext.role === "admin" && (
+              <Link
+                href="/admin"
+                className="inline-flex min-h-9 items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
+              >
+                <ShieldCheck size={14} />
+                Admin
+              </Link>
             )}
           </div>
         </div>
@@ -2348,6 +2360,7 @@ function ShiftBoardScreen({
 
 export default function AppClient({ authContext, developmentFallback }: AppClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>("schedule");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [scheduleState, setScheduleState] = useState<ScheduleLoadState>({
     loading: !developmentFallback,
     error: "",
@@ -2522,7 +2535,12 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
   return (
     <>
       <main className="min-h-screen pb-28">
-        <Header authContext={authContext} developmentFallback={developmentFallback} onNavigate={setActiveTab} />
+        <Header
+          authContext={authContext}
+          developmentFallback={developmentFallback}
+          onNavigate={setActiveTab}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
           <AuthNotice authContext={authContext} developmentFallback={developmentFallback} />
           {activeTab === "schedule" && (
@@ -2558,11 +2576,17 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
           {activeTab === "staff" && (
             <div className="space-y-4">
               <StaffDirectory authContext={authContext} developmentFallback={developmentFallback} />
-              <NotificationSettings authContext={authContext} developmentFallback={developmentFallback} />
             </div>
           )}
         </div>
       </main>
+      {settingsOpen && (
+        <MySettings
+          authContext={authContext}
+          developmentFallback={developmentFallback}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
     </>
   );

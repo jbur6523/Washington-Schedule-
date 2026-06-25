@@ -130,7 +130,7 @@ General policy rules:
 - Use placeholder phone numbers only in seed data, screenshots, or examples.
 - Emergency contacts are out of scope.
 
-Phase 3 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff self-edit remains future functionality.
+Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff users can update only their own optional contact fields through the protected My Settings route.
 
 Assigned username rule:
 

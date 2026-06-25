@@ -391,8 +391,16 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     const timer = window.setTimeout(() => {
       void loadProfiles();
     }, 0);
+    const handleContactUpdated = () => {
+      void loadProfiles();
+    };
 
-    return () => window.clearTimeout(timer);
+    window.addEventListener("washington-schedule:contact-updated", handleContactUpdated);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("washington-schedule:contact-updated", handleContactUpdated);
+    };
   }, [loadProfiles]);
 
   const filterDirectoryProfiles = useCallback((profile: StaffProfile, selectedFilter: DirectoryFilter) => {
@@ -544,7 +552,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
 
         {authContext.role !== "admin" && (
           <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-            Staff self-edit is planned for a later phase.
+            Update your own phone, email, and notification preferences from My Settings.
           </p>
         )}
 
