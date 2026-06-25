@@ -1,6 +1,6 @@
 # Staff Directory
 
-Phase 3 moves the Staff tab from mock roster data to Supabase `staff_profiles`.
+The Staff Directory reads department roster data from Supabase `staff_profiles`.
 
 ## Data Source
 

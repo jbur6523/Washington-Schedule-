@@ -357,7 +357,22 @@ export function adaptActiveSchedule(
   const addOverrides = activeOverrides.filter(
     (override) => override.override_type === "add_self" || override.override_type === "add_available"
   );
-  const syntheticEntries: ScheduleEntryRow[] = addOverrides.map((override) => ({
+  const uniqueAddOverrides = new Map<string, UserScheduleOverrideRow>();
+  addOverrides.forEach((override) => {
+    const key = [
+      override.staff_profile_id,
+      override.override_type,
+      override.shift_date,
+      override.shift_type,
+      override.shift_start.slice(0, 5),
+      override.shift_end.slice(0, 5)
+    ].join("|");
+
+    if (!uniqueAddOverrides.has(key)) {
+      uniqueAddOverrides.set(key, override);
+    }
+  });
+  const syntheticEntries: ScheduleEntryRow[] = Array.from(uniqueAddOverrides.values()).map((override) => ({
     id: `override-${override.id}`,
     schedule_version_id: version.id,
     department_id: override.department_id,
@@ -394,8 +409,26 @@ export function adaptActiveSchedule(
   const allDates = Array.from(
     new Set([...Array.from(entriesByDate.keys()), ...Array.from(shortagesByDate.keys())])
   ).sort();
-  const requestPosts = requests
+  const uniqueActiveRequests = new Map<string, ShiftRequestRow>();
+  requests
     .filter((request) => request.status === "active")
+    .forEach((request) => {
+      const key = [
+        request.staff_profile_id,
+        request.request_type,
+        request.schedule_entry_id ?? "no-entry",
+        request.user_schedule_override_id ?? "no-override"
+      ].join("|");
+
+      if (!uniqueActiveRequests.has(key)) {
+        uniqueActiveRequests.set(key, request);
+      }
+    });
+  const dedupedRequests = [
+    ...Array.from(uniqueActiveRequests.values()),
+    ...requests.filter((request) => request.status !== "active")
+  ];
+  const requestPosts = Array.from(uniqueActiveRequests.values())
     .map(requestToPost)
     .filter((post): post is ShiftPost => Boolean(post));
   const shortagePosts = shortages
@@ -422,7 +455,7 @@ export function adaptActiveSchedule(
     } satisfies ScheduleDay;
   });
 
-  return { version, entries, effectiveEntries, overrides, requests, offers, shortages, days, shiftPosts };
+  return { version, entries, effectiveEntries, overrides, requests: dedupedRequests, offers, shortages, days, shiftPosts };
 }
 
 function requestToPost(request: ShiftRequestRow): ShiftPost | null {

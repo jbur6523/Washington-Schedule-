@@ -54,6 +54,7 @@ function StaffScheduleRow({
     variant === "scheduled"
       ? "border-sky-100 bg-sky-50/90"
       : "border-emerald-100 bg-emerald-50/90";
+  const showChips = coverageRequested || Boolean(posts?.length) || variant === "available" || entry.selfAdded;
 
   return (
     <div className={`rounded-2xl border px-3 py-2 ${background}`}>
@@ -77,7 +78,7 @@ function StaffScheduleRow({
         <StaffTypeBadge staffType={entry.staffType} compact />
       </div>
 
-      {(coverageRequested || Boolean(posts?.length) || variant === "available") && (
+      {showChips && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {variant === "available" && <StatusChip status="Available" compact />}
           {entry.selfAdded && <StatusChip status="Self-added" compact />}
@@ -103,12 +104,6 @@ function StaffScheduleRow({
         <p className="mt-1 text-xs font-semibold leading-4 text-slate-600">
           Coverage requested for this shift.
         </p>
-      )}
-
-      {entry.selfAdded && !(coverageRequested || Boolean(posts?.length)) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <StatusChip status="Self-added" compact />
-        </div>
       )}
 
       {note && (
@@ -210,7 +205,7 @@ function ShiftGroup({
 
         {available.map((entry) => (
           <StaffScheduleRow
-            key={`${entry.staffName}-${entry.shiftTime}-available`}
+            key={`${entry.id}-available`}
             entry={entry}
             variant="available"
           />
@@ -232,7 +227,7 @@ function ShiftGroup({
             {activeAvailabilityOverrideId ? "Remove My Availability" : "Add Myself Available"}
           </button>
           <p className="mt-2 px-1 text-xs font-bold leading-4 text-emerald-900">
-            Availability is self-reported and does not change the official schedule.
+            Self-reported availability.
           </p>
         </div>
       )}

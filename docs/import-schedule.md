@@ -4,7 +4,7 @@ Import Schedule is an admin-only, review-first workflow at:
 
 `/admin/import-schedule`
 
-Washington-Schedule is not the official hospital schedule. It is a staff-managed coordination view only.
+WHHS RT Schedule is not the official hospital schedule. It is a staff-managed coordination view only.
 
 ## Supported Sources
 

@@ -1,6 +1,6 @@
 # Schedule Versions
 
-Washington-Schedule now uses Supabase schedule versions for the live Schedule screen.
+WHHS RT Schedule uses Supabase schedule versions for the live Schedule screen.
 
 ## Model
 

@@ -2,7 +2,7 @@
 
 The Coverage Board is the live staff coordination board.
 
-Washington-Schedule is not the official hospital schedule. It is a staff-managed coordination view only.
+WHHS RT Schedule is not the official hospital schedule. It is a staff-managed coordination view only.
 
 ## What Appears
 
@@ -99,7 +99,7 @@ Accepting an offer:
 
 - Sets the offer status to `accepted`.
 - Resolves the original shift request.
-- Does not rewrite the official baseline schedule.
+- Does not rewrite the published baseline schedule.
 - Sends an in-app and push notification to the offerer if enabled.
 
 Declining an offer:

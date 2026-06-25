@@ -1,4 +1,4 @@
-# Washington-Schedule Backend Schema
+# WHHS RT Schedule Backend Schema
 
 This backend foundation supports the Washington Hospital respiratory department app. It uses Supabase Auth, Postgres, Row Level Security, and future private storage while keeping schedule coordination data protected.
 
@@ -167,8 +167,7 @@ Assigned username rule:
 ## Shift Request Rules
 
 - Employee-level request types are only `switch_requested` and `coverage_requested`.
-- Do not use Wants Off.
-- Do not use Shift Available.
+- Legacy request labels are excluded from the app UI and database workflows.
 - Requests are tied to either `schedule_entry_id` or `user_schedule_override_id`, plus `staff_profile_id`.
 - Requests do not alter the baseline schedule entry.
 - Request notes are capped at 140 characters.
@@ -177,7 +176,7 @@ Assigned username rule:
 - Coverage offers and switch offers are stored in `shift_request_offers`.
 - Switch offers must target a shift in the same Sunday-through-Saturday department week as the requested shift.
 - Request owners can accept or decline offers on their own requests.
-- Accepting an offer marks the offer accepted and resolves the related request, but it does not rewrite the official baseline schedule.
+- Accepting an offer marks the offer accepted and resolves the related request, but it does not rewrite the published baseline schedule.
 - Offer created, accepted, and declined events create in-app notifications and attempt Web Push delivery when allowed by preferences.
 
 ## Short Shift Rules

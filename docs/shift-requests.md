@@ -1,6 +1,6 @@
 # Shift Requests And Coverage Board
 
-Washington-Schedule uses persistent Supabase rows for staff coordination. The app is not the official hospital schedule; it is a staff-managed coordination view layered on top of the published baseline schedule.
+WHHS RT Schedule uses persistent Supabase rows for staff coordination. The app is not the official hospital schedule.
 
 ## Terminology
 
@@ -10,13 +10,7 @@ Use only:
 - Coverage Requested
 - Short Shift
 
-Do not use:
-
-- Wants Off
-- Shift Available
-- Need Covered ASAP
-- Urgent Need
-- Short Shift Open
+Legacy request labels are excluded from the app UI and database workflows.
 
 ## Switch Requested
 
@@ -38,7 +32,7 @@ Staff can create or cancel their own active `shift_requests` row with:
 - `request_type = coverage_requested`
 - `status = active` or `cancelled`
 
-Coverage Requested remains attached to the employee's own shift and does not mean the official schedule has changed.
+Coverage Requested remains attached to the employee's own shift and does not update the published baseline schedule.
 
 ## Notes
 
@@ -108,7 +102,7 @@ The request owner can see received offers on Manage Schedule.
 
 - Accept Offer updates the offer to `accepted` and resolves the related request.
 - Decline Offer updates the offer to `declined`; the request remains active.
-- Accepted offers do not rewrite the official baseline schedule automatically.
+- Accepted offers do not rewrite the published baseline schedule automatically.
 
 Offer-created, accepted, and declined events create in-app `notification_events` and attempt Web Push delivery when the recipient has enabled notifications and preferences allow it.
 

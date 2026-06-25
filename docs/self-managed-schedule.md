@@ -1,6 +1,6 @@
 # Self-Managed Schedule
 
-Washington-Schedule is not the official hospital schedule.
+WHHS RT Schedule is not the official hospital schedule.
 
 It is a staff-managed coordination view layered on top of the published baseline schedule.
 
@@ -21,7 +21,7 @@ Supported override types:
 
 No manager approval workflow exists for these personal schedule changes. The app intentionally avoids pending, approved, or denied language.
 
-Self-reported availability does not change the official hospital schedule.
+Self-reported availability does not update the published baseline schedule.
 
 ## Manage Schedule
 
@@ -34,14 +34,14 @@ For each shift, staff can:
 - Add/Edit Note
 - Remove Myself
 - Move Myself
-- Add availability
+- Add Myself Available
 - Remove their own active availability
-- Undo a self-added shift
+- Remove a self-added shift
 - Undo a removed shift
 
 Notes are capped at 140 characters.
 
-The Add availability form asks for date, shift type, start time, end time, and an optional note. It creates an active `add_available` override for the signed-in staff member only.
+The Add Myself Available form asks for date, shift type, start time, end time, and an optional note. It creates an active `add_available` override for the signed-in staff member only.
 
 Standard department shift defaults use military time:
 
@@ -60,7 +60,7 @@ The Schedule screen renders:
 - Plus active `add_available` overrides as available staff
 - Active Switch Requested chips
 - Active Coverage Requested chips
-- Self-added chips where appropriate
+- Self-added chips where they add source context
 
 Phone numbers are not shown on Schedule cards.
 
@@ -78,7 +78,7 @@ A unique active availability index prevents duplicate active `add_available` ove
 
 This phase does not include:
 
-- Official hospital schedule editing
+- Published baseline schedule editing
 - Personal change approval workflow
 - OCR
 - Schedule photo import

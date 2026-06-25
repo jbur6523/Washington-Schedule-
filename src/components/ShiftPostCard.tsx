@@ -41,17 +41,24 @@ export function ShiftPostCard({
   onCancelShortShift
 }: ShiftPostCardProps) {
   const Icon = typeIcon[post.type];
-  const statuses = relatedStatuses?.length ? relatedStatuses : [post.status];
+  const statuses = Array.from(new Set(relatedStatuses?.length ? relatedStatuses : [post.status]));
+  const hasCoverageRequest = statuses.includes("Coverage Requested");
+  const hasSwitchRequest = statuses.includes("Switch Requested");
+  const title =
+    hasCoverageRequest && hasSwitchRequest
+      ? "Switch Requested + Coverage Requested"
+      : post.type;
   const actionButtons = [
-    post.type === "Coverage Requested" && onOfferCoverage
-      ? { label: coverageActionLabel ?? "Offer Coverage", onClick: onOfferCoverage, disabled: Boolean(coverageActionDisabled) }
+    (post.type === "Coverage Requested" || post.type === "Short Shift" || hasCoverageRequest) && onOfferCoverage
+      ? {
+          label: coverageActionLabel ?? (post.type === "Short Shift" ? "I Can Cover" : "Offer Coverage"),
+          onClick: onOfferCoverage,
+          disabled: Boolean(coverageActionDisabled)
+        }
       : null,
-    post.type === "Switch Requested" && onOfferSwitch
+    (post.type === "Switch Requested" || hasSwitchRequest) && onOfferSwitch
       ? { label: switchActionLabel ?? "Offer Switch", onClick: onOfferSwitch, disabled: Boolean(switchActionDisabled) }
       : null,
-    post.type === "Short Shift" && onOfferCoverage
-      ? { label: coverageActionLabel ?? "I Can Cover", onClick: onOfferCoverage, disabled: Boolean(coverageActionDisabled) }
-      : null
   ].filter((button): button is { label: string; onClick: () => void; disabled: boolean } => Boolean(button));
 
   return (
@@ -69,7 +76,7 @@ export function ShiftPostCard({
               <StatusChip key={status} status={status} intensity={post.coverageIntensity} compact />
             ))}
           </div>
-          <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{post.type}</h3>
+          <h3 className="mt-2 text-base font-black leading-6 text-hospital-ink">{title}</h3>
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
             {typeHelp[post.type]}
           </p>

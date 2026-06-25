@@ -1,6 +1,6 @@
 # Schedule Code Import
 
-Schedule Code Import is the preferred way to move ChatGPT-converted schedule photos into Washington-Schedule.
+Schedule Code Import is the preferred way to move ChatGPT-converted schedule photos into WHHS RT Schedule.
 
 This is not app source code. It is structured schedule data that the website parses into draft review rows.
 

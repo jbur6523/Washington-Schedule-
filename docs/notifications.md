@@ -1,6 +1,6 @@
 # Notifications
 
-Washington-Schedule uses in-app notifications plus Web Push. Notifications are app/push based only; the app does not send email or SMS notifications.
+WHHS RT Schedule uses in-app notifications plus Web Push. Notifications are app/push based only; the app does not send email or SMS notifications.
 
 Notifications are device-specific. Staff must enable notifications on each device where they want alerts.
 

@@ -1,4 +1,4 @@
-# Washington-Schedule Department Bootstrap
+# WHHS RT Schedule Department Bootstrap
 
 This file documents the manual first-admin setup for the Washington Hospital respiratory department.
 

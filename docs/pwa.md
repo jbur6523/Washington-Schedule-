@@ -1,6 +1,6 @@
 # PWA App Experience
 
-Washington-Schedule is still a Next.js web app. It is not a native iOS or Android app.
+WHHS RT Schedule is still a Next.js web app. It is not a native iOS or Android app.
 
 This phase adds Progressive Web App support so the app can feel more like a phone app when installed from the browser.
 

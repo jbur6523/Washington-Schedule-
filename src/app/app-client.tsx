@@ -611,7 +611,7 @@ function ScheduleScreen({
       shift_type: target.shift_type,
       shift_start: target.shift_start,
       shift_end: target.shift_end,
-      note: "Self-reported availability.",
+      note: null,
       is_active: true
     });
 
@@ -1044,7 +1044,7 @@ function ManageScheduleScreen({
     await onChanged();
   };
 
-  const undoOverride = async (overrideId: string) => {
+  const undoOverride = async (overrideId: string, successMessage = "Schedule change removed.") => {
     setSaving(true);
     setActionError("");
     setSuccess("");
@@ -1062,7 +1062,7 @@ function ManageScheduleScreen({
       return;
     }
 
-    setSuccess("Schedule change undone.");
+    setSuccess(successMessage);
     await onChanged();
   };
 
@@ -1225,9 +1225,6 @@ function ManageScheduleScreen({
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
         <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
         <p className="mt-1 text-sm font-bold text-slate-500">Active baseline: {schedule.version.label}</p>
-        <p className="mt-3 rounded-2xl bg-cyan-50 px-3 py-2 text-xs font-bold leading-5 text-cyan-900">
-          Not the official hospital schedule.
-        </p>
         <button
           type="button"
           onClick={() => {
@@ -1251,7 +1248,7 @@ function ManageScheduleScreen({
           Add Myself Available
         </button>
         <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-          Availability is self-reported and does not change the official schedule.
+          Availability is self-reported.
         </p>
       </section>
 
@@ -1355,14 +1352,9 @@ function ManageScheduleScreen({
             {addForm.mode === "move"
               ? "Move Myself to Another Shift"
               : addForm.mode === "available"
-                ? "Add availability"
+                ? "Add Myself Available"
                 : "Add Myself to Another Shift"}
           </h3>
-          {addForm.mode === "available" && (
-            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-              Availability is self-reported and does not change the official schedule.
-            </p>
-          )}
           <div className="mt-4 grid gap-3">
             <label className="block">
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</span>
@@ -1436,7 +1428,7 @@ function ManageScheduleScreen({
                 addForm.mode === "available" ? "bg-emerald-600" : "bg-cyan-700"
               }`}
             >
-              {saving ? "Saving..." : addForm.mode === "available" ? "Save Availability" : "Save Shift"}
+              {saving ? "Saving..." : addForm.mode === "available" ? "Add Myself Available" : "Save Shift"}
             </button>
           </div>
         </form>
@@ -1445,9 +1437,6 @@ function ManageScheduleScreen({
       {availabilityOverrides.length > 0 && (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <h3 className="text-lg font-black text-hospital-ink">My availability</h3>
-          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-            Self-reported availability does not change the official schedule.
-          </p>
           <div className="mt-3 space-y-2">
             {availabilityOverrides.map((override) => (
               <div key={override.id} className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3">
@@ -1469,7 +1458,7 @@ function ManageScheduleScreen({
                 )}
                 <button
                   type="button"
-                  onClick={() => void undoOverride(override.id)}
+                  onClick={() => void undoOverride(override.id, "Your availability was removed.")}
                   disabled={saving}
                   className="mt-3 min-h-10 w-full rounded-2xl border border-emerald-200 bg-white px-3 text-sm font-extrabold text-emerald-700 disabled:opacity-60"
                 >
@@ -1507,9 +1496,6 @@ function ManageScheduleScreen({
                   </h2>
                   <p className="mt-1 text-sm font-semibold text-slate-500">
                     {formatShiftTime(entry.shift_start, entry.shift_end)}
-                  </p>
-                  <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                    Source: {selfAdded ? "Self-added" : "Published schedule"}
                   </p>
                 </div>
                 <StaffTypeBadge staffType={displayStaffType(entry.staff_profiles)} />
@@ -1586,11 +1572,11 @@ function ManageScheduleScreen({
                 {selfAdded ? (
                   <button
                     type="button"
-                    onClick={() => void undoOverride(entry.id.replace("override-", ""))}
+                    onClick={() => void undoOverride(entry.id.replace("override-", ""), "Self-added shift removed.")}
                     disabled={saving}
                     className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 disabled:opacity-60"
                   >
-                    Undo Self-added Shift
+                    Remove Self-added Shift
                   </button>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -1642,7 +1628,7 @@ function ManageScheduleScreen({
                 </p>
                 <button
                   type="button"
-                  onClick={() => void undoOverride(override.id)}
+                  onClick={() => void undoOverride(override.id, "Shift restored to your app schedule.")}
                   disabled={saving}
                   className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-extrabold text-cyan-700 disabled:opacity-60"
                 >
