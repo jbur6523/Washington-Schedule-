@@ -9,7 +9,7 @@ This phase adds Progressive Web App support so the app can feel more like a phon
 The app includes:
 
 - Web app manifest at `/manifest.webmanifest`
-- App name: Washington Schedule
+- App name: WHHS RT Schedule
 - Short name: Schedule
 - Standalone display mode
 - Mobile theme color

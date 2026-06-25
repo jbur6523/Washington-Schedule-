@@ -32,7 +32,7 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   let payload = {
-    title: "Washington Schedule",
+    title: "WHHS RT Schedule",
     body: "Open the app for schedule updates.",
     url: "/"
   };

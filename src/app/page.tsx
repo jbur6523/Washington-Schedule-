@@ -37,7 +37,7 @@ function UnassignedAccount({ displayName }: { displayName?: string }) {
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
         <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-          Washington Schedule
+          WHHS RT Schedule
         </p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">
           Department assignment needed

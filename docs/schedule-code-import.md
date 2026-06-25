@@ -17,7 +17,7 @@ SHORT_SHIFT | date | shift_type | shift_start | shift_end | severity | message
 Example:
 
 ```text
-SCHEDULE_VERSION | Week 5 Remaining Schedule | 2026-06-24 | 2026-06-25
+SCHEDULE_VERSION | Remaining Schedule | 2026-06-24 | 2026-06-25
 
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available

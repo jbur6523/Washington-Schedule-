@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, CalendarClock, LogOut, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
+import { AlertTriangle, LogOut, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { MySettings } from "@/components/MySettings";
@@ -196,11 +196,14 @@ function Header({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-black tracking-normal text-hospital-ink sm:text-3xl">
-                Washington Schedule
+                WHHS RT Schedule
               </h1>
             </div>
             <p className="mt-1 text-sm font-bold text-hospital-muted">
               Respiratory Department Staffing
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              Not the official hospital schedule.
             </p>
             <p className="mt-2 text-xs font-extrabold uppercase tracking-wide text-slate-400">
               {authContext.displayName} - {authContext.departmentName} - {authContext.role}
@@ -263,68 +266,14 @@ function AuthNotice({
     );
   }
 
-  return (
-    <div className="mb-3 space-y-2">
-      <section className="rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-xs font-extrabold uppercase leading-5 tracking-wide text-cyan-900">
-        Not the official hospital schedule.
-      </section>
-      {!authContext.hasLinkedStaffProfile && (
-        <section className="rounded-2xl border border-cyan-100 bg-white/90 px-4 py-3 text-sm font-bold leading-6 text-cyan-900">
-          Your account is assigned to this department, but your staff profile has not been linked yet. Some staff-specific actions may be limited.
-        </section>
-      )}
-    </div>
-  );
-}
+  if (authContext.hasLinkedStaffProfile) {
+    return null;
+  }
 
-function Legend() {
   return (
-    <details className="rounded-2xl border border-white bg-white/90 p-3 shadow-soft">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-sm font-black text-hospital-ink">
-          <CalendarClock size={17} className="text-cyan-700" />
-          Color legend
-        </span>
-        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Tap to view</span>
-      </summary>
-      <div className="mt-3 grid gap-3 border-t border-slate-100 pt-3">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff type</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <StaffTypeBadge staffType="Full-time" />
-            <StaffTypeBadge staffType="Per diem" />
-          </div>
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            FT means full-time. PD means per diem.
-          </p>
-        </div>
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Card meaning</p>
-          <div className="mt-2 grid gap-2">
-            <div className="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
-              Light blue card = Scheduled
-            </div>
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
-              Light green card = Available
-            </div>
-          </div>
-        </div>
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status chips</p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <StatusChip status="Switch Requested" />
-            <StatusChip status="Coverage Requested" />
-            <StatusChip status="Self-added" />
-            <StatusChip status="Short Shift" />
-            <StatusChip status="Short Shift" intensity="critical" />
-          </div>
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-            Switch Requested and Coverage Requested are employee request chips. Self-added is a staff-managed app change.
-            Yellow Short Shift means short. Red Short Shift means urgent.
-          </p>
-        </div>
-      </div>
-    </details>
+    <section className="mb-3 rounded-2xl border border-cyan-100 bg-white/90 px-4 py-3 text-sm font-bold leading-6 text-cyan-900">
+      Your account is assigned to this department, but your staff profile has not been linked yet. Some staff-specific actions may be limited.
+    </section>
   );
 }
 
@@ -701,37 +650,20 @@ function ScheduleScreen({
           {availabilityMessage}
         </p>
       )}
-      <Legend />
       <div className="space-y-3">
-        <div className="rounded-2xl border border-white bg-white/90 px-3 py-2 shadow-soft">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-                {developmentFallback ? "Schedule unavailable" : schedule?.version.label}
-              </p>
-              <p className="mt-1 text-xs font-bold text-slate-500">
-                {effectiveSelectedDay === days.find((day) => day.dateValue === todayValue)?.day
-                  ? "Showing today"
-                  : showPastDays
-                    ? "Showing full schedule"
-                    : "Showing upcoming schedule"}
-              </p>
-            </div>
-            {authContext.role === "admin" && !developmentFallback && (
-              <Link href="/admin/schedule-versions" className="shrink-0 text-xs font-extrabold text-cyan-700">
-                Manage versions
-              </Link>
-            )}
-          </div>
-          <label className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-600">
-            Show past days
-            <input
-              type="checkbox"
-              checked={showPastDays}
-              onChange={(event) => setShowPastDays(event.target.checked)}
-              className="h-4 w-4"
-            />
-          </label>
+        <div className="flex items-center justify-between gap-3 px-1 text-xs font-extrabold">
+          <button
+            type="button"
+            onClick={() => setShowPastDays((current) => !current)}
+            className="text-slate-500"
+          >
+            {showPastDays ? "Hide past days" : "Show past days"}
+          </button>
+          {authContext.role === "admin" && !developmentFallback && (
+            <Link href="/admin/schedule-versions" className="shrink-0 text-cyan-700">
+              Manage versions
+            </Link>
+          )}
         </div>
         {visibleDays.map((day) => (
           <DayScheduleCard

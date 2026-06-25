@@ -31,7 +31,7 @@ export function ConfirmationModal({ open, onClose }: ConfirmationModalProps) {
             Offer sent.
           </h2>
           <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-            The request has been added to Washington Schedule.
+            The request has been added to WHHS RT Schedule.
           </p>
           <button
             type="button"

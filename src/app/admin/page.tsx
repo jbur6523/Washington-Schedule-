@@ -44,7 +44,7 @@ export default async function AdminPage() {
           Admin
         </p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">
-          Washington Schedule Administration
+          WHHS RT Schedule Administration
         </h1>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
           These tools are protected for department admins.

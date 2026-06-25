@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Washington Schedule",
+  title: "WHHS RT Schedule",
   description: "Washington Hospital respiratory department staff coordination schedule.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Washington Schedule",
+  applicationName: "WHHS RT Schedule",
   appleWebApp: {
     capable: true,
-    title: "Washington Schedule",
+    title: "WHHS RT Schedule",
     statusBarStyle: "default"
   },
   icons: {
