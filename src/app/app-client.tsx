@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, LogOut, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
+import { AlertTriangle, ChevronDown, LogOut, Pencil, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { MySettings } from "@/components/MySettings";
@@ -386,12 +386,15 @@ function ScheduleFilterTabs({
 function MyStatusCard({
   authContext,
   developmentFallback,
-  onSaved
+  onSaved,
+  onStatusChange
 }: {
   authContext: AuthenticatedUserContext;
   developmentFallback?: boolean;
   onSaved: () => Promise<void>;
+  onStatusChange: (statusMessage: string) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [initialStatusMessage, setInitialStatusMessage] = useState("");
   const [loading, setLoading] = useState(!developmentFallback && Boolean(authContext.staffProfileId));
@@ -422,10 +425,11 @@ function MyStatusCard({
       const nextStatus = ((data?.status_message as string | null) ?? "").slice(0, 100);
       setStatusMessage(nextStatus);
       setInitialStatusMessage(nextStatus);
+      onStatusChange(nextStatus);
     }
 
     setLoading(false);
-  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback]);
+  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback, onStatusChange]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -475,7 +479,9 @@ function MyStatusCard({
 
     setStatusMessage(trimmed);
     setInitialStatusMessage(trimmed);
+    onStatusChange(trimmed);
     setMessage(trimmed ? "Status updated." : "Status cleared.");
+    setExpanded(false);
     await onSaved();
   };
 
@@ -505,69 +511,102 @@ function MyStatusCard({
     }
 
     setInitialStatusMessage("");
+    onStatusChange("");
     setMessage("Status cleared.");
+    setExpanded(false);
     await onSaved();
   };
 
-  return (
-    <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-lg font-black text-hospital-ink">My Status</h2>
-          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-            Optional. Shows under your name on the schedule until you change it.
-          </p>
-        </div>
-        <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
-          {statusMessage.length}/100
-        </span>
-      </div>
+  const preview = initialStatusMessage || "Add status";
 
-      <form onSubmit={saveStatus} className="mt-3 grid gap-2">
-        <textarea
-          value={statusMessage}
-          onChange={(event) => {
-            setStatusMessage(event.target.value.slice(0, 100));
-            setMessage("");
-            setError("");
-          }}
-          maxLength={100}
-          rows={2}
-          disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
-          placeholder="Literally dying in the IMC"
-          className="min-h-20 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold leading-5 text-hospital-ink outline-none focus:border-cyan-300 disabled:opacity-60"
-        />
-        <p className="text-xs font-bold leading-5 text-slate-500">
-          Do not include patient information.
-        </p>
-        {message && (
-          <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-            {message}
-          </p>
-        )}
-        {error && (
-          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-            {error}
-          </p>
-        )}
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="submit"
-            disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
-            className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:opacity-60"
+  return (
+    <section className="rounded-2xl border border-white bg-white/95 shadow-soft">
+      <button
+        type="button"
+        onClick={() => {
+          setExpanded((current) => !current);
+          setMessage("");
+          setError("");
+        }}
+        className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
+        aria-expanded={expanded}
+      >
+        <div className="min-w-0">
+          <h2 className="text-sm font-black text-hospital-ink">My Status</h2>
+          <p
+            className={`mt-0.5 truncate text-sm font-bold ${
+              initialStatusMessage ? "text-slate-600" : "text-cyan-700"
+            }`}
           >
-            {saving ? "Saving..." : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void clearStatus()}
-            disabled={loading || saving || developmentFallback || !authContext.staffProfileId || (!statusMessage && !initialStatusMessage)}
-            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
-          >
-            Clear
-          </button>
+            {loading ? "Loading status..." : preview}
+          </p>
         </div>
-      </form>
+        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
+          {initialStatusMessage ? <Pencil size={16} /> : <ChevronDown size={17} />}
+        </span>
+      </button>
+
+      {message && !expanded && (
+        <p role="status" className="mx-3.5 mb-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+          {message}
+        </p>
+      )}
+      {error && !expanded && (
+        <p role="alert" className="mx-3.5 mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+          {error}
+        </p>
+      )}
+
+      {expanded && (
+        <form onSubmit={saveStatus} className="grid gap-2 border-t border-slate-100 px-3.5 pb-3.5 pt-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs font-bold leading-5 text-slate-500">
+              Optional. Shows under your name on the schedule until you change it.
+            </p>
+            <span className="shrink-0 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
+              {statusMessage.length}/100
+            </span>
+          </div>
+          <textarea
+            value={statusMessage}
+            onChange={(event) => {
+              setStatusMessage(event.target.value.slice(0, 100));
+              setMessage("");
+              setError("");
+            }}
+            maxLength={100}
+            rows={2}
+            disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
+            placeholder="Literally dying in the IMC"
+            className="min-h-16 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold leading-5 text-hospital-ink outline-none focus:border-cyan-300 disabled:opacity-60"
+          />
+          <p className="text-xs font-bold leading-5 text-slate-500">
+            Do not include patient information.
+          </p>
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="submit"
+              disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
+              className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:opacity-60"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void clearStatus()}
+              disabled={loading || saving || developmentFallback || !authContext.staffProfileId || (!statusMessage && !initialStatusMessage)}
+              className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
+            >
+              Clear
+            </button>
+          </div>
+        </form>
+      )}
     </section>
   );
 }
@@ -596,6 +635,7 @@ function ScheduleScreen({
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
+  const [currentUserStatusMessage, setCurrentUserStatusMessage] = useState<string | null>(null);
   const [showPastDays, setShowPastDays] = useState(false);
   const [todayValue, setTodayValue] = useState(() => todayInTimezone(timezone));
   const days = useMemo(
@@ -675,6 +715,9 @@ function ScheduleScreen({
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [expandedDay, setExpandedDay] = useState("");
+  const handleStatusChange = useCallback((nextStatusMessage: string) => {
+    setCurrentUserStatusMessage(nextStatusMessage);
+  }, []);
   useEffect(() => {
     const updateToday = () => setTodayValue(todayInTimezone(timezone));
     updateToday();
@@ -833,6 +876,7 @@ function ScheduleScreen({
         authContext={authContext}
         developmentFallback={developmentFallback}
         onSaved={onChanged}
+        onStatusChange={handleStatusChange}
       />
       {availabilityError && (
         <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
@@ -865,6 +909,8 @@ function ScheduleScreen({
             day={day}
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
+            currentStaffProfileId={authContext.staffProfileId}
+            currentStaffStatusMessage={currentUserStatusMessage}
             shiftNotes={shiftNotes}
             availabilityByShift={availabilityByShift}
             availabilitySaving={availabilitySaving}
