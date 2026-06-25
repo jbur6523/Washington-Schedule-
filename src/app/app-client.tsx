@@ -52,6 +52,7 @@ type ScheduleLoadState = {
   loading: boolean;
   error: string;
   activeSchedule: ActiveSchedule | null;
+  timezone: string;
   checked: boolean;
 };
 
@@ -136,6 +137,20 @@ function dateOnly(value: string) {
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function todayInTimezone(timezone = "America/Los_Angeles") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+
+  return `${year}-${month}-${day}`;
 }
 
 function getWeekRange(dateValue: string) {
@@ -428,6 +443,7 @@ function ScheduleScreen({
   loading,
   error,
   schedule,
+  timezone,
   developmentFallback,
   onChanged
 }: {
@@ -435,16 +451,47 @@ function ScheduleScreen({
   loading: boolean;
   error: string;
   schedule: ActiveSchedule | null;
+  timezone: string;
   developmentFallback?: boolean;
   onChanged: () => Promise<void>;
 }) {
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
+  const [showPastDays, setShowPastDays] = useState(false);
+  const [todayValue, setTodayValue] = useState(() => todayInTimezone(timezone));
   const days = useMemo(
     () => (developmentFallback ? fallbackSchedule : schedule?.days ?? []),
     [developmentFallback, schedule]
   );
+  const visibleDays = useMemo(() => {
+    if (showPastDays) {
+      return days;
+    }
+
+    const upcoming = days.filter((day) => !day.dateValue || day.dateValue >= todayValue);
+
+    if (upcoming.length > 0) {
+      return upcoming;
+    }
+
+    return days.length > 0 ? [days[days.length - 1]] : [];
+  }, [days, showPastDays, todayValue]);
+  const defaultDay = useMemo(() => {
+    const today = days.find((day) => day.dateValue === todayValue);
+
+    if (today && (showPastDays || visibleDays.some((day) => day.day === today.day))) {
+      return today.day;
+    }
+
+    const upcoming = days.find((day) => day.dateValue && day.dateValue > todayValue);
+
+    if (upcoming && visibleDays.some((day) => day.day === upcoming.day)) {
+      return upcoming.day;
+    }
+
+    return visibleDays[0]?.day ?? days.at(-1)?.day ?? "";
+  }, [days, showPastDays, todayValue, visibleDays]);
   const shiftNotes = useMemo(() => {
     const notes: Record<string, string> = {};
     schedule?.overrides
@@ -490,8 +537,34 @@ function ScheduleScreen({
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [expandedDay, setExpandedDay] = useState("");
+  useEffect(() => {
+    const updateToday = () => setTodayValue(todayInTimezone(timezone));
+    updateToday();
+    const interval = window.setInterval(updateToday, 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, [timezone]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!defaultDay) {
+        setSelectedDay("");
+        setExpandedDay("");
+        return;
+      }
+
+      const selectedVisible = visibleDays.some((day) => day.day === selectedDay);
+      const selectedDate = days.find((day) => day.day === selectedDay)?.dateValue;
+
+      if (!selectedVisible || (!showPastDays && selectedDate && selectedDate < todayValue)) {
+        setSelectedDay(defaultDay);
+        setExpandedDay(defaultDay);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [days, defaultDay, selectedDay, showPastDays, todayValue, visibleDays]);
   const effectiveSelectedDay =
-    days.some((day) => day.day === selectedDay) ? selectedDay : days[0]?.day ?? "";
+    visibleDays.some((day) => day.day === selectedDay) ? selectedDay : defaultDay;
 
   if (loading) {
     return (
@@ -529,7 +602,7 @@ function ScheduleScreen({
     );
   }
 
-  if (days.length === 0) {
+  if (visibleDays.length === 0) {
     return (
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
         <h2 className="text-xl font-black text-hospital-ink">No schedule entries.</h2>
@@ -630,17 +703,37 @@ function ScheduleScreen({
       )}
       <Legend />
       <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3 px-1">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-            {developmentFallback ? "Schedule unavailable" : schedule?.version.label}
-          </p>
-          {authContext.role === "admin" && !developmentFallback && (
-            <Link href="/admin/schedule-versions" className="text-xs font-extrabold text-cyan-700">
-              Manage versions
-            </Link>
-          )}
+        <div className="rounded-2xl border border-white bg-white/90 px-3 py-2 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+                {developmentFallback ? "Schedule unavailable" : schedule?.version.label}
+              </p>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {effectiveSelectedDay === days.find((day) => day.dateValue === todayValue)?.day
+                  ? "Showing today"
+                  : showPastDays
+                    ? "Showing full schedule"
+                    : "Showing upcoming schedule"}
+              </p>
+            </div>
+            {authContext.role === "admin" && !developmentFallback && (
+              <Link href="/admin/schedule-versions" className="shrink-0 text-xs font-extrabold text-cyan-700">
+                Manage versions
+              </Link>
+            )}
+          </div>
+          <label className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-600">
+            Show past days
+            <input
+              type="checkbox"
+              checked={showPastDays}
+              onChange={(event) => setShowPastDays(event.target.checked)}
+              className="h-4 w-4"
+            />
+          </label>
         </div>
-        {days.map((day) => (
+        {visibleDays.map((day) => (
           <DayScheduleCard
             key={day.day}
             day={day}
@@ -2365,6 +2458,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     loading: !developmentFallback,
     error: "",
     activeSchedule: null,
+    timezone: "America/Los_Angeles",
     checked: Boolean(developmentFallback)
   });
 
@@ -2390,15 +2484,17 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     const supabase = createClient();
     const { data: department, error: departmentError } = await supabase
       .from("departments")
-      .select("active_schedule_version_id")
+      .select("active_schedule_version_id, timezone")
       .eq("id", authContext.departmentId)
       .maybeSingle();
+    const timezone = (department?.timezone as string | null | undefined) || "America/Los_Angeles";
 
     if (departmentError) {
       setScheduleState({
         loading: false,
         error: "Permission denied or department schedule settings could not be loaded.",
         activeSchedule: null,
+        timezone,
         checked: true
       });
       return;
@@ -2407,7 +2503,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     const activeVersionId = department?.active_schedule_version_id as string | null | undefined;
 
     if (!activeVersionId) {
-      setScheduleState({ loading: false, error: "", activeSchedule: null, checked: true });
+      setScheduleState({ loading: false, error: "", activeSchedule: null, timezone, checked: true });
       return;
     }
 
@@ -2423,6 +2519,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         loading: false,
         error: "The active schedule version could not be loaded.",
         activeSchedule: null,
+        timezone,
         checked: true
       });
       return;
@@ -2491,6 +2588,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         loading: false,
         error: "Schedule coordination data could not be loaded. Confirm required migrations are applied.",
         activeSchedule: null,
+        timezone,
         checked: true
       });
       return;
@@ -2499,6 +2597,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     setScheduleState({
       loading: false,
       error: "",
+      timezone,
       activeSchedule: adaptActiveSchedule(
         version as ScheduleVersionRow,
         (entries ?? []) as ScheduleEntryRow[],
@@ -2549,6 +2648,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               loading={scheduleState.loading}
               error={scheduleState.error}
               schedule={scheduleState.activeSchedule}
+              timezone={scheduleState.timezone}
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
             />

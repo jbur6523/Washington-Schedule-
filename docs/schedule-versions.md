@@ -21,6 +21,23 @@ If `active_schedule_version_id` is empty, the Schedule screen shows:
 
 Admins see a link to create a schedule version. The app does not silently fall back to placeholder schedule data once authenticated.
 
+## Current-Day Display
+
+The Schedule screen defaults to the current day when that date exists in the active schedule.
+
+Current day is calculated from `departments.timezone` when available. If no department timezone is set, the app falls back to `America/Los_Angeles`.
+
+Default selection rules:
+
+- If today exists in the active schedule, show today.
+- If today does not exist, show the next upcoming scheduled date.
+- If no upcoming date exists, show the most recent schedule date.
+- If the active version has no rows, show the empty schedule state.
+
+If the app stays open across midnight, it checks the date periodically and moves the default view forward when needed.
+
+Past days are hidden by default to keep the Schedule screen focused on today and upcoming work. Users can turn on `Show past days` to review older entries. This is display filtering only. Past schedule rows are never deleted automatically.
+
 ## Manual Schedule Builder
 
 Admins can open:
@@ -82,14 +99,25 @@ Admins can also open:
 
 `/admin/import-schedule`
 
-The import workflow supports uploading source images/PDF metadata, browser image compression, manual structured paste, editable review rows, roster matching, row removal for crossed-out names, optional Short Shift alerts, and schedule version creation.
+The import workflow supports uploading source images/PDF metadata, browser image compression, manual structured paste, editable review rows, roster matching, row removal for crossed-out names, optional Short Shift alerts, schedule version creation, and appending reviewed rows to the current active schedule.
 
 Import results are review-first. They never auto-publish.
 
-Final actions:
+Import modes:
 
-- Save as Draft/Review creates a schedule version and entries without making it active.
-- Save and Publish creates a schedule version, entries, optional Short Shift alerts, publishes it, and sets it as active.
+- Create new schedule version creates a new version and can be saved as Draft/Review or saved and published.
+- Add to current active schedule inserts reviewed rows into `departments.active_schedule_version_id`.
+
+When appending to the current active schedule:
+
+- Existing schedule entries are not deleted.
+- Existing Short Shift alerts are not deleted.
+- Exact duplicate schedule rows show as `Already exists / skipped`.
+- Exact duplicate Short Shift alerts are skipped.
+- Conflicting rows for the same staff/date/shift are marked Needs Review.
+- Imported dates outside the current version range require admin confirmation before the version range expands.
+
+Appending is useful when adding newly received schedule days to the active schedule without replacing what is already published.
 
 ## Short Shift Rules
 
@@ -117,6 +145,8 @@ Publishing a version:
 4. Updates `departments.active_schedule_version_id`.
 
 Previous published versions are retained. They are not deleted.
+
+Adding rows to the current active schedule does not create a new version and does not republish a different version. It updates the existing active version by inserting reviewed non-duplicate rows and optional Short Shift alerts.
 
 ## Rollback
 

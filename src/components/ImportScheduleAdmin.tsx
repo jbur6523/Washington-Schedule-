@@ -29,6 +29,8 @@ type StaffProfile = {
 };
 
 type StaffMatchSource = "username" | "display_name" | "full_name" | "last_name" | "manual_review" | "unmatched" | "ambiguous";
+type ImportMode = "create_new" | "append_current";
+type ImportRowStatus = "new" | "already_exists" | "needs_review";
 
 type SourceFilePreview = {
   id: string;
@@ -58,6 +60,8 @@ type ReviewRow = {
   confidence: number;
   needs_review: boolean;
   validation_status: string;
+  import_status: ImportRowStatus;
+  import_note: string;
   removed: boolean;
 };
 
@@ -69,6 +73,36 @@ type ShortShiftDraft = {
   shift_end: string;
   severity: ShiftShortageSeverity;
   message: string;
+  import_status: ImportRowStatus;
+  import_note: string;
+  removed: boolean;
+};
+
+type ActiveVersionSummary = {
+  id: string;
+  label: string;
+  starts_on: string | null;
+  ends_on: string | null;
+};
+
+type ExistingScheduleEntry = {
+  id: string;
+  staff_profile_id: string;
+  shift_date: string;
+  shift_type: ShiftType;
+  shift_start: string;
+  shift_end: string;
+  entry_status: ScheduleEntryStatus;
+};
+
+type ExistingShortShift = {
+  id: string;
+  shift_date: string;
+  shift_type: ShiftType;
+  shift_start: string;
+  shift_end: string;
+  severity: ShiftShortageSeverity;
+  message: string | null;
 };
 
 type VersionForm = {
@@ -96,7 +130,10 @@ const emptyShortShiftDraft: ShortShiftDraft = {
   shift_start: "06:30",
   shift_end: "19:00",
   severity: "short",
-  message: ""
+  message: "",
+  import_status: "new",
+  import_note: "New row",
+  removed: false
 };
 
 function applyStandardShiftTimes<T extends { shift_type: ShiftType; shift_start: string; shift_end: string }>(
@@ -241,6 +278,62 @@ function validateReviewRow(row: ReviewRow) {
   return issues.length ? issues.join(", ") : "Ready";
 }
 
+function entryKey(row: {
+  shift_date: string;
+  shift_type: string;
+  shift_start: string;
+  shift_end: string;
+  matched_staff_profile_id?: string;
+  staff_profile_id?: string;
+  entry_status: string;
+}) {
+  return [
+    row.shift_date,
+    row.shift_type,
+    row.shift_start,
+    row.shift_end,
+    row.matched_staff_profile_id ?? row.staff_profile_id ?? "",
+    row.entry_status
+  ].join("|");
+}
+
+function staffShiftKey(row: {
+  shift_date: string;
+  shift_type: string;
+  matched_staff_profile_id?: string;
+  staff_profile_id?: string;
+}) {
+  return [row.shift_date, row.shift_type, row.matched_staff_profile_id ?? row.staff_profile_id ?? ""].join("|");
+}
+
+function shortShiftKey(row: {
+  shift_date: string;
+  shift_type: string;
+  shift_start: string;
+  shift_end: string;
+  severity: string;
+  message: string | null;
+}) {
+  return [
+    row.shift_date,
+    row.shift_type,
+    row.shift_start,
+    row.shift_end,
+    row.severity,
+    (row.message ?? "").trim()
+  ].join("|");
+}
+
+function rangeFromDates(dates: string[]) {
+  const validDates = dates.filter(isValidDate).sort();
+
+  if (validDates.length === 0) {
+    return { startsOn: "", endsOn: "" };
+  }
+
+  return { startsOn: validDates[0], endsOn: validDates[validDates.length - 1] };
+}
+
 async function compressImage(file: File): Promise<SourceFilePreview> {
   const previewFallback = URL.createObjectURL(file);
 
@@ -300,6 +393,11 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   const [shortShiftDrafts, setShortShiftDrafts] = useState<ShortShiftDraft[]>([]);
   const [shortShiftForm, setShortShiftForm] = useState<ShortShiftDraft>(emptyShortShiftDraft);
   const [versionForm, setVersionForm] = useState<VersionForm>(emptyVersionForm);
+  const [importMode, setImportMode] = useState<ImportMode>("create_new");
+  const [activeVersion, setActiveVersion] = useState<ActiveVersionSummary | null>(null);
+  const [existingEntries, setExistingEntries] = useState<ExistingScheduleEntry[]>([]);
+  const [existingShortages, setExistingShortages] = useState<ExistingShortShift[]>([]);
+  const [expandRangeConfirmed, setExpandRangeConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -307,6 +405,10 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   const [createdVersionId, setCreatedVersionId] = useState("");
 
   const activeRows = useMemo(() => reviewRows.filter((row) => !row.removed), [reviewRows]);
+  const activeShortShiftDrafts = useMemo(
+    () => shortShiftDrafts.filter((shortage) => !shortage.removed),
+    [shortShiftDrafts]
+  );
   const summary = useMemo(() => {
     const needsReview = activeRows.filter((row) => validateReviewRow(row) !== "Ready").length;
 
@@ -318,21 +420,181 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
       available: activeRows.filter((row) => row.entry_status === "available").length
     };
   }, [activeRows]);
-  const canApprove = activeRows.length > 0 && summary.needsReview === 0;
+  const importedDateRange = useMemo(() => {
+    const dates = [
+      ...activeRows.map((row) => row.shift_date),
+      ...activeShortShiftDrafts.map((shortage) => shortage.shift_date),
+      versionForm.starts_on,
+      versionForm.ends_on
+    ];
+
+    return rangeFromDates(dates);
+  }, [activeRows, activeShortShiftDrafts, versionForm.ends_on, versionForm.starts_on]);
+  const rangeExpansion = useMemo(() => {
+    if (importMode !== "append_current" || !activeVersion) {
+      return { needed: false, startsOn: activeVersion?.starts_on ?? "", endsOn: activeVersion?.ends_on ?? "" };
+    }
+
+    const currentStart = activeVersion.starts_on || importedDateRange.startsOn;
+    const currentEnd = activeVersion.ends_on || importedDateRange.endsOn;
+    const nextStart =
+      importedDateRange.startsOn && currentStart
+        ? importedDateRange.startsOn < currentStart
+          ? importedDateRange.startsOn
+          : currentStart
+        : currentStart || importedDateRange.startsOn;
+    const nextEnd =
+      importedDateRange.endsOn && currentEnd
+        ? importedDateRange.endsOn > currentEnd
+          ? importedDateRange.endsOn
+          : currentEnd
+        : currentEnd || importedDateRange.endsOn;
+
+    return {
+      needed: Boolean((nextStart && nextStart !== activeVersion.starts_on) || (nextEnd && nextEnd !== activeVersion.ends_on)),
+      startsOn: nextStart,
+      endsOn: nextEnd
+    };
+  }, [activeVersion, importMode, importedDateRange.endsOn, importedDateRange.startsOn]);
+  const canApprove =
+    activeRows.length + activeShortShiftDrafts.length > 0 &&
+    summary.needsReview === 0 &&
+    (importMode !== "append_current" || !rangeExpansion.needed || expandRangeConfirmed);
 
   const staffById = useMemo(() => new Map(staffProfiles.map((profile) => [profile.id, profile])), [staffProfiles]);
+
+  const annotateRowsForImportMode = useCallback(
+    (rows: ReviewRow[]) => {
+      if (importMode !== "append_current" || !activeVersion) {
+        return rows.map((row) => ({
+          ...row,
+          import_status: validateReviewRow(row) === "Ready" ? ("new" as ImportRowStatus) : ("needs_review" as ImportRowStatus),
+          import_note: validateReviewRow(row) === "Ready" ? "New row" : validateReviewRow(row),
+          removed: false
+        }));
+      }
+
+      const exactExisting = new Set(existingEntries.map((entry) => entryKey(entry)));
+      const existingByStaffShift = new Map<string, ExistingScheduleEntry[]>();
+
+      existingEntries.forEach((entry) => {
+        const current = existingByStaffShift.get(staffShiftKey(entry)) ?? [];
+        current.push(entry);
+        existingByStaffShift.set(staffShiftKey(entry), current);
+      });
+
+      return rows.map((row) => {
+        const validation = validateReviewRow(row);
+
+        if (validation !== "Ready") {
+          return {
+            ...row,
+            import_status: "needs_review" as ImportRowStatus,
+            import_note: validation,
+            removed: false,
+            needs_review: true,
+            validation_status: validation
+          };
+        }
+
+        if (exactExisting.has(entryKey(row))) {
+          return {
+            ...row,
+            import_status: "already_exists" as ImportRowStatus,
+            import_note: "Already exists / skipped",
+            removed: true,
+            needs_review: false,
+            validation_status: "Already exists / skipped"
+          };
+        }
+
+        const relatedExisting = existingByStaffShift.get(staffShiftKey(row)) ?? [];
+        const statusConflict = relatedExisting.some(
+          (entry) => entry.shift_start === row.shift_start && entry.shift_end === row.shift_end && entry.entry_status !== row.entry_status
+        );
+        const timeConflict = relatedExisting.some(
+          (entry) => entry.shift_start !== row.shift_start || entry.shift_end !== row.shift_end
+        );
+
+        if (statusConflict || timeConflict) {
+          const message = statusConflict
+            ? "Same staff/date/shift exists with different status"
+            : "Same staff/date/shift exists with different times";
+          return {
+            ...row,
+            import_status: "needs_review" as ImportRowStatus,
+            import_note: message,
+            removed: false,
+            needs_review: true,
+            validation_status: message
+          };
+        }
+
+        return {
+          ...row,
+          import_status: "new" as ImportRowStatus,
+          import_note: "New row",
+          removed: false,
+          needs_review: false,
+          validation_status: row.validation_status === "Ready" ? "Ready" : row.validation_status
+        };
+      });
+    },
+    [activeVersion, existingEntries, importMode]
+  );
+
+  const annotateShortShiftsForImportMode = useCallback(
+    (shortages: ShortShiftDraft[]) => {
+      if (importMode !== "append_current" || !activeVersion) {
+        return shortages.map((shortage) => ({
+          ...shortage,
+          import_status: "new" as ImportRowStatus,
+          import_note: "New row",
+          removed: false
+        }));
+      }
+
+      const existing = new Set(existingShortages.map((shortage) => shortShiftKey(shortage)));
+
+      return shortages.map((shortage) => {
+        if (existing.has(shortShiftKey(shortage))) {
+          return {
+            ...shortage,
+            import_status: "already_exists" as ImportRowStatus,
+            import_note: "Already exists / skipped",
+            removed: true
+          };
+        }
+
+        return {
+          ...shortage,
+          import_status: "new" as ImportRowStatus,
+          import_note: "New row",
+          removed: false
+        };
+      });
+    },
+    [activeVersion, existingShortages, importMode]
+  );
 
   const loadStaff = useCallback(async () => {
     setLoading(true);
     setError("");
 
     const supabase = createClient();
-    const { data, error: staffError } = await supabase
-      .from("staff_profiles")
-      .select("id, display_name, username, username_normalized, employment_type, home_assignment, is_active")
-      .eq("department_id", authContext.departmentId)
-      .eq("is_active", true)
-      .order("display_name", { ascending: true });
+    const [{ data, error: staffError }, { data: department, error: departmentError }] = await Promise.all([
+      supabase
+        .from("staff_profiles")
+        .select("id, display_name, username, username_normalized, employment_type, home_assignment, is_active")
+        .eq("department_id", authContext.departmentId)
+        .eq("is_active", true)
+        .order("display_name", { ascending: true }),
+      supabase
+        .from("departments")
+        .select("active_schedule_version_id")
+        .eq("id", authContext.departmentId)
+        .maybeSingle()
+    ]);
 
     setLoading(false);
 
@@ -342,6 +604,52 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     }
 
     setStaffProfiles((data ?? []) as StaffProfile[]);
+
+    if (departmentError) {
+      setError("Unable to load current active schedule version.");
+      return;
+    }
+
+    const activeVersionId = department?.active_schedule_version_id as string | null | undefined;
+
+    if (!activeVersionId) {
+      setActiveVersion(null);
+      setExistingEntries([]);
+      setExistingShortages([]);
+      setImportMode("create_new");
+      return;
+    }
+
+    const [
+      { data: versionData, error: versionError },
+      { data: entriesData, error: entriesError },
+      { data: shortageData, error: shortageError }
+    ] = await Promise.all([
+      supabase
+        .from("schedule_versions")
+        .select("id, label, starts_on, ends_on")
+        .eq("id", activeVersionId)
+        .maybeSingle(),
+      supabase
+        .from("schedule_entries")
+        .select("id, staff_profile_id, shift_date, shift_type, shift_start, shift_end, entry_status")
+        .eq("schedule_version_id", activeVersionId),
+      supabase
+        .from("shift_shortages")
+        .select("id, shift_date, shift_type, shift_start, shift_end, severity, message")
+        .eq("schedule_version_id", activeVersionId)
+        .eq("status", "active")
+    ]);
+
+    if (versionError || entriesError || shortageError || !versionData) {
+      setError("Unable to load existing schedule rows for duplicate checks.");
+      return;
+    }
+
+    setActiveVersion(versionData as ActiveVersionSummary);
+    setExistingEntries((entriesData ?? []) as ExistingScheduleEntry[]);
+    setExistingShortages((shortageData ?? []) as ExistingShortShift[]);
+    setImportMode("append_current");
   }, [authContext.departmentId]);
 
   useEffect(() => {
@@ -351,6 +659,16 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
 
     return () => window.clearTimeout(timer);
   }, [loadStaff]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setReviewRows((current) => annotateRowsForImportMode(current));
+      setShortShiftDrafts((current) => annotateShortShiftsForImportMode(current));
+      setExpandRangeConfirmed(false);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [annotateRowsForImportMode, annotateShortShiftsForImportMode, importMode]);
 
   const handleFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
@@ -397,13 +715,15 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           confidence: match.confidence,
           needs_review: match.needsReview,
           validation_status: match.status,
+          import_status: "new",
+          import_note: "New row",
           removed: false
         };
 
         return { ...row, validation_status: validateReviewRow(row) === "Ready" ? match.status : validateReviewRow(row) };
       });
 
-    setReviewRows(rows);
+    setReviewRows(annotateRowsForImportMode(rows));
     setStep(2);
     setSuccess(`${rows.length} draft rows created for review.`);
   };
@@ -499,8 +819,10 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
             confidence: match.confidence,
             needs_review: match.needsReview,
             validation_status: match.status,
-            removed: false
-          };
+          import_status: "new",
+          import_note: "New row",
+          removed: false
+        };
 
           entryRows.push({ ...row, validation_status: validateReviewRow(row) === "Ready" ? match.status : validateReviewRow(row) });
           return;
@@ -536,8 +858,11 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
               shift_type: rawShiftType as ShiftType,
               shift_start: shiftStart,
               shift_end: shiftEnd,
-              severity: rawSeverity as ShiftShortageSeverity,
-              message: message.slice(0, 140)
+            severity: rawSeverity as ShiftShortageSeverity,
+              message: message.slice(0, 140),
+              import_status: "new",
+              import_note: "New row",
+              removed: false
             });
           }
           return;
@@ -546,21 +871,31 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         errors.push(`Line ${lineNumber}: unknown record type "${parts[0] ?? ""}".`);
       });
 
-    if (!parsedVersion) {
+    if (!parsedVersion && importMode === "create_new") {
       errors.push("SCHEDULE_VERSION line is required.");
     }
 
     setParseErrors(errors);
 
-    if (errors.length > 0 || !parsedVersion) {
+    if (errors.length > 0 || (!parsedVersion && importMode === "create_new")) {
       setError("Schedule code has parse errors. Fix them before continuing.");
       return;
     }
 
     setError("");
-    setVersionForm(parsedVersion);
-    setReviewRows(entryRows);
-    setShortShiftDrafts(shortageRows);
+    if (parsedVersion) {
+      setVersionForm(parsedVersion);
+    } else {
+      const parsedRange = rangeFromDates([...entryRows.map((row) => row.shift_date), ...shortageRows.map((row) => row.shift_date)]);
+      setVersionForm({
+        label: activeVersion?.label ?? "",
+        starts_on: parsedRange.startsOn,
+        ends_on: parsedRange.endsOn,
+        status: "review"
+      });
+    }
+    setReviewRows(annotateRowsForImportMode(entryRows));
+    setShortShiftDrafts(annotateShortShiftsForImportMode(shortageRows));
     setStep(2);
     setSuccess(`${entryRows.length} ENTRY rows and ${shortageRows.length} SHORT_SHIFT alerts parsed for review.`);
   };
@@ -594,7 +929,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         }
 
         next.validation_status = validateReviewRow(next);
-        return next;
+        return annotateRowsForImportMode([next])[0];
       })
     );
   };
@@ -621,6 +956,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         confidence: 0,
         needs_review: true,
         validation_status: "needs review",
+        import_status: "needs_review",
+        import_note: "Manual row needs review",
         removed: false
       }
     ]);
@@ -629,26 +966,42 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
 
   const addShortShift = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const draft = { ...shortShiftForm, id: shortShiftForm.id || createRowId(), message: shortShiftForm.message.slice(0, 140) };
+    const draft = {
+      ...shortShiftForm,
+      id: shortShiftForm.id || createRowId(),
+      message: shortShiftForm.message.slice(0, 140),
+      import_status: "new" as ImportRowStatus,
+      import_note: "New row",
+      removed: false
+    };
 
     setShortShiftDrafts((current) => {
       if (shortShiftForm.id) {
-        return current.map((item) => (item.id === shortShiftForm.id ? draft : item));
+        return annotateShortShiftsForImportMode(current.map((item) => (item.id === shortShiftForm.id ? draft : item)));
       }
 
-      return [...current, draft];
+      return annotateShortShiftsForImportMode([...current, draft]);
     });
     setShortShiftForm(emptyShortShiftDraft);
   };
 
   const saveImport = async (publish: boolean) => {
     if (!canApprove) {
-      setError("Resolve all Needs Review rows before creating a schedule version.");
+      setError(
+        importMode === "append_current" && rangeExpansion.needed && !expandRangeConfirmed
+          ? "Confirm schedule range expansion before adding these rows."
+          : "Resolve all Needs Review rows before saving this import."
+      );
       return;
     }
 
-    if (!versionForm.label.trim()) {
+    if (importMode === "create_new" && !versionForm.label.trim()) {
       setError("Schedule version label is required.");
+      return;
+    }
+
+    if (importMode === "append_current" && !activeVersion) {
+      setError("No active schedule version is available to add rows to.");
       return;
     }
 
@@ -657,7 +1010,9 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     setSuccess("");
 
     const supabase = createClient();
-    const sourceFilename = sourceFiles.map((file) => file.name).join(", ").slice(0, 500) || "Manual structured paste";
+    const sourceFilename =
+      sourceFiles.map((file) => file.name).join(", ").slice(0, 500) ||
+      (scheduleCodeText.trim() ? "Schedule code import" : "Manual structured paste");
     const originalSize = sourceFiles.reduce((total, file) => total + file.originalSize, 0);
     const compressedSize = sourceFiles.reduce((total, file) => total + (file.compressedSize ?? file.originalSize), 0);
     const { data: importRecord, error: importError } = await supabase
@@ -683,78 +1038,87 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     }
 
     const importId = importRecord.id as string;
-    const { error: rowsError } = await supabase.from("schedule_import_rows").insert(
-      activeRows.map((row, index) => ({
-        schedule_import_id: importId,
-        row_index: index + 1,
-        shift_date: row.shift_date,
-        day_of_week: row.day_of_week,
-        shift_type: row.shift_type,
-        shift_start: row.shift_start,
-        shift_end: row.shift_end,
-        shift_time: `${row.shift_start}-${row.shift_end}`,
-        raw_staff_name: row.raw_staff_name,
-        matched_staff_profile_id: row.matched_staff_profile_id,
-        employment_type: row.employment_type || null,
-        status: row.entry_status,
-        notes: row.notes || null,
-        confidence: row.confidence,
-        needs_review: false,
-        validation_status: "Ready"
-      }))
-    );
+    if (activeRows.length > 0) {
+      const { error: rowsError } = await supabase.from("schedule_import_rows").insert(
+        activeRows.map((row, index) => ({
+          schedule_import_id: importId,
+          row_index: index + 1,
+          shift_date: row.shift_date,
+          day_of_week: row.day_of_week,
+          shift_type: row.shift_type,
+          shift_start: row.shift_start,
+          shift_end: row.shift_end,
+          shift_time: `${row.shift_start}-${row.shift_end}`,
+          raw_staff_name: row.raw_staff_name,
+          matched_staff_profile_id: row.matched_staff_profile_id,
+          employment_type: row.employment_type || null,
+          status: row.entry_status,
+          notes: row.notes || null,
+          confidence: row.confidence,
+          needs_review: false,
+          validation_status: "Ready"
+        }))
+      );
 
-    if (rowsError) {
-      setSaving(false);
-      setError("Import record was created, but review rows could not be saved. Confirm the Phase 8 migration is applied.");
-      return;
+      if (rowsError) {
+        setSaving(false);
+        setError("Import record was created, but review rows could not be saved. Confirm the Phase 8 migration is applied.");
+        return;
+      }
     }
 
-    const { data: version, error: versionError } = await supabase
-      .from("schedule_versions")
-      .insert({
-        department_id: authContext.departmentId,
-        label: versionForm.label.trim(),
-        starts_on: versionForm.starts_on || null,
-        ends_on: versionForm.ends_on || null,
-        status: publish ? "published" : versionForm.status,
-        created_by: authContext.profileId,
-        published_at: publish ? new Date().toISOString() : null,
-        published_by: publish ? authContext.profileId : null
-      })
-      .select("id")
-      .single();
+    let versionId = activeVersion?.id ?? "";
 
-    if (versionError || !version?.id) {
-      setSaving(false);
-      setError("Unable to create schedule version.");
-      return;
+    if (importMode === "create_new") {
+      const { data: version, error: versionError } = await supabase
+        .from("schedule_versions")
+        .insert({
+          department_id: authContext.departmentId,
+          label: versionForm.label.trim(),
+          starts_on: versionForm.starts_on || null,
+          ends_on: versionForm.ends_on || null,
+          status: publish ? "published" : versionForm.status,
+          created_by: authContext.profileId,
+          published_at: publish ? new Date().toISOString() : null,
+          published_by: publish ? authContext.profileId : null
+        })
+        .select("id")
+        .single();
+
+      if (versionError || !version?.id) {
+        setSaving(false);
+        setError("Unable to create schedule version.");
+        return;
+      }
+
+      versionId = version.id as string;
     }
 
-    const versionId = version.id as string;
-    const { error: entriesError } = await supabase.from("schedule_entries").insert(
-      activeRows.map((row) => ({
-        schedule_version_id: versionId,
-        department_id: authContext.departmentId,
-        staff_profile_id: row.matched_staff_profile_id,
-        shift_date: row.shift_date,
-        day_of_week: row.day_of_week,
-        shift_type: row.shift_type,
-        shift_start: row.shift_start,
-        shift_end: row.shift_end,
-        entry_status: row.entry_status
-      }))
-    );
+    if (activeRows.length > 0) {
+      const { error: entriesError } = await supabase.from("schedule_entries").insert(
+        activeRows.map((row) => ({
+          schedule_version_id: versionId,
+          department_id: authContext.departmentId,
+          staff_profile_id: row.matched_staff_profile_id,
+          shift_date: row.shift_date,
+          day_of_week: row.day_of_week,
+          shift_type: row.shift_type,
+          shift_start: row.shift_start,
+          shift_end: row.shift_end,
+          entry_status: row.entry_status
+        }))
+      );
 
-    if (entriesError) {
-      setSaving(false);
-      setError("Schedule version was created, but entries could not be saved.");
-      return;
+      if (entriesError) {
+        setSaving(false);
+        setError("Schedule version was created, but entries could not be saved.");
+        return;
+      }
     }
 
-    if (shortShiftDrafts.length > 0) {
+    if (activeShortShiftDrafts.length > 0) {
       const { error: shortagesError } = await supabase.from("shift_shortages").insert(
-        shortShiftDrafts.map((shortage) => ({
+        activeShortShiftDrafts.map((shortage) => ({
           schedule_version_id: versionId,
           department_id: authContext.departmentId,
           shift_date: shortage.shift_date,
@@ -770,6 +1134,23 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
       if (shortagesError) {
         setSaving(false);
         setError("Schedule entries were created, but Short Shift alerts could not be saved.");
+        return;
+      }
+    }
+
+    if (importMode === "append_current" && rangeExpansion.needed) {
+      const { error: rangeError } = await supabase
+        .from("schedule_versions")
+        .update({
+          starts_on: rangeExpansion.startsOn || null,
+          ends_on: rangeExpansion.endsOn || null
+        })
+        .eq("id", versionId)
+        .eq("department_id", authContext.departmentId);
+
+      if (rangeError) {
+        setSaving(false);
+        setError("Rows were added, but the schedule date range could not be expanded.");
         return;
       }
     }
@@ -790,7 +1171,13 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
     setSaving(false);
     setCreatedVersionId(versionId);
     setStep(4);
-    setSuccess(publish ? "Schedule imported, published, and set active." : "Schedule imported and saved for review.");
+    setSuccess(
+      importMode === "append_current"
+        ? "Schedule rows added to the current active schedule."
+        : publish
+          ? "Schedule imported, published, and set active."
+          : "Schedule imported and saved for review."
+    );
   };
 
   return (
@@ -809,6 +1196,43 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
             Crop photos to staffing schedule only. Do not upload patient information. If a person is crossed out on the source schedule, remove that row before approval.
           </p>
+          <div className="mt-4 rounded-3xl border border-cyan-100 bg-cyan-50/70 p-3">
+            <p className="text-sm font-black text-hospital-ink">Import mode</p>
+            {activeVersion ? (
+              <p className="mt-1 text-xs font-bold leading-5 text-cyan-900">
+                Current active schedule: {activeVersion.label}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs font-bold leading-5 text-cyan-900">
+                No active schedule is available, so imports must create a new schedule version.
+              </p>
+            )}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setImportMode("create_new")}
+                className={`min-h-11 rounded-2xl border px-3 text-sm font-extrabold ${
+                  importMode === "create_new"
+                    ? "border-cyan-300 bg-cyan-700 text-white"
+                    : "border-cyan-100 bg-white text-cyan-700"
+                }`}
+              >
+                Create new schedule version
+              </button>
+              <button
+                type="button"
+                onClick={() => activeVersion && setImportMode("append_current")}
+                disabled={!activeVersion}
+                className={`min-h-11 rounded-2xl border px-3 text-sm font-extrabold disabled:cursor-not-allowed disabled:opacity-50 ${
+                  importMode === "append_current"
+                    ? "border-cyan-300 bg-cyan-700 text-white"
+                    : "border-cyan-100 bg-white text-cyan-700"
+                }`}
+              >
+                Add to current active schedule
+              </button>
+            </div>
+          </div>
           <div className="mt-4 grid grid-cols-5 gap-1">
             {steps.map((label, index) => (
               <button
@@ -894,7 +1318,9 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                 Paste a schedule code block generated outside the app. This is structured schedule data, not app source code.
               </p>
               <p className="mt-2 text-xs font-bold leading-5 text-cyan-900">
-                Required records: SCHEDULE_VERSION, ENTRY, and optional SHORT_SHIFT. Blank lines are ignored.
+                {importMode === "append_current"
+                  ? "ENTRY and optional SHORT_SHIFT records are added to the current active schedule. SCHEDULE_VERSION is used only as source metadata."
+                  : "Required records: SCHEDULE_VERSION, ENTRY, and optional SHORT_SHIFT. Blank lines are ignored."}
               </p>
               <textarea
                 value={scheduleCodeText}
@@ -986,6 +1412,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
               {reviewRows.map((row) => {
                 const staff = staffById.get(row.matched_staff_profile_id);
                 const validation = validateReviewRow(row);
+                const rowReady = validation === "Ready";
 
                 return (
                   <article
@@ -993,7 +1420,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                     className={`rounded-3xl border p-3 ${
                       row.removed
                         ? "border-slate-100 bg-slate-100 opacity-60"
-                        : validation === "Ready"
+                        : rowReady && row.import_status === "new"
                           ? "border-emerald-100 bg-emerald-50/60"
                           : "border-amber-200 bg-amber-50"
                     }`}
@@ -1002,6 +1429,22 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                       <div>
                         <p className="text-sm font-black text-hospital-ink">Row {row.rowIndex}</p>
                         <p className="mt-1 text-xs font-bold text-slate-500">{validation}</p>
+                        <span
+                          className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold ${
+                            row.import_status === "already_exists"
+                              ? "bg-slate-200 text-slate-700"
+                              : row.import_status === "needs_review"
+                                ? "bg-amber-100 text-amber-800"
+                                : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {row.import_status === "already_exists"
+                            ? "Already exists / skipped"
+                            : row.import_status === "needs_review"
+                              ? "Needs Review"
+                              : "New row"}
+                        </span>
+                        {row.import_note && <p className="mt-1 text-xs font-bold text-slate-500">{row.import_note}</p>}
                       </div>
                       <button
                         type="button"
@@ -1153,52 +1596,80 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         {step === 3 && (
           <section className="space-y-4">
             <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <h2 className="text-xl font-black text-hospital-ink">Create Schedule Version</h2>
+              <h2 className="text-xl font-black text-hospital-ink">
+                {importMode === "append_current" ? "Add to Current Schedule" : "Create Schedule Version"}
+              </h2>
               {!canApprove && (
                 <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
-                  Approval is blocked until all required fields and Needs Review rows are resolved.
+                  {rangeExpansion.needed && !expandRangeConfirmed
+                    ? "Confirm schedule range expansion before adding these rows."
+                    : "Approval is blocked until all required fields and Needs Review rows are resolved."}
                 </p>
               )}
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="block sm:col-span-2">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Label</span>
-                  <input
-                    value={versionForm.label}
-                    onChange={(event) => setVersionForm({ ...versionForm, label: event.target.value })}
-                    placeholder="June 24-30 Schedule"
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Starts on</span>
-                  <input
-                    type="date"
-                    value={versionForm.starts_on}
-                    onChange={(event) => setVersionForm({ ...versionForm, starts_on: event.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Ends on</span>
-                  <input
-                    type="date"
-                    value={versionForm.ends_on}
-                    onChange={(event) => setVersionForm({ ...versionForm, ends_on: event.target.value })}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
-                  />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Save status</span>
-                  <select
-                    value={versionForm.status}
-                    onChange={(event) => setVersionForm({ ...versionForm, status: event.target.value as "draft" | "review" })}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
-                  >
-                    <option value="review">Review</option>
-                    <option value="draft">Draft</option>
-                  </select>
-                </label>
-              </div>
+              {importMode === "append_current" ? (
+                <div className="mt-4 space-y-3">
+                  <p className="rounded-2xl bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
+                    Rows will be added to {activeVersion?.label ?? "the current active schedule"}. Existing rows will not be deleted or replaced.
+                  </p>
+                  {rangeExpansion.needed && (
+                    <label className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-bold leading-6 text-amber-950">
+                      <input
+                        type="checkbox"
+                        checked={expandRangeConfirmed}
+                        onChange={(event) => setExpandRangeConfirmed(event.target.checked)}
+                        className="mt-1 h-4 w-4 shrink-0"
+                      />
+                      <span>
+                        This import includes dates outside the current schedule range. Expand schedule range to include them?
+                        <span className="mt-1 block text-xs font-extrabold uppercase tracking-wide">
+                          New range: {rangeExpansion.startsOn || "unknown"} to {rangeExpansion.endsOn || "unknown"}
+                        </span>
+                      </span>
+                    </label>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Label</span>
+                    <input
+                      value={versionForm.label}
+                      onChange={(event) => setVersionForm({ ...versionForm, label: event.target.value })}
+                      placeholder="June 24-30 Schedule"
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Starts on</span>
+                    <input
+                      type="date"
+                      value={versionForm.starts_on}
+                      onChange={(event) => setVersionForm({ ...versionForm, starts_on: event.target.value })}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Ends on</span>
+                    <input
+                      type="date"
+                      value={versionForm.ends_on}
+                      onChange={(event) => setVersionForm({ ...versionForm, ends_on: event.target.value })}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Save status</span>
+                    <select
+                      value={versionForm.status}
+                      onChange={(event) => setVersionForm({ ...versionForm, status: event.target.value as "draft" | "review" })}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none"
+                    >
+                      <option value="review">Review</option>
+                      <option value="draft">Draft</option>
+                    </select>
+                  </label>
+                </div>
+              )}
             </section>
 
             <form onSubmit={addShortShift} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -1223,7 +1694,24 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                   {shortShiftDrafts.map((shortage) => (
                     <div key={shortage.id} className="flex items-center justify-between gap-3 rounded-2xl bg-amber-50 px-3 py-2">
                       <p className="text-sm font-bold text-amber-950">{shortage.shift_date} - {shiftTypeLabels[shortage.shift_type]} - {shortage.severity}</p>
-                      <button type="button" onClick={() => setShortShiftDrafts((current) => current.filter((item) => item.id !== shortage.id))} className="text-xs font-black text-rose-700">Remove</button>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-extrabold ${
+                            shortage.import_status === "already_exists"
+                              ? "bg-slate-200 text-slate-700"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {shortage.import_status === "already_exists" ? "Skipped" : "New"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShortShiftDrafts((current) => current.filter((item) => item.id !== shortage.id))}
+                          className="text-xs font-black text-rose-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1246,22 +1734,35 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                 ))}
               </div>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => void saveImport(false)}
-                  disabled={saving || !canApprove}
-                  className="min-h-11 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save as Draft/Review"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void saveImport(true)}
-                  disabled={saving || !canApprove}
-                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-50"
-                >
-                  Save and Publish
-                </button>
+                {importMode === "append_current" ? (
+                  <button
+                    type="button"
+                    onClick={() => void saveImport(false)}
+                    disabled={saving || !canApprove}
+                    className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-50 sm:col-span-2"
+                  >
+                    {saving ? "Saving..." : "Add to Current Schedule"}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void saveImport(false)}
+                      disabled={saving || !canApprove}
+                      className="min-h-11 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700 disabled:opacity-50"
+                    >
+                      {saving ? "Saving..." : "Save as Draft/Review"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void saveImport(true)}
+                      disabled={saving || !canApprove}
+                      className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-50"
+                    >
+                      Save and Publish
+                    </button>
+                  </>
+                )}
               </div>
             </section>
           </section>
