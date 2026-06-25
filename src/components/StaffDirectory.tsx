@@ -5,7 +5,18 @@ import Link from "next/link";
 import { Mail, Phone, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import { coworkerTitleDetails, coworkerTitleValues, type CoworkerTitle } from "@/lib/coworker-titles";
+import {
+  coworkerTitleDetails,
+  coworkerTitleDisplayFromRecord,
+  coworkerTitleValues,
+  customCoworkerTitleDisplay,
+  isCoworkerTitle,
+  maxCustomCoworkerIconLength,
+  maxCustomCoworkerTitleLength,
+  maxCustomCoworkerTitles,
+  type CoworkerTitle,
+  type CoworkerTitleDisplay
+} from "@/lib/coworker-titles";
 
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
@@ -37,7 +48,17 @@ type StaffProfile = {
 type CoworkerTitleRow = {
   id: string;
   target_staff_profile_id: string;
-  title: CoworkerTitle;
+  title: CoworkerTitle | null;
+  title_key: CoworkerTitle | string | null;
+  custom_title: string | null;
+  custom_icon: string | null;
+  is_custom: boolean;
+};
+
+type CustomTitleDraft = {
+  key: string;
+  title: string;
+  icon: string;
 };
 
 type StaffDirectoryProps = {
@@ -88,11 +109,11 @@ function DirectoryCard({
   onOpenTitles
 }: {
   profile: StaffProfile;
-  assignedTitles: CoworkerTitle[];
+  assignedTitles: CoworkerTitleDisplay[];
   onOpenTitles?: (profile: StaffProfile) => void;
 }) {
   const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
-  const assignedTitleLabels = assignedTitles.map((title) => coworkerTitleDetails[title].label).join(", ");
+  const assignedTitleLabels = assignedTitles.map((title) => title.label).join(", ");
 
   return (
     <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -141,11 +162,11 @@ function DirectoryCard({
         )}
         {assignedTitles.map((title) => (
           <span
-            key={title}
-            title={coworkerTitleDetails[title].label}
+            key={title.key}
+            title={title.label}
             className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-cyan-50 text-sm"
           >
-            {coworkerTitleDetails[title].icon}
+            {title.icon}
           </span>
         ))}
       </div>
@@ -166,15 +187,31 @@ function DirectoryCard({
 function CoworkerTitleSheet({
   profile,
   draftTitles,
+  customTitles,
+  customTitleText,
+  customIconText,
+  customError,
   saving,
   onToggleTitle,
+  onCustomTitleTextChange,
+  onCustomIconTextChange,
+  onAddCustomTitle,
+  onRemoveCustomTitle,
   onCancel,
   onSave
 }: {
   profile: StaffProfile;
   draftTitles: CoworkerTitle[];
+  customTitles: CustomTitleDraft[];
+  customTitleText: string;
+  customIconText: string;
+  customError: string;
   saving: boolean;
   onToggleTitle: (title: CoworkerTitle) => void;
+  onCustomTitleTextChange: (value: string) => void;
+  onCustomIconTextChange: (value: string) => void;
+  onAddCustomTitle: () => void;
+  onRemoveCustomTitle: (key: string) => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
@@ -302,6 +339,91 @@ function CoworkerTitleSheet({
           })}
         </div>
 
+        <div className="mt-5 rounded-3xl border border-violet-100 bg-violet-50/60 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-hospital-ink">Custom Title</p>
+              <p className="mt-1 text-xs font-bold leading-5 text-violet-800">
+                Add up to {maxCustomCoworkerTitles} private custom titles for this coworker.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-extrabold text-violet-700">
+              {customTitles.length}/{maxCustomCoworkerTitles}
+            </span>
+          </div>
+
+          {customTitles.length > 0 && (
+            <div className="mt-3 grid gap-2">
+              {customTitles.map((customTitle) => (
+                <div
+                  key={customTitle.key}
+                  className="flex items-center justify-between gap-2 rounded-2xl border border-white bg-white px-3 py-2"
+                >
+                  <span className="inline-flex min-w-0 items-center gap-2 text-sm font-extrabold text-slate-700">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-violet-50 text-base">
+                      {customTitle.icon}
+                    </span>
+                    <span className="min-w-0 truncate">{customTitle.title}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveCustomTitle(customTitle.key)}
+                    disabled={saving}
+                    className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-extrabold text-slate-600 disabled:opacity-60"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_96px]">
+            <label className="grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+              Title
+              <input
+                value={customTitleText}
+                onChange={(event) => onCustomTitleTextChange(event.target.value)}
+                maxLength={maxCustomCoworkerTitleLength}
+                placeholder="Example: Snack Queen"
+                disabled={saving || customTitles.length >= maxCustomCoworkerTitles}
+                className="min-h-11 rounded-2xl border border-violet-100 bg-white px-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-violet-300 disabled:opacity-60"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+              Emoji
+              <input
+                value={customIconText}
+                onChange={(event) => onCustomIconTextChange(event.target.value)}
+                maxLength={maxCustomCoworkerIconLength}
+                placeholder="Example: ☕"
+                disabled={saving || customTitles.length >= maxCustomCoworkerTitles}
+                className="min-h-11 rounded-2xl border border-violet-100 bg-white px-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-violet-300 disabled:opacity-60"
+              />
+            </label>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-bold text-slate-500">
+              Title max {maxCustomCoworkerTitleLength}. Emoji max {maxCustomCoworkerIconLength}.
+            </p>
+            <button
+              type="button"
+              onClick={onAddCustomTitle}
+              disabled={saving || customTitles.length >= maxCustomCoworkerTitles}
+              className="min-h-10 shrink-0 rounded-2xl bg-violet-700 px-3 text-xs font-extrabold text-white disabled:opacity-60"
+            >
+              Add Custom Title
+            </button>
+          </div>
+
+          {customError && (
+            <p className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+              {customError}
+            </p>
+          )}
+        </div>
+
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -331,9 +453,13 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [directoryFilter, setDirectoryFilter] = useState<DirectoryFilter>("all");
-  const [coworkerTitles, setCoworkerTitles] = useState<Record<string, CoworkerTitle[]>>({});
+  const [coworkerTitles, setCoworkerTitles] = useState<Record<string, CoworkerTitleDisplay[]>>({});
   const [titleProfile, setTitleProfile] = useState<StaffProfile | null>(null);
   const [titleDraft, setTitleDraft] = useState<CoworkerTitle[]>([]);
+  const [customTitleDraft, setCustomTitleDraft] = useState<CustomTitleDraft[]>([]);
+  const [customTitleText, setCustomTitleText] = useState("");
+  const [customIconText, setCustomIconText] = useState("");
+  const [customTitleError, setCustomTitleError] = useState("");
   const [titleSaving, setTitleSaving] = useState(false);
   const canEdit = authContext.role === "admin" && !developmentFallback;
 
@@ -363,7 +489,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     if (!loadError && authContext.staffProfileId) {
       const { data: titleData, error: titleError } = await supabase
         .from("coworker_titles")
-        .select("id, target_staff_profile_id, title")
+        .select("id, target_staff_profile_id, title, title_key, custom_title, custom_icon, is_custom")
         .eq("department_id", authContext.departmentId)
         .eq("owner_staff_profile_id", authContext.staffProfileId);
 
@@ -371,11 +497,17 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         setError("Staff Directory loaded, but coworker titles could not be loaded.");
         setCoworkerTitles({});
       } else {
-        const nextTitles: Record<string, CoworkerTitle[]> = {};
+        const nextTitles: Record<string, CoworkerTitleDisplay[]> = {};
         ((titleData ?? []) as CoworkerTitleRow[]).forEach((row) => {
+          const displayTitle = coworkerTitleDisplayFromRecord(row);
+
+          if (!displayTitle) {
+            return;
+          }
+
           nextTitles[row.target_staff_profile_id] = [
             ...(nextTitles[row.target_staff_profile_id] ?? []),
-            row.title
+            displayTitle
           ];
         });
         setCoworkerTitles(nextTitles);
@@ -435,7 +567,23 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     }
 
     setTitleProfile(profile);
-    setTitleDraft(coworkerTitles[profile.id] ?? []);
+    setTitleDraft(
+      (coworkerTitles[profile.id] ?? [])
+        .map((title) => title.titleKey)
+        .filter((title): title is CoworkerTitle => typeof title === "string" && isCoworkerTitle(title))
+    );
+    setCustomTitleDraft(
+      (coworkerTitles[profile.id] ?? [])
+        .filter((title) => title.isCustom && title.customTitle && title.customIcon)
+        .map((title) => ({
+          key: title.key,
+          title: title.customTitle as string,
+          icon: title.customIcon as string
+        }))
+    );
+    setCustomTitleText("");
+    setCustomIconText("");
+    setCustomTitleError("");
     setSuccess("");
     setError("");
   };
@@ -451,7 +599,63 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
   const closeTitleSheet = useCallback(() => {
     setTitleProfile(null);
     setTitleDraft([]);
+    setCustomTitleDraft([]);
+    setCustomTitleText("");
+    setCustomIconText("");
+    setCustomTitleError("");
   }, []);
+
+  const addCustomTitle = () => {
+    const title = customTitleText.trim();
+    const icon = customIconText.trim();
+
+    if (!title) {
+      setCustomTitleError("Custom title is required.");
+      return;
+    }
+
+    if (title.length > maxCustomCoworkerTitleLength) {
+      setCustomTitleError(`Custom title must be ${maxCustomCoworkerTitleLength} characters or fewer.`);
+      return;
+    }
+
+    if (!icon) {
+      setCustomTitleError("Custom emoji/icon is required.");
+      return;
+    }
+
+    if (icon.length > maxCustomCoworkerIconLength) {
+      setCustomTitleError(`Custom emoji/icon must be ${maxCustomCoworkerIconLength} characters or fewer.`);
+      return;
+    }
+
+    if (customTitleDraft.length >= maxCustomCoworkerTitles) {
+      setCustomTitleError(`You can add up to ${maxCustomCoworkerTitles} custom titles for one coworker.`);
+      return;
+    }
+
+    if (customTitleDraft.some((item) => item.title.toLowerCase() === title.toLowerCase())) {
+      setCustomTitleError("That custom title is already added for this coworker.");
+      return;
+    }
+
+    setCustomTitleDraft((current) => [
+      ...current,
+      {
+        key: `custom-draft:${Date.now()}:${title.toLowerCase()}`,
+        title,
+        icon
+      }
+    ]);
+    setCustomTitleText("");
+    setCustomIconText("");
+    setCustomTitleError("");
+  };
+
+  const removeCustomTitle = (key: string) => {
+    setCustomTitleDraft((current) => current.filter((item) => item.key !== key));
+    setCustomTitleError("");
+  };
 
   const saveCoworkerTitles = async () => {
     if (!titleProfile || !authContext.staffProfileId) {
@@ -469,35 +673,44 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     setSuccess("");
 
     const supabase = createClient();
-    const existingTitles = coworkerTitles[titleProfile.id] ?? [];
-    const titlesToDelete = existingTitles.filter((title) => !titleDraft.includes(title));
-    const titlesToInsert = titleDraft.filter((title) => !existingTitles.includes(title));
+    const { error: deleteError } = await supabase
+      .from("coworker_titles")
+      .delete()
+      .eq("department_id", authContext.departmentId)
+      .eq("owner_staff_profile_id", authContext.staffProfileId)
+      .eq("target_staff_profile_id", titleProfile.id);
 
-    if (titlesToDelete.length > 0) {
-      const { error: deleteError } = await supabase
-        .from("coworker_titles")
-        .delete()
-        .eq("department_id", authContext.departmentId)
-        .eq("owner_staff_profile_id", authContext.staffProfileId)
-        .eq("target_staff_profile_id", titleProfile.id)
-        .in("title", titlesToDelete);
-
-      if (deleteError) {
-        setTitleSaving(false);
-        setError("Unable to remove coworker titles.");
-        return;
-      }
+    if (deleteError) {
+      setTitleSaving(false);
+      setError("Unable to remove existing coworker titles.");
+      return;
     }
 
-    if (titlesToInsert.length > 0) {
-      const { error: insertError } = await supabase.from("coworker_titles").insert(
-        titlesToInsert.map((title) => ({
-          department_id: authContext.departmentId,
-          owner_staff_profile_id: authContext.staffProfileId,
-          target_staff_profile_id: titleProfile.id,
-          title
-        }))
-      );
+    const rowsToInsert = [
+      ...titleDraft.map((title) => ({
+        department_id: authContext.departmentId,
+        owner_staff_profile_id: authContext.staffProfileId,
+        target_staff_profile_id: titleProfile.id,
+        title,
+        title_key: title,
+        is_custom: false,
+        custom_title: null,
+        custom_icon: null
+      })),
+      ...customTitleDraft.map((customTitle) => ({
+        department_id: authContext.departmentId,
+        owner_staff_profile_id: authContext.staffProfileId,
+        target_staff_profile_id: titleProfile.id,
+        title: null,
+        title_key: null,
+        is_custom: true,
+        custom_title: customTitle.title.trim(),
+        custom_icon: customTitle.icon.trim()
+      }))
+    ];
+
+    if (rowsToInsert.length > 0) {
+      const { error: insertError } = await supabase.from("coworker_titles").insert(rowsToInsert);
 
       if (insertError) {
         setTitleSaving(false);
@@ -506,13 +719,24 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       }
     }
 
+    const savedTitles = [
+      ...titleDraft.map((title) => coworkerTitleDisplayFromRecord({ title_key: title, is_custom: false })),
+      ...customTitleDraft.map((customTitle) =>
+        customCoworkerTitleDisplay(customTitle.title.trim(), customTitle.icon.trim(), customTitle.key)
+      )
+    ].filter((title): title is CoworkerTitleDisplay => Boolean(title));
+
     setCoworkerTitles((current) => ({
       ...current,
-      [titleProfile.id]: titleDraft
+      [titleProfile.id]: savedTitles
     }));
     setTitleSaving(false);
     setTitleProfile(null);
     setTitleDraft([]);
+    setCustomTitleDraft([]);
+    setCustomTitleText("");
+    setCustomIconText("");
+    setCustomTitleError("");
     setSuccess("Coworker titles saved.");
   };
 
@@ -592,8 +816,22 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
         <CoworkerTitleSheet
           profile={titleProfile}
           draftTitles={titleDraft}
+          customTitles={customTitleDraft}
+          customTitleText={customTitleText}
+          customIconText={customIconText}
+          customError={customTitleError}
           saving={titleSaving}
           onToggleTitle={toggleDraftTitle}
+          onCustomTitleTextChange={(value) => {
+            setCustomTitleText(value);
+            setCustomTitleError("");
+          }}
+          onCustomIconTextChange={(value) => {
+            setCustomIconText(value);
+            setCustomTitleError("");
+          }}
+          onAddCustomTitle={addCustomTitle}
+          onRemoveCustomTitle={removeCustomTitle}
           onCancel={closeTitleSheet}
           onSave={() => void saveCoworkerTitles()}
         />

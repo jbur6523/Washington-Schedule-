@@ -116,7 +116,13 @@ Schedule Code Import matches `staff_identifier` against `username_normalized` be
 
 Staff Directory cards include a private `Coworker Titles` control for signed-in staff. The control opens as a modal bottom sheet so title selection stays in context on mobile.
 
-Allowed titles are Bestie, Work Wife, Work Husband, Ride or Die, Emotional Support Coworker, Frenemy, and Trauma Bonded. Multiple titles are allowed for the same coworker.
+Preset titles are Bestie, Work Wife, Work Husband, Ride or Die, Emotional Support Coworker, Frenemy, and Trauma Bonded. Multiple preset titles are allowed for the same coworker.
+
+Users can also add up to 3 custom private titles per coworker. Custom titles require:
+
+- Title text, max 24 characters
+- Emoji/icon, max 4 characters
+- No duplicate custom title for the same coworker/user
 
 These titles are personal preferences:
 
@@ -124,7 +130,7 @@ These titles are personal preferences:
 - Other staff do not see your titles.
 - The tagged coworker does not need to approve.
 - Titles are not official roles and do not affect permissions.
-- Schedule cards show compact icons only, not full title words.
+- Schedule cards show compact icons only, not full preset or custom title words.
 
 The `coworker_titles` table is protected by RLS so users can read and mutate only their own rows.
 

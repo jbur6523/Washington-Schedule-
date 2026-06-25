@@ -1,5 +1,9 @@
 import type { ScheduleDay, ScheduleEntry, ShiftPost, StaffType } from "@/data/mockSchedule";
-import { coworkerTitleDetails, type CoworkerTitle } from "@/lib/coworker-titles";
+import {
+  coworkerTitleDisplayFromRecord,
+  type CoworkerTitle,
+  type CoworkerTitleDisplay
+} from "@/lib/coworker-titles";
 
 export type ScheduleVersionStatus = "draft" | "review" | "published" | "archived";
 export type ScheduleEntryStatus = "scheduled" | "available";
@@ -167,7 +171,11 @@ export type CoworkerTitleRow = {
   department_id: string;
   owner_staff_profile_id: string;
   target_staff_profile_id: string;
-  title: CoworkerTitle;
+  title: CoworkerTitle | null;
+  title_key: CoworkerTitle | string | null;
+  custom_title: string | null;
+  custom_icon: string | null;
+  is_custom: boolean;
 };
 
 export type ActiveSchedule = {
@@ -253,7 +261,7 @@ export function staffDisplayName(staffProfile?: StaffProfileSummary | StaffProfi
 
 function titleIconsForStaff(
   entry: ScheduleEntryRow,
-  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitle[]>
+  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitleDisplay[]>
 ) {
   if (!entry.staff_profile_id || !coworkerTitlesByStaffProfileId) {
     return undefined;
@@ -266,15 +274,15 @@ function titleIconsForStaff(
   }
 
   return titles.map((title) => ({
-    title,
-    label: coworkerTitleDetails[title].label,
-    icon: coworkerTitleDetails[title].icon
+    title: title.key,
+    label: title.label,
+    icon: title.icon
   }));
 }
 
 function entryToScheduleEntry(
   entry: ScheduleEntryRow,
-  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitle[]>
+  coworkerTitlesByStaffProfileId?: Map<string, CoworkerTitleDisplay[]>
 ): ScheduleEntry {
   return {
     id: entry.id,
@@ -326,11 +334,17 @@ export function adaptActiveSchedule(
   offers: ShiftRequestOfferRow[] = [],
   coworkerTitles: CoworkerTitleRow[] = []
 ): ActiveSchedule {
-  const coworkerTitlesByStaffProfileId = new Map<string, CoworkerTitle[]>();
+  const coworkerTitlesByStaffProfileId = new Map<string, CoworkerTitleDisplay[]>();
 
   coworkerTitles.forEach((row) => {
+    const displayTitle = coworkerTitleDisplayFromRecord(row);
+
+    if (!displayTitle) {
+      return;
+    }
+
     const current = coworkerTitlesByStaffProfileId.get(row.target_staff_profile_id) ?? [];
-    current.push(row.title);
+    current.push(displayTitle);
     coworkerTitlesByStaffProfileId.set(row.target_staff_profile_id, current);
   });
 

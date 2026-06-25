@@ -2577,7 +2577,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       authContext.staffProfileId
         ? supabase
             .from("coworker_titles")
-            .select("id, department_id, owner_staff_profile_id, target_staff_profile_id, title")
+            .select("id, department_id, owner_staff_profile_id, target_staff_profile_id, title, title_key, custom_title, custom_icon, is_custom")
             .eq("department_id", authContext.departmentId)
             .eq("owner_staff_profile_id", authContext.staffProfileId)
         : Promise.resolve({ data: [], error: null })
