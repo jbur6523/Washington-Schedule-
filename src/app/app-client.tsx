@@ -383,6 +383,195 @@ function ScheduleFilterTabs({
   );
 }
 
+function MyStatusCard({
+  authContext,
+  developmentFallback,
+  onSaved
+}: {
+  authContext: AuthenticatedUserContext;
+  developmentFallback?: boolean;
+  onSaved: () => Promise<void>;
+}) {
+  const [statusMessage, setStatusMessage] = useState("");
+  const [initialStatusMessage, setInitialStatusMessage] = useState("");
+  const [loading, setLoading] = useState(!developmentFallback && Boolean(authContext.staffProfileId));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const loadStatus = useCallback(async () => {
+    if (developmentFallback || !authContext.staffProfileId) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+    const { data, error: loadError } = await supabase
+      .from("staff_profiles")
+      .select("status_message")
+      .eq("id", authContext.staffProfileId)
+      .eq("department_id", authContext.departmentId)
+      .maybeSingle();
+
+    if (loadError) {
+      setError("Unable to load your status.");
+    } else {
+      const nextStatus = ((data?.status_message as string | null) ?? "").slice(0, 100);
+      setStatusMessage(nextStatus);
+      setInitialStatusMessage(nextStatus);
+    }
+
+    setLoading(false);
+  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadStatus();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadStatus]);
+
+  const saveStatus = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (developmentFallback) {
+      setError("Status updates are unavailable until the app configuration is complete.");
+      return;
+    }
+
+    if (!authContext.staffProfileId) {
+      setError("Your account is not linked to a staff profile yet.");
+      return;
+    }
+
+    const trimmed = statusMessage.trim();
+
+    if (trimmed.length > 100) {
+      setError("Status must be 100 characters or fewer.");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("");
+    setError("");
+
+    const response = await fetch("/api/settings/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statusMessage: trimmed })
+    });
+    const result = await response.json().catch(() => null);
+
+    setSaving(false);
+
+    if (!response.ok) {
+      setError(result?.message ?? "Unable to save status.");
+      return;
+    }
+
+    setStatusMessage(trimmed);
+    setInitialStatusMessage(trimmed);
+    setMessage(trimmed ? "Status updated." : "Status cleared.");
+    await onSaved();
+  };
+
+  const clearStatus = async () => {
+    setStatusMessage("");
+    setMessage("");
+    setError("");
+
+    if (!initialStatusMessage) {
+      return;
+    }
+
+    setSaving(true);
+
+    const response = await fetch("/api/settings/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ statusMessage: "" })
+    });
+    const result = await response.json().catch(() => null);
+
+    setSaving(false);
+
+    if (!response.ok) {
+      setError(result?.message ?? "Unable to clear status.");
+      return;
+    }
+
+    setInitialStatusMessage("");
+    setMessage("Status cleared.");
+    await onSaved();
+  };
+
+  return (
+    <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-black text-hospital-ink">My Status</h2>
+          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+            Optional. Shows under your name on the schedule until you change it.
+          </p>
+        </div>
+        <span className="rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
+          {statusMessage.length}/100
+        </span>
+      </div>
+
+      <form onSubmit={saveStatus} className="mt-3 grid gap-2">
+        <textarea
+          value={statusMessage}
+          onChange={(event) => {
+            setStatusMessage(event.target.value.slice(0, 100));
+            setMessage("");
+            setError("");
+          }}
+          maxLength={100}
+          rows={2}
+          disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
+          placeholder="Literally dying in the IMC"
+          className="min-h-20 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold leading-5 text-hospital-ink outline-none focus:border-cyan-300 disabled:opacity-60"
+        />
+        <p className="text-xs font-bold leading-5 text-slate-500">
+          Do not include patient information.
+        </p>
+        {message && (
+          <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+            {error}
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="submit"
+            disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
+            className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:opacity-60"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void clearStatus()}
+            disabled={loading || saving || developmentFallback || !authContext.staffProfileId || (!statusMessage && !initialStatusMessage)}
+            className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
+          >
+            Clear
+          </button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function shiftNoteKey(staffName: string, day: string, shiftTime: string) {
   return `${staffName}-${day}-${shiftTime}`;
 }
@@ -640,6 +829,11 @@ function ScheduleScreen({
         }}
       />
       <ScheduleSummary schedule={days} selectedDay={effectiveSelectedDay} shiftFilter={shiftFilter} />
+      <MyStatusCard
+        authContext={authContext}
+        developmentFallback={developmentFallback}
+        onSaved={onChanged}
+      />
       {availabilityError && (
         <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
           {availabilityError}
@@ -2454,7 +2648,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       supabase
         .from("schedule_entries")
         .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, staff_profiles(id, display_name, employment_type, home_assignment, is_active, status_message, status_updated_at)"
         )
         .eq("schedule_version_id", activeVersionId)
         .order("shift_date", { ascending: true })
@@ -2469,7 +2663,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       supabase
         .from("user_schedule_overrides")
         .select(
-          "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
+          "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, is_active, status_message, status_updated_at)"
         )
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)

@@ -28,6 +28,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `staff_profiles.account_claimed_at` and `staff_profiles.auth_user_id`: account claim/link state.
 - `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
+- General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.
 - Staff contact data is separate from schedule entries, requests, offers, import rows, and Coverage Board data.
 
 ### Schedules
@@ -131,6 +132,8 @@ General policy rules:
 - Emergency contacts are out of scope.
 
 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff users can update only their own optional contact fields through the protected My Settings route.
+
+Staff status messages are profile-level, not schedule-entry-level. Staff users update only their own status through the protected status settings route, and the Schedule screen renders that message under the staff member's name wherever they appear.
 
 Assigned username rule:
 

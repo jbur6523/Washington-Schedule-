@@ -74,6 +74,11 @@ function StaffScheduleRow({
             ))}
           </p>
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
+          {entry.statusMessage && (
+            <p className="mt-1 max-w-full rounded-xl bg-white/70 px-2 py-1 text-xs font-semibold leading-4 text-slate-600">
+              {entry.statusMessage}
+            </p>
+          )}
         </div>
         <StaffTypeBadge staffType={entry.staffType} compact />
       </div>

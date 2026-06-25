@@ -24,6 +24,8 @@ export type StaffProfileSummary = {
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
   is_active?: boolean;
+  status_message?: string | null;
+  status_updated_at?: string | null;
 };
 
 export type ScheduleVersionRow = {
@@ -300,6 +302,7 @@ function entryToScheduleEntry(
     staffType: displayStaffType(entry.staff_profiles),
     status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
     selfAdded: entry.id.startsWith("override-"),
+    statusMessage: firstStaffProfile(entry.staff_profiles)?.status_message ?? null,
     coworkerTitles: titleIconsForStaff(entry, coworkerTitlesByStaffProfileId)
   };
 }
