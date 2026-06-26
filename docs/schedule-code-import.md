@@ -10,6 +10,7 @@ This is not app source code. It is structured schedule data that the website par
 SCHEDULE_VERSION | label | starts_on | ends_on
 
 ENTRY | date | shift_type | shift_start | shift_end | staff_identifier | entry_status
+ENTRY | date | shift_type | shift_start | shift_end | staff_identifier | entry_status | lead
 
 SHORT_SHIFT | date | shift_type | shift_start | shift_end | severity | message
 ```
@@ -21,7 +22,7 @@ SCHEDULE_VERSION | Remaining Schedule | 2026-06-24 | 2026-06-25
 
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available
-ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled
+ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled | lead
 
 SHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
 ```
@@ -31,6 +32,25 @@ Blank lines are ignored. Comments after `#` are ignored:
 ```text
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available # Marshall Roberts
 ```
+
+## Shift Lead Markers
+
+Shift Lead is entry-level metadata stored on `schedule_entries.is_shift_lead`.
+
+It is public to authenticated schedule viewers and displays as a crown on Schedule cards. It is not the same as the app `lead` role and does not change permissions.
+
+Supported Schedule Code Import syntax:
+
+```text
+ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | heah | scheduled | lead
+ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | heah(L) | scheduled
+ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | Heather Heath (L) | scheduled
+ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | Heather Heath Lead | scheduled
+```
+
+The optional final field can be `lead`, `shift_lead`, or `true`.
+
+Inline lead markers such as `(L)`, `-L`, or `Lead` are removed before staff matching.
 
 ## Allowed Values
 
@@ -100,9 +120,11 @@ When ChatGPT converts Daily RVU sheets:
 - Pulmonary Rehab entries use `pulmonary_rehab` if included.
 - Names marked `PD-Avail` should be imported as `available`.
 - Names marked `PD` without `Avail` should be imported as `scheduled` unless the source clearly indicates available.
+- Names with `(L)`, `Lead`, or a clear handwritten `L` next to them should be marked as Shift Lead.
+- If a possible lead marker is unclear, mark the row Needs Review instead of guessing confidently.
 - Names that are crossed out should not be imported.
 - If crossed-out status is uncertain, require manual review rather than importing confidently.
-- SCN, L, PD, and similar labels can be ignored unless they affect scheduled vs available status.
+- SCN, PD, and similar labels can be ignored unless they affect scheduled vs available status.
 - If a handwritten note clearly says someone is not working or removed, do not include that person.
 - If a handwritten note is unclear, do not create a schedule row from it without review.
 

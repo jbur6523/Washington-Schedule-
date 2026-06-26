@@ -44,6 +44,7 @@ type EntryForm = {
   shift_end: string;
   staff_profile_id: string;
   entry_status: ScheduleEntryStatus;
+  is_shift_lead: boolean;
 };
 
 type ShortageForm = {
@@ -65,6 +66,7 @@ type BatchEntryRow = {
   raw_staff_name: string;
   staff_profile_id: string;
   entry_status: ScheduleEntryStatus | "";
+  is_shift_lead: boolean;
   status: "ready" | "needs_review";
   issue: string;
 };
@@ -82,7 +84,8 @@ const emptyEntryForm: EntryForm = {
   shift_start: "06:30",
   shift_end: "19:00",
   staff_profile_id: "",
-  entry_status: "scheduled"
+  entry_status: "scheduled",
+  is_shift_lead: false
 };
 
 const emptyShortageForm: ShortageForm = {
@@ -150,7 +153,8 @@ function entryToForm(entry: ScheduleEntryRow): EntryForm {
     shift_start: entry.shift_start.slice(0, 5),
     shift_end: entry.shift_end.slice(0, 5),
     staff_profile_id: entry.staff_profile_id ?? "",
-    entry_status: entry.entry_status
+    entry_status: entry.entry_status,
+    is_shift_lead: Boolean(entry.is_shift_lead)
   };
 }
 
@@ -241,7 +245,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
       supabase
         .from("schedule_entries")
         .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
         )
         .eq("schedule_version_id", selectedVersionId)
         .order("shift_date", { ascending: true })
@@ -424,7 +428,8 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
       shift_type: entryForm.shift_type,
       shift_start: entryForm.shift_start,
       shift_end: entryForm.shift_end,
-      entry_status: entryForm.entry_status
+      entry_status: entryForm.entry_status,
+      is_shift_lead: entryForm.is_shift_lead
     };
     const supabase = createClient();
     const result = entryForm.id
@@ -559,6 +564,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
           raw_staff_name: rawStaffName,
           staff_profile_id: matchedStaff?.id ?? "",
           entry_status: ["scheduled", "available"].includes(entryStatus) ? entryStatus : "",
+          is_shift_lead: false,
           status: issues.length ? "needs_review" : "ready",
           issue: issues.join("; ")
         } satisfies BatchEntryRow;
@@ -625,7 +631,8 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
         shift_type: row.shift_type,
         shift_start: row.shift_start,
         shift_end: row.shift_end,
-        entry_status: row.entry_status
+        entry_status: row.entry_status,
+        is_shift_lead: row.is_shift_lead
       }))
     );
 
@@ -954,6 +961,18 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                         <option value="available">Available</option>
                       </select>
                     </label>
+                    <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50/70 px-3 sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        checked={entryForm.is_shift_lead}
+                        onChange={(event) => setEntryForm({ ...entryForm, is_shift_lead: event.target.checked })}
+                        disabled={!selectedVersionCanEdit}
+                        className="h-4 w-4 rounded border-amber-300 text-cyan-700"
+                      />
+                      <span className="text-sm font-extrabold text-hospital-ink">
+                        👑 Shift Lead
+                      </span>
+                    </label>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button
@@ -1174,6 +1193,11 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                                 {formatShiftTime(entry.shift_start, entry.shift_end)} - {entryStatusLabels[entry.entry_status]}
                               </p>
                               <p className="mt-1 text-sm font-bold text-slate-700">
+                                {entry.is_shift_lead && (
+                                  <span className="mr-1" title="Shift Lead" aria-label="Shift Lead">
+                                    👑
+                                  </span>
+                                )}
                                 {staff?.display_name ?? "Unassigned staff"}
                               </p>
                             </div>

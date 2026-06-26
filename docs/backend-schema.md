@@ -35,6 +35,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 - `schedule_versions`: draft, review, published, and archived schedule versions.
 - `schedule_entries`: scheduled or available staff rows for a specific schedule version.
+- `schedule_entries.is_shift_lead`: entry-level Shift Lead flag shown as a crown on Schedule cards.
 - `shift_shortages`: shift-level Short Shift alerts. This is the only table that represents Short Shift.
 - `user_schedule_overrides`: staff-owned self-managed app schedule changes layered on top of the baseline schedule.
 
@@ -134,6 +135,8 @@ General policy rules:
 Staff Directory reads from `staff_profiles`. Admin users can create/edit these records, while staff users can view the directory according to RLS. Staff users can update only their own optional contact fields through the protected My Settings route.
 
 Staff status messages are profile-level, not schedule-entry-level. Staff users update only their own status through the protected status settings route, and the Schedule screen renders that message under the staff member's name wherever they appear.
+
+Shift Lead is schedule-entry-level, not profile-level. It is stored on `schedule_entries.is_shift_lead`, is visible to authenticated schedule viewers, and is separate from the app `lead` role.
 
 Assigned username rule:
 

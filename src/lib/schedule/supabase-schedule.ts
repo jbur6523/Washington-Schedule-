@@ -53,6 +53,7 @@ export type ScheduleEntryRow = {
   shift_start: string;
   shift_end: string;
   entry_status: ScheduleEntryStatus;
+  is_shift_lead?: boolean | null;
   staff_profiles: StaffProfileSummary | StaffProfileSummary[] | null;
 };
 
@@ -302,6 +303,7 @@ function entryToScheduleEntry(
     staffType: displayStaffType(entry.staff_profiles),
     status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
     selfAdded: entry.id.startsWith("override-"),
+    isShiftLead: Boolean(entry.is_shift_lead),
     statusMessage: firstStaffProfile(entry.staff_profiles)?.status_message ?? null,
     coworkerTitles: titleIconsForStaff(entry, coworkerTitlesByStaffProfileId)
   };
@@ -386,6 +388,7 @@ export function adaptActiveSchedule(
     shift_start: override.shift_start,
     shift_end: override.shift_end,
     entry_status: override.override_type === "add_available" ? "available" : "scheduled",
+    is_shift_lead: false,
     staff_profiles: override.staff_profiles
   }));
   const effectiveEntries = [

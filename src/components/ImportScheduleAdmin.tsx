@@ -56,6 +56,7 @@ type ReviewRow = {
   employment_type: "full_time" | "per_diem" | "";
   match_source: StaffMatchSource;
   entry_status: ScheduleEntryStatus | "";
+  is_shift_lead: boolean;
   notes: string;
   confidence: number;
   needs_review: boolean;
@@ -175,6 +176,35 @@ function normalizeUsername(value: string) {
 
 function stripComment(value: string) {
   return value.split("#")[0]?.trim() ?? "";
+}
+
+function parseLeadField(value: string) {
+  return ["lead", "shift_lead", "true"].includes(value.trim().toLowerCase());
+}
+
+function parseStaffIdentifierLeadMarker(value: string, leadField = "") {
+  let staffIdentifier = value.trim();
+  let isShiftLead = parseLeadField(leadField);
+  const leadMarkerPatterns = [
+    /\(\s*l\s*\)/gi,
+    /\(\s*lead\s*\)/gi,
+    /\bshift\s+lead\b/gi,
+    /\blead\b/gi,
+    /\s+-\s*l\s*$/gi,
+    /-l\s*$/gi
+  ];
+
+  leadMarkerPatterns.forEach((pattern) => {
+    if (pattern.test(staffIdentifier)) {
+      isShiftLead = true;
+      staffIdentifier = staffIdentifier.replace(pattern, " ");
+    }
+  });
+
+  return {
+    staffIdentifier: staffIdentifier.replace(/\s+/g, " ").trim(),
+    isShiftLead
+  };
 }
 
 function lastNameFromDisplayName(value: string) {
@@ -691,9 +721,9 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
       .map((line, index) => ({ line: stripComment(line), lineNumber: index + 1 }))
       .filter(({ line }) => Boolean(line))
       .map(({ line, lineNumber }) => {
-        const [shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = ""] =
+        const [shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = "", rawLead = ""] =
           line.split("|").map((part) => part.trim());
-        const staffIdentifier = stripComment(rawStaffIdentifier);
+        const { staffIdentifier, isShiftLead } = parseStaffIdentifierLeadMarker(stripComment(rawStaffIdentifier), rawLead);
         const match = matchStaff(staffIdentifier, staffProfiles);
         const matchedStaff = match.staff;
         const row: ReviewRow = {
@@ -711,6 +741,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           employment_type: matchedStaff?.employment_type ?? "",
           match_source: match.source,
           entry_status: ["scheduled", "available"].includes(rawStatus) ? (rawStatus as ScheduleEntryStatus) : "",
+          is_shift_lead: isShiftLead,
           notes: "",
           confidence: match.confidence,
           needs_review: match.needsReview,
@@ -771,11 +802,15 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         }
 
         if (recordType === "ENTRY") {
-          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = ""] = parts;
-          const staffIdentifier = rawStaffIdentifier;
+          const [, shiftDate = "", rawShiftType = "", shiftStart = "", shiftEnd = "", rawStaffIdentifier = "", rawStatus = "", rawLead = ""] = parts;
+          const { staffIdentifier, isShiftLead } = parseStaffIdentifierLeadMarker(rawStaffIdentifier, rawLead);
 
-          if (parts.length !== 7) {
-            errors.push(`Line ${lineNumber}: ENTRY must use 7 fields.`);
+          if (parts.length !== 7 && parts.length !== 8) {
+            errors.push(`Line ${lineNumber}: ENTRY must use 7 fields, or 8 fields when marking Shift Lead.`);
+          }
+
+          if (parts.length === 8 && rawLead && !parseLeadField(rawLead)) {
+            errors.push(`Line ${lineNumber}: optional ENTRY lead field must be lead, shift_lead, or true.`);
           }
 
           if (!isValidDate(shiftDate)) {
@@ -815,6 +850,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
             employment_type: matchedStaff?.employment_type ?? "",
             match_source: match.source,
             entry_status: allowedEntryStatuses.has(rawStatus) ? (rawStatus as ScheduleEntryStatus) : "",
+            is_shift_lead: isShiftLead,
             notes: "",
             confidence: match.confidence,
             needs_review: match.needsReview,
@@ -952,6 +988,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
         employment_type: "",
         match_source: "manual_review",
         entry_status: "scheduled",
+        is_shift_lead: false,
         notes: "",
         confidence: 0,
         needs_review: true,
@@ -1056,7 +1093,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           notes: row.notes || null,
           confidence: row.confidence,
           needs_review: false,
-          validation_status: "Ready"
+          validation_status: "Ready",
+          is_shift_lead: row.is_shift_lead
         }))
       );
 
@@ -1105,7 +1143,8 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
           shift_type: row.shift_type,
           shift_start: row.shift_start,
           shift_end: row.shift_end,
-          entry_status: row.entry_status
+          entry_status: row.entry_status,
+          is_shift_lead: row.is_shift_lead
         }))
       );
 
@@ -1325,7 +1364,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
               <textarea
                 value={scheduleCodeText}
                 onChange={(event) => setScheduleCodeText(event.target.value)}
-                placeholder={"SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27\n\nENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled\nENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled\n\nSHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT"}
+                placeholder={"SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27\n\nENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | Jonathan Burdick | scheduled | lead\nENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | Joann Devera | scheduled\n\nSHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT"}
                 className="mt-3 min-h-56 w-full rounded-2xl border border-cyan-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
               />
               {parseErrors.length > 0 && (
@@ -1444,6 +1483,11 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                               ? "Needs Review"
                               : "New row"}
                         </span>
+                        {row.is_shift_lead && (
+                          <span className="ml-2 mt-2 inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-extrabold text-amber-800">
+                            👑 Shift Lead
+                          </span>
+                        )}
                         {row.import_note && <p className="mt-1 text-xs font-bold text-slate-500">{row.import_note}</p>}
                       </div>
                       <button
@@ -1552,6 +1596,17 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                             <option value="scheduled">Scheduled</option>
                             <option value="available">Available</option>
                           </select>
+                        </label>
+                        <label className="flex min-h-10 items-center gap-3 rounded-2xl border border-amber-100 bg-white px-3">
+                          <input
+                            type="checkbox"
+                            checked={row.is_shift_lead}
+                            onChange={(event) => updateRow(row.id, { is_shift_lead: event.target.checked })}
+                            className="h-4 w-4 rounded border-amber-300 text-cyan-700"
+                          />
+                          <span className="text-sm font-extrabold text-hospital-ink">
+                            👑 Shift Lead
+                          </span>
                         </label>
                         <label className="block">
                           <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>

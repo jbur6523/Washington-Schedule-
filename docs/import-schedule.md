@@ -121,6 +121,7 @@ Format:
 SCHEDULE_VERSION | label | starts_on | ends_on
 
 ENTRY | date | shift_type | shift_start | shift_end | staff_identifier | entry_status
+ENTRY | date | shift_type | shift_start | shift_end | staff_identifier | entry_status | lead
 
 SHORT_SHIFT | date | shift_type | shift_start | shift_end | severity | message
 ```
@@ -132,7 +133,7 @@ SCHEDULE_VERSION | Week of June 24 | 2026-06-21 | 2026-06-27
 
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
 ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available
-ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled
+ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled | lead
 
 SHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
 ```
@@ -165,6 +166,7 @@ Validation:
 - Comments after `#` are ignored.
 - Parse errors show line numbers.
 - Unmatched staff names are flagged as Needs Review.
+- Shift Lead markers are supported with a final `lead`, `shift_lead`, or `true` field, or inline `(L)`, `-L`, or `Lead` next to the staff identifier.
 
 Admins can paste ChatGPT-generated schedule code into the Schedule Code Import field, parse it, review every row, manually correct matches, remove crossed-out names, and then choose the correct final action for the selected import mode.
 
@@ -184,11 +186,13 @@ Every draft row is editable before approval. Import results never auto-publish.
 
 ## Review
 
-Review rows include date, day of week, shift type, shift start, shift end, raw staff name, matched staff profile, employment type, entry status, notes, Needs Review, and validation status.
+Review rows include date, day of week, shift type, shift start, shift end, raw staff name, matched staff profile, employment type, entry status, Shift Lead, notes, Needs Review, and validation status.
 
 Rows can be edited, removed, marked Needs Review, or cleared from Needs Review.
 
 If a person is crossed out on the source schedule, do not include them in the reviewed schedule rows. Remove that row before creating a schedule version.
+
+If a person has `(L)`, `Lead`, or a clear handwritten `L` next to their name, mark that reviewed schedule entry as Shift Lead. If the marker is unclear, keep the row in Needs Review.
 
 ## Roster Matching
 

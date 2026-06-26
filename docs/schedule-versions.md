@@ -66,8 +66,11 @@ Manual entry fields:
 - Shift end
 - Staff member from `staff_profiles`
 - Entry status: `scheduled` or `available`
+- Shift Lead: optional entry-level flag
 
 The UI flags obvious duplicate entries for the same staff member, date, shift type, and status.
+
+`schedule_entries.is_shift_lead` identifies the Shift Lead for that specific entry only. It displays as a crown on Schedule cards and is visible to authenticated department users. This is separate from the app `lead` role and does not grant permissions.
 
 Standard department shifts display and default to military time:
 

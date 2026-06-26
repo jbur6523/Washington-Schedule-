@@ -74,6 +74,15 @@ function StaffScheduleRow({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex flex-wrap items-center gap-1 text-sm font-extrabold leading-5 text-hospital-ink">
+            {entry.isShiftLead && (
+              <span
+                title="Shift Lead"
+                aria-label="Shift Lead"
+                className="inline-grid h-5 w-5 place-items-center rounded-full bg-amber-50 text-[12px] leading-none shadow-sm"
+              >
+                👑
+              </span>
+            )}
             <span>{entry.staffName}</span>
             {entry.coworkerTitles?.map((title) => (
               <span

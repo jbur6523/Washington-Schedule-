@@ -2689,7 +2689,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       supabase
         .from("schedule_entries")
         .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, staff_profiles(id, display_name, employment_type, home_assignment, is_active, status_message, status_updated_at)"
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, is_active, status_message, status_updated_at)"
         )
         .eq("schedule_version_id", activeVersionId)
         .order("shift_date", { ascending: true })
