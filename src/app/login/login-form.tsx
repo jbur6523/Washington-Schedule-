@@ -430,6 +430,12 @@ export function LoginForm() {
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
               Enter your username
             </span>
+            <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+              Username format: first 3 letters of your last name + first letter of your first name.
+            </span>
+            <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-slate-400">
+              Example: Michael Scott = scom
+            </span>
             <input
               value={username}
               onChange={(event) => setUsername(event.target.value)}
