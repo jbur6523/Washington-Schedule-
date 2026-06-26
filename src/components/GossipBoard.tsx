@@ -374,7 +374,7 @@ export function GossipBoard({ authContext, developmentFallback }: GossipBoardPro
     <div className="space-y-4">
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
         <h2 className="text-xl font-black text-hospital-ink">Gossip Board</h2>
-        <p className="mt-1 text-sm font-bold leading-6 text-slate-600">Drop the tea. Keep it cute.</p>
+        <p className="mt-1 text-sm font-bold leading-6 text-slate-600">☕ HR is watching 👀</p>
 
         <form onSubmit={createPost} className="mt-4 space-y-3">
           <label className="block">
