@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, ChevronDown, LogOut, Pencil, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { GossipBoard } from "@/components/GossipBoard";
 import { MySettings } from "@/components/MySettings";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { ShiftPostCard } from "@/components/ShiftPostCard";
@@ -2829,12 +2830,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
             />
           )}
           {activeTab === "gossip" && (
-            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <h2 className="text-xl font-black text-hospital-ink">Gossip</h2>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                Staff chatter will live here. Keep schedule coverage and switch offers in Cover/Switch.
-              </p>
-            </section>
+            <GossipBoard authContext={authContext} developmentFallback={developmentFallback} />
           )}
           {activeTab === "staff" && (
             <div className="space-y-4">

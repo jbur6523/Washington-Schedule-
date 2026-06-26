@@ -55,6 +55,13 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `notification_events`: in-app notification records and server-side push delivery state.
 - Push subscription secrets must not be public or logged.
 
+### Gossip Board
+
+- `gossip_posts`: staff-only department posts for the Gossip Board.
+- Text is capped at 140 characters.
+- Optional compressed images are stored by private path in the `gossip-images` Supabase Storage bucket.
+- Soft-deleted posts are hidden with `is_deleted = true`.
+
 ### Import and Review
 
 - `schedule_imports`: admin-only schedule import jobs.
@@ -204,6 +211,16 @@ Assigned username rule:
 - Notification text should be short and generic.
 - Notification bodies must not include phone numbers, patient information, clinical notes, payroll data, EMR data, or private reasons.
 - Notifications are app/push based only. Email and SMS notifications are out of scope.
+
+## Gossip Board Rules
+
+- Gossip Board is authenticated and department-only.
+- Posts are not anonymous in this phase.
+- Users can create and soft-delete only their own posts.
+- Admin users can soft-delete any department post.
+- Images are compressed client-side before upload.
+- Gossip posts do not trigger push, email, or SMS notifications in this phase.
+- Gossip text and images must not include patient information or clinical details.
 
 ## Import and Review Foundation
 
