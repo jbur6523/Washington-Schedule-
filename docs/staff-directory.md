@@ -6,15 +6,15 @@ The Staff Directory reads department roster data from Supabase `staff_profiles`.
 
 - Staff Directory reads from `public.staff_profiles`.
 - Access is protected by Supabase Auth and Row Level Security.
-- The Schedule, Manage Schedule, and Coverage Board tabs read schedule coordination data from Supabase in later phases.
+- The Schedule, Manage Schedule, and Cover/Switch tabs read schedule coordination data from Supabase in later phases.
 - If no `staff_profiles` rows exist for the user department, the app shows: `No staff profiles have been added yet.`
 
 ## Phone Number Rules
 
 - Phone numbers belong only to `staff_profiles.phone_number`.
 - Phone numbers are shown only inside Staff Directory/profile areas.
-- Phone numbers must not be shown on Schedule cards or Coverage Board cards by default.
-- Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, `shift_request_offers`, Coverage Board posts, import rows, audit summaries, or public examples.
+- Phone numbers must not be shown on Schedule cards or Cover/Switch cards by default.
+- Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, `shift_request_offers`, Cover/Switch posts, import rows, audit summaries, or public examples.
 - Use placeholder phone numbers only for seed data and public examples.
 - Do not add patient phone numbers, emergency contacts, hire dates, payroll data, clinical notes, or EMR data.
 
@@ -174,3 +174,4 @@ Possible duplicates are flagged when the display name already exists or appears 
 - Deleting staff profiles.
 - Importing staff directory records from images or files.
 - OCR, push notifications, native mobile, billing, payroll, EMR, or patient information.
+

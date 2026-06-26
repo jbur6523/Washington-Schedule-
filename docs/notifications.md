@@ -106,7 +106,7 @@ Example notification titles:
 
 Notification body text stays short and generic.
 
-## Coverage Board Notification Flow
+## Cover/Switch Notification Flow
 
 Offer-related notifications are sent server-side through `/api/notifications/offer-events`.
 
@@ -133,7 +133,7 @@ Push click targets:
 
 - Coverage and switch offer notifications open Manage Schedule.
 - Accepted and declined offer notifications open Manage Schedule.
-- Short Shift notifications open Coverage Board.
+- Short Shift notifications open Cover/Switch.
 
 ## Notification Center
 
@@ -179,7 +179,7 @@ The app does not send email or SMS notifications. Staff Directory email is conta
 
 If push is unsupported or denied, the app remains usable and shows friendly fallback text:
 
-`Notifications are not enabled on this device. You can still check the Coverage Board manually.`
+`Notifications are not enabled on this device. You can still check Cover/Switch manually.`
 
 The settings UI also shows:
 
@@ -190,3 +190,4 @@ For iPhone, staff should add the app to the Home Screen and open it from the app
 ## Future Work
 
 Native mobile apps remain future work.
+

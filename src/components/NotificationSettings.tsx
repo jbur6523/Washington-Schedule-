@@ -173,7 +173,7 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
     }
 
     if (!supported) {
-      setError("Notifications are not supported on this device. You can still check the Coverage Board manually.");
+      setError("Notifications are not supported on this device. You can still check Cover/Switch manually.");
       return;
     }
 
@@ -186,7 +186,7 @@ export function NotificationSettings({ authContext, developmentFallback }: Notif
 
     if (nextPermission !== "granted") {
       setSaving(false);
-      setError("Notifications are not enabled on this device. You can still check the Coverage Board manually.");
+      setError("Notifications are not enabled on this device. You can still check Cover/Switch manually.");
       return;
     }
 

@@ -2165,7 +2165,7 @@ function ShiftBoardScreen({
   if (loading) {
     return (
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <p className="text-sm font-bold text-slate-500">Loading Coverage Board...</p>
+        <p className="text-sm font-bold text-slate-500">Loading Cover/Switch...</p>
       </section>
     );
   }
@@ -2173,7 +2173,7 @@ function ShiftBoardScreen({
   if (error) {
     return (
       <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
-        <h2 className="text-lg font-black text-rose-950">Unable to load Coverage Board</h2>
+        <h2 className="text-lg font-black text-rose-950">Unable to load Cover/Switch</h2>
         <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
       </section>
     );
@@ -2187,9 +2187,9 @@ function ShiftBoardScreen({
             <AlertTriangle size={21} />
           </span>
           <div>
-            <h2 className="text-lg font-black text-rose-950">Coverage Board</h2>
+            <h2 className="text-lg font-black text-rose-950">Cover/Switch</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
-              Live staff requests and Short Shift alerts for the coordination view.
+              Offer to cover a shift or switch with someone.
             </p>
           </div>
         </div>
@@ -2312,7 +2312,7 @@ function ShiftBoardScreen({
 
       {visiblePosts.length === 0 && (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <p className="text-sm font-bold text-slate-500">No active Coverage Board posts.</p>
+          <p className="text-sm font-bold text-slate-500">No active Cover/Switch posts.</p>
         </section>
       )}
 
@@ -2619,7 +2619,9 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     const timer = window.setTimeout(() => {
       const tab = new URLSearchParams(window.location.search).get("tab");
 
-      if (tab === "shift-board" || tab === "manage-schedule" || tab === "staff" || tab === "schedule") {
+      if (tab === "cover-switch" || tab === "shift-board") {
+        setActiveTab("shift-board");
+      } else if (tab === "gossip" || tab === "manage-schedule" || tab === "staff" || tab === "schedule") {
         setActiveTab(tab);
       }
     }, 0);
@@ -2825,6 +2827,14 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
             />
+          )}
+          {activeTab === "gossip" && (
+            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+              <h2 className="text-xl font-black text-hospital-ink">Gossip</h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                Staff chatter will live here. Keep schedule coverage and switch offers in Cover/Switch.
+              </p>
+            </section>
           )}
           {activeTab === "staff" && (
             <div className="space-y-4">

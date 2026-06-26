@@ -29,7 +29,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.
-- Staff contact data is separate from schedule entries, requests, offers, import rows, and Coverage Board data.
+- Staff contact data is separate from schedule entries, requests, offers, import rows, and Cover/Switch data.
 
 ### Schedules
 
@@ -124,9 +124,9 @@ General policy rules:
 
 - Phone numbers are allowed only in `staff_profiles`.
 - Phone numbers should be work phone numbers or staff-approved contact numbers.
-- Phone numbers are not stored on schedule entries, shift requests, coverage offers, shift request offers, import rows, Coverage Board posts, or audit summaries.
+- Phone numbers are not stored on schedule entries, shift requests, coverage offers, shift request offers, import rows, Cover/Switch posts, or audit summaries.
 - Phone numbers should not appear on Schedule cards by default.
-- Phone numbers should not appear on Coverage Board cards by default.
+- Phone numbers should not appear on Cover/Switch cards by default.
 - Phone numbers should not appear in schedule import previews unless a separate staff directory import workflow is built.
 - Phone numbers are never public and never visible to unauthenticated users.
 - Use placeholder phone numbers only in seed data, screenshots, or examples.
@@ -178,7 +178,7 @@ Assigned username rule:
 - Requests do not alter the baseline schedule entry.
 - Request notes are capped at 140 characters.
 - Cancelled and resolved requests remain in the database for history.
-- Active requests appear on the Coverage Board.
+- Active requests appear on Cover/Switch.
 - Coverage offers and switch offers are stored in `shift_request_offers`.
 - Switch offers must target a shift in the same Sunday-through-Saturday department week as the requested shift.
 - Request owners can accept or decline offers on their own requests.
@@ -192,14 +192,14 @@ Assigned username rule:
 - Severity values are `short` and `urgent`.
 - Short Shift alerts have `status = active`, `resolved`, or `cancelled`.
 - Lead and admin users can create, resolve, or cancel Short Shift alerts.
-- Short Shift can appear on the Coverage Board and schedule shift sections as a department need.
+- Short Shift can appear on Cover/Switch and schedule shift sections as a department need.
 - Creating an active Short Shift through the protected server route can send Web Push notifications to active staff who opted in.
 
 ## Notification Rules
 
 - Staff can manage only their own push subscriptions and notification preferences.
 - Staff can read and mark only their own notification events.
-- Short Shift and Coverage Board notification delivery runs server-side.
+- Short Shift and Cover/Switch notification delivery runs server-side.
 - `VAPID_PRIVATE_KEY` must remain server-only.
 - Notification text should be short and generic.
 - Notification bodies must not include phone numbers, patient information, clinical notes, payroll data, EMR data, or private reasons.
@@ -231,3 +231,4 @@ Assigned username rule:
 - Hire dates.
 - Emergency contact numbers.
 - Real staff phone numbers in seed data.
+

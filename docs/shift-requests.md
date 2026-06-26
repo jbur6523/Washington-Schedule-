@@ -1,4 +1,4 @@
-# Shift Requests And Coverage Board
+# Shift Requests And Cover/Switch
 
 WHHS RT Schedule uses persistent Supabase rows for staff coordination. The app is not the official hospital schedule.
 
@@ -38,7 +38,7 @@ Coverage Requested remains attached to the employee's own shift and does not upd
 
 Request notes live on `shift_requests.note`.
 
-Notes are capped at 140 characters and display on Manage Schedule, Schedule employee cards, and Coverage Board posts.
+Notes are capped at 140 characters and display on Manage Schedule, Schedule employee cards, and Cover/Switch posts.
 
 ## Request Targets
 
@@ -49,9 +49,9 @@ Requests can attach to either:
 
 Exactly one target is required.
 
-## Coverage Board
+## Cover/Switch
 
-The Coverage Board reads active Supabase data:
+Cover/Switch reads active Supabase data:
 
 - Active Switch Requested rows
 - Active Coverage Requested rows
@@ -123,7 +123,7 @@ Short Shift coverage offers still use the existing `coverage_offers` path.
 Staff can:
 
 - View the schedule
-- View the Coverage Board
+- View Cover/Switch
 - Create/cancel their own Switch Requested rows
 - Create/cancel their own Coverage Requested rows
 - Add/edit their own request notes
@@ -144,3 +144,4 @@ Admin users can:
 ## Future
 
 Email, SMS, native mobile, OCR, payroll, and EMR integrations remain out of scope.
+

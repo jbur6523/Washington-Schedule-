@@ -10,7 +10,7 @@ They are not tied to a specific shift, date, request, or schedule entry.
 - The status appears under that staff member's name on every Schedule card where they appear.
 - The status remains visible until the staff member edits or clears it.
 - Empty or cleared status values do not render on Schedule cards.
-- Status messages do not appear on Coverage Board cards or Admin Roster Management by default.
+- Status messages do not appear on Cover/Switch cards or Admin Roster Management by default.
 
 ## Limits
 
@@ -40,3 +40,4 @@ Do not include:
 - Clinical details
 - Phone numbers
 - Protected health information
+

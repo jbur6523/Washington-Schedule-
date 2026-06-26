@@ -328,7 +328,7 @@ export function LoginForm() {
     setNotificationSupported(supported);
 
     if (!supported) {
-      setError("Notifications are not supported on this device. You can still check the Coverage Board manually.");
+      setError("Notifications are not supported on this device. You can still check Cover/Switch manually.");
       return;
     }
 

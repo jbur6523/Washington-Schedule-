@@ -93,4 +93,5 @@ The app previews generated usernames and roles before creating profiles. Possibl
 - Admin users can access `/admin`.
 - Lead users receive lead role context but do not receive admin-only UI.
 - Staff users cannot access `/admin`.
-- The Schedule, Manage Schedule, Coverage Board, and Staff screens use Supabase-backed data as the backend phases are applied.
+- The Schedule, Manage Schedule, Cover/Switch, and Staff screens use Supabase-backed data as the backend phases are applied.
+

@@ -1,12 +1,12 @@
-# Coverage Board
+# Cover/Switch
 
-The Coverage Board is the live staff coordination board.
+Cover/Switch is the live staff coordination board.
 
 WHHS RT Schedule is not the official hospital schedule. It is a staff-managed coordination view only.
 
 ## What Appears
 
-The Coverage Board shows active:
+Cover/Switch shows active:
 
 - Switch Requested posts
 - Coverage Requested posts
@@ -110,7 +110,7 @@ Declining an offer:
 
 ## Notification States
 
-Coverage Board request cards show duplicate-offer protection:
+Cover/Switch request cards show duplicate-offer protection:
 
 - `Offer sent` appears when the current user already has an active offer on that request.
 - `Your request` appears when the post belongs to the current user.
@@ -141,3 +141,4 @@ This phase does not include:
 - Clinical notes
 - Billing
 - Workday integration
+

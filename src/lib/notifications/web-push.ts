@@ -105,7 +105,7 @@ function getShortShiftPayload(input: SendShortShiftNotificationInput) {
     body: urgent
       ? `${shiftLabel} urgently needs coverage. Tap to view.`
       : `${shiftLabel} is short on ${dateLabel}. Tap to view.`,
-    url: "/?tab=shift-board"
+    url: "/?tab=cover-switch"
   };
 }
 
