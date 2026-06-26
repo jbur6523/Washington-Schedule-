@@ -295,14 +295,16 @@ function getShiftMatches(filter: ScheduleShiftFilter) {
   };
 }
 
-function ScheduleSummary({
+function ScheduleViewSummaryCard({
   schedule,
   selectedDay,
-  shiftFilter
+  shiftFilter,
+  onChange
 }: {
   schedule: ScheduleDay[];
   selectedDay: string;
   shiftFilter: ScheduleShiftFilter;
+  onChange: (filter: ScheduleShiftFilter) => void;
 }) {
   const day = schedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? schedule[0];
   const matchesShift = getShiftMatches(shiftFilter);
@@ -321,14 +323,43 @@ function ScheduleSummary({
     shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
 
   return (
-    <section className="rounded-2xl border border-white bg-white/95 p-3.5 shadow-soft">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="min-w-0 text-lg font-black text-hospital-ink">
-          {day.day} {shiftLabel} Summary
-        </h2>
-        {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
+    <section className="rounded-3xl border-2 border-cyan-100 bg-white p-3 shadow-xl shadow-cyan-900/12 ring-1 ring-white">
+      <div>
+        <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-cyan-800">
+          Shift View
+        </p>
+        <div className="grid grid-cols-3 rounded-full border-2 border-cyan-200 bg-cyan-50/80 p-1.5 shadow-inner shadow-cyan-900/10">
+          {scheduleFilterOptions.map((option) => {
+            const active = option.id === shiftFilter;
+
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => onChange(option.id)}
+                className={`min-h-11 rounded-full border px-3 text-base font-black transition active:scale-[0.98] ${
+                  active
+                    ? "border-cyan-900 bg-cyan-800 text-white shadow-lg shadow-cyan-900/30 ring-2 ring-cyan-200"
+                    : "border-transparent bg-white/85 text-slate-700 shadow-sm hover:border-cyan-100 hover:bg-white hover:text-cyan-800"
+                }`}
+                aria-pressed={active}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      <div className="mt-3 grid grid-cols-5 gap-1.5 text-center">
+
+      <div className="mt-3 border-t border-slate-100 pt-3">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="min-w-0 text-lg font-black leading-6 text-hospital-ink">
+            {day.day} {shiftLabel} Summary
+          </h2>
+          {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
+        </div>
+      </div>
+      <div className="mt-2 grid grid-cols-5 gap-1.5 text-center">
         {[
           ["Scheduled", scheduled],
           ["Available", available],
@@ -342,49 +373,6 @@ function ScheduleSummary({
           </div>
         ))}
       </div>
-    </section>
-  );
-}
-
-function ScheduleFilterTabs({
-  shiftFilter,
-  onChange
-}: {
-  shiftFilter: ScheduleShiftFilter;
-  onChange: (filter: ScheduleShiftFilter) => void;
-}) {
-  const currentViewLabel =
-    shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
-
-  return (
-    <section className="rounded-3xl border-2 border-cyan-200 bg-white p-3 shadow-xl shadow-cyan-900/15 ring-1 ring-cyan-50">
-      <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-hospital-ink">
-        Choose Shift View
-      </p>
-      <div className="grid grid-cols-3 rounded-full border-2 border-cyan-200 bg-cyan-50/80 p-1.5 shadow-inner shadow-cyan-900/10">
-        {scheduleFilterOptions.map((option) => {
-          const active = option.id === shiftFilter;
-
-          return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => onChange(option.id)}
-              className={`min-h-12 rounded-full border px-3 text-base font-black transition active:scale-[0.98] ${
-                active
-                  ? "border-cyan-900 bg-cyan-800 text-white shadow-lg shadow-cyan-900/30 ring-2 ring-cyan-200"
-                  : "border-transparent bg-white/80 text-slate-700 shadow-sm hover:border-cyan-100 hover:bg-white hover:text-cyan-800"
-              }`}
-              aria-pressed={active}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-2 rounded-2xl bg-cyan-50 px-3 py-2 text-xs font-extrabold text-cyan-900">
-        Currently viewing: {currentViewLabel}
-      </p>
     </section>
   );
 }
@@ -870,14 +858,15 @@ function ScheduleScreen({
 
   return (
     <div className="space-y-3">
-      <ScheduleFilterTabs
+      <ScheduleViewSummaryCard
+        schedule={days}
+        selectedDay={effectiveSelectedDay}
         shiftFilter={shiftFilter}
         onChange={(filter) => {
           setShiftFilter(filter);
           setExpandedDay("");
         }}
       />
-      <ScheduleSummary schedule={days} selectedDay={effectiveSelectedDay} shiftFilter={shiftFilter} />
       <MyStatusCard
         authContext={authContext}
         developmentFallback={developmentFallback}
