@@ -353,12 +353,15 @@ function ScheduleFilterTabs({
   shiftFilter: ScheduleShiftFilter;
   onChange: (filter: ScheduleShiftFilter) => void;
 }) {
+  const currentViewLabel =
+    shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
+
   return (
-    <section className="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-fuchsia-50 p-3 shadow-soft">
+    <section className="rounded-3xl border-2 border-cyan-200 bg-white p-3 shadow-xl shadow-cyan-900/15 ring-1 ring-cyan-50">
       <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-hospital-ink">
-        View Schedule
+        Choose Shift View
       </p>
-      <div className="grid grid-cols-3 rounded-full border border-cyan-200 bg-white/95 p-1 shadow-sm">
+      <div className="grid grid-cols-3 rounded-full border-2 border-cyan-200 bg-cyan-50/80 p-1.5 shadow-inner shadow-cyan-900/10">
         {scheduleFilterOptions.map((option) => {
           const active = option.id === shiftFilter;
 
@@ -367,10 +370,10 @@ function ScheduleFilterTabs({
               key={option.id}
               type="button"
               onClick={() => onChange(option.id)}
-              className={`min-h-12 rounded-full px-3 text-base font-black transition ${
+              className={`min-h-12 rounded-full border px-3 text-base font-black transition active:scale-[0.98] ${
                 active
-                  ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
-                  : "text-slate-600 hover:bg-fuchsia-50 hover:text-fuchsia-700"
+                  ? "border-cyan-900 bg-cyan-800 text-white shadow-lg shadow-cyan-900/30 ring-2 ring-cyan-200"
+                  : "border-transparent bg-white/80 text-slate-700 shadow-sm hover:border-cyan-100 hover:bg-white hover:text-cyan-800"
               }`}
               aria-pressed={active}
             >
@@ -379,6 +382,9 @@ function ScheduleFilterTabs({
           );
         })}
       </div>
+      <p className="mt-2 rounded-2xl bg-cyan-50 px-3 py-2 text-xs font-extrabold text-cyan-900">
+        Currently viewing: {currentViewLabel}
+      </p>
     </section>
   );
 }
