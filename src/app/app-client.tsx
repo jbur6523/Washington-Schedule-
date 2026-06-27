@@ -324,12 +324,12 @@ function ScheduleViewSummaryCard({
     shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
 
   return (
-    <section className="rounded-3xl border-2 border-cyan-100 bg-white p-3 shadow-xl shadow-cyan-900/12 ring-1 ring-white">
-      <div>
-        <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-cyan-800">
+    <section className="rounded-3xl border border-slate-100 bg-white p-3 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_0_22px_rgba(139,92,246,0.28),0_18px_40px_rgba(15,23,42,0.18)] ring-1 ring-white">
+      <div className="rounded-[1.35rem] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-2 shadow-[0_0_18px_rgba(139,92,246,0.2)]">
+        <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-violet-800">
           Shift View
         </p>
-        <div className="grid grid-cols-3 rounded-full border-2 border-cyan-200 bg-cyan-50/80 p-1.5 shadow-inner shadow-cyan-900/10">
+        <div className="grid grid-cols-3 rounded-full border-2 border-violet-300 bg-white/90 p-1.5 shadow-[0_0_16px_rgba(139,92,246,0.25)]">
           {scheduleFilterOptions.map((option) => {
             const active = option.id === shiftFilter;
 
@@ -340,8 +340,8 @@ function ScheduleViewSummaryCard({
                 onClick={() => onChange(option.id)}
                 className={`min-h-11 rounded-full border px-3 text-base font-black transition active:scale-[0.98] ${
                   active
-                    ? "border-cyan-900 bg-cyan-800 text-white shadow-lg shadow-cyan-900/30 ring-2 ring-cyan-200"
-                    : "border-transparent bg-white/85 text-slate-700 shadow-sm hover:border-cyan-100 hover:bg-white hover:text-cyan-800"
+                    ? "border-violet-900 bg-violet-700 text-white shadow-lg shadow-violet-900/35 ring-2 ring-violet-200"
+                    : "border-transparent bg-white text-slate-700 shadow-sm hover:border-violet-200 hover:bg-violet-50 hover:text-violet-800"
                 }`}
                 aria-pressed={active}
               >
