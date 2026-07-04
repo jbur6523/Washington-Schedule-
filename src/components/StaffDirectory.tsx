@@ -19,7 +19,7 @@ import {
 } from "@/lib/coworker-titles";
 
 type EmploymentType = "full_time" | "per_diem";
-type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type DirectoryFilter =
   | "all"
@@ -29,6 +29,7 @@ type DirectoryFilter =
   | "night_shift"
   | "pft"
   | "pulmonary_rehab"
+  | "rt_aide"
   | "flexible"
   | "active"
   | "inactive";
@@ -74,6 +75,7 @@ const directoryFilters: Array<{ id: DirectoryFilter; label: string }> = [
   { id: "night_shift", label: "Night Shift" },
   { id: "pft", label: "PFT" },
   { id: "pulmonary_rehab", label: "Pulmonary Rehab" },
+  { id: "rt_aide", label: "RT Aide" },
   { id: "flexible", label: "Flexible" },
   { id: "active", label: "Active" },
   { id: "inactive", label: "Inactive" }
@@ -89,6 +91,7 @@ const assignmentLabels: Record<HomeAssignment, string> = {
   night_shift: "Night Shift",
   pft: "PFT",
   pulmonary_rehab: "Pulmonary Rehab",
+  rt_aide: "RT Aide",
   flexible: "Flexible"
 };
 

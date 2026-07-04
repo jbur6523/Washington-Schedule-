@@ -4,7 +4,7 @@ import { sendShortShiftNotifications } from "@/lib/notifications/web-push";
 import { createClient } from "@/lib/supabase/server";
 import type { ShiftShortageSeverity, ShiftType } from "@/lib/schedule/supabase-schedule";
 
-const shiftTypes = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"]);
+const shiftTypes = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"]);
 const severities = new Set(["short", "urgent"]);
 
 export const runtime = "nodejs";

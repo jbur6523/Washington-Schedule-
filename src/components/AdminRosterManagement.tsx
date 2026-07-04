@@ -8,7 +8,7 @@ import { generateBaseUsername, normalizeUsername } from "@/lib/auth/username";
 import { createClient } from "@/lib/supabase/client";
 
 type EmploymentType = "full_time" | "per_diem";
-type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
 type RosterFilter =
@@ -26,6 +26,7 @@ type RosterFilter =
   | "night_shift"
   | "pft"
   | "pulmonary_rehab"
+  | "rt_aide"
   | "flexible";
 
 type StaffProfile = {
@@ -105,6 +106,7 @@ const rosterFilters: Array<{ id: RosterFilter; label: string }> = [
   { id: "night_shift", label: "Night Shift" },
   { id: "pft", label: "PFT" },
   { id: "pulmonary_rehab", label: "Pulmonary Rehab" },
+  { id: "rt_aide", label: "RT Aide" },
   { id: "flexible", label: "Flexible" }
 ];
 
@@ -118,6 +120,7 @@ const assignmentLabels: Record<HomeAssignment, string> = {
   night_shift: "Night Shift",
   pft: "PFT",
   pulmonary_rehab: "Pulmonary Rehab",
+  rt_aide: "RT Aide",
   flexible: "Flexible"
 };
 
@@ -364,6 +367,7 @@ function StaffProfileEditor({
                 <option value="night_shift">Night Shift</option>
                 <option value="pft">PFT</option>
                 <option value="pulmonary_rehab">Pulmonary Rehab</option>
+                <option value="rt_aide">RT Aide</option>
                 <option value="flexible">Flexible</option>
               </select>
             </label>
@@ -701,7 +705,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
           issues.push("Employment type must be full_time or per_diem");
         }
 
-        if (!["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"].includes(homeAssignment)) {
+        if (!["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"].includes(homeAssignment)) {
           issues.push("Home assignment is invalid");
         }
 
@@ -720,7 +724,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
           lineNumber,
           display_name: displayName,
           employment_type: ["full_time", "per_diem"].includes(employmentType) ? employmentType : "",
-          home_assignment: ["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"].includes(homeAssignment)
+          home_assignment: ["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"].includes(homeAssignment)
             ? homeAssignment
             : "",
           username,

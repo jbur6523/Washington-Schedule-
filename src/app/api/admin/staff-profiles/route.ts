@@ -5,7 +5,7 @@ import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 
 type StaffRole = "admin" | "lead" | "staff";
 type EmploymentType = "full_time" | "per_diem";
-type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 
 type StaffProfilePayload = {
@@ -24,7 +24,7 @@ type StaffProfilePayload = {
 
 const validRoles = new Set(["admin", "lead", "staff"]);
 const validEmploymentTypes = new Set(["full_time", "per_diem"]);
-const validHomeAssignments = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "flexible"]);
+const validHomeAssignments = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"]);
 const validContactMethods = new Set(["phone", "email", "app"]);
 
 function cleanOptional(value: unknown) {

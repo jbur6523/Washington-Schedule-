@@ -7,11 +7,11 @@ import {
 
 export type ScheduleVersionStatus = "draft" | "review" | "published" | "archived";
 export type ScheduleEntryStatus = "scheduled" | "available";
-export type ShiftType = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+export type ShiftType = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 export type ShiftShortageSeverity = "short" | "urgent";
 export type ShiftShortageStatus = "active" | "resolved" | "cancelled";
 export type EmploymentType = "full_time" | "per_diem";
-export type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "flexible";
+export type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self" | "add_available";
 export type ShiftRequestType = "switch_requested" | "coverage_requested";
 export type ShiftRequestStatus = "active" | "cancelled" | "resolved";
@@ -198,6 +198,7 @@ export const shiftTypeLabels: Record<ShiftType, string> = {
   night_shift: "Night Shift",
   pft: "PFT",
   pulmonary_rehab: "Pulmonary Rehab",
+  rt_aide: "RT Aide",
   flexible: "Flexible"
 };
 
