@@ -2547,8 +2547,10 @@ function ShiftBoardScreen({
                           setPostNoteOpen(false);
                           setPostForm({ ...emptyCoverSwitchPostForm, note: "" });
                         }}
-                        className={`rounded-2xl border px-3 py-3 text-left transition ${
-                          selected ? "border-cyan-400 bg-cyan-50 shadow-sm" : "border-slate-100 bg-white hover:border-cyan-100"
+                        className={`min-h-20 rounded-2xl border px-4 py-3 text-left shadow-[0_0_0_1px_rgba(15,23,42,0.04),0_10px_24px_rgba(15,23,42,0.10)] transition duration-150 active:scale-[1.02] ${
+                          selected
+                            ? "scale-[1.02] border-cyan-500 bg-cyan-50 shadow-[0_0_0_1px_rgba(8,145,178,0.18),0_0_22px_rgba(8,145,178,0.22),0_16px_30px_rgba(15,23,42,0.16)]"
+                            : "border-slate-200 bg-white hover:border-cyan-300 hover:shadow-[0_0_0_1px_rgba(8,145,178,0.10),0_12px_26px_rgba(15,23,42,0.12)]"
                         }`}
                       >
                         <p className="text-sm font-black text-hospital-ink">
@@ -2570,20 +2572,24 @@ function ShiftBoardScreen({
                   })}
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => {
-                  setUseManualPostDate(true);
-                  setSelectedPostShiftId("");
-                  setPostRequestChoice("");
-                  setPostNoteOpen(false);
-                }}
-                className={`mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border px-3 text-sm font-extrabold ${
-                  useManualPostDate ? "border-cyan-300 bg-cyan-50 text-cyan-800" : "border-slate-200 bg-white text-slate-600"
-                }`}
-              >
-                Add Date Manually
-              </button>
+              {!selectedPostShiftDetails && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseManualPostDate(true);
+                    setSelectedPostShiftId("");
+                    setPostRequestChoice("");
+                    setPostNoteOpen(false);
+                  }}
+                  className={`mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border px-3 text-sm font-extrabold ${
+                    useManualPostDate
+                      ? "border-cyan-300 bg-cyan-50 text-cyan-800"
+                      : "border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  Add Date Manually
+                </button>
+              )}
 
               {selectedPostShiftDetails && (
                 <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
