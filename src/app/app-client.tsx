@@ -1940,8 +1940,9 @@ function ShiftBoardScreen({
   const [postFlowOpen, setPostFlowOpen] = useState(false);
   const [selectedPostShiftId, setSelectedPostShiftId] = useState("");
   const [useManualPostDate, setUseManualPostDate] = useState(false);
-  const [postRequestChoice, setPostRequestChoice] = useState<CoverSwitchRequestChoice>("coverage");
+  const [postRequestChoice, setPostRequestChoice] = useState<CoverSwitchRequestChoice | "">("");
   const [postForm, setPostForm] = useState<CoverSwitchPostForm>(emptyCoverSwitchPostForm);
+  const [postNoteOpen, setPostNoteOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const [success, setSuccess] = useState("");
@@ -1993,6 +1994,35 @@ function ShiftBoardScreen({
         )
       : [];
   const selectedPostShift = ownScheduledShifts.find((entry) => entry.id === selectedPostShiftId) ?? null;
+  const selectedPostShiftDetails = selectedPostShift
+    ? {
+        shift_date: selectedPostShift.shift_date,
+        shift_type: selectedPostShift.shift_type,
+        shift_start: selectedPostShift.shift_start,
+        shift_end: selectedPostShift.shift_end
+      }
+    : useManualPostDate && postForm.shift_date && postForm.shift_start && postForm.shift_end
+      ? {
+          shift_date: postForm.shift_date,
+          shift_type: postForm.shift_type,
+          shift_start: postForm.shift_start,
+          shift_end: postForm.shift_end
+        }
+      : null;
+  const existingCoveragePostRequest = selectedPostShiftDetails
+    ? activeRequestForShiftDetails("coverage_requested", selectedPostShiftDetails)
+    : null;
+  const existingSwitchPostRequest = selectedPostShiftDetails
+    ? activeRequestForShiftDetails("switch_requested", selectedPostShiftDetails)
+    : null;
+  const canShowRequestTypeStep = Boolean(selectedPostShiftDetails);
+  const canShowPostConfirmation = Boolean(selectedPostShiftDetails && postRequestChoice);
+  const selectedPostRequestTypes = postRequestChoice ? requestTypesForChoice(postRequestChoice) : [];
+  const missingSelectedPostRequestTypes = selectedPostRequestTypes.filter(
+    (requestType) =>
+      !(requestType === "coverage_requested" ? existingCoveragePostRequest : existingSwitchPostRequest)
+  );
+  const canConfirmPost = canShowPostConfirmation && missingSelectedPostRequestTypes.length > 0;
 
   const closeOfferFlow = () => {
     setSelectedAction(null);
@@ -2005,16 +2035,17 @@ function ShiftBoardScreen({
   const resetPostFlow = () => {
     setSelectedPostShiftId("");
     setUseManualPostDate(false);
-    setPostRequestChoice("coverage");
+    setPostRequestChoice("");
     setPostForm(emptyCoverSwitchPostForm);
+    setPostNoteOpen(false);
   };
 
-  const activeRequestForShiftDetails = (requestType: ShiftRequestType, shift: {
+  function activeRequestForShiftDetails(requestType: ShiftRequestType, shift: {
     shift_date: string;
     shift_type: ShiftType;
     shift_start: string;
     shift_end: string;
-  }) => {
+  }) {
     if (!schedule || !authContext.staffProfileId) {
       return null;
     }
@@ -2034,13 +2065,18 @@ function ShiftBoardScreen({
         );
       }) ?? null
     );
-  };
+  }
 
   const postCoverSwitchRequest = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!schedule || !authContext.staffProfileId) {
       setActionError("Your staff profile must be linked before posting.");
+      return;
+    }
+
+    if (!postRequestChoice) {
+      setActionError("Choose coverage, switch, or both.");
       return;
     }
 
@@ -2187,6 +2223,28 @@ function ShiftBoardScreen({
     resetPostFlow();
     setPostFlowOpen(false);
     setSuccess("Posted to Cover/Switch.");
+    await onChanged();
+  };
+
+  const cancelPostedRequest = async (request: ShiftRequestRow) => {
+    setSaving(true);
+    setActionError("");
+    setSuccess("");
+
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("shift_requests")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("id", request.id);
+
+    setSaving(false);
+
+    if (updateError) {
+      setActionError(`Unable to cancel ${requestLabel(request.request_type)}.`);
+      return;
+    }
+
+    setSuccess(`${requestLabel(request.request_type)} cancelled.`);
     await onChanged();
   };
 
@@ -2433,7 +2491,13 @@ function ShiftBoardScreen({
         <button
           type="button"
           onClick={() => {
-            setPostFlowOpen((current) => !current);
+            setPostFlowOpen((current) => {
+              if (!current) {
+                resetPostFlow();
+              }
+
+              return !current;
+            });
             setActionError("");
             setSuccess("");
           }}
@@ -2459,13 +2523,13 @@ function ShiftBoardScreen({
 
           <div className="mt-4 space-y-3">
             <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 1: Choose a shift</p>
-              {ownScheduledShifts.length === 0 && (
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Choose a shift</p>
+              {!selectedPostShift && !useManualPostDate && ownScheduledShifts.length === 0 && (
                 <p className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
-                  No scheduled shifts found. You can still add a date manually.
+                  No scheduled shifts found.
                 </p>
               )}
-              {ownScheduledShifts.length > 0 && (
+              {!selectedPostShift && !useManualPostDate && ownScheduledShifts.length > 0 && (
                 <div className="mt-2 grid gap-2">
                   {ownScheduledShifts.slice(0, 8).map((shift) => {
                     const coverageRequest = schedule ? findActiveRequest(schedule, shift, "coverage_requested") : null;
@@ -2479,6 +2543,9 @@ function ShiftBoardScreen({
                         onClick={() => {
                           setSelectedPostShiftId(shift.id);
                           setUseManualPostDate(false);
+                          setPostRequestChoice("");
+                          setPostNoteOpen(false);
+                          setPostForm({ ...emptyCoverSwitchPostForm, note: "" });
                         }}
                         className={`rounded-2xl border px-3 py-3 text-left transition ${
                           selected ? "border-cyan-400 bg-cyan-50 shadow-sm" : "border-slate-100 bg-white hover:border-cyan-100"
@@ -2508,6 +2575,8 @@ function ShiftBoardScreen({
                 onClick={() => {
                   setUseManualPostDate(true);
                   setSelectedPostShiftId("");
+                  setPostRequestChoice("");
+                  setPostNoteOpen(false);
                 }}
                 className={`mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border px-3 text-sm font-extrabold ${
                   useManualPostDate ? "border-cyan-300 bg-cyan-50 text-cyan-800" : "border-slate-200 bg-white text-slate-600"
@@ -2515,6 +2584,64 @@ function ShiftBoardScreen({
               >
                 Add Date Manually
               </button>
+
+              {selectedPostShiftDetails && (
+                <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-hospital-ink">
+                        {selectedPostShift
+                          ? selectedPostShift.day_of_week
+                          : dayNameFromDate(selectedPostShiftDetails.shift_date)}{" "}
+                        {formatDateNumeric(selectedPostShiftDetails.shift_date)}
+                      </p>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-600">
+                        {shiftTypeLabels[selectedPostShiftDetails.shift_type]}{" "}
+                        {formatShiftTime(selectedPostShiftDetails.shift_start, selectedPostShiftDetails.shift_end)}
+                      </p>
+                      {(existingCoveragePostRequest || existingSwitchPostRequest) && (
+                        <p className="mt-2 text-xs font-bold text-cyan-800">
+                          {[
+                            existingCoveragePostRequest ? "Coverage already posted" : "",
+                            existingSwitchPostRequest ? "Switch already posted" : ""
+                          ].filter(Boolean).join(" / ")}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={resetPostFlow}
+                      className="shrink-0 rounded-xl border border-cyan-200 bg-white px-2 py-1 text-xs font-extrabold text-cyan-700"
+                    >
+                      Change
+                    </button>
+                  </div>
+                  {(existingCoveragePostRequest || existingSwitchPostRequest) && (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {existingCoveragePostRequest && (
+                        <button
+                          type="button"
+                          onClick={() => void cancelPostedRequest(existingCoveragePostRequest)}
+                          disabled={saving}
+                          className="min-h-9 rounded-xl border border-cyan-200 bg-white px-2 text-xs font-extrabold text-cyan-800 disabled:opacity-60"
+                        >
+                          Cancel Coverage Request
+                        </button>
+                      )}
+                      {existingSwitchPostRequest && (
+                        <button
+                          type="button"
+                          onClick={() => void cancelPostedRequest(existingSwitchPostRequest)}
+                          disabled={saving}
+                          className="min-h-9 rounded-xl border border-cyan-200 bg-white px-2 text-xs font-extrabold text-cyan-800 disabled:opacity-60"
+                        >
+                          Cancel Switch Request
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {useManualPostDate && (
@@ -2524,7 +2651,11 @@ function ShiftBoardScreen({
                   <input
                     type="date"
                     value={postForm.shift_date}
-                    onChange={(event) => setPostForm({ ...postForm, shift_date: event.target.value })}
+                    onChange={(event) => {
+                      setPostForm({ ...postForm, shift_date: event.target.value });
+                      setPostRequestChoice("");
+                      setPostNoteOpen(false);
+                    }}
                     className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                   />
                 </label>
@@ -2532,7 +2663,11 @@ function ShiftBoardScreen({
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
                   <select
                     value={postForm.shift_type}
-                    onChange={(event) => setPostForm(applyStandardShiftTimes(postForm, event.target.value as ShiftType))}
+                    onChange={(event) => {
+                      setPostForm(applyStandardShiftTimes(postForm, event.target.value as ShiftType));
+                      setPostRequestChoice("");
+                      setPostNoteOpen(false);
+                    }}
                     className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                   >
                     {Object.entries(shiftTypeLabels).map(([value, label]) => (
@@ -2548,7 +2683,11 @@ function ShiftBoardScreen({
                     <input
                       type="time"
                       value={postForm.shift_start}
-                      onChange={(event) => setPostForm({ ...postForm, shift_start: event.target.value })}
+                      onChange={(event) => {
+                        setPostForm({ ...postForm, shift_start: event.target.value });
+                        setPostRequestChoice("");
+                        setPostNoteOpen(false);
+                      }}
                       className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                     />
                   </label>
@@ -2557,7 +2696,11 @@ function ShiftBoardScreen({
                     <input
                       type="time"
                       value={postForm.shift_end}
-                      onChange={(event) => setPostForm({ ...postForm, shift_end: event.target.value })}
+                      onChange={(event) => {
+                        setPostForm({ ...postForm, shift_end: event.target.value });
+                        setPostRequestChoice("");
+                        setPostNoteOpen(false);
+                      }}
                       className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                     />
                   </label>
@@ -2565,8 +2708,9 @@ function ShiftBoardScreen({
               </div>
             )}
 
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 2: What would you like to do?</p>
+            {canShowRequestTypeStep && (
+            <div className="rounded-2xl border border-slate-100 bg-white px-3 py-3">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">What would you like to do?</p>
               <div className="mt-2 grid gap-2">
                 {[
                   ["coverage", "Ask for Coverage", "Coverage: someone works this shift for you."],
@@ -2576,7 +2720,10 @@ function ShiftBoardScreen({
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setPostRequestChoice(value as CoverSwitchRequestChoice)}
+                    onClick={() => {
+                      setPostRequestChoice(value as CoverSwitchRequestChoice);
+                      setPostNoteOpen(false);
+                    }}
                     className={`rounded-2xl border px-3 py-2 text-left ${
                       postRequestChoice === value ? "border-cyan-300 bg-cyan-50" : "border-slate-100 bg-white"
                     }`}
@@ -2587,47 +2734,89 @@ function ShiftBoardScreen({
                 ))}
               </div>
             </div>
+            )}
 
-            <label className="block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 3: Optional note</span>
-              <textarea
-                value={postForm.note}
-                onChange={(event) => setPostForm({ ...postForm, note: event.target.value.slice(0, 140) })}
-                placeholder="Anything people should know?"
-                maxLength={140}
-                className="mt-2 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-              />
-              <span className="mt-1 flex justify-between text-xs font-bold text-slate-400">
-                <span>Do not include patient information.</span>
-                <span>{postForm.note.length}/140</span>
-              </span>
-            </label>
+            {canShowPostConfirmation && selectedPostShiftDetails && (
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Confirm</p>
+                <p className="mt-2 text-sm font-black text-hospital-ink">
+                  {selectedPostShift
+                    ? selectedPostShift.day_of_week
+                    : dayNameFromDate(selectedPostShiftDetails.shift_date)}{" "}
+                  {formatDateNumeric(selectedPostShiftDetails.shift_date)}
+                </p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-600">
+                  {shiftTypeLabels[selectedPostShiftDetails.shift_type]}{" "}
+                  {formatShiftTime(selectedPostShiftDetails.shift_start, selectedPostShiftDetails.shift_end)}
+                </p>
+                <p className="mt-3 text-sm font-bold leading-6 text-cyan-900">
+                  {postRequestChoice === "coverage" && "You are asking for coverage for this shift."}
+                  {postRequestChoice === "switch" && "You are asking to switch this shift."}
+                  {postRequestChoice === "both" && "You are open to coverage or a switch for this shift."}
+                </p>
+                {missingSelectedPostRequestTypes.length === 0 && (
+                  <p className="mt-2 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                    This request type is already active. Use the cancel button above if you need to remove it.
+                  </p>
+                )}
 
-            <div className="rounded-2xl bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-              {postRequestChoice === "coverage" && "You are posting this shift for coverage."}
-              {postRequestChoice === "switch" && "You are posting this shift for switch."}
-              {postRequestChoice === "both" && "You are posting this shift for coverage or switch."}
-            </div>
+                {!postNoteOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setPostNoteOpen(true)}
+                    className="mt-3 min-h-10 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-extrabold text-cyan-800"
+                  >
+                    Add Optional Note
+                  </button>
+                )}
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  resetPostFlow();
-                  setPostFlowOpen(false);
-                }}
-                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving || (!useManualPostDate && !selectedPostShift)}
-                className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
-              >
-                {saving ? "Posting..." : "Post to Cover/Switch"}
-              </button>
-            </div>
+                {postNoteOpen && (
+                  <label className="mt-3 block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Optional note</span>
+                    <textarea
+                      value={postForm.note}
+                      onChange={(event) => setPostForm({ ...postForm, note: event.target.value.slice(0, 140) })}
+                      placeholder="Anything people should know?"
+                      maxLength={140}
+                      className="mt-2 min-h-20 w-full rounded-2xl border border-cyan-100 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                    <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
+                      <span>Do not include patient information.</span>
+                      <span>{postForm.note.length}/140</span>
+                    </span>
+                    {postForm.note && (
+                      <button
+                        type="button"
+                        onClick={() => setPostForm({ ...postForm, note: "" })}
+                        className="mt-2 text-xs font-extrabold text-cyan-700"
+                      >
+                        Clear note
+                      </button>
+                    )}
+                  </label>
+                )}
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetPostFlow();
+                      setPostFlowOpen(false);
+                    }}
+                    className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving || !canConfirmPost}
+                    className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+                  >
+                    {saving ? "Confirming..." : "Confirm"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </form>
       )}
@@ -2740,7 +2929,8 @@ function ShiftBoardScreen({
 
       {visiblePosts.length === 0 && (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <p className="text-sm font-bold text-slate-500">No active Cover/Switch posts.</p>
+          <p className="text-sm font-black text-hospital-ink">No active Cover/Switch posts yet.</p>
+          <p className="mt-1 text-sm font-bold text-slate-500">Post one of your shifts above.</p>
         </section>
       )}
 

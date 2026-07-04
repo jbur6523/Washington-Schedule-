@@ -18,14 +18,16 @@ Cancelled, resolved, accepted, or declined records are hidden from active board 
 
 Staff can start a request directly from Cover/Switch with the `Offer Shift / Request Switch` button.
 
-Flow:
+Progressive flow:
 
-1. Staff chooses one of their own scheduled shifts.
-2. If no scheduled shift is found, staff can use Add Date Manually.
-3. Staff chooses Ask for Coverage, Ask for Switch, or Both.
-4. Staff can add an optional note up to 140 characters.
-5. App shows a confirmation message.
-6. Staff taps Post to Cover/Switch.
+1. Staff taps Offer Shift / Request Switch.
+2. The app shows only Choose a shift.
+3. Staff chooses one of their own scheduled shifts or uses Add Date Manually.
+4. The app reveals What would you like to do?
+5. Staff chooses Ask for Coverage, Ask for Switch, or Both.
+6. The app reveals the Confirm card.
+7. Staff can tap Add Optional Note and enter up to 140 characters.
+8. Staff taps Confirm.
 
 Ask for Coverage creates or reactivates a `shift_requests` row with `request_type = coverage_requested`.
 
@@ -41,6 +43,8 @@ Manual dates use the same standard shift defaults:
 Do not include patient information in notes.
 
 Duplicate active requests for the same staff member, shift, and request type are blocked by the UI and database indexes.
+
+If a selected shift already has Coverage Requested or Switch Requested active, the app shows that status and offers a cancel button for that request type. If Both is selected and one request type already exists, only the missing request type is created.
 
 ## Offer Coverage
 
