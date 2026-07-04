@@ -2724,8 +2724,10 @@ function ShiftBoardScreen({
                       setPostRequestChoice(value as CoverSwitchRequestChoice);
                       setPostNoteOpen(false);
                     }}
-                    className={`rounded-2xl border px-3 py-2 text-left ${
-                      postRequestChoice === value ? "border-cyan-300 bg-cyan-50" : "border-slate-100 bg-white"
+                    className={`min-h-20 rounded-2xl border px-4 py-3 text-left shadow-[0_0_0_1px_rgba(15,23,42,0.04),0_10px_24px_rgba(15,23,42,0.10)] transition duration-150 active:scale-[1.02] ${
+                      postRequestChoice === value
+                        ? "scale-[1.02] border-cyan-500 bg-cyan-50 shadow-[0_0_0_1px_rgba(8,145,178,0.18),0_0_22px_rgba(8,145,178,0.22),0_16px_30px_rgba(15,23,42,0.16)]"
+                        : "border-slate-200 bg-white hover:border-cyan-300 hover:shadow-[0_0_0_1px_rgba(8,145,178,0.10),0_12px_26px_rgba(15,23,42,0.12)]"
                     }`}
                   >
                     <span className="block text-sm font-black text-hospital-ink">{label}</span>
@@ -2737,8 +2739,8 @@ function ShiftBoardScreen({
             )}
 
             {canShowPostConfirmation && selectedPostShiftDetails && (
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Confirm</p>
+              <div className="rounded-2xl border border-violet-200 bg-violet-50/90 px-3 py-3 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_0_24px_rgba(139,92,246,0.20),0_16px_34px_rgba(15,23,42,0.12)]">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Confirm</p>
                 <p className="mt-2 text-sm font-black text-hospital-ink">
                   {selectedPostShift
                     ? selectedPostShift.day_of_week
@@ -2749,7 +2751,7 @@ function ShiftBoardScreen({
                   {shiftTypeLabels[selectedPostShiftDetails.shift_type]}{" "}
                   {formatShiftTime(selectedPostShiftDetails.shift_start, selectedPostShiftDetails.shift_end)}
                 </p>
-                <p className="mt-3 text-sm font-bold leading-6 text-cyan-900">
+                <p className="mt-3 text-sm font-bold leading-6 text-violet-950">
                   {postRequestChoice === "coverage" && "You are asking for coverage for this shift."}
                   {postRequestChoice === "switch" && "You are asking to switch this shift."}
                   {postRequestChoice === "both" && "You are open to coverage or a switch for this shift."}
@@ -2764,7 +2766,7 @@ function ShiftBoardScreen({
                   <button
                     type="button"
                     onClick={() => setPostNoteOpen(true)}
-                    className="mt-3 min-h-10 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-extrabold text-cyan-800"
+                    className="mt-3 min-h-10 w-full rounded-2xl border border-violet-200 bg-white px-3 text-sm font-extrabold text-violet-800 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition active:scale-[0.99]"
                   >
                     Add Optional Note
                   </button>
@@ -2772,13 +2774,13 @@ function ShiftBoardScreen({
 
                 {postNoteOpen && (
                   <label className="mt-3 block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Optional note</span>
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Optional note</span>
                     <textarea
                       value={postForm.note}
                       onChange={(event) => setPostForm({ ...postForm, note: event.target.value.slice(0, 140) })}
                       placeholder="Anything people should know?"
                       maxLength={140}
-                      className="mt-2 min-h-20 w-full rounded-2xl border border-cyan-100 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      className="mt-2 min-h-20 w-full rounded-2xl border border-violet-100 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-violet-300"
                     />
                     <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
                       <span>Do not include patient information.</span>
@@ -2788,7 +2790,7 @@ function ShiftBoardScreen({
                       <button
                         type="button"
                         onClick={() => setPostForm({ ...postForm, note: "" })}
-                        className="mt-2 text-xs font-extrabold text-cyan-700"
+                        className="mt-2 text-xs font-extrabold text-violet-700"
                       >
                         Clear note
                       </button>
@@ -2803,14 +2805,14 @@ function ShiftBoardScreen({
                       resetPostFlow();
                       setPostFlowOpen(false);
                     }}
-                    className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                    className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 shadow-[0_8px_18px_rgba(15,23,42,0.08)] transition active:scale-[0.99]"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving || !canConfirmPost}
-                    className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+                    className="min-h-12 rounded-2xl bg-violet-700 px-4 text-sm font-extrabold text-white shadow-[0_0_0_1px_rgba(124,58,237,0.18),0_0_20px_rgba(139,92,246,0.28),0_14px_28px_rgba(91,33,182,0.24)] transition active:scale-[0.98] disabled:opacity-60"
                   >
                     {saving ? "Confirming..." : "Confirm"}
                   </button>
