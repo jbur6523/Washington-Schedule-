@@ -11,12 +11,14 @@ type StaffRole = "admin" | "lead" | "staff";
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
+type OperationsRole = "none" | "aide";
 
 type StaffProfilePayload = {
   display_name?: string;
   username?: string;
   username_normalized?: string;
   assigned_role?: StaffRole;
+  operations_role?: OperationsRole;
   employment_type?: EmploymentType;
   home_assignment?: HomeAssignment;
   phone_number?: string | null;
@@ -29,6 +31,7 @@ const validRoles = new Set(["admin", "lead", "staff"]);
 const validEmploymentTypes = new Set(["full_time", "per_diem"]);
 const validHomeAssignments = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"]);
 const validContactMethods = new Set(["phone", "email", "app"]);
+const validOperationsRoles = new Set(["none", "aide"]);
 
 function cleanOptional(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -53,6 +56,7 @@ function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized
   const employmentType = payload.employment_type;
   const homeAssignment = payload.home_assignment;
   const preferredContactMethod = payload.preferred_contact_method;
+  const operationsRole = payload.operations_role ?? "none";
 
   if (!displayName) {
     return { error: "Staff name is required." };
@@ -74,6 +78,10 @@ function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized
     return { error: "Preferred contact method is invalid." };
   }
 
+  if (!validOperationsRoles.has(operationsRole)) {
+    return { error: "Operations dashboard access is invalid." };
+  }
+
   if (payload.assigned_role && !validRoles.has(payload.assigned_role)) {
     return { error: "Role is invalid." };
   }
@@ -84,6 +92,7 @@ function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized
       username: requestedUsername || usernameNormalized,
       username_normalized: usernameNormalized,
       assigned_role: safeAssignedRole(usernameNormalized, payload.assigned_role),
+      operations_role: operationsRole,
       employment_type: employmentType,
       home_assignment: homeAssignment,
       phone_number: cleanOptional(payload.phone_number),

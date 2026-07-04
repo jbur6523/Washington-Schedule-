@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
-import type { AppRole, AuthContextResult } from "@/lib/auth/types";
+import type { AppRole, AuthContextResult, OperationsRole } from "@/lib/auth/types";
 
 type MembershipRow = {
   role: AppRole;
@@ -49,10 +49,11 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
 
   const { data: staffProfile } = await supabase
     .from("staff_profiles")
-    .select("id")
+    .select("id, operations_role")
     .eq("department_id", membership.department_id)
     .eq("profile_id", profile.id)
     .maybeSingle();
+  const operationsRole = staffProfile?.operations_role === "aide" ? "aide" : "none";
 
   return {
     status: "authenticated",
@@ -63,6 +64,7 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
       departmentId: membership.department_id,
       departmentName: membership.departments.name,
       role: membership.role,
+      operationsRole: operationsRole as OperationsRole,
       displayName: profile.display_name,
       hasLinkedStaffProfile: Boolean(staffProfile?.id)
     }

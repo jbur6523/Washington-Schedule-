@@ -11,11 +11,13 @@ type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
+type OperationsRole = "none" | "aide";
 type RosterFilter =
   | "all"
   | "admin"
   | "lead"
   | "staff"
+  | "aide"
   | "claimed"
   | "unclaimed"
   | "active"
@@ -38,6 +40,7 @@ type StaffProfile = {
   username: string | null;
   username_normalized: string | null;
   assigned_role: StaffRole;
+  operations_role: OperationsRole;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
   phone_number: string | null;
@@ -53,6 +56,7 @@ type StaffProfileForm = {
   username: string;
   username_normalized: string;
   assigned_role: StaffRole;
+  operations_role: OperationsRole;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
   phone_number: string;
@@ -95,6 +99,7 @@ const emptyForm: StaffProfileForm = {
   username: "",
   username_normalized: "",
   assigned_role: "staff",
+  operations_role: "none",
   employment_type: "full_time",
   home_assignment: "day_shift",
   phone_number: "",
@@ -108,6 +113,7 @@ const rosterFilters: Array<{ id: RosterFilter; label: string }> = [
   { id: "admin", label: "Admin" },
   { id: "lead", label: "Lead" },
   { id: "staff", label: "Staff" },
+  { id: "aide", label: "Aide" },
   { id: "claimed", label: "Claimed" },
   { id: "unclaimed", label: "Unclaimed" },
   { id: "active", label: "Active" },
@@ -140,6 +146,11 @@ const roleLabels: Record<StaffRole, string> = {
   admin: "Admin",
   lead: "Lead",
   staff: "Staff"
+};
+
+const operationsRoleLabels: Record<OperationsRole, string> = {
+  none: "None",
+  aide: "Aide Dashboard"
 };
 
 const leadDisplayNames = new Set([
@@ -211,6 +222,7 @@ function profileToForm(profile: StaffProfile): StaffProfileForm {
     username: profile.username ?? profile.username_normalized ?? "",
     username_normalized: profile.username_normalized ?? normalizeUsername(profile.username ?? ""),
     assigned_role: profile.assigned_role,
+    operations_role: profile.operations_role ?? "none",
     employment_type: profile.employment_type,
     home_assignment: profile.home_assignment,
     phone_number: profile.phone_number ?? "",
@@ -413,6 +425,21 @@ function StaffProfileEditor({
           </label>
 
           <label className="block">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Operations dashboard</span>
+            <select
+              value={form.operations_role}
+              onChange={(event) => onChange({ ...form, operations_role: event.target.value as OperationsRole })}
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            >
+              <option value="none">None</option>
+              <option value="aide">Aide Dashboard</option>
+            </select>
+            <span className="mt-1 block text-xs font-bold text-slate-400">
+              Admin and Lead dashboards come from the main role. Use Aide Dashboard for aide access.
+            </span>
+          </label>
+
+          <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Phone number</span>
             <input
               type="tel"
@@ -521,6 +548,11 @@ function AdminRosterCard({ profile, onEdit }: { profile: StaffProfile; onEdit: (
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
           {roleLabels[profile.assigned_role]}
         </span>
+        {profile.operations_role === "aide" && (
+          <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
+            {operationsRoleLabels[profile.operations_role]}
+          </span>
+        )}
         {profile.account_claimed_at ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
             <UserRoundCheck size={13} />
@@ -568,7 +600,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     const supabase = createClient();
     const { data, error: loadError } = await supabase
       .from("staff_profiles")
-      .select("id, department_id, profile_id, auth_user_id, display_name, username, username_normalized, assigned_role, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at")
+      .select("id, department_id, profile_id, auth_user_id, display_name, username, username_normalized, assigned_role, operations_role, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at")
       .eq("department_id", authContext.departmentId)
       .order("display_name", { ascending: true });
 
@@ -609,6 +641,10 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
 
       if (selectedFilter === "admin" || selectedFilter === "lead" || selectedFilter === "staff") {
         return profile.assigned_role === selectedFilter;
+      }
+
+      if (selectedFilter === "aide") {
+        return profile.operations_role === "aide";
       }
 
       if (selectedFilter === "claimed") {
@@ -717,6 +753,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
             username: usernameValue,
             username_normalized: usernameValue,
             assigned_role: "staff" as StaffRole,
+            operations_role: "none" as OperationsRole,
             employment_type: "full_time" as EmploymentType,
             home_assignment: "flexible" as HomeAssignment,
             phone_number: null,
@@ -794,6 +831,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
           username: row.username,
           username_normalized: row.username_normalized,
           assigned_role: row.assigned_role,
+          operations_role: "none",
           employment_type: row.employment_type,
           home_assignment: row.home_assignment,
           preferred_contact_method: "app",
@@ -948,6 +986,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
       username: finalUsername,
       username_normalized: finalUsernameNormalized,
       assigned_role: assignedRole,
+      operations_role: form.operations_role,
       employment_type: form.employment_type,
       home_assignment: form.home_assignment,
       phone_number: normalizeOptional(form.phone_number),

@@ -1,4 +1,5 @@
 export type AppRole = "admin" | "lead" | "staff";
+export type OperationsRole = "none" | "aide";
 
 export type AuthenticatedUserContext = {
   authUserId: string;
@@ -7,6 +8,7 @@ export type AuthenticatedUserContext = {
   departmentId: string;
   departmentName: string;
   role: AppRole;
+  operationsRole: OperationsRole;
   displayName: string;
   hasLinkedStaffProfile: boolean;
 };

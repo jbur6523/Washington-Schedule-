@@ -44,6 +44,7 @@ Returning claimed users are not forced through contact setup on every login. Sta
 - Admin users can assign `lead` or `staff` roles. Only username `burj` is admin.
 - Admin users can reset/unclaim staff accounts without deleting the staff profile.
 - Admin users can preload phone numbers by assigned username.
+- Admin users can assign Aide Dashboard access without granting lead/admin schedule permissions.
 - Admin users mark staff inactive instead of deleting records.
 - Staff users can view the directory and update only their own optional contact fields from `My Settings`.
 - Lead users have the same Staff Directory privacy as staff unless they also have admin permissions.
@@ -88,6 +89,7 @@ The admin-only page contains roster provisioning details:
 - Manual add/edit
 - Batch roster creation
 - Phone Number Preload
+- Operations dashboard access for aides
 - Admin-only filters for role and account state
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.

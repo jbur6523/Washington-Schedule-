@@ -13,6 +13,7 @@ const fallbackDevelopmentContext: AuthenticatedUserContext = {
   departmentId: "local-development",
   departmentName: "Respiratory Department",
   role: "admin",
+  operationsRole: "none",
   displayName: "Local Development",
   hasLinkedStaffProfile: true
 };
