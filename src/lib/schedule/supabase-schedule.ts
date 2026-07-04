@@ -13,7 +13,7 @@ export type ShiftShortageStatus = "active" | "resolved" | "cancelled";
 export type EmploymentType = "full_time" | "per_diem";
 export type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 export type UserScheduleOverrideType = "remove_self" | "add_self" | "move_self" | "add_available";
-export type ShiftRequestType = "switch_requested" | "coverage_requested";
+export type ShiftRequestType = "switch_requested" | "coverage_requested" | "wants_off";
 export type ShiftRequestStatus = "active" | "cancelled" | "resolved";
 export type CoverageOfferStatus = "offered" | "accepted" | "declined" | "cancelled";
 export type ShiftRequestOfferType = "coverage" | "switch";
@@ -475,7 +475,11 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
   const dayName = dayNameFromDate(shift.shift_date);
   const dateLabel = compactDateLabel(shift.shift_date);
   const staffProfile = firstStaffProfile(request.staff_profiles);
-  const isSwitch = request.request_type === "switch_requested";
+  const requestStatus = request.request_type === "switch_requested"
+    ? "Switch Requested"
+    : request.request_type === "wants_off"
+      ? "Wants Off"
+      : "Coverage Requested";
 
   return {
     id: request.id,
@@ -485,12 +489,16 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
     shiftTypeLabel: shiftTypeLabels[shift.shift_type],
     postedBy: staffDisplayName(request.staff_profiles),
     staffType: displayStaffType(request.staff_profiles),
-    type: isSwitch ? "Switch Requested" : "Coverage Requested",
+    type: requestStatus,
     coverageIntensity: "low",
-    status: isSwitch ? "Switch Requested" : "Coverage Requested",
+    status: requestStatus,
     description:
       request.note ||
-      (isSwitch ? "Open to switching this scheduled shift." : "Coverage requested for this shift."),
+      (request.request_type === "switch_requested"
+        ? "Open to switching this scheduled shift."
+        : request.request_type === "wants_off"
+          ? "Wants this shift covered."
+          : "Coverage requested for this shift."),
     targetStaffName: staffProfile?.display_name,
     targetStaffProfileId: request.staff_profile_id,
     shiftRequestId: request.id,

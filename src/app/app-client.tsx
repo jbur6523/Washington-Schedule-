@@ -979,7 +979,15 @@ function findActiveRequest(schedule: ActiveSchedule, shift: ScheduleEntryRow, re
 }
 
 function requestLabel(requestType: ShiftRequestType) {
-  return requestType === "switch_requested" ? "Switch Requested" : "Coverage Requested";
+  if (requestType === "switch_requested") {
+    return "Switch Requested";
+  }
+
+  if (requestType === "wants_off") {
+    return "Wants Off";
+  }
+
+  return "Coverage Requested";
 }
 
 function requestTypesForChoice(choice: CoverSwitchRequestChoice): ShiftRequestType[] {
@@ -1253,7 +1261,7 @@ function ManageScheduleScreen({
     });
 
     if (activeRequests.length === 0) {
-      setActionError("Create a Switch Requested or Coverage Requested first, then add a note.");
+      setActionError("Create a Switch Requested, Coverage Requested, or Wants Off first, then add a note.");
       return;
     }
 
@@ -1751,8 +1759,9 @@ function ManageScheduleScreen({
         {scheduledEntries.map((entry) => {
           const switchRequest = findActiveRequest(schedule, entry, "switch_requested");
           const coverageRequest = findActiveRequest(schedule, entry, "coverage_requested");
+          const wantsOffRequest = findActiveRequest(schedule, entry, "wants_off");
           const targetKey = `${entry.id}-${entry.shift_date}-${entry.shift_start}`;
-          const activeNote = switchRequest?.note ?? coverageRequest?.note ?? "";
+          const activeNote = wantsOffRequest?.note ?? switchRequest?.note ?? coverageRequest?.note ?? "";
           const selfAdded = entry.id.startsWith("override-");
 
           return (
@@ -1775,6 +1784,7 @@ function ManageScheduleScreen({
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {switchRequest && <StatusChip status="Switch Requested" compact />}
                 {coverageRequest && <StatusChip status="Coverage Requested" compact />}
+                {wantsOffRequest && <StatusChip status="Wants Off" compact />}
                 {selfAdded && <StatusChip status="Self-added" compact />}
               </div>
 
@@ -1832,6 +1842,18 @@ function ManageScheduleScreen({
                   } disabled:opacity-60`}
                 >
                   {coverageRequest ? "Cancel Coverage Request" : "Request Coverage"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void saveRequest(entry, "wants_off", wantsOffRequest)}
+                  disabled={saving}
+                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                    wantsOffRequest
+                      ? "border-rose-200 bg-white text-rose-700"
+                      : "border-rose-100 bg-rose-50 text-rose-700"
+                  } disabled:opacity-60`}
+                >
+                  {wantsOffRequest ? "Cancel Wants Off" : "Wants Off"}
                 </button>
                 <button
                   type="button"
@@ -2950,6 +2972,13 @@ function ShiftBoardScreen({
             candidate.day === post.day &&
             candidate.shiftTime === post.shiftTime
         );
+        const siblingWantsOffPost = posts.find(
+          (candidate) =>
+            candidate.type === "Wants Off" &&
+            candidate.targetStaffProfileId === post.targetStaffProfileId &&
+            candidate.day === post.day &&
+            candidate.shiftTime === post.shiftTime
+        );
         const siblingSwitchPost = posts.find(
           (candidate) =>
             candidate.type === "Switch Requested" &&
@@ -2970,11 +2999,12 @@ function ShiftBoardScreen({
               .map((candidate) => candidate.status)
           )
         );
+        const coverageRequestPost = siblingCoveragePost ?? siblingWantsOffPost;
         const coverageOfferSent = Boolean(
-          siblingCoveragePost?.shiftRequestId &&
+          coverageRequestPost?.shiftRequestId &&
             schedule?.offers.some(
               (offer) =>
-                offer.shift_request_id === siblingCoveragePost.shiftRequestId &&
+                offer.shift_request_id === coverageRequestPost.shiftRequestId &&
                 offer.offer_type === "coverage" &&
                 offer.offered_by_staff_profile_id === authContext.staffProfileId &&
                 offer.status === "offered"
@@ -3012,7 +3042,12 @@ function ShiftBoardScreen({
                       setSelectedAction({ kind: "coverage", post: siblingCoveragePost });
                       setOfferNote("");
                     }
-                  : undefined
+                  : siblingWantsOffPost
+                    ? () => {
+                        setSelectedAction({ kind: "coverage", post: siblingWantsOffPost });
+                        setOfferNote("");
+                      }
+                    : undefined
             }
             onOfferSwitch={
               siblingSwitchPost

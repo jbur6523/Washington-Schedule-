@@ -11,8 +11,9 @@ export type ScheduleStatus =
   | "Coverage Requested"
   | "Short Shift"
   | "Switch Requested"
+  | "Wants Off"
   | "Self-added";
-export type EmployeeRequestStatus = "Switch Requested" | "Coverage Requested";
+export type EmployeeRequestStatus = "Switch Requested" | "Coverage Requested" | "Wants Off";
 export type ShiftPostType = EmployeeRequestStatus | "Short Shift";
 export type CoverageIntensity = "low" | "medium" | "critical";
 

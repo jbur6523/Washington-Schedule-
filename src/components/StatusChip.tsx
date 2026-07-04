@@ -12,6 +12,7 @@ const statusClasses: Record<ScheduleStatus, string> = {
   "Coverage Requested": "border-violet-200 bg-violet-100 text-violet-700",
   "Short Shift": "border-amber-200 bg-amber-100 text-amber-800",
   "Switch Requested": "border-fuchsia-200 bg-fuchsia-100 text-fuchsia-700",
+  "Wants Off": "border-rose-200 bg-rose-100 text-rose-700",
   "Self-added": "border-cyan-200 bg-cyan-100 text-cyan-700"
 };
 

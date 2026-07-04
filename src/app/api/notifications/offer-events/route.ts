@@ -29,7 +29,7 @@ type ShiftRequest = {
   id: string;
   department_id: string;
   staff_profile_id: string;
-  request_type: "switch_requested" | "coverage_requested";
+  request_type: "switch_requested" | "coverage_requested" | "wants_off";
   staff_profiles: StaffProfile | StaffProfile[] | null;
   schedule_entries: ShiftTarget | ShiftTarget[] | null;
   user_schedule_overrides: ShiftTarget | ShiftTarget[] | null;

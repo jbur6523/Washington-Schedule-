@@ -9,7 +9,7 @@ type BottomNavigationProps = {
 
 const tabs: Array<{ id: TabId; label: string; icon: typeof CalendarDays }> = [
   { id: "schedule", label: "Schedule", icon: CalendarDays },
-  { id: "manage-schedule", label: "Manage", icon: UserCog },
+  { id: "manage-schedule", label: "Manage Schedule", icon: UserCog },
   { id: "gossip", label: "Gossip", icon: MessageCircle },
   { id: "shift-board", label: "Cover/Switch", icon: ClipboardList },
   { id: "staff", label: "Staff", icon: Users }

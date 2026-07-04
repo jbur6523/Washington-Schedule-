@@ -218,7 +218,7 @@ function ShiftGroup({
               (post.targetStaffProfileId
                 ? post.targetStaffProfileId === entry.staffProfileId
                 : post.targetStaffName === entry.staffName) &&
-              (post.status === "Switch Requested" || post.status === "Coverage Requested")
+              (post.status === "Switch Requested" || post.status === "Coverage Requested" || post.status === "Wants Off")
           );
           const note = shiftNotes?.[`${entry.staffName}-${dayName}-${entry.shiftTime}`];
 

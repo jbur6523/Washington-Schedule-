@@ -1,4 +1,4 @@
-import { ArrowRightLeft, ClipboardCheck, SearchCheck } from "lucide-react";
+import { ArrowRightLeft, CalendarX, ClipboardCheck, SearchCheck } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import type { ShiftPost, ShiftPostType } from "@/data/mockSchedule";
@@ -19,12 +19,14 @@ type ShiftPostCardProps = {
 const typeIcon = {
   "Switch Requested": ArrowRightLeft,
   "Coverage Requested": ClipboardCheck,
+  "Wants Off": CalendarX,
   "Short Shift": SearchCheck
 };
 
 const typeHelp = {
   "Switch Requested": "Open to switching this scheduled shift.",
   "Coverage Requested": "Coverage requested for this shift.",
+  "Wants Off": "Wants this shift covered.",
   "Short Shift": "Department is short for part or all of this shift."
 };
 
@@ -44,12 +46,14 @@ export function ShiftPostCard({
   const statuses = Array.from(new Set(relatedStatuses?.length ? relatedStatuses : [post.status]));
   const hasCoverageRequest = statuses.includes("Coverage Requested");
   const hasSwitchRequest = statuses.includes("Switch Requested");
-  const title =
-    hasCoverageRequest && hasSwitchRequest
-      ? "Switch Requested + Coverage Requested"
-      : post.type;
+  const hasWantsOffRequest = statuses.includes("Wants Off");
+  const title = statuses.length > 1 ? statuses.join(" + ") : post.type;
   const actionButtons = [
-    (post.type === "Coverage Requested" || post.type === "Short Shift" || hasCoverageRequest) && onOfferCoverage
+    (post.type === "Coverage Requested" ||
+      post.type === "Wants Off" ||
+      post.type === "Short Shift" ||
+      hasCoverageRequest ||
+      hasWantsOffRequest) && onOfferCoverage
       ? {
           label: coverageActionLabel ?? (post.type === "Short Shift" ? "I Can Cover" : "Offer Coverage"),
           onClick: onOfferCoverage,
