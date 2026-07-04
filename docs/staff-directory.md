@@ -13,6 +13,7 @@ The Staff Directory reads department roster data from Supabase `staff_profiles`.
 
 - Phone numbers belong only to `staff_profiles.phone_number`.
 - Phone numbers are shown only inside Staff Directory/profile areas.
+- Preloaded phone numbers for unclaimed accounts are hidden from the normal Staff Directory until the staff member claims their account.
 - Phone numbers must not be shown on Schedule cards or Cover/Switch cards by default.
 - Phone numbers must not be stored in `schedule_entries`, `shift_requests`, `coverage_offers`, `shift_request_offers`, Cover/Switch posts, import rows, audit summaries, or public examples.
 - Use placeholder phone numbers only for seed data and public examples.
@@ -29,6 +30,8 @@ Fields:
 
 Both fields are optional and can be skipped. If entered, the values are trimmed and saved to the linked `staff_profiles` record. Email uses basic format validation when provided.
 
+If an admin preloaded a phone number before account claim, the Phone Number field is prefilled during this step. The user can keep it, edit it, clear it, or skip the step. Email remains blank by default and optional.
+
 The setup copy tells users these fields are optional and visible to others in the Staff Directory. Contact email is directory visibility only; the app does not send email notifications.
 
 Returning claimed users are not forced through contact setup on every login. Staff can update phone number, email, and preferred contact method from `My Settings`.
@@ -40,6 +43,7 @@ Returning claimed users are not forced through contact setup on every login. Sta
 - Admin users can create and edit staff profiles.
 - Admin users can assign `lead` or `staff` roles. Only username `burj` is admin.
 - Admin users can reset/unclaim staff accounts without deleting the staff profile.
+- Admin users can preload phone numbers by assigned username.
 - Admin users mark staff inactive instead of deleting records.
 - Staff users can view the directory and update only their own optional contact fields from `My Settings`.
 - Lead users have the same Staff Directory privacy as staff unless they also have admin permissions.
@@ -69,6 +73,8 @@ It does not show:
 
 Normal directory filters are limited to All, Full-time, Per diem, Day Shift, Night Shift, PFT, Pulmonary Rehab, Flexible, Active, and Inactive.
 
+Phone number, email, and preferred contact method are shown only after the staff profile has been claimed. This allows admins to preload phone numbers without exposing unclaimed contact data in the shared directory.
+
 ## Admin Roster Management
 
 Admins manage provisioning from the dedicated `/admin/roster` page. The normal Staff Directory may show an `Admin Roster Management` button for admins, but roster editing does not happen inside the shared directory view.
@@ -81,11 +87,35 @@ The admin-only page contains roster provisioning details:
 - Reset/unclaim controls
 - Manual add/edit
 - Batch roster creation
+- Phone Number Preload
 - Admin-only filters for role and account state
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.
 
 Admin add/edit opens in a modal bottom sheet from `/admin/roster`. Batch roster creation and account reset use protected server-side API routes. The browser never receives the Supabase service-role key. The API verifies that the signed-in user is an admin in the current department before creating or updating `staff_profiles`.
+
+## Phone Number Preload
+
+Admins can paste one-time phone preload rows from `/admin/roster`:
+
+```text
+burj | 510-555-0101 # Jonathan Burdick
+jesr | 510-555-0102 # Reggie De Jesus
+khek | 510-555-0103 # Pawanjit/Kinty Khera
+```
+
+Rules:
+
+- Blank lines are ignored.
+- Text after `#` is treated as a comment.
+- The left side must match `staff_profiles.username_normalized`.
+- The right side is the phone number to save.
+- `VERIFY`, blank, missing, or invalid phone values are marked `Needs Review` and skipped.
+- Unknown usernames are marked `Username not found` and skipped.
+- Ready rows are saved only after the admin clicks `Confirm Phone Preload`.
+- Existing phone numbers can be replaced after confirmation.
+
+Phone preload updates only `staff_profiles.phone_number`. It does not add schedule entries, requests, offers, usernames, claim state, or account links.
 
 ## Username and Role Rules
 
@@ -161,6 +191,7 @@ Possible duplicates are flagged when the display name already exists or appears 
 - The visible page heading is `Staff Directory`.
 - Normal Staff Directory cards show contact/profile details only.
 - Admin create/edit lives on `/admin/roster` and includes display name, employment type, home assignment, phone number, email, preferred contact method, active status, assigned username, and role.
+- Phone preload lives on `/admin/roster` and saves phone numbers by assigned username after preview.
 - Staff self-edit lives in the header `My Settings` action and is limited to phone number, email, and preferred contact method.
 - Phone numbers render as tap-to-call links.
 - Email addresses render as tap-to-email links.

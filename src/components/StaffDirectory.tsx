@@ -44,6 +44,7 @@ type StaffProfile = {
   email: string | null;
   preferred_contact_method: PreferredContactMethod | null;
   is_active: boolean;
+  account_claimed_at: string | null;
 };
 
 type CoworkerTitleRow = {
@@ -478,7 +479,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     const supabase = createClient();
     const { data, error: loadError } = await supabase
       .from("staff_profiles")
-      .select("id, department_id, display_name, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active")
+      .select("id, department_id, display_name, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at")
       .eq("department_id", authContext.departmentId)
       .order("display_name", { ascending: true });
 
@@ -486,7 +487,18 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
       setError("Unable to load Staff Directory.");
       setProfiles([]);
     } else {
-      setProfiles((data ?? []) as unknown as StaffProfile[]);
+      setProfiles(
+        ((data ?? []) as unknown as StaffProfile[]).map((profile) =>
+          profile.account_claimed_at
+            ? profile
+            : {
+                ...profile,
+                phone_number: null,
+                email: null,
+                preferred_contact_method: null
+              }
+        )
+      );
     }
 
     if (!loadError && authContext.staffProfileId) {

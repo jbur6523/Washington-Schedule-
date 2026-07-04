@@ -74,6 +74,18 @@ type BatchRosterRow = {
   issue: string;
 };
 
+type PhonePreloadRow = {
+  lineNumber: number;
+  username: string;
+  username_normalized: string;
+  phone_number: string;
+  matchedProfileId: string | null;
+  matchedStaffName: string;
+  existingPhoneNumber: string | null;
+  status: "ready" | "needs_review" | "not_found";
+  issue: string;
+};
+
 type AdminRosterManagementProps = {
   authContext: AuthenticatedUserContext;
 };
@@ -152,6 +164,13 @@ function normalizeName(value: string) {
 function normalizeOptional(value: string) {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function isValidPreloadPhone(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+
+  return Boolean(trimmed) && trimmed.toUpperCase() !== "VERIFY" && digits.length >= 7;
 }
 
 function roleForStaff(displayName: string, username: string): StaffRole {
@@ -538,6 +557,9 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchText, setBatchText] = useState("");
   const [batchRows, setBatchRows] = useState<BatchRosterRow[]>([]);
+  const [phonePreloadOpen, setPhonePreloadOpen] = useState(false);
+  const [phonePreloadText, setPhonePreloadText] = useState("");
+  const [phonePreloadRows, setPhonePreloadRows] = useState<PhonePreloadRow[]>([]);
 
   const loadProfiles = useCallback(async () => {
     setLoading(true);
@@ -627,6 +649,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
   const startCreate = () => {
     setForm(emptyForm);
     setBatchOpen(false);
+    setPhonePreloadOpen(false);
     setSuccess("");
     setError("");
   };
@@ -634,6 +657,15 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
   const startBatch = () => {
     setBatchOpen((current) => !current);
     setForm(null);
+    setPhonePreloadOpen(false);
+    setSuccess("");
+    setError("");
+  };
+
+  const startPhonePreload = () => {
+    setPhonePreloadOpen((current) => !current);
+    setForm(null);
+    setBatchOpen(false);
     setSuccess("");
     setError("");
   };
@@ -785,6 +817,108 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     await loadProfiles();
   };
 
+  const parsePhonePreloadRows = () => {
+    const profileByUsername = new Map(
+      profiles
+        .filter((profile) => profile.username_normalized)
+        .map((profile) => [profile.username_normalized as string, profile])
+    );
+    const parsed = phonePreloadText
+      .split(/\r?\n/)
+      .map((line, index) => ({
+        line: line.split("#")[0]?.trim() ?? "",
+        lineNumber: index + 1
+      }))
+      .filter(({ line }) => Boolean(line))
+      .map(({ line, lineNumber }) => {
+        const parts = line.split("|").map((part) => part.trim());
+        const rawUsername = parts[0] ?? "";
+        const phoneNumber = parts[1] ?? "";
+        const usernameNormalized = normalizeUsername(rawUsername);
+        const matchedProfile = usernameNormalized ? profileByUsername.get(usernameNormalized) ?? null : null;
+        const issues: string[] = [];
+
+        if (!usernameNormalized) {
+          issues.push("Missing username");
+        }
+
+        if (!phoneNumber || phoneNumber.toUpperCase() === "VERIFY" || !isValidPreloadPhone(phoneNumber)) {
+          issues.push("Phone needs review");
+        }
+
+        if (!matchedProfile) {
+          return {
+            lineNumber,
+            username: rawUsername,
+            username_normalized: usernameNormalized,
+            phone_number: phoneNumber,
+            matchedProfileId: null,
+            matchedStaffName: "",
+            existingPhoneNumber: null,
+            status: "not_found",
+            issue: issues.length ? `${issues.join("; ")}; username not found` : "Username not found"
+          } satisfies PhonePreloadRow;
+        }
+
+        return {
+          lineNumber,
+          username: rawUsername,
+          username_normalized: usernameNormalized,
+          phone_number: phoneNumber,
+          matchedProfileId: matchedProfile.id,
+          matchedStaffName: matchedProfile.display_name,
+          existingPhoneNumber: matchedProfile.phone_number,
+          status: issues.length ? "needs_review" : "ready",
+          issue: issues.join("; ")
+        } satisfies PhonePreloadRow;
+      });
+
+    setPhonePreloadRows(parsed);
+    setSuccess("");
+    setError("");
+  };
+
+  const confirmPhonePreload = async () => {
+    const readyRows = phonePreloadRows.filter((row) => row.status === "ready" && row.matchedProfileId);
+
+    if (readyRows.length === 0) {
+      setError("No ready phone rows to save.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    const response = await fetch("/api/admin/phone-preload", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        rows: readyRows.map((row) => ({
+          staffProfileId: row.matchedProfileId,
+          phoneNumber: row.phone_number.trim()
+        }))
+      })
+    });
+    const result = await response.json().catch(() => null);
+
+    setSaving(false);
+
+    if (!response.ok) {
+      setError(result?.message ?? "Unable to preload phone numbers.");
+      return;
+    }
+
+    const updated = Number(result?.updated ?? 0);
+    const skipped = phonePreloadRows.length - updated;
+    setSuccess(`Phone preload complete. ${updated} saved, ${skipped} skipped.`);
+    setPhonePreloadText("");
+    setPhonePreloadRows([]);
+    await loadProfiles();
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -883,7 +1017,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
             Add, edit, activate, deactivate, and reset staff accounts from one admin-only page.
           </p>
-          <div className="mt-4 grid grid-cols-2 gap-2">
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <button
               type="button"
               onClick={startCreate}
@@ -898,6 +1032,13 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
               className="min-h-11 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-sm font-extrabold text-cyan-700"
             >
               Batch Add
+            </button>
+            <button
+              type="button"
+              onClick={startPhonePreload}
+              className="min-h-11 rounded-2xl border border-violet-100 bg-violet-50 px-3 text-sm font-extrabold text-violet-700"
+            >
+              Phone Preload
             </button>
           </div>
         </section>
@@ -989,6 +1130,91 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
                       </span>
                     </div>
                     {row.issue && <p className="mt-2 text-xs font-bold leading-5 text-amber-900">{row.issue}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {phonePreloadOpen && (
+          <section className="rounded-3xl border border-violet-100 bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Phone Number Preload</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+              Paste username and phone number rows. Phone numbers stay hidden from the normal Staff Directory until that account is claimed.
+            </p>
+            <p className="mt-2 rounded-2xl border border-violet-100 bg-violet-50 px-3 py-2 text-xs font-bold leading-5 text-violet-900">
+              Format: username | phone_number. Comments after # are ignored.
+            </p>
+            <textarea
+              value={phonePreloadText}
+              onChange={(event) => setPhonePreloadText(event.target.value)}
+              placeholder={"burj | 510-555-0101 # Jonathan Burdick\njesr | VERIFY # Needs review\nkhek | 510-555-0112 # Pawanjit/Kinty Khera"}
+              className="mt-3 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-violet-300"
+            />
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={parsePhonePreloadRows}
+                className="min-h-11 rounded-2xl border border-violet-100 bg-violet-50 px-3 text-sm font-extrabold text-violet-700"
+              >
+                Preview Phones
+              </button>
+              <button
+                type="button"
+                onClick={confirmPhonePreload}
+                disabled={saving || phonePreloadRows.every((row) => row.status !== "ready")}
+                className="min-h-11 rounded-2xl bg-violet-700 px-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Confirm Phone Preload"}
+              </button>
+            </div>
+
+            {phonePreloadRows.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {phonePreloadRows.map((row) => (
+                  <div
+                    key={`${row.lineNumber}-${row.username}`}
+                    className={`rounded-2xl border px-3 py-2 ${
+                      row.status === "ready"
+                        ? "border-emerald-100 bg-emerald-50"
+                        : row.status === "not_found"
+                          ? "border-rose-100 bg-rose-50"
+                          : "border-amber-200 bg-amber-50"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-hospital-ink">{row.username || "Missing username"}</p>
+                        <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                          {row.matchedStaffName || "No staff match"}
+                        </p>
+                        <p className="mt-1 text-sm font-bold text-slate-700">
+                          {row.phone_number || "No phone number"}
+                        </p>
+                        {row.status === "ready" && row.existingPhoneNumber && (
+                          <p className="mt-1 text-xs font-bold text-violet-800">
+                            Existing number will be replaced.
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-1 text-xs font-extrabold ${
+                          row.status === "ready"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : row.status === "not_found"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {row.status === "ready"
+                          ? "Ready"
+                          : row.status === "not_found"
+                            ? "Username not found"
+                            : "Needs Review"}
+                      </span>
+                    </div>
+                    {row.issue && <p className="mt-2 text-xs font-bold leading-5 text-slate-700">{row.issue}</p>}
                   </div>
                 ))}
               </div>

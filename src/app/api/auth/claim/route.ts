@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   const { data: staffProfile, error: staffError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, assigned_role, email")
+    .select("id, department_id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, assigned_role, phone_number")
     .eq("username_normalized", username)
     .maybeSingle();
 
@@ -114,6 +114,7 @@ export async function POST(request: Request) {
     staffProfileId: staffProfile.id,
     departmentId: staffProfile.department_id,
     role,
-    displayName: staffProfile.display_name
+    displayName: staffProfile.display_name,
+    phoneNumber: staffProfile.phone_number ?? ""
   });
 }

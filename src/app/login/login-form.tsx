@@ -22,6 +22,7 @@ type ClaimResponse = {
   departmentId?: string;
   role?: AppRole;
   displayName?: string;
+  phoneNumber?: string;
 };
 
 type OnboardingContext = {
@@ -226,6 +227,8 @@ export function LoginForm() {
       displayName: result.displayName ?? displayName,
       role: result.role ?? "staff"
     });
+    setPhoneNumber(result.phoneNumber ?? "");
+    setContactEmail("");
     setPassword("");
     setConfirmPassword("");
     setMode("contact");
@@ -557,6 +560,7 @@ export function LoginForm() {
               type="email"
               value={contactEmail}
               onChange={(event) => setContactEmail(event.target.value)}
+              placeholder="Optional"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
             <span className="mt-1 block text-xs font-bold text-slate-400">Optional: Others can view</span>
