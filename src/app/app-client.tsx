@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronDown, LogOut, Pencil, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, LogOut, Pencil, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { GossipBoard } from "@/components/GossipBoard";
@@ -93,6 +93,16 @@ type ManualSwitchForm = {
   note: string;
 };
 
+type CoverSwitchRequestChoice = "coverage" | "switch" | "both";
+
+type CoverSwitchPostForm = {
+  shift_date: string;
+  shift_type: ShiftType;
+  shift_start: string;
+  shift_end: string;
+  note: string;
+};
+
 const emptyAddShiftForm: AddShiftForm = {
   mode: "add",
   shift_date: "",
@@ -112,6 +122,14 @@ const emptyShortShiftForm: ShortShiftForm = {
 };
 
 const emptyManualSwitchForm: ManualSwitchForm = {
+  shift_date: "",
+  shift_type: "day_shift",
+  shift_start: "06:30",
+  shift_end: "19:00",
+  note: ""
+};
+
+const emptyCoverSwitchPostForm: CoverSwitchPostForm = {
   shift_date: "",
   shift_type: "day_shift",
   shift_start: "06:30",
@@ -953,6 +971,14 @@ function findActiveRequest(schedule: ActiveSchedule, shift: ScheduleEntryRow, re
 
 function requestLabel(requestType: ShiftRequestType) {
   return requestType === "switch_requested" ? "Switch Requested" : "Coverage Requested";
+}
+
+function requestTypesForChoice(choice: CoverSwitchRequestChoice): ShiftRequestType[] {
+  if (choice === "both") {
+    return ["coverage_requested", "switch_requested"];
+  }
+
+  return [choice === "coverage" ? "coverage_requested" : "switch_requested"];
 }
 
 function getRequestShift(request: ShiftRequestRow) {
@@ -1902,11 +1928,25 @@ function ShiftBoardScreen({
   const [useManualSwitch, setUseManualSwitch] = useState(false);
   const [shortShiftForm, setShortShiftForm] = useState<ShortShiftForm>(emptyShortShiftForm);
   const [shortShiftOpen, setShortShiftOpen] = useState(false);
+  const [postFlowOpen, setPostFlowOpen] = useState(false);
+  const [selectedPostShiftId, setSelectedPostShiftId] = useState("");
+  const [useManualPostDate, setUseManualPostDate] = useState(false);
+  const [postRequestChoice, setPostRequestChoice] = useState<CoverSwitchRequestChoice>("coverage");
+  const [postForm, setPostForm] = useState<CoverSwitchPostForm>(emptyCoverSwitchPostForm);
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState("");
   const [success, setSuccess] = useState("");
   const canManageShortShift = authContext.role === "admin" || authContext.role === "lead";
   const posts = developmentFallback ? allShiftPosts : schedule?.shiftPosts ?? emptyShiftPosts;
+  const ownScheduledShifts = useMemo(() => {
+    if (!schedule || !authContext.staffProfileId) {
+      return [];
+    }
+
+    return schedule.effectiveEntries
+      .filter((entry) => entry.staff_profile_id === authContext.staffProfileId && entry.entry_status === "scheduled")
+      .sort((a, b) => `${a.shift_date} ${a.shift_start}`.localeCompare(`${b.shift_date} ${b.shift_start}`));
+  }, [authContext.staffProfileId, schedule]);
   const visiblePosts = useMemo(
     () =>
       posts.filter((post, index) => {
@@ -1943,6 +1983,7 @@ function ShiftBoardScreen({
             isWithinWeek(entry.shift_date, selectedWeekStart, selectedWeekEnd)
         )
       : [];
+  const selectedPostShift = ownScheduledShifts.find((entry) => entry.id === selectedPostShiftId) ?? null;
 
   const closeOfferFlow = () => {
     setSelectedAction(null);
@@ -1950,6 +1991,194 @@ function ShiftBoardScreen({
     setManualSwitchForm(emptyManualSwitchForm);
     setSelectedSwitchShiftId("");
     setUseManualSwitch(false);
+  };
+
+  const resetPostFlow = () => {
+    setSelectedPostShiftId("");
+    setUseManualPostDate(false);
+    setPostRequestChoice("coverage");
+    setPostForm(emptyCoverSwitchPostForm);
+  };
+
+  const activeRequestForShiftDetails = (requestType: ShiftRequestType, shift: {
+    shift_date: string;
+    shift_type: ShiftType;
+    shift_start: string;
+    shift_end: string;
+  }) => {
+    if (!schedule || !authContext.staffProfileId) {
+      return null;
+    }
+
+    return (
+      schedule.requests.find((request) => {
+        const requestShift = getRequestShift(request);
+
+        return (
+          request.status === "active" &&
+          request.request_type === requestType &&
+          request.staff_profile_id === authContext.staffProfileId &&
+          requestShift?.shift_date === shift.shift_date &&
+          requestShift?.shift_type === shift.shift_type &&
+          requestShift?.shift_start === shift.shift_start &&
+          requestShift?.shift_end === shift.shift_end
+        );
+      }) ?? null
+    );
+  };
+
+  const postCoverSwitchRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!schedule || !authContext.staffProfileId) {
+      setActionError("Your staff profile must be linked before posting.");
+      return;
+    }
+
+    const requestTypes = requestTypesForChoice(postRequestChoice);
+    const selectedShift = useManualPostDate ? null : selectedPostShift;
+
+    if (!useManualPostDate && !selectedShift) {
+      setActionError("Choose one of your shifts or add a date manually.");
+      return;
+    }
+
+    if (useManualPostDate && (!postForm.shift_date || !postForm.shift_start || !postForm.shift_end)) {
+      setActionError("Enter a date, start time, and end time.");
+      return;
+    }
+
+    const shiftDetails = selectedShift
+      ? {
+          shift_date: selectedShift.shift_date,
+          shift_type: selectedShift.shift_type,
+          shift_start: selectedShift.shift_start,
+          shift_end: selectedShift.shift_end
+        }
+      : {
+          shift_date: postForm.shift_date,
+          shift_type: postForm.shift_type,
+          shift_start: postForm.shift_start,
+          shift_end: postForm.shift_end
+        };
+
+    const missingRequestTypes = requestTypes.filter(
+      (requestType) => !activeRequestForShiftDetails(requestType, shiftDetails)
+    );
+
+    if (missingRequestTypes.length === 0) {
+      setActionError("This shift is already posted to Cover/Switch.");
+      return;
+    }
+
+    setSaving(true);
+    setActionError("");
+    setSuccess("");
+
+    const supabase = createClient();
+    let target = selectedShift ? getShiftTarget(selectedShift) : { schedule_entry_id: null, user_schedule_override_id: null as string | null };
+
+    if (useManualPostDate) {
+      const { data: override, error: overrideError } = await supabase
+        .from("user_schedule_overrides")
+        .insert({
+          department_id: authContext.departmentId,
+          staff_profile_id: authContext.staffProfileId,
+          base_schedule_entry_id: null,
+          override_type: "add_self",
+          shift_date: postForm.shift_date,
+          shift_type: postForm.shift_type,
+          shift_start: postForm.shift_start,
+          shift_end: postForm.shift_end,
+          note: postForm.note.trim() || null,
+          is_active: true
+        })
+        .select("id")
+        .single();
+
+      if (overrideError || !override?.id) {
+        setSaving(false);
+        setActionError("Unable to add that manual shift.");
+        return;
+      }
+
+      target = { schedule_entry_id: null, user_schedule_override_id: override.id as string };
+    }
+
+    const note = postForm.note.trim().slice(0, 140) || null;
+    const requestsToInsert = [];
+
+    for (const requestType of missingRequestTypes) {
+      let reusableRequestQuery = supabase
+        .from("shift_requests")
+        .select("id")
+        .eq("department_id", authContext.departmentId)
+        .eq("staff_profile_id", authContext.staffProfileId)
+        .eq("request_type", requestType)
+        .neq("status", "active")
+        .order("updated_at", { ascending: false })
+        .limit(1);
+
+      reusableRequestQuery = target.schedule_entry_id
+        ? reusableRequestQuery.eq("schedule_entry_id", target.schedule_entry_id)
+        : reusableRequestQuery.eq("user_schedule_override_id", target.user_schedule_override_id);
+
+      const { data: reusableRequests, error: reusableError } = await reusableRequestQuery;
+
+      if (reusableError) {
+        setSaving(false);
+        setActionError("Unable to check existing Cover/Switch requests.");
+        return;
+      }
+
+      const reusableRequestId = reusableRequests?.[0]?.id as string | undefined;
+
+      if (reusableRequestId) {
+        const { error: updateError } = await supabase
+          .from("shift_requests")
+          .update({
+            status: "active",
+            note,
+            cancelled_at: null,
+            resolved_at: null
+          })
+          .eq("id", reusableRequestId);
+
+        if (updateError) {
+          setSaving(false);
+          setActionError("Unable to reactivate this Cover/Switch request.");
+          return;
+        }
+
+        continue;
+      }
+
+      requestsToInsert.push({
+        department_id: authContext.departmentId,
+        staff_profile_id: authContext.staffProfileId,
+        request_type: requestType,
+        status: "active",
+        note,
+        created_by: authContext.profileId,
+        ...target
+      });
+    }
+
+    const { error: insertError } = requestsToInsert.length > 0
+      ? await supabase.from("shift_requests").insert(requestsToInsert)
+      : { error: null };
+
+    setSaving(false);
+
+    if (insertError) {
+      setActionError("Unable to post this shift. It may already be active on Cover/Switch.");
+      return;
+    }
+
+    resetPostFlow();
+    setPostFlowOpen(false);
+    setSuccess("Posted to Cover/Switch.");
+    await onChanged();
   };
 
   const createRequestNotification = async (
@@ -2182,28 +2411,217 @@ function ShiftBoardScreen({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-rose-100 bg-rose-50/80 p-4 shadow-soft">
+      <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
         <div className="flex gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white text-rose-600">
-            <AlertTriangle size={21} />
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <ArrowLeftRight size={21} />
           </span>
           <div>
-            <h2 className="text-lg font-black text-rose-950">Cover/Switch</h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-rose-800">
-              Offer to cover a shift or switch with someone.
-            </p>
+            <h2 className="text-lg font-black text-hospital-ink">Cover/Switch</h2>
+            <p className="mt-1 text-sm font-semibold leading-6 text-slate-600">Post a shift for coverage or switch with someone.</p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setPostFlowOpen((current) => !current);
+            setActionError("");
+            setSuccess("");
+          }}
+          className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-sm"
+        >
+          <ArrowLeftRight size={18} />
+          Offer Shift / Request Switch
+        </button>
         {canManageShortShift && !developmentFallback && schedule && (
           <button
             type="button"
             onClick={() => setShortShiftOpen((current) => !current)}
-            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-rose-700 px-4 text-sm font-extrabold text-white"
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-amber-100 bg-amber-50 px-4 text-xs font-extrabold text-amber-800"
           >
             Create Short Shift
           </button>
         )}
       </section>
+
+      {postFlowOpen && (
+        <form onSubmit={postCoverSwitchRequest} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+          <h3 className="text-lg font-black text-hospital-ink">Offer Shift / Request Switch</h3>
+
+          <div className="mt-4 space-y-3">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 1: Choose a shift</p>
+              {ownScheduledShifts.length === 0 && (
+                <p className="mt-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">
+                  No scheduled shifts found. You can still add a date manually.
+                </p>
+              )}
+              {ownScheduledShifts.length > 0 && (
+                <div className="mt-2 grid gap-2">
+                  {ownScheduledShifts.slice(0, 8).map((shift) => {
+                    const coverageRequest = schedule ? findActiveRequest(schedule, shift, "coverage_requested") : null;
+                    const switchRequest = schedule ? findActiveRequest(schedule, shift, "switch_requested") : null;
+                    const selected = !useManualPostDate && selectedPostShiftId === shift.id;
+
+                    return (
+                      <button
+                        key={shift.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPostShiftId(shift.id);
+                          setUseManualPostDate(false);
+                        }}
+                        className={`rounded-2xl border px-3 py-3 text-left transition ${
+                          selected ? "border-cyan-400 bg-cyan-50 shadow-sm" : "border-slate-100 bg-white hover:border-cyan-100"
+                        }`}
+                      >
+                        <p className="text-sm font-black text-hospital-ink">
+                          {shift.day_of_week} {shift.shift_date}
+                        </p>
+                        <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                          {shiftTypeLabels[shift.shift_type]} {formatShiftTime(shift.shift_start, shift.shift_end)}
+                        </p>
+                        {(coverageRequest || switchRequest) && (
+                          <p className="mt-2 text-xs font-bold text-cyan-700">
+                            {[
+                              coverageRequest ? "Coverage already posted" : "",
+                              switchRequest ? "Switch already posted" : ""
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setUseManualPostDate(true);
+                  setSelectedPostShiftId("");
+                }}
+                className={`mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border px-3 text-sm font-extrabold ${
+                  useManualPostDate ? "border-cyan-300 bg-cyan-50 text-cyan-800" : "border-slate-200 bg-white text-slate-600"
+                }`}
+              >
+                Add Date Manually
+              </button>
+            </div>
+
+            {useManualPostDate && (
+              <div className="grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</span>
+                  <input
+                    type="date"
+                    value={postForm.shift_date}
+                    onChange={(event) => setPostForm({ ...postForm, shift_date: event.target.value })}
+                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift type</span>
+                  <select
+                    value={postForm.shift_type}
+                    onChange={(event) => setPostForm(applyStandardShiftTimes(postForm, event.target.value as ShiftType))}
+                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  >
+                    {Object.entries(shiftTypeLabels).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Start</span>
+                    <input
+                      type="time"
+                      value={postForm.shift_start}
+                      onChange={(event) => setPostForm({ ...postForm, shift_start: event.target.value })}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">End</span>
+                    <input
+                      type="time"
+                      value={postForm.shift_end}
+                      onChange={(event) => setPostForm({ ...postForm, shift_end: event.target.value })}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 2: What would you like to do?</p>
+              <div className="mt-2 grid gap-2">
+                {[
+                  ["coverage", "Ask for Coverage", "Coverage: someone works this shift for you."],
+                  ["switch", "Ask for Switch", "Switch: trade this shift for one of theirs."],
+                  ["both", "Both", "Open to coverage or a switch."]
+                ].map(([value, label, helper]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPostRequestChoice(value as CoverSwitchRequestChoice)}
+                    className={`rounded-2xl border px-3 py-2 text-left ${
+                      postRequestChoice === value ? "border-cyan-300 bg-cyan-50" : "border-slate-100 bg-white"
+                    }`}
+                  >
+                    <span className="block text-sm font-black text-hospital-ink">{label}</span>
+                    <span className="mt-0.5 block text-xs font-bold text-slate-500">{helper}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 3: Optional note</span>
+              <textarea
+                value={postForm.note}
+                onChange={(event) => setPostForm({ ...postForm, note: event.target.value.slice(0, 140) })}
+                placeholder="Anything people should know?"
+                maxLength={140}
+                className="mt-2 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              />
+              <span className="mt-1 flex justify-between text-xs font-bold text-slate-400">
+                <span>Do not include patient information.</span>
+                <span>{postForm.note.length}/140</span>
+              </span>
+            </label>
+
+            <div className="rounded-2xl bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
+              {postRequestChoice === "coverage" && "You are posting this shift for coverage."}
+              {postRequestChoice === "switch" && "You are posting this shift for switch."}
+              {postRequestChoice === "both" && "You are posting this shift for coverage or switch."}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  resetPostFlow();
+                  setPostFlowOpen(false);
+                }}
+                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving || (!useManualPostDate && !selectedPostShift)}
+                className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white disabled:opacity-60"
+              >
+                {saving ? "Posting..." : "Post to Cover/Switch"}
+              </button>
+            </div>
+          </div>
+        </form>
+      )}
 
       {actionError && (
         <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
