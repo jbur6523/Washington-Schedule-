@@ -191,6 +191,15 @@ function formatDateShort(dateValue: string) {
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "numeric", day: "numeric" }).format(date);
 }
 
+function formatDateNumeric(dateValue: string) {
+  const date = dateOnly(dateValue);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric"
+  }).format(date);
+}
+
 function Header({
   authContext,
   developmentFallback,
@@ -2437,7 +2446,7 @@ function ShiftBoardScreen({
           <button
             type="button"
             onClick={() => setShortShiftOpen((current) => !current)}
-            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-amber-100 bg-amber-50 px-4 text-xs font-extrabold text-amber-800"
+            className="mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-rose-700 bg-rose-700 px-4 text-xs font-extrabold text-white shadow-sm shadow-rose-900/20"
           >
             Create Short Shift
           </button>
@@ -2476,7 +2485,7 @@ function ShiftBoardScreen({
                         }`}
                       >
                         <p className="text-sm font-black text-hospital-ink">
-                          {shift.day_of_week} {shift.shift_date}
+                          {shift.day_of_week} {formatDateNumeric(shift.shift_date)}
                         </p>
                         <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                           {shiftTypeLabels[shift.shift_type]} {formatShiftTime(shift.shift_start, shift.shift_end)}
