@@ -2819,37 +2819,26 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </p>
           )}
 
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <section className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Scan Barcode</h2>
             <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
               Scan the 1D barcode or enter the serial / asset ID.
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-3 flex justify-center">
               <button
                 type="button"
                 onClick={() => void startScanner()}
-                className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white"
+                className="min-h-11 w-full max-w-xs rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
               >
                 {scannerSuccess ? "Rescan" : "Scan Barcode"}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  stopScanner();
-                  setScannerStatus("");
-                  setScannerError("");
-                }}
-                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-              >
-                Use Manual Entry
-              </button>
             </div>
             {scannerOpen && (
-              <div className="mt-3 rounded-2xl border border-cyan-100 bg-slate-950 p-2">
+              <div className="mt-3 rounded-2xl border border-amber-100 bg-slate-950 p-2">
                 <video ref={videoRef} className="aspect-video w-full rounded-xl object-cover" muted playsInline />
               </div>
             )}
-            {scannerStatus && <p className="mt-2 text-xs font-bold text-cyan-700">{scannerStatus}</p>}
+            {scannerStatus && <p className="mt-2 text-xs font-bold text-amber-700">{scannerStatus}</p>}
             {scannerSuccess && (
               <p className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700 shadow-[0_0_18px_rgba(16,185,129,0.22)]">
                 {scannerSuccess}
@@ -2861,7 +2850,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <input
                 value={form.serialNumber}
                 onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))}
-                className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
               />
             </label>
             {returnSerialFeedback && (
