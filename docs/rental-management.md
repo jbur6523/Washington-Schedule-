@@ -21,12 +21,20 @@ Rental Check In opens as a dedicated workflow at `/operations/rental-management/
 It now logs the called-in rental order only:
 
 1. Select the rental company.
-2. Select the BiPAP type.
-3. Enter the called-in date and time.
+2. Select the equipment type: `BiPAP` or `V60`.
+3. Review the auto-filled called-in date, time, and staff member.
 4. Add an optional note.
 5. Save the pending delivery.
 
 Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
+
+The Rental Check In screen separates the form into clear sections:
+
+- `Order Details` contains required fields and optional notes.
+- `Auto-filled Order Info` shows the called-in date, called-in time, and called-in staff member from the current user/session.
+- `Review & Save` shows `Ready to Save` only after required fields are complete. Otherwise, it lists missing required fields.
+
+`Save Pending Delivery` remains disabled until Rental Company and Equipment Type are selected. Notes are optional, limited to 140 characters, and continue to show the `No patient information` reminder.
 
 The Rental Management dashboard shows no Pending Delivery section when there are zero pending rentals. When pending records exist, it shows one compact blue card per pending rental.
 
@@ -88,13 +96,14 @@ The scanner shows camera permission and scanning status. After a successful scan
 
 ## Equipment Details
 
-Supported BiPAP type in this phase:
+Supported equipment types in this phase:
 
+- BiPAP
 - V60
 
 Delivered Date defaults to the current date. Delivered Time defaults to the current time in 24-hour input format.
 
-Called In Date and Called In Time default to the current date/time on the Rental Check In order form. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
+Called In Date and Called In Time default to the current date/time on the Rental Check In order form and are presented as auto-filled order info. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
 
 Current location defaults to `RT Equipment Room`. Available locations are:
 
@@ -116,7 +125,7 @@ Before saving a delivered check in, the app checks for an existing in-hospital r
 If an active or called-for-pickup rental already exists, the app does not create a duplicate. It shows:
 
 - Company
-- BiPAP type
+- Equipment type
 - Serial number / asset ID
 - Current location
 - Delivered date/time
@@ -144,7 +153,7 @@ The full Active Rentals details live on `/operations/rental-management/active`, 
 
 Each detail card shows:
 
-- BiPAP type
+- Equipment type
 - Serial / Asset ID
 - Company
 - Last known location
@@ -199,7 +208,7 @@ Full transfer workflow remains future work.
 
 Pending Delivery cards are blue and appear only when rentals have been ordered but not delivered. Each card shows:
 
-- BiPAP type
+- Equipment type
 - Rental company
 - Called-in date/time
 - Called-in staff member

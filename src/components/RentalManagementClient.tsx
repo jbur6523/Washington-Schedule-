@@ -313,6 +313,16 @@ function timeValue() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatDateInput(value: string) {
+  const [year, month, day] = value.split("-");
+
+  if (!year || !month || !day) {
+    return "Not set";
+  }
+
+  return `${month}/${day}/${year}`;
+}
+
 function firstRelated<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
@@ -721,7 +731,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     }
 
     if (!form.vendorId || !form.equipmentType || !form.calledInDate || !form.calledInTime) {
-      setError("Company, BiPAP type, Called In Date, and Called In Time are required.");
+      setError("Rental Company, Equipment Type, Called In Date, and Called In Time are required.");
       return;
     }
 
@@ -1068,7 +1078,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     router.push("/operations/rental-management?pickedUp=1");
   };
 
-  const canLogOrder = Boolean(form.vendorId && form.equipmentType && form.calledInDate && form.calledInTime);
+  const missingOrderFields = [
+    !form.vendorId ? "Rental Company required" : "",
+    !form.equipmentType ? "Equipment Type required" : ""
+  ].filter(Boolean);
+  const missingAutoFilledFields = [
+    !form.calledInDate ? "Called In Date required" : "",
+    !form.calledInTime ? "Called In Time required" : ""
+  ].filter(Boolean);
+  const missingCheckInFields = [...missingOrderFields, ...missingAutoFilledFields];
+  const canLogOrder = missingCheckInFields.length === 0;
   const canConfirmDelivery = Boolean(deliveryPendingRental && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
   const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time);
   const canConfirmPickedUp = Boolean(selectedReturnRental && returnForm.action === "picked_up" && returnForm.date && returnForm.time);
@@ -2311,7 +2330,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <dd>{firstRelated(deliveryPendingRental.rental_vendors)?.name ?? "Unknown company"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
                     <dd>{equipmentLabels[deliveryPendingRental.equipment_type]}</dd>
                   </div>
                   <div>
@@ -2552,19 +2571,41 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             {error}
           </p>
         )}
-        <form onSubmit={submitCheckIn} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-          <h2 className="text-xl font-black text-hospital-ink">Rental Check In</h2>
-          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Log a rented BiPAP/V60 order.</p>
+        <form onSubmit={submitCheckIn} className="space-y-4">
+          <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+            <div className="flex flex-wrap gap-2">
+              {["1 Order Details", "2 Auto-filled Info", "3 Review & Save"].map((step) => (
+                <span
+                  key={step}
+                  className="rounded-full border border-cyan-100 bg-cyan-50 px-3 py-1 text-xs font-extrabold text-cyan-800"
+                >
+                  {step}
+                </span>
+              ))}
+            </div>
+          </section>
 
-          <div className="mt-4 space-y-4">
-            <section>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Company</p>
-              <label className="mt-2 block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Rental Company</span>
+          <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_16px_34px_rgba(15,23,42,0.10)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">A. Order Details</p>
+                <h2 className="mt-1 text-xl font-black text-hospital-ink">Required to continue</h2>
+              </div>
+              <span className="rounded-full bg-rose-50 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-rose-700">
+                Required
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              <label className="block">
+                <span className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  Rental Company
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
+                </span>
                 <select
                   value={form.vendorId}
                   onChange={(event) => setForm((current) => ({ ...current, vendorId: event.target.value }))}
-                  className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  className="mt-1 min-h-12 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink shadow-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                 >
                   {vendors.map((vendor) => (
                     <option key={vendor.id} value={vendor.id}>
@@ -2573,105 +2614,173 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   ))}
                 </select>
               </label>
-              {selectedVendor && (
-                <p className="mt-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-bold leading-5 text-cyan-900">
-                  {selectedVendor.notes ? `${selectedVendor.notes}. ` : ""}
-                  {selectedVendor.phone_number ? `Phone: ${selectedVendor.phone_number}` : "No phone listed."}
-                </p>
-              )}
-            </section>
 
-            <section>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Details</p>
-              <div className="mt-2 grid gap-3">
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">BiPAP Type</span>
-                  <select
-                    value={form.equipmentType}
-                    onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
-                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                  >
-                    <option value="">Select BiPAP type</option>
-                    <option value="v60">V60</option>
-                  </select>
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Date</span>
-                    <input
-                      type="date"
-                      value={form.calledInDate}
-                      onChange={(event) => setForm((current) => ({ ...current, calledInDate: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Time</span>
-                    <input
-                      type="time"
-                      value={form.calledInTime}
-                      onChange={(event) => setForm((current) => ({ ...current, calledInTime: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    />
-                  </label>
+              {selectedVendor && (
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/90 px-3 py-3 text-sm font-bold text-cyan-950">
+                  <p className="font-black">{selectedVendor.name}</p>
+                  {selectedVendor.notes && <p className="mt-1 text-xs leading-5 text-cyan-800">{selectedVendor.notes}</p>}
+                  {selectedVendor.phone_number ? (
+                    <a
+                      href={`tel:${selectedVendor.phone_number.replace(/[^\d+]/g, "")}`}
+                      className="mt-1 inline-flex text-xs font-black text-cyan-700 underline decoration-cyan-300 underline-offset-4"
+                    >
+                      {selectedVendor.phone_number}
+                    </a>
+                  ) : (
+                    <p className="mt-1 text-xs text-cyan-800">No phone listed.</p>
+                  )}
                 </div>
-                <p className="text-xs font-bold text-slate-500">Called In By: {authContext.displayName}</p>
+              )}
+
+              <label className="block">
+                <span className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  Equipment Type
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
+                </span>
+                <select
+                  value={form.equipmentType}
+                  onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
+                  className="mt-1 min-h-12 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink shadow-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                >
+                  <option value="">Select equipment type</option>
+                  <option value="bipap">BiPAP</option>
+                  <option value="v60">V60</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes (optional)</span>
+                <textarea
+                  value={form.notes}
+                  onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value.slice(0, 140) }))}
+                  maxLength={140}
+                  placeholder="Add any notes about this order..."
+                  className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+                />
+                <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
+                  <span>No patient information.</span>
+                  <span>{form.notes.length}/140</span>
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-violet-100 bg-violet-50/70 p-4 shadow-[0_0_0_1px_rgba(124,58,237,0.06),0_0_20px_rgba(139,92,246,0.14),0_12px_26px_rgba(15,23,42,0.08)]">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">B. Auto-filled Order Info</p>
+                <h2 className="mt-1 text-lg font-black text-hospital-ink">Auto-filled from your account & current time</h2>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-black uppercase tracking-wide text-violet-700 shadow-sm">
+                Auto-filled
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              <div className="rounded-2xl border border-violet-100 bg-white px-3 py-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Called In Date</p>
+                <p className="text-sm font-black text-hospital-ink">{formatDateInput(form.calledInDate)}</p>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-white px-3 py-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Called In Time</p>
+                <p className="text-sm font-black text-hospital-ink">{form.calledInTime || "Not set"}</p>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-white px-3 py-2">
+                <p className="text-[11px] font-extrabold uppercase tracking-wide text-slate-400">Called In By</p>
+                <p className="text-sm font-black text-hospital-ink">{authContext.displayName}</p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-xs font-bold leading-5 text-violet-800">These details are captured automatically.</p>
+            <details className="mt-3 rounded-2xl border border-violet-100 bg-white/80 px-3 py-2">
+              <summary className="cursor-pointer text-xs font-black uppercase tracking-wide text-violet-700">
+                Edit called-in time
+              </summary>
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value.slice(0, 140) }))}
-                    maxLength={140}
-                    placeholder="Optional"
-                    className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Date</span>
+                  <input
+                    type="date"
+                    value={form.calledInDate}
+                    onChange={(event) => setForm((current) => ({ ...current, calledInDate: event.target.value }))}
+                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-violet-300"
                   />
-                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-400">
-                    <span>No patient information.</span>
-                    <span>{form.notes.length}/140</span>
-                  </span>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Time</span>
+                  <input
+                    type="time"
+                    value={form.calledInTime}
+                    onChange={(event) => setForm((current) => ({ ...current, calledInTime: event.target.value }))}
+                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-violet-300"
+                  />
                 </label>
               </div>
-            </section>
+            </details>
+          </section>
 
-            <section className="rounded-3xl border border-sky-200 bg-sky-50/80 p-4 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_0_20px_rgba(14,165,233,0.14),0_12px_24px_rgba(15,23,42,0.08)]">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Confirm</p>
-              <h3 className="mt-1 text-lg font-black text-hospital-ink">Save Pending Delivery</h3>
+          <section className={`rounded-3xl border p-4 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_0_20px_rgba(14,165,233,0.14),0_12px_24px_rgba(15,23,42,0.08)] ${canLogOrder ? "border-sky-200 bg-sky-50/80" : "border-amber-100 bg-amber-50/80"}`}>
+            <p className={`text-xs font-extrabold uppercase tracking-wide ${canLogOrder ? "text-sky-700" : "text-amber-700"}`}>Review & Save</p>
+            <h3 className="mt-1 text-lg font-black text-hospital-ink">{canLogOrder ? "Ready to Save" : "Complete required fields"}</h3>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+              {canLogOrder ? "Review your order details before saving." : "Finish the required order details before saving."}
+            </p>
+
+            {!canLogOrder ? (
+              <ul className="mt-3 grid gap-2 text-sm font-black text-amber-800">
+                {missingCheckInFields.map((field) => (
+                  <li key={field} className="rounded-2xl border border-amber-100 bg-white px-3 py-2">
+                    {field}
+                  </li>
+                ))}
+              </ul>
+            ) : (
               <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
-                  <dd>{selectedVendor?.name ?? "Select company"}</dd>
+                  <dd>{selectedVendor?.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
-                  <dd>{form.equipmentType ? equipmentLabels[form.equipmentType] : "Select BiPAP type"}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                  <dd>{equipmentLabels[form.equipmentType as EquipmentType]}</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
-                  <dd>{form.calledInDate || "Date"} {form.calledInTime || "Time"} by {authContext.displayName}</dd>
+                  <dd>{formatDateInput(form.calledInDate)} {form.calledInTime} by {authContext.displayName}</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Status</dt>
-                  <dd>Pending Delivery</dd>
+                  <dd>
+                    <span className="inline-flex rounded-full bg-sky-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-sky-700">
+                      Pending Delivery
+                    </span>
+                  </dd>
                 </div>
               </dl>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => router.push("/operations/rental-management")}
-                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving || !canLogOrder}
-                  className="min-h-11 rounded-2xl bg-sky-700 px-3 text-sm font-extrabold text-white shadow-md shadow-sky-900/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save Pending Delivery"}
-                </button>
-              </div>
-            </section>
-          </div>
+            )}
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => router.push("/operations/rental-management")}
+                className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 shadow-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving || !canLogOrder}
+                className="min-h-12 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+              >
+                {saving ? "Saving..." : "Save Pending Delivery"}
+              </button>
+            </div>
+            {!canLogOrder && (
+              <p className="mt-2 text-xs font-bold text-amber-800">
+                {form.equipmentType ? "Complete required details to continue." : "Select equipment type to continue."}
+              </p>
+            )}
+          </section>
         </form>
       </div>
     </main>
