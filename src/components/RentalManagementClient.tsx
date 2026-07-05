@@ -50,6 +50,7 @@ type ActiveRentalRecord = {
   id: string;
   vendor_id: string;
   equipment_type: EquipmentType;
+  barcode_number: string | null;
   serial_number: string | null;
   status: RentalStatus;
   current_location: string | null;
@@ -92,6 +93,7 @@ type RentalCheckInForm = {
   calledInTime: string;
   calledInUnknown: boolean;
   calledInByCurrentUser: boolean;
+  barcodeNumber: string;
   serialNumber: string;
   location: string;
   otherLocation: string;
@@ -156,6 +158,7 @@ const rentalRecordSelect = [
   "id",
   "vendor_id",
   "equipment_type",
+  "barcode_number",
   "serial_number",
   "status",
   "current_location",
@@ -257,12 +260,28 @@ function rentalStatusStyles(status: RentalStatus) {
   };
 }
 
-function serialNumberLabel(serialNumber: string | null) {
-  return serialNumber?.trim() || "Missing";
+function barcodeNumberLabel(barcodeNumber: string | null) {
+  return barcodeNumber?.trim() || "—";
 }
 
-function equipmentQuickLabel(equipmentType: EquipmentType, serialNumber: string | null) {
-  return `${equipmentLabels[equipmentType]} \u2014 SN ${serialNumberLabel(serialNumber)}`;
+function serialNumberLabel(serialNumber: string | null) {
+  return serialNumber?.trim() || "Not entered";
+}
+
+function equipmentQuickLabel(equipmentType: EquipmentType, barcodeNumber: string | null, serialNumber: string | null) {
+  const serial = serialNumber?.trim();
+
+  if (serial) {
+    return `${equipmentLabels[equipmentType]} \u2014 SN ${serial}`;
+  }
+
+  const barcode = barcodeNumber?.trim();
+
+  if (barcode) {
+    return `${equipmentLabels[equipmentType]} \u2014 Barcode ${barcode}`;
+  }
+
+  return `${equipmentLabels[equipmentType]} \u2014 Barcode —`;
 }
 
 function findPickupEvent(events: RentalEventRecord[]) {
@@ -521,6 +540,7 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
     calledInTime: timeValue(),
     calledInUnknown: false,
     calledInByCurrentUser: true,
+    barcodeNumber: "",
     serialNumber: "",
     location: "RT Equipment Room",
     otherLocation: "",
@@ -732,7 +752,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const startScanner = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerError("Camera scanning is not supported on this device. Enter the serial number manually.");
+      setScannerError("Camera scanning is not supported on this device. Enter the barcode number manually.");
       return;
     }
 
@@ -743,7 +763,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
     window.setTimeout(async () => {
       if (!videoRef.current) {
-        setScannerError("Scanner preview could not start. Enter the serial number manually.");
+        setScannerError("Scanner preview could not start. Enter the barcode number manually.");
         setScannerStatus("");
         return;
       }
@@ -764,10 +784,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         const controls = await reader.decodeFromVideoDevice(undefined, videoRef.current, (result, scanError, callbackControls) => {
           if (result) {
             const scannedValue = result.getText().trim();
-            setForm((current) => ({ ...current, serialNumber: scannedValue }));
+            setForm((current) => ({ ...current, barcodeNumber: scannedValue }));
             if (mode === "return") {
               const matches = activeRentals.filter(
-                (rental) => isActiveStatus(rental.status) && (rental.serial_number ?? "").toLowerCase() === scannedValue.toLowerCase()
+                (rental) =>
+                  isActiveStatus(rental.status) &&
+                  ((rental.barcode_number ?? "").toLowerCase() === scannedValue.toLowerCase() ||
+                    (rental.serial_number ?? "").toLowerCase() === scannedValue.toLowerCase())
               );
               if (matches.length === 1) {
                 const [match] = matches;
@@ -791,15 +814,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         scannerControlsRef.current = controls;
         setScannerStatus("Point camera at the equipment barcode.");
       } catch {
-        setScannerError("Camera permission was denied or scanning could not start. Enter the serial number manually.");
+        setScannerError("Camera permission was denied or scanning could not start. Enter the barcode number manually.");
         setScannerStatus("");
         setScannerOpen(false);
       }
     }, 0);
   };
 
-  const lookupKnownEquipment = async (serialNumber: string) => {
-    const trimmed = serialNumber.trim();
+  const lookupKnownEquipment = async (identifier: string) => {
+    const trimmed = identifier.trim();
 
     if (!trimmed) {
       return;
@@ -808,16 +831,21 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     const supabase = createClient();
     const { data } = await supabase
       .from("rental_equipment")
-      .select("vendor_id, equipment_type")
-      .eq("department_id", authContext.departmentId)
-      .eq("serial_number", trimmed)
-      .maybeSingle();
+      .select("vendor_id, equipment_type, barcode_number, serial_number")
+      .eq("department_id", authContext.departmentId);
+    const match = ((data ?? []) as Array<{ vendor_id: string | null; equipment_type: EquipmentType | null; barcode_number: string | null; serial_number: string | null }>).find(
+      (equipment) =>
+        (equipment.barcode_number ?? "").toLowerCase() === trimmed.toLowerCase() ||
+        (equipment.serial_number ?? "").toLowerCase() === trimmed.toLowerCase()
+    );
 
-    if (data) {
+    if (match) {
       setForm((current) => ({
         ...current,
-        vendorId: (data.vendor_id as string | null) ?? current.vendorId,
-        equipmentType: data.equipment_type ? "bipap" : current.equipmentType
+        vendorId: match.vendor_id ?? current.vendorId,
+        equipmentType: match.equipment_type ? "bipap" : current.equipmentType,
+        barcodeNumber: match.barcode_number ?? current.barcodeNumber,
+        serialNumber: match.serial_number ?? current.serialNumber
       }));
     }
   };
@@ -859,6 +887,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         equipment_id: null,
         vendor_id: form.vendorId,
         equipment_type: form.equipmentType,
+        barcode_number: null,
         serial_number: null,
         status: "pending_delivery",
         called_in_at: pendingAt,
@@ -913,8 +942,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return false;
     }
 
-    if (!form.serialNumber.trim() || !form.deliveredDate || !form.deliveredTime || !currentLocation) {
-      setError("Delivered date/time, serial number, and current location are required.");
+    if (!form.barcodeNumber.trim() || !form.deliveredDate || !form.deliveredTime || !currentLocation) {
+      setError("Delivered date/time, barcode number, and current location are required.");
       return false;
     }
 
@@ -924,7 +953,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
     const supabase = createClient();
     const vendor = vendors.find((candidate) => candidate.id === pendingRental.vendor_id);
-    const serialNumber = form.serialNumber.trim();
+    const barcodeNumber = form.barcodeNumber.trim();
+    const serialNumber = form.serialNumber.trim() || null;
     const location = currentLocation || "RT Equipment Room";
     const deliveredAt = new Date(`${form.deliveredDate}T${form.deliveredTime}:00`).toISOString();
     const { data: existingRentals, error: existingRentalError } = await supabase
@@ -932,17 +962,22 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       .select(rentalRecordSelect)
       .eq("department_id", authContext.departmentId)
       .neq("status", "cancelled")
-      .eq("serial_number", serialNumber)
       .order("checked_in_at", { ascending: false });
 
     if (existingRentalError) {
       setSaving(false);
       setError("Unable to check existing active rentals.");
-      return;
+      return false;
     }
 
     const existingInHospitalRental = ((existingRentals ?? []) as unknown as ActiveRentalRecord[]).find(
-      (record) => record.id !== pendingRental.id && isInHospitalStatus(record.status)
+      (record) =>
+        record.id !== pendingRental.id &&
+        isInHospitalStatus(record.status) &&
+        ((record.barcode_number ?? "").toLowerCase() === barcodeNumber.toLowerCase() ||
+          (record.serial_number ?? "").toLowerCase() === barcodeNumber.toLowerCase() ||
+          Boolean(serialNumber && (record.serial_number ?? "").toLowerCase() === serialNumber.toLowerCase()) ||
+          Boolean(serialNumber && (record.barcode_number ?? "").toLowerCase() === serialNumber.toLowerCase()))
     );
 
     if (existingInHospitalRental) {
@@ -951,21 +986,36 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return false;
     }
 
-    const { data: equipment, error: equipmentError } = await supabase
+    const { data: knownEquipment } = await supabase
       .from("rental_equipment")
-      .upsert(
-        {
-          department_id: authContext.departmentId,
-          vendor_id: pendingRental.vendor_id,
-          equipment_type: pendingRental.equipment_type,
-          serial_number: serialNumber,
-          last_known_company: vendor?.name ?? null,
-          is_active: true
-        },
-        { onConflict: "department_id,serial_number" }
-      )
-      .select("id")
-      .single();
+      .select("id, barcode_number, serial_number")
+      .eq("department_id", authContext.departmentId);
+    const existingEquipment = ((knownEquipment ?? []) as Array<{ id: string; barcode_number: string | null; serial_number: string | null }>).find(
+      (equipmentRecord) =>
+        (equipmentRecord.barcode_number ?? "").toLowerCase() === barcodeNumber.toLowerCase() ||
+        Boolean(serialNumber && (equipmentRecord.serial_number ?? "").toLowerCase() === serialNumber.toLowerCase())
+    );
+    const equipmentPayload = {
+      department_id: authContext.departmentId,
+      vendor_id: pendingRental.vendor_id,
+      equipment_type: pendingRental.equipment_type,
+      barcode_number: barcodeNumber,
+      serial_number: serialNumber,
+      last_known_company: vendor?.name ?? null,
+      is_active: true
+    };
+    const { data: equipment, error: equipmentError } = existingEquipment
+      ? await supabase
+          .from("rental_equipment")
+          .update(equipmentPayload)
+          .eq("id", existingEquipment.id)
+          .select("id")
+          .single()
+      : await supabase
+          .from("rental_equipment")
+          .insert(equipmentPayload)
+          .select("id")
+          .single();
 
     if (equipmentError || !equipment?.id) {
       setSaving(false);
@@ -977,6 +1027,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       .from("rental_records")
       .update({
         equipment_id: equipment.id,
+        barcode_number: barcodeNumber,
         serial_number: serialNumber,
         status: "active",
         checked_in_at: deliveredAt,
@@ -1006,6 +1057,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         event_at: deliveredAt,
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
+          barcode_number: barcodeNumber,
           serial_number: serialNumber,
           equipment_type: pendingRental.equipment_type,
           vendor_id: pendingRental.vendor_id,
@@ -1023,6 +1075,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
           source: scannedByCamera ? "barcode" : "manual",
+          barcode_number: barcodeNumber,
           serial_number: serialNumber,
           equipment_type: pendingRental.equipment_type,
           vendor_id: pendingRental.vendor_id,
@@ -1070,15 +1123,23 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const returnEligibleRentals = activeRentals.filter((rental) => isActiveStatus(rental.status));
   const selectedReturnRental = returnEligibleRentals.find((rental) => rental.id === returnForm.selectedRentalId) ?? null;
-  const returnSerialSearch = form.serialNumber.trim().toLowerCase();
-  const returnSerialMatches = returnSerialSearch
-    ? returnEligibleRentals.filter((rental) => (rental.serial_number ?? "").toLowerCase() === returnSerialSearch)
+  const returnIdentifierSearch = form.barcodeNumber.trim().toLowerCase();
+  const returnSerialMatches = returnIdentifierSearch
+    ? returnEligibleRentals.filter(
+        (rental) =>
+          (rental.barcode_number ?? "").toLowerCase() === returnIdentifierSearch ||
+          (rental.serial_number ?? "").toLowerCase() === returnIdentifierSearch
+      )
     : [];
-  const returnSerialAllMatches = returnSerialSearch
-    ? rentalHistory.filter((rental) => (rental.serial_number ?? "").toLowerCase() === returnSerialSearch)
+  const returnSerialAllMatches = returnIdentifierSearch
+    ? rentalHistory.filter(
+        (rental) =>
+          (rental.barcode_number ?? "").toLowerCase() === returnIdentifierSearch ||
+          (rental.serial_number ?? "").toLowerCase() === returnIdentifierSearch
+      )
     : [];
   const returnSerialBlockedMatch = returnSerialMatches.length === 0 ? returnSerialAllMatches[0] : null;
-  const returnSerialFeedback = returnSerialSearch
+  const returnSerialFeedback = returnIdentifierSearch
     ? returnSerialMatches.length > 0
       ? ""
       : returnSerialBlockedMatch
@@ -1088,8 +1149,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             ? "This rental has already been picked up. View Rental History for details."
             : isPendingDeliveryStatus(returnSerialBlockedMatch.status)
               ? "This rental has not been delivered yet."
-              : "No active rental found for this serial / asset ID."
-        : "No active rental found for this serial / asset ID."
+              : "No active rental found for this barcode / serial number."
+        : "No active rental found for this barcode / serial number."
     : "";
 
   const selectReturnRental = (rental: ActiveRentalRecord) => {
@@ -1147,6 +1208,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       event_at: eventAt,
       actor_staff_profile_id: authContext.staffProfileId,
       event_data: {
+        barcode_number: selectedReturnRental.barcode_number,
         serial_number: selectedReturnRental.serial_number,
         equipment_type: selectedReturnRental.equipment_type,
         vendor_id: selectedReturnRental.vendor_id,
@@ -1161,7 +1223,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
     setSaving(false);
     setReturnForm(defaultReturnForm());
-    setForm((current) => ({ ...current, serialNumber: "" }));
+    setForm((current) => ({ ...current, barcodeNumber: "", serialNumber: "" }));
     await loadRentalData();
     router.push("/operations/rental-management?pickup=1");
   };
@@ -1210,6 +1272,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       event_at: eventAt,
       actor_staff_profile_id: authContext.staffProfileId,
       event_data: {
+        barcode_number: selectedReturnRental.barcode_number,
         serial_number: selectedReturnRental.serial_number,
         equipment_type: selectedReturnRental.equipment_type,
         vendor_id: selectedReturnRental.vendor_id,
@@ -1223,7 +1286,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
     setSaving(false);
     setReturnForm(defaultReturnForm());
-    setForm((current) => ({ ...current, serialNumber: "" }));
+    setForm((current) => ({ ...current, barcodeNumber: "", serialNumber: "" }));
     await loadRentalData();
     router.push("/operations/rental-management?pickedUp=1");
   };
@@ -1272,6 +1335,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       event_at: eventAt,
       actor_staff_profile_id: authContext.staffProfileId,
       event_data: {
+        barcode_number: pendingPickupConfirmation.barcode_number,
         serial_number: pendingPickupConfirmation.serial_number,
         equipment_type: pendingPickupConfirmation.equipment_type,
         vendor_id: pendingPickupConfirmation.vendor_id,
@@ -1349,6 +1413,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       event_at: eventAt,
       actor_staff_profile_id: authContext.staffProfileId,
       event_data: {
+        barcode_number: rental.barcode_number,
         serial_number: rental.serial_number,
         equipment_type: rental.equipment_type,
         vendor_id: rental.vendor_id,
@@ -1377,9 +1442,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   ].filter(Boolean);
   const missingCheckInFields = [...missingOrderFields, ...missingAutoFilledFields];
   const canLogOrder = missingCheckInFields.length === 0;
-  const canConfirmDelivery = Boolean(deliveryPendingRental && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
+  const canConfirmDelivery = Boolean(deliveryPendingRental && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
   const canConfirmPendingDelivery = Boolean(
-    pendingDeliveryConfirmation && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation
+    pendingDeliveryConfirmation && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation
   );
   const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time);
   const canConfirmPickedUp = Boolean(selectedReturnRental && returnForm.action === "picked_up" && returnForm.date && returnForm.time);
@@ -1435,6 +1500,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           return eventTime >= rangeStartMs && eventTime <= rangeEndMs;
         });
       const haystack = [
+        record.barcode_number ?? "",
         record.serial_number ?? "",
         record.equipment_type,
         equipmentLabels[record.equipment_type],
@@ -1531,7 +1597,12 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   : "This will cancel the pending pickup request. The rental will stay active because the equipment is still in the hospital."}
               </p>
               <div className="mt-3 grid gap-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-600">
-                <p>Equipment: {isDeliveryCancel ? equipmentLabels[rental.equipment_type] : equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</p>
+                <p>
+                  Equipment:{" "}
+                  {isDeliveryCancel
+                    ? equipmentLabels[rental.equipment_type]
+                    : equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}
+                </p>
                 <p>Company: {vendor?.name ?? "Unknown company"}</p>
                 {rental.current_location && <p>Location: {rental.current_location}</p>}
                 <p>{isDeliveryCancel ? "Called in" : "Pickup requested"}: {eventAt ? formatDateTime(eventAt, departmentTimezone) : "Unknown"}</p>
@@ -1590,6 +1661,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           setError("");
           setForm((current) => ({
             ...current,
+            barcodeNumber: "",
             serialNumber: "",
             deliveredDate: todayValue(),
             deliveredTime: timeValue(),
@@ -1633,7 +1705,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               )}
 
               <section className="mt-4">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Serial / Asset ID</p>
+                <p className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+                  Barcode #
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
+                </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -1667,21 +1742,34 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 )}
                 {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
                 <input
-                  value={form.serialNumber}
+                  value={form.barcodeNumber}
                   onChange={(event) => {
                     setScannedByCamera(false);
-                    setForm((current) => ({ ...current, serialNumber: event.target.value }));
+                    setForm((current) => ({ ...current, barcodeNumber: event.target.value }));
                   }}
-                  onBlur={() => void lookupKnownEquipment(form.serialNumber)}
-                  placeholder="Enter or scan serial number"
+                  onBlur={() => void lookupKnownEquipment(form.barcodeNumber)}
+                  placeholder="Scan or enter barcode number"
                   className="mt-3 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                 />
-                {!form.serialNumber.trim() && (
-                  <p className="mt-2 text-xs font-bold text-slate-500">Enter or scan serial number to continue.</p>
+                {!form.barcodeNumber.trim() && (
+                  <p className="mt-2 text-xs font-bold text-slate-500">Scan or enter barcode number to continue.</p>
                 )}
+                <label className="mt-3 block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Serial Number (optional)</span>
+                  <input
+                    value={form.serialNumber}
+                    onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))}
+                    onBlur={() => void lookupKnownEquipment(form.serialNumber)}
+                    placeholder="Example: MX70015814"
+                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                  <span className="mt-1 block text-xs font-bold text-slate-500">Optional if visible on equipment label.</span>
+                </label>
               </section>
 
               <section className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700">
+                <p>Barcode #: {barcodeNumberLabel(form.barcodeNumber)}</p>
+                <p>Serial Number: {serialNumberLabel(form.serialNumber)}</p>
                 <p>Delivered: {form.deliveredDate} {form.deliveredTime}</p>
                 <p>Delivered by: {authContext.displayName}</p>
                 <p>Location: {currentLocation || "RT Equipment Room"}</p>
@@ -1769,7 +1857,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <>
                         <p className="font-black">This equipment is already in the hospital.</p>
                         <p className="mt-2">Company: {duplicateVendor?.name ?? "Unknown company"}</p>
-                        <p>Equipment: {equipmentQuickLabel(duplicateRental.equipment_type, duplicateRental.serial_number)}</p>
+                        <p>Equipment: {equipmentQuickLabel(duplicateRental.equipment_type, duplicateRental.barcode_number, duplicateRental.serial_number)}</p>
+                        <p>Barcode #: {barcodeNumberLabel(duplicateRental.barcode_number)}</p>
+                        <p>Serial Number: {serialNumberLabel(duplicateRental.serial_number)}</p>
                         <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
                         <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
                         <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
@@ -1838,7 +1928,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 Confirm this BiPAP V60 has physically left the hospital.
               </p>
               <div className="mt-3 grid gap-1 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-xs font-bold text-slate-700">
-                <p>Equipment: {equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</p>
+                <p>Equipment: {equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</p>
+                <p>Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
+                <p>Serial Number: {serialNumberLabel(rental.serial_number)}</p>
                 <p>Company: {vendor?.name ?? "Unknown company"}</p>
                 <p>Location: {rental.current_location || "Unknown"}</p>
                 <p>
@@ -2054,6 +2146,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                                   ...current,
                                   vendorId: pending.vendor_id,
                                   equipmentType: pending.equipment_type,
+                                  barcodeNumber: "",
                                   serialNumber: "",
                                   deliveredDate: todayValue(),
                                   deliveredTime: timeValue(),
@@ -2103,12 +2196,14 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <p className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm font-black leading-5 text-hospital-ink">
                               <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" aria-hidden="true" />
                               <span>
-                                {equipmentQuickLabel(pending.equipment_type, pending.serial_number)} pickup requested by {pickupBy}
+                                {equipmentQuickLabel(pending.equipment_type, pending.barcode_number, pending.serial_number)} pickup requested by {pickupBy}
                                 {pickupText ? ` at ${pickupDisplay}` : ""}
                               </span>
                             </p>
                             <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
-                              {!pending.serial_number && <p className="text-amber-700">Serial number missing</p>}
+                              <p>Barcode #: {barcodeNumberLabel(pending.barcode_number)}</p>
+                              {!pending.serial_number && <p className="text-amber-700">Serial Number: Not entered</p>}
+                              {pending.serial_number && <p>Serial Number: {pending.serial_number}</p>}
                               <p>Company: {vendor?.name ?? "Unknown company"}</p>
                               <p>Location: {pending.current_location || "Unknown"}</p>
                               <p>Called for pickup: {pickupDisplay}</p>
@@ -2228,7 +2323,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <div>
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
                           <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                          <span>{equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</span>
+                          <span>{equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</span>
                         </p>
                         <p className={`mt-1 text-xs font-extrabold uppercase tracking-wide ${styles.text}`}>
                           {rentalStatusLabel(rental.status)}
@@ -2236,7 +2331,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       </div>
                     </div>
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
-                      {!rental.serial_number && <p className="text-amber-700">Serial number missing</p>}
+                      <p>Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
+                      <p>Serial Number: {serialNumberLabel(rental.serial_number)}</p>
                       <p>Company: {vendor?.name ?? "Unknown company"}</p>
                       {isPickupCalledStatus(rental.status) && (pickupEvent || rental.pickup_requested_at) && (
                         <p>
@@ -2251,9 +2347,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <p>In hospital: {rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
                       <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
                     </div>
-                    {rental.serial_number && (
+                    {(rental.serial_number || rental.barcode_number) && (
                       <Link
-                        href={`/operations/rental-management/history?serial=${encodeURIComponent(rental.serial_number)}`}
+                        href={`/operations/rental-management/history?serial=${encodeURIComponent(rental.serial_number ?? rental.barcode_number ?? "")}`}
                         className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-cyan-100 bg-white px-3 text-xs font-extrabold text-cyan-700"
                       >
                         View History
@@ -2358,7 +2454,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <input
                 value={historySearch}
                 onChange={(event) => setHistorySearch(event.target.value)}
-                placeholder="Search serial number or company"
+                placeholder="Search barcode, serial number, or company"
                 className="min-h-14 w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-3 text-sm font-bold text-hospital-ink outline-none shadow-inner focus:border-cyan-300"
               />
             </label>
@@ -2646,13 +2742,24 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <>
                               <p className="mt-2 text-base font-black text-hospital-ink">{equipmentLabels[record.equipment_type]}</p>
                               <p className="mt-1 text-xs font-bold text-slate-600">
-                                Serial / Asset ID: {record.serial_number ?? "Pending"}
+                                Barcode #: {barcodeNumberLabel(record.barcode_number)}
+                              </p>
+                              <p className="mt-1 text-xs font-bold text-slate-600">
+                                Serial Number: {serialNumberLabel(record.serial_number)}
                               </p>
                             </>
                           ) : (
-                            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
-                              <span>{equipmentQuickLabel(record.equipment_type, record.serial_number)}</span>
-                            </p>
+                            <>
+                              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
+                                <span>{equipmentQuickLabel(record.equipment_type, record.barcode_number, record.serial_number)}</span>
+                              </p>
+                              <p className="mt-1 text-xs font-bold text-slate-600">
+                                Barcode #: {barcodeNumberLabel(record.barcode_number)}
+                              </p>
+                              {!record.serial_number && (
+                                <p className="mt-1 text-xs font-bold text-slate-600">Serial Number: Not entered</p>
+                              )}
+                            </>
                           )}
                           <p className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
                             <Building2 size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
@@ -2690,7 +2797,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <span className="text-slate-400">Model:</span> {equipmentModelLabel}
                           </p>
                           <p>
-                            <span className="text-slate-400">Serial / Asset ID:</span> {record.serial_number ?? "Pending delivery"}
+                            <span className="text-slate-400">Barcode #:</span> {barcodeNumberLabel(record.barcode_number)}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Serial Number:</span> {serialNumberLabel(record.serial_number)}
                           </p>
                           <p>
                             <span className="text-slate-400">Company:</span> {vendor?.name ?? "Unknown company"}
@@ -2822,7 +2932,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           <section className="rounded-3xl border border-amber-100 bg-amber-50 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Scan Barcode</h2>
             <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-              Scan the 1D barcode or enter the serial / asset ID.
+              Scan the 1D barcode or enter the barcode/serial number.
             </p>
             <div className="mt-3 flex justify-center">
               <button
@@ -2846,10 +2956,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             )}
             {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
             <label className="mt-3 block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Manual Serial / Asset ID</span>
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Barcode # or Serial Number</span>
               <input
-                value={form.serialNumber}
-                onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))}
+                value={form.barcodeNumber}
+                onChange={(event) => setForm((current) => ({ ...current, barcodeNumber: event.target.value }))}
+                placeholder="Scan barcode or enter barcode/serial number"
                 className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
               />
             </label>
@@ -2887,8 +2998,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   >
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-hospital-ink">
                       <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                      <span>{equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</span>
+                      <span>{equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</span>
                     </p>
+                    <p className="mt-1 text-xs font-bold text-slate-600">Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
+                    {!rental.serial_number && <p className="mt-1 text-xs font-bold text-slate-600">Serial Number: Not entered</p>}
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                       {vendor?.name ?? "Unknown company"}
                     </p>
@@ -2922,8 +3035,12 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <dd>{equipmentModelLabel}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Serial / Asset ID</dt>
-                  <dd>{selectedReturnRental.serial_number ?? "Unknown"}</dd>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Barcode #</dt>
+                  <dd>{barcodeNumberLabel(selectedReturnRental.barcode_number)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number</dt>
+                  <dd>{serialNumberLabel(selectedReturnRental.serial_number)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
@@ -3166,7 +3283,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <section className="mt-4">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Scan Barcode</p>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Scan the 1D barcode or enter the printed equipment number manually.
+                  Scan the 1D barcode or enter the barcode number manually.
                 </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
@@ -3206,16 +3323,31 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Delivery Details</p>
                 <div className="mt-2 grid gap-3">
                   <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number / Asset ID</span>
+                    <span className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                      Barcode #
+                      <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
+                    </span>
                     <input
-                      value={form.serialNumber}
+                      value={form.barcodeNumber}
                       onChange={(event) => {
                         setScannedByCamera(false);
-                        setForm((current) => ({ ...current, serialNumber: event.target.value }));
+                        setForm((current) => ({ ...current, barcodeNumber: event.target.value }));
                       }}
-                      onBlur={() => void lookupKnownEquipment(form.serialNumber)}
+                      onBlur={() => void lookupKnownEquipment(form.barcodeNumber)}
+                      placeholder="Scan or enter barcode number"
                       className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                     />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number (optional)</span>
+                    <input
+                      value={form.serialNumber}
+                      onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))}
+                      onBlur={() => void lookupKnownEquipment(form.serialNumber)}
+                      placeholder="Example: MX70015814"
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                    <span className="mt-1 block text-xs font-bold text-slate-500">Optional if visible on equipment label.</span>
                   </label>
                   <label className="block">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
@@ -3291,7 +3423,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <>
                         <p className="font-black">This equipment is already in the hospital.</p>
                         <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
-                        <p>Equipment: {equipmentQuickLabel(duplicateRental.equipment_type, duplicateRental.serial_number)}</p>
+                        <p>Equipment: {equipmentQuickLabel(duplicateRental.equipment_type, duplicateRental.barcode_number, duplicateRental.serial_number)}</p>
+                        <p>Barcode #: {barcodeNumberLabel(duplicateRental.barcode_number)}</p>
+                        <p>Serial Number: {serialNumberLabel(duplicateRental.serial_number)}</p>
                         <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
                         <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
                         <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
@@ -3322,8 +3456,12 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <h3 className="mt-1 text-lg font-black text-hospital-ink">Confirm Delivery</h3>
                 <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number / Asset ID</dt>
-                    <dd>{form.serialNumber || "Required"}</dd>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Barcode #</dt>
+                    <dd>{form.barcodeNumber || "Required"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number</dt>
+                    <dd>{serialNumberLabel(form.serialNumber)}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>

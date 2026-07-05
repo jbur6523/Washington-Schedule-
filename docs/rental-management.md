@@ -2,7 +2,12 @@
 
 Rental Management is a department operations tool for tracking rented BiPAP V60 equipment.
 
-BiPAP is the equipment category. V60 is the model. User-facing rental screens should identify this equipment as `BiPAP V60`, and quick-reference cards should use `BiPAP V60 - SN XXXXX`.
+BiPAP is the equipment category. V60 is the model. User-facing rental screens should identify this equipment as `BiPAP V60`. Quick-reference cards use `BiPAP V60 - SN XXXXX` when a serial number is available, otherwise `BiPAP V60 - Barcode XXXXX`.
+
+Rental identifiers are tracked separately:
+
+- `Barcode #` is required when delivery is confirmed. It is the value scanned from the equipment barcode sticker.
+- `Serial Number` is optional but encouraged when visible on the equipment/product label.
 
 This phase implements Rental Actions, Pending Delivery cards, Active Rentals, Return Rental, and Rental History.
 
@@ -47,14 +52,15 @@ The Rental Management dashboard combines the department operations title and Act
 Delivery confirmation starts from a Pending Delivery card on the main Rental Management dashboard. The dashboard action opens a centered `Confirm Delivery` modal immediately because the pending rental order is already selected. Staff do not need to leave Rental Management or reselect the rental from this path.
 
 1. Tap `BiPAP V60 Delivered` or `Mark Delivered`.
-2. Scan the equipment barcode inside the modal or enter the serial / asset ID manually.
+2. Scan the equipment barcode inside the modal or enter the `Barcode #` manually.
 3. Confirm the current location. It defaults to `RT Equipment Room`.
-4. Use the auto-filled delivered date/time and staff member, or use `Edit delivery details` if corrections are needed.
-5. Confirm delivery.
+4. Enter `Serial Number` only if it is visible and easy to capture.
+5. Use the auto-filled delivered date/time and staff member, or use `Edit delivery details` if corrections are needed.
+6. Confirm delivery.
 
-Confirming delivery updates the pending record to `active`, sets the delivered timestamp in `checked_in_at`, records the current location and serial / asset ID, creates delivery events, and returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads so newly delivered equipment is included in the count.
+Confirming delivery updates the pending record to `active`, sets the delivered timestamp in `checked_in_at`, records the current location, saves `Barcode #`, saves `Serial Number` if entered, creates delivery events, and returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads so newly delivered equipment is included in the count.
 
-The serial / asset ID is required before `Confirm Delivery` is enabled. Cancel closes the modal without creating partial delivery records.
+`Barcode #` is required before `Confirm Delivery` is enabled. `Serial Number` is optional. Cancel closes the modal without creating partial delivery records.
 
 The full `/operations/rental-management/deliver/[id]` Confirm Delivery page remains available as a direct-route fallback, but the normal Pending Delivery dashboard card uses the modal flow.
 
@@ -97,9 +103,9 @@ Supported browser barcode formats include:
 - EAN-8
 - ITF
 
-If camera access is denied or scanning is unsupported, staff can enter `Serial Number / Asset ID` manually.
+If camera access is denied or scanning is unsupported, staff can enter `Barcode #` manually.
 
-The scanner shows camera permission and scanning status. After a successful scan, the scanned asset value is shown with a green confirmation state and can be rescanned if needed.
+The scanner shows camera permission and scanning status. After a successful scan, the scanned barcode value is shown with a green confirmation state and can be rescanned if needed.
 
 ## Equipment Details
 
@@ -127,15 +133,26 @@ If `Other` is selected, staff can enter a short custom location. Patient names, 
 
 Notes are optional and limited to 140 characters.
 
+## Barcode and Serial Number
+
+`Barcode #` and `Serial Number` are separate fields.
+
+- The scanner fills `Barcode #` only.
+- `Barcode #` is required for delivery confirmation.
+- `Serial Number` is optional and is entered manually if available.
+- New active rentals should always have a `Barcode #`.
+- Legacy test records may only have the old `serial_number` value; the UI displays those safely without crashing.
+
 ## Duplicate Protection
 
-Before saving a delivered check in, the app checks for an existing in-hospital rental with the same department and serial number / asset ID.
+Before saving a delivered check in, the app checks for an existing in-hospital rental with the same department and matching `Barcode #` or `Serial Number`.
 
 If an active or called-for-pickup rental already exists, the app does not create a duplicate. It shows:
 
 - Company
 - Equipment type
-- Serial number / asset ID
+- Barcode #
+- Serial Number, if entered
 - Current location
 - Delivered date/time
 - Delivered staff member
@@ -163,7 +180,8 @@ The full Active Rentals details live on `/operations/rental-management/active`, 
 Each detail card shows:
 
 - Equipment type
-- Serial / Asset ID
+- Barcode #
+- Serial Number
 - Company
 - Last known location
 - Days in hospital
@@ -181,14 +199,14 @@ This page starts a new pickup request for equipment that is currently green `Act
 
 The Return Rental selection list only shows active rentals that have not already been called for pickup. Yellow `Called for Pickup` rentals are completed or canceled from the dashboard `Pending` section instead.
 
-Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active rentals. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
+Staff can find equipment by scanning a 1D barcode, manually entering a barcode or serial number, or selecting from active rentals. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
 
 Barcode/manual serial lookup uses these messages for non-active matches:
 
 - Called for Pickup: use the `Pending` section to confirm pickup or cancel the pickup request.
 - Picked Up: view Rental History for details.
 - Pending Delivery: this rental has not been delivered yet.
-- No match: no active rental was found for that serial / asset ID.
+- No match: no active rental was found for that barcode / serial number.
 
 The Return Rental screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
 
@@ -241,14 +259,15 @@ Pending Delivery cards are blue and appear when rentals have been ordered but no
 
 Pending Delivery does not count as Active Rentals because the equipment is not physically in the hospital yet.
 
-`BiPAP V60 Delivered` opens the direct `Confirm Delivery` modal with barcode scanning, manual serial entry, current location, delivered date/time, and delivered-by metadata.
+`BiPAP V60 Delivered` opens the direct `Confirm Delivery` modal with barcode scanning, manual Barcode # entry, optional Serial Number entry, current location, delivered date/time, and delivered-by metadata.
 
 `Cancel Delivery` opens a confirmation form. Confirming it changes the rental status to `delivery_cancelled`, creates a `delivery_cancelled` event, removes the blue pending card, does not add the rental to Active Rentals, and keeps the record visible in Rental History.
 
 Pending Pickup cards are yellow and appear when a rental has been called for pickup but is still physically in the hospital. Each card shows:
 
 - Equipment type
-- Serial / Asset ID
+- Barcode #
+- Serial Number
 - Rental company
 - Current location
 - Pickup requested date/time
@@ -268,10 +287,10 @@ It is the permanent searchable record of BiPAP V60 rental records in the app. It
 - Pending Delivery records
 - Called-for-pickup rental records
 - Picked-up rental records
-- Multiple rental cycles for the same serial number / asset ID
+- Multiple rental cycles for the same Barcode # or Serial Number
 - Pickup call and picked-up lifecycle events
 
-Search supports serial number / asset ID, company, equipment type, last known location, called-in staff, delivered staff, picked-up-by staff when a pickup event exists, and notes.
+Search supports Barcode #, Serial Number, company, equipment type, last known location, called-in staff, delivered staff, picked-up-by staff when a pickup event exists, and notes.
 
 Rental History uses a compact filter card so records appear quickly on mobile:
 
@@ -296,12 +315,13 @@ Date range matching includes a rental if it was active at any point during the s
 - delivered before the range and picked up after the range
 - delivered before the range and still active
 
-History rows are compact by default. Each row shows status color, status label, equipment type, serial / asset ID, company, location when delivered, date range, and an expand chevron.
+History rows are compact by default. Each row shows status color, status label, equipment type, Barcode #, Serial Number when entered, company, location when delivered, date range, and an expand chevron.
 
 Expanded history rows show:
 
 - Equipment type
-- Serial / Asset ID
+- Barcode #
+- Serial Number
 - Company
 - Status
 - Called-in date/time
@@ -335,7 +355,7 @@ Export filenames use:
 
 The app and Supabase database remain the source of truth. CSV files are paper-trail copies only. This phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, Excel Online, or any personal cloud account.
 
-Exported columns include rental record ID, user-facing status, equipment type, serial / asset ID, rental company, last known location, Called In date/time/by, Delivered date/time/by, Called for Pickup date/time/by, Picked Up date/time/by, total time in hospital, notes, created at, and updated at.
+Exported columns include rental record ID, user-facing status, equipment type, Barcode #, Serial Number, rental company, last known location, Called In date/time/by, Delivered date/time/by, Called for Pickup date/time/by, Picked Up date/time/by, total time in hospital, notes, created at, and updated at.
 
 Exports intentionally exclude patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, and staff emails.
 

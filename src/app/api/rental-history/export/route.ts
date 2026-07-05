@@ -26,6 +26,7 @@ type RentalRecord = {
   id: string;
   vendor_id: string;
   equipment_type: EquipmentType;
+  barcode_number: string | null;
   serial_number: string | null;
   status: RentalStatus;
   current_location: string | null;
@@ -262,7 +263,8 @@ function csvFromRows(rows: Array<Record<string, string>>) {
     "Rental Record ID",
     "Status",
     "Equipment Type",
-    "Serial / Asset ID",
+    "Barcode #",
+    "Serial Number",
     "Rental Company",
     "Last Known Location",
     "Called In Date",
@@ -326,6 +328,7 @@ export async function GET(request: Request) {
     "id",
     "vendor_id",
     "equipment_type",
+    "barcode_number",
     "serial_number",
     "status",
     "current_location",
@@ -397,6 +400,7 @@ export async function GET(request: Request) {
         });
       const haystack = [
         record.serial_number ?? "",
+        record.barcode_number ?? "",
         record.equipment_type,
         equipmentLabels[record.equipment_type],
         vendor?.name ?? "",
@@ -471,7 +475,8 @@ export async function GET(request: Request) {
       "Rental Record ID": record.id,
       Status: rentalStatusLabel(record.status),
       "Equipment Type": equipmentLabels[record.equipment_type],
-      "Serial / Asset ID": record.serial_number ?? "",
+      "Barcode #": record.barcode_number ?? "",
+      "Serial Number": record.serial_number ?? "",
       "Rental Company": vendor?.name ?? "",
       "Last Known Location": record.current_location ?? "",
       "Called In Date": formatDatePart(record.called_in_at, timezone),

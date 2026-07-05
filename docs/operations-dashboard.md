@@ -48,7 +48,8 @@ Rental Management currently supports:
 - Called In / Pending Delivery logging
 - Pending Delivery cards only when pending records exist
 - delivery confirmation from a Pending Delivery card
-- 1D barcode scan or manual serial entry during delivery confirmation
+- 1D barcode scan or manual Barcode # entry during delivery confirmation
+- optional Serial Number entry when the equipment label is available
 - Delivered / Confirm Delivery date/time
 - optional notes with no patient information
 - combined Rental Management overview card with Active Rentals count and Oldest Rental `MM/DD` date
