@@ -24,19 +24,21 @@ It now logs the called-in rental order only:
 
 1. Select the rental company.
 2. Review the prefilled equipment details: Equipment Type `BiPAP`, Model `V60`.
-3. Review the auto-filled called-in date, time, and staff member.
-4. Add an optional note.
+3. Review the compact called-in metadata: date, time, and staff member.
+4. Add an optional note only if needed.
 5. Save the pending delivery.
 
 Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
 
-The Rental Check In screen separates the form into clear sections:
+The Rental Check In screen is intentionally compact:
 
-- `Order Details` contains required fields and optional notes.
-- `Auto-filled Order Info` shows the called-in date, called-in time, and called-in staff member from the current user/session.
-- `Review & Save` shows `Ready to Save` only after required fields are complete. Otherwise, it lists missing required fields.
+- `Order Details` contains the rental company, vendor info, BiPAP V60 equipment display, and compact called-in metadata.
+- Called-in date/time/by are auto-captured from the current user/session and shown as small metadata.
+- `Edit called-in details` is available if the date or time needs correction.
+- Notes are optional and hidden behind `Add Note`.
+- `Review & Save` summarizes the order before creating the pending delivery.
 
-`Save Pending Delivery` remains disabled until required details are complete. Notes are optional, limited to 140 characters, and continue to show the `No patient information` reminder.
+`Save Pending Delivery` remains disabled until required details are complete. Notes are optional, hidden by default, limited to 140 characters, and continue to show the `No patient information` reminder.
 
 The Rental Management dashboard shows a `Pending` section only when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
@@ -108,7 +110,7 @@ Older records may store `bipap` or `v60` in `equipment_type`; the UI normalizes 
 
 Delivered Date defaults to the current date. Delivered Time defaults to the current time in 24-hour input format.
 
-Called In Date and Called In Time default to the current date/time on the Rental Check In order form and are presented as auto-filled order info. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
+Called In Date and Called In Time default to the current date/time on the Rental Check In order form and are presented as compact metadata inside Order Details. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
 
 Current location defaults to `RT Equipment Room`. Available locations are:
 
