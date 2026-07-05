@@ -1767,6 +1767,23 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </label>
               </section>
 
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="submit"
+                  disabled={saving || !canConfirmPendingDelivery}
+                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Confirm Delivery"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeDeliveryModal}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                >
+                  Cancel
+                </button>
+              </div>
+
               <section className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700">
                 <p>Barcode #: {barcodeNumberLabel(form.barcodeNumber)}</p>
                 <p>Serial Number: {serialNumberLabel(form.serialNumber)}</p>
@@ -1869,22 +1886,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </div>
               )}
 
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                  type="submit"
-                  disabled={saving || !canConfirmPendingDelivery}
-                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Confirm Delivery"}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeDeliveryModal}
-                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-                >
-                  Cancel
-                </button>
-              </div>
             </form>
           </div>
         );
