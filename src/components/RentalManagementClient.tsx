@@ -551,6 +551,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [returnForm, setReturnForm] = useState<ReturnEquipmentForm>(() => defaultReturnForm());
   const [pendingCancellation, setPendingCancellation] = useState<{ rental: ActiveRentalRecord; action: PendingCancelAction } | null>(null);
   const [cancelNote, setCancelNote] = useState("");
+  const [pendingPickupConfirmation, setPendingPickupConfirmation] = useState<ActiveRentalRecord | null>(null);
+  const [pickupDetailsOpen, setPickupDetailsOpen] = useState(false);
+  const [pickupDateDraft, setPickupDateDraft] = useState("");
+  const [pickupTimeDraft, setPickupTimeDraft] = useState("");
+  const [pickupNoteDraft, setPickupNoteDraft] = useState("");
   const [editingCalledInDetails, setEditingCalledInDetails] = useState(false);
   const [calledInDateDraft, setCalledInDateDraft] = useState("");
   const [calledInTimeDraft, setCalledInTimeDraft] = useState("");
@@ -588,7 +593,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const requestedReturnAction = searchParams.get("action") === "picked_up" ? "picked_up" : "";
 
   useEffect(() => {
-    if (!pendingCancellation) {
+    if (!pendingCancellation && !pendingPickupConfirmation) {
       return;
     }
 
@@ -598,7 +603,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [pendingCancellation]);
+  }, [pendingCancellation, pendingPickupConfirmation]);
 
   const loadRentalData = useCallback(async () => {
     setLoading(true);
@@ -1184,6 +1189,71 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     router.push("/operations/rental-management?pickedUp=1");
   };
 
+  const submitPendingPickupPickedUp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authContext.staffProfileId) {
+      setError("Your staff profile must be linked before confirming pickup.");
+      return;
+    }
+
+    if (!pendingPickupConfirmation || !pickupDateDraft || !pickupTimeDraft) {
+      setError("Select a pending pickup and enter picked-up date/time.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const supabase = createClient();
+    const vendor = firstRelated(pendingPickupConfirmation.rental_vendors);
+    const eventAt = new Date(`${pickupDateDraft}T${pickupTimeDraft}:00`).toISOString();
+    const note = pickupNoteDraft.trim() || null;
+    const { error: updateError } = await supabase
+      .from("rental_records")
+      .update({
+        status: "picked_up",
+        returned_at: eventAt,
+        returned_by_staff_profile_id: authContext.staffProfileId,
+        return_note: note
+      })
+      .eq("id", pendingPickupConfirmation.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError("Unable to confirm picked up.");
+      return;
+    }
+
+    await supabase.from("rental_events").insert({
+      department_id: authContext.departmentId,
+      rental_record_id: pendingPickupConfirmation.id,
+      equipment_id: null,
+      event_type: "picked_up",
+      event_at: eventAt,
+      actor_staff_profile_id: authContext.staffProfileId,
+      event_data: {
+        serial_number: pendingPickupConfirmation.serial_number,
+        equipment_type: pendingPickupConfirmation.equipment_type,
+        vendor_id: pendingPickupConfirmation.vendor_id,
+        vendor_name: vendor?.name ?? null,
+        current_location: pendingPickupConfirmation.current_location,
+        note,
+        picked_up_by: authContext.displayName,
+        timestamp: eventAt
+      }
+    });
+
+    setSaving(false);
+    setPendingPickupConfirmation(null);
+    setPickupDetailsOpen(false);
+    setPickupDateDraft("");
+    setPickupTimeDraft("");
+    setPickupNoteDraft("");
+    await loadRentalData();
+    router.push("/operations/rental-management?pickedUp=1");
+  };
+
   const submitPendingCancellation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -1460,6 +1530,121 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         );
       })()
     : null;
+  const pendingPickupModal = pendingPickupConfirmation
+    ? (() => {
+        const rental = pendingPickupConfirmation;
+        const vendor = firstRelated(rental.rental_vendors);
+        const pickupEvent = findPickupEvent(eventsByRentalId[rental.id] ?? []);
+        const pickupBy =
+          firstRelated(rental.pickup_requested_by)?.display_name ??
+          (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null) ??
+          "Unknown";
+        const pickupAt = rental.pickup_requested_at ?? pickupEvent?.event_at;
+        const closePickupModal = () => {
+          setPendingPickupConfirmation(null);
+          setPickupDetailsOpen(false);
+          setPickupDateDraft("");
+          setPickupTimeDraft("");
+          setPickupNoteDraft("");
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
+            role="presentation"
+          >
+            <form
+              onSubmit={submitPendingPickupPickedUp}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rental-pickup-title"
+              className="max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_18px_50px_rgba(15,23,42,0.28)]"
+            >
+              <p className="text-xs font-extrabold uppercase tracking-wide text-amber-700">Pending Pickup</p>
+              <h2 id="rental-pickup-title" className="mt-1 text-xl font-black text-hospital-ink">
+                Confirm Picked Up
+              </h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                Confirm this BiPAP V60 has physically left the hospital.
+              </p>
+              <div className="mt-3 grid gap-1 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-xs font-bold text-slate-700">
+                <p>Equipment: {equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</p>
+                <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                <p>Location: {rental.current_location || "Unknown"}</p>
+                <p>
+                  Pickup requested: {pickupAt ? formatDateTime(pickupAt, departmentTimezone) : "Unknown"} by {pickupBy}
+                </p>
+                <p>Delivered: {rental.checked_in_at ? formatDateTime(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                <p>In hospital: {rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                <p>Picked up by: {authContext.displayName}</p>
+              </div>
+              {!pickupDetailsOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setPickupDetailsOpen(true)}
+                  className="mt-3 min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600 shadow-sm"
+                >
+                  Edit pickup details
+                </button>
+              ) : (
+                <div className="mt-3 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Picked up date</span>
+                      <input
+                        type="date"
+                        value={pickupDateDraft}
+                        onChange={(event) => setPickupDateDraft(event.target.value)}
+                        className="mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Picked up time</span>
+                      <input
+                        type="time"
+                        value={pickupTimeDraft}
+                        onChange={(event) => setPickupTimeDraft(event.target.value)}
+                        className="mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
+                      />
+                    </label>
+                  </div>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Optional note</span>
+                    <textarea
+                      value={pickupNoteDraft}
+                      onChange={(event) => setPickupNoteDraft(event.target.value.slice(0, 140))}
+                      maxLength={140}
+                      placeholder="Optional"
+                      className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400"
+                    />
+                    <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
+                      <span>No patient information.</span>
+                      <span>{pickupNoteDraft.length}/140</span>
+                    </span>
+                  </label>
+                </div>
+              )}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="submit"
+                  disabled={saving || !pickupDateDraft || !pickupTimeDraft}
+                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Confirm Picked Up"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closePickupModal}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        );
+      })()
+    : null;
 
   if (mode === "overview") {
     return (
@@ -1636,12 +1821,19 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                               {pending.pickup_confirmation_number && <p>Confirmation: {pending.pickup_confirmation_number}</p>}
                               {pending.pickup_request_note && <p>Note: {pending.pickup_request_note}</p>}
                             </div>
-                            <Link
-                              href={`/operations/rental-management/return?rental=${pending.id}&action=picked_up`}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingPickupConfirmation(pending);
+                                setPickupDetailsOpen(false);
+                                setPickupDateDraft(todayValue());
+                                setPickupTimeDraft(timeValue());
+                                setPickupNoteDraft("");
+                              }}
                               className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-500 px-3 text-xs font-extrabold text-white shadow-md shadow-amber-900/20"
                             >
                               {pickedUpLabel}
-                            </Link>
+                            </button>
                             <button
                               type="button"
                               onClick={() => {
@@ -1702,6 +1894,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           </Link>
         </div>
         {cancellationModal}
+        {pendingPickupModal}
       </main>
     );
   }

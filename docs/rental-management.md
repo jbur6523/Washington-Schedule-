@@ -182,6 +182,8 @@ The workflow supports two operational steps:
 
 Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active and called-for-pickup rentals. Pending Delivery and Picked Up records are not selectable for return actions.
 
+The Return Equipment screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
+
 ### Call for Pickup
 
 For green `Active` rentals, `Call for Pickup` records that the vendor was called but the equipment is still physically in the hospital.
@@ -196,7 +198,7 @@ The form captures:
 
 Saving changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, and keeps the equipment in Active Rentals.
 
-Called-for-pickup rentals also appear in the dashboard `Pending` section as yellow pending pickup cards. The `Picked Up` button opens the existing picked-up confirmation workflow before saving.
+Called-for-pickup rentals also appear in the dashboard `Pending` section as yellow pending pickup cards. When staff start from a Pending Pickup card, the `BiPAP V60 Picked Up` button opens a centered `Confirm Picked Up` modal immediately because the rental has already been selected. Staff do not need to scan, search, or re-select the rental from that path.
 
 ### Confirm Picked Up
 
