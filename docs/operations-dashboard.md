@@ -44,9 +44,11 @@ Rental Management currently supports:
 - Rental company selection
 - 1D barcode scan or manual serial entry
 - BiPAP type: V60
-- check-in date/time
+- Called In / Pending Delivery logging
+- Delivered / Check In date/time
 - optional notes with no patient information
 - active rental summary on the Rental Management dashboard
+- pending delivery summary on the Rental Management dashboard
 - dedicated Active Rentals screen with full active rental details
 - dedicated Rental History screen for searching active and picked-up rental records
 

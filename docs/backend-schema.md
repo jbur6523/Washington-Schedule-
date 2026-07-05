@@ -66,8 +66,8 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 - `rental_vendors`: department rental companies, including US Med Equipment, Med One Capital, Agiliti Health Inc, SRC, and Other.
 - `rental_equipment`: reusable equipment identity by serial number or asset ID.
-- `rental_records`: active and historical rental records. Rental Check In creates `active` records and stores the current location for the checked-in equipment. `pickup_requested` / `pickup_called` records mean the vendor has been called but the equipment is still in the hospital. `returned` / `picked_up` records display as `Picked Up` in the UI.
-- `rental_events`: audit-style rental events such as `checked_in`, `manual_check_in`, `barcode_scanned`, future pickup-call events, `returned` / `picked_up`, and future `transferred` events. Rental History can use events for timeline details and picked-up-by display when those events exist.
+- `rental_records`: active and historical rental records. `pending_delivery` / `called_in` records display as blue `Pending Delivery` and can exist before a serial number is known. `checked_in_at` is retained as the delivered timestamp for compatibility and displays as `Delivered` in the UI. `active` / `delivered` records display green, `pickup_requested` / `pickup_called` records display yellow, and `returned` / `picked_up` records display as gray `Picked Up`.
+- `rental_events`: audit-style rental events such as `called_in`, `delivered`, `checked_in`, `manual_check_in`, `barcode_scanned`, pickup-call events, `returned` / `picked_up`, and future `transferred` events. Rental History can use events for timeline details and picked-up-by display when those events exist.
 - Rental notes are capped at 140 characters and must not contain patient information.
 
 ### Import and Review

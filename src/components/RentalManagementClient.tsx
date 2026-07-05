@@ -18,21 +18,34 @@ type RentalVendor = {
 };
 
 type EquipmentType = "bipap" | "v60";
-type RentalStatus = "active" | "pickup_requested" | "pickup_called" | "returned" | "picked_up" | "cancelled";
+type RentalStatus =
+  | "pending_delivery"
+  | "called_in"
+  | "active"
+  | "delivered"
+  | "pickup_requested"
+  | "pickup_called"
+  | "returned"
+  | "picked_up"
+  | "cancelled";
+type RentalAction = "delivered" | "called_in";
 type DateRangePreset = "all" | "today" | "7" | "30" | "custom";
 
 type ActiveRentalRecord = {
   id: string;
   vendor_id: string;
   equipment_type: EquipmentType;
-  serial_number: string;
+  serial_number: string | null;
   status: RentalStatus;
   current_location: string | null;
-  checked_in_at: string;
+  called_in_at: string | null;
+  called_in_by_name: string | null;
+  checked_in_at: string | null;
   returned_at: string | null;
   notes: string | null;
   rental_vendors: { name: string } | { name: string }[] | null;
-  staff_profiles: { display_name: string } | { display_name: string }[] | null;
+  checked_in_by: { display_name: string } | { display_name: string }[] | null;
+  called_in_by: { display_name: string } | { display_name: string }[] | null;
 };
 
 type RentalEventRecord = {
@@ -47,8 +60,12 @@ type RentalEventRecord = {
 type RentalCheckInForm = {
   vendorId: string;
   equipmentType: EquipmentType | "";
-  date: string;
-  time: string;
+  deliveredDate: string;
+  deliveredTime: string;
+  calledInDate: string;
+  calledInTime: string;
+  calledInUnknown: boolean;
+  calledInByCurrentUser: boolean;
   serialNumber: string;
   location: string;
   otherLocation: string;
@@ -67,8 +84,34 @@ const equipmentLabels: Record<EquipmentType, string> = {
 
 const pickupEventTypes = new Set(["pickup_requested", "pickup_called", "called_for_pickup"]);
 const pickedUpEventTypes = new Set(["returned", "picked_up"]);
+const calledInEventTypes = new Set(["called_in", "pending_delivery"]);
+const deliveredEventTypes = new Set(["delivered", "checked_in"]);
 
 const locationOptions = ["RT Equipment Room", "ED", "ICU", "2nd Floor", "3rd Floor", "Other"];
+const rentalRecordSelect = [
+  "id",
+  "vendor_id",
+  "equipment_type",
+  "serial_number",
+  "status",
+  "current_location",
+  "called_in_at",
+  "called_in_by_name",
+  "checked_in_at",
+  "returned_at",
+  "notes",
+  "rental_vendors(name)",
+  "checked_in_by:staff_profiles!rental_records_checked_in_by_staff_profile_id_fkey(display_name)",
+  "called_in_by:staff_profiles!rental_records_called_in_by_staff_profile_id_fkey(display_name)"
+].join(", ");
+
+function isPendingDeliveryStatus(status: RentalStatus) {
+  return status === "pending_delivery" || status === "called_in";
+}
+
+function isActiveStatus(status: RentalStatus) {
+  return status === "active" || status === "delivered";
+}
 
 function isPickupCalledStatus(status: RentalStatus) {
   return status === "pickup_requested" || status === "pickup_called";
@@ -79,10 +122,14 @@ function isPickedUpStatus(status: RentalStatus) {
 }
 
 function isInHospitalStatus(status: RentalStatus) {
-  return status === "active" || isPickupCalledStatus(status);
+  return isActiveStatus(status) || isPickupCalledStatus(status);
 }
 
 function rentalStatusLabel(status: RentalStatus) {
+  if (isPendingDeliveryStatus(status)) {
+    return "Pending Delivery";
+  }
+
   if (isPickupCalledStatus(status)) {
     return "Called for Pickup";
   }
@@ -99,6 +146,14 @@ function rentalStatusLabel(status: RentalStatus) {
 }
 
 function rentalStatusStyles(status: RentalStatus) {
+  if (isPendingDeliveryStatus(status)) {
+    return {
+      dot: "bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.18)]",
+      text: "text-sky-700",
+      card: "border-sky-100 bg-sky-50/75"
+    };
+  }
+
   if (isPickupCalledStatus(status)) {
     return {
       dot: "bg-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]",
@@ -130,6 +185,45 @@ function findPickedUpEvent(events: RentalEventRecord[]) {
   return events.find((event) => pickedUpEventTypes.has(event.event_type));
 }
 
+function findCalledInEvent(events: RentalEventRecord[]) {
+  return events.find((event) => calledInEventTypes.has(event.event_type));
+}
+
+function findDeliveredEvent(events: RentalEventRecord[]) {
+  return events.find((event) => deliveredEventTypes.has(event.event_type));
+}
+
+function rentalEventLabel(eventType: string) {
+  if (calledInEventTypes.has(eventType)) {
+    return "Called In";
+  }
+
+  if (deliveredEventTypes.has(eventType)) {
+    return "Delivered";
+  }
+
+  if (pickupEventTypes.has(eventType)) {
+    return "Called for Pickup";
+  }
+
+  if (pickedUpEventTypes.has(eventType)) {
+    return "Picked Up";
+  }
+
+  if (eventType === "manual_check_in") {
+    return "Manual Entry";
+  }
+
+  if (eventType === "barcode_scanned") {
+    return "Barcode Scanned";
+  }
+
+  return eventType
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function todayValue() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -137,6 +231,15 @@ function todayValue() {
 function timeValue() {
   const now = new Date();
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+}
+
+function todayValueFromIso(value: string) {
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function timeValueFromIso(value: string) {
+  const date = new Date(value);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
 function firstRelated<T>(value: T | T[] | null | undefined) {
@@ -197,6 +300,22 @@ function daysInHospitalLabel(value: string, timezone: string) {
   return `${days} days`;
 }
 
+function elapsedLabel(value: string, timezone: string) {
+  const start = new Date(value).getTime();
+  const diffMs = Math.max(0, Date.now() - start);
+  const hours = Math.floor(diffMs / 3_600_000);
+
+  if (hours < 1) {
+    return "Less than 1 hour";
+  }
+
+  if (hours < 24) {
+    return hours === 1 ? "1 hour" : `${hours} hours`;
+  }
+
+  return daysInHospitalLabel(value, timezone);
+}
+
 function startOfDateRangeDay(dateValue: string) {
   const parts = dateValue
     ? dateValue.split("-").map((part) => Number(part))
@@ -210,14 +329,27 @@ function recordMatchesDateRange(record: ActiveRentalRecord, startMs: number | nu
     return true;
   }
 
-  const checkedInMs = new Date(record.checked_in_at).getTime();
+  const calledInMs = record.called_in_at ? new Date(record.called_in_at).getTime() : null;
+  const checkedInMs = record.checked_in_at ? new Date(record.checked_in_at).getTime() : null;
   const returnedMs = record.returned_at ? new Date(record.returned_at).getTime() : null;
   const activeEndMs = returnedMs ?? Date.now();
 
-  return checkedInMs <= endMs && activeEndMs >= startMs;
+  if (calledInMs !== null && calledInMs >= startMs && calledInMs <= endMs) {
+    return true;
+  }
+
+  if (checkedInMs !== null && checkedInMs >= startMs && checkedInMs <= endMs) {
+    return true;
+  }
+
+  return checkedInMs !== null && checkedInMs <= endMs && activeEndMs >= startMs;
 }
 
 function totalDaysInHospital(record: ActiveRentalRecord, timezone: string) {
+  if (!record.checked_in_at) {
+    return 0;
+  }
+
   const end = record.returned_at ?? new Date().toISOString();
   const startParts = datePartsInTimezone(new Date(record.checked_in_at), timezone);
   const endParts = datePartsInTimezone(new Date(end), timezone);
@@ -254,8 +386,12 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
     equipmentType: "",
-    date: todayValue(),
-    time: timeValue(),
+    deliveredDate: todayValue(),
+    deliveredTime: timeValue(),
+    calledInDate: "",
+    calledInTime: "",
+    calledInUnknown: true,
+    calledInByCurrentUser: false,
     serialNumber: "",
     location: "RT Equipment Room",
     otherLocation: "",
@@ -276,8 +412,12 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const [rentalEvents, setRentalEvents] = useState<RentalEventRecord[]>([]);
   const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
+  const [rentalAction, setRentalAction] = useState<RentalAction>("delivered");
+  const [selectedPendingRentalId, setSelectedPendingRentalId] = useState("");
   const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
-  const [historyStatus, setHistoryStatus] = useState<"all" | "active" | "pickup" | "returned">("all");
+  const [historyStatus, setHistoryStatus] = useState<"all" | "pending" | "active" | "pickup" | "returned">(
+    searchParams.get("status") === "pending" ? "pending" : "all"
+  );
   const [historyEquipment, setHistoryEquipment] = useState<"all" | EquipmentType>("all");
   const [historyVendorId, setHistoryVendorId] = useState("all");
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("all");
@@ -320,13 +460,13 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         .order("sort_order", { ascending: true }),
       supabase
         .from("rental_records")
-        .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
+        .select(rentalRecordSelect)
         .eq("department_id", authContext.departmentId)
         .neq("status", "cancelled")
-        .order("checked_in_at", { ascending: true }),
+        .order("checked_in_at", { ascending: true, nullsFirst: false }),
       supabase
         .from("rental_records")
-        .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
+        .select(rentalRecordSelect)
         .eq("department_id", authContext.departmentId)
         .neq("status", "cancelled")
         .order("checked_in_at", { ascending: false }),
@@ -482,8 +622,18 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       return;
     }
 
-    if (!form.vendorId || !form.equipmentType || !form.serialNumber.trim() || !form.date || !form.time) {
-      setError("Company, BiPAP type, date/time, and serial number are required.");
+    if (!form.vendorId || !form.equipmentType) {
+      setError("Company and BiPAP type are required.");
+      return;
+    }
+
+    if (rentalAction === "called_in" && (!form.calledInDate || !form.calledInTime)) {
+      setError("Called In Date and Called In Time are required when logging a pending delivery.");
+      return;
+    }
+
+    if (rentalAction === "delivered" && (!form.serialNumber.trim() || !form.deliveredDate || !form.deliveredTime || !currentLocation)) {
+      setError("Delivered date/time, serial number, and current location are required.");
       return;
     }
 
@@ -495,10 +645,75 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
     const serialNumber = form.serialNumber.trim();
     const location = currentLocation || "RT Equipment Room";
-    const checkedInAt = new Date(`${form.date}T${form.time}:00`).toISOString();
+    const selectedPendingRental = selectedPendingRentalId
+      ? rentalHistory.find((record) => record.id === selectedPendingRentalId)
+      : null;
+    const calledInAt =
+      !form.calledInUnknown && form.calledInDate && form.calledInTime
+        ? new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString()
+        : selectedPendingRental?.called_in_at ?? null;
+    const deliveredAt = new Date(`${form.deliveredDate}T${form.deliveredTime}:00`).toISOString();
+
+    if (rentalAction === "called_in") {
+      const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
+      const { data: pendingRecord, error: pendingError } = await supabase
+        .from("rental_records")
+        .insert({
+          department_id: authContext.departmentId,
+          equipment_id: null,
+          vendor_id: form.vendorId,
+          equipment_type: form.equipmentType,
+          serial_number: null,
+          status: "pending_delivery",
+          called_in_at: pendingAt,
+          called_in_by_staff_profile_id: authContext.staffProfileId,
+          called_in_by_name: authContext.displayName,
+          checked_in_at: null,
+          checked_in_by_staff_profile_id: null,
+          current_location: null,
+          notes: form.notes.trim() || null
+        })
+        .select(rentalRecordSelect)
+        .single();
+
+      const savedPendingRecord = pendingRecord as unknown as ActiveRentalRecord | null;
+
+      if (pendingError || !savedPendingRecord?.id) {
+        setSaving(false);
+        setError("Unable to save pending delivery.");
+        return;
+      }
+
+      await supabase.from("rental_events").insert({
+        department_id: authContext.departmentId,
+        rental_record_id: savedPendingRecord.id,
+        equipment_id: null,
+        event_type: "called_in",
+        event_at: pendingAt,
+        actor_staff_profile_id: authContext.staffProfileId,
+        event_data: {
+          equipment_type: form.equipmentType,
+          vendor_id: form.vendorId,
+          vendor_name: vendor?.name ?? null,
+          called_in_by: authContext.displayName,
+          timestamp: pendingAt
+        }
+      });
+
+      setSaving(false);
+      setScannerOpen(false);
+      setScannerSuccess("");
+      setScannedByCamera(false);
+      setSelectedPendingRentalId("");
+      setForm(defaultForm(vendors[0]?.id ?? ""));
+      await loadRentalData();
+      router.push("/operations/rental-management?calledIn=1");
+      return;
+    }
+
     const { data: existingRentals, error: existingRentalError } = await supabase
       .from("rental_records")
-      .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
+      .select(rentalRecordSelect)
       .eq("department_id", authContext.departmentId)
       .neq("status", "cancelled")
       .eq("serial_number", serialNumber)
@@ -542,37 +757,81 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       return;
     }
 
-    const { data: record, error: recordError } = await supabase
-      .from("rental_records")
-      .insert({
-        department_id: authContext.departmentId,
-        equipment_id: equipment.id,
-        vendor_id: form.vendorId,
-        equipment_type: form.equipmentType,
-        serial_number: serialNumber,
-        status: "active",
-        checked_in_at: checkedInAt,
-        checked_in_by_staff_profile_id: authContext.staffProfileId,
-        current_location: location,
-        notes: form.notes.trim() || null
-      })
-      .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
-      .single();
+    const recordMutation = selectedPendingRental
+      ? supabase
+          .from("rental_records")
+          .update({
+            equipment_id: equipment.id,
+            vendor_id: form.vendorId,
+            equipment_type: form.equipmentType,
+            serial_number: serialNumber,
+            status: "active",
+            checked_in_at: deliveredAt,
+            checked_in_by_staff_profile_id: authContext.staffProfileId,
+            current_location: location,
+            notes: form.notes.trim() || selectedPendingRental.notes || null
+          })
+          .eq("id", selectedPendingRental.id)
+          .select(rentalRecordSelect)
+          .single()
+      : supabase
+          .from("rental_records")
+          .insert({
+            department_id: authContext.departmentId,
+            equipment_id: equipment.id,
+            vendor_id: form.vendorId,
+            equipment_type: form.equipmentType,
+            serial_number: serialNumber,
+            status: "active",
+            called_in_at: calledInAt,
+            called_in_by_staff_profile_id: calledInAt && form.calledInByCurrentUser ? authContext.staffProfileId : null,
+            called_in_by_name: calledInAt && form.calledInByCurrentUser ? authContext.displayName : null,
+            checked_in_at: deliveredAt,
+            checked_in_by_staff_profile_id: authContext.staffProfileId,
+            current_location: location,
+            notes: form.notes.trim() || null
+          })
+          .select(rentalRecordSelect)
+          .single();
 
-    if (recordError || !record?.id) {
+    const { data: record, error: recordError } = await recordMutation;
+
+    const savedRecord = record as unknown as ActiveRentalRecord | null;
+
+    if (recordError || !savedRecord?.id) {
       setSaving(false);
       setError("Unable to save rental check in.");
       return;
     }
 
     const eventType = scannedByCamera ? "barcode_scanned" : "manual_check_in";
-    await supabase.from("rental_events").insert([
+    const rentalEvents = [
+      ...(!selectedPendingRental && calledInAt
+        ? [
+            {
+              department_id: authContext.departmentId,
+              rental_record_id: savedRecord.id,
+              equipment_id: equipment.id,
+              event_type: "called_in",
+              event_at: calledInAt,
+              actor_staff_profile_id: authContext.staffProfileId,
+              event_data: {
+                serial_number: serialNumber,
+                equipment_type: form.equipmentType,
+                vendor_id: form.vendorId,
+                vendor_name: vendor?.name ?? null,
+                called_in_by: form.calledInByCurrentUser ? authContext.displayName : "Unknown",
+                timestamp: calledInAt
+              }
+            }
+          ]
+        : []),
       {
         department_id: authContext.departmentId,
-        rental_record_id: record.id,
+        rental_record_id: savedRecord.id,
         equipment_id: equipment.id,
         event_type: eventType,
-        event_at: checkedInAt,
+        event_at: deliveredAt,
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
           serial_number: serialNumber,
@@ -580,15 +839,15 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
           vendor_id: form.vendorId,
           vendor_name: vendor?.name ?? null,
           current_location: location,
-          timestamp: checkedInAt
+          timestamp: deliveredAt
         }
       },
       {
         department_id: authContext.departmentId,
-        rental_record_id: record.id,
+        rental_record_id: savedRecord.id,
         equipment_id: equipment.id,
-        event_type: "checked_in",
-        event_at: checkedInAt,
+        event_type: "delivered",
+        event_at: deliveredAt,
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
           source: scannedByCamera ? "barcode" : "manual",
@@ -597,23 +856,37 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
           vendor_id: form.vendorId,
           vendor_name: vendor?.name ?? null,
           current_location: location,
-          timestamp: checkedInAt
+          delivered_by: authContext.displayName,
+          timestamp: deliveredAt
         }
       }
-    ]);
+    ];
+
+    await supabase.from("rental_events").insert(rentalEvents);
 
     setSaving(false);
     setScannerOpen(false);
     setScannerSuccess("");
     setScannedByCamera(false);
+    setSelectedPendingRentalId("");
     setForm(defaultForm(vendors[0]?.id ?? ""));
     await loadRentalData();
     router.push("/operations/rental-management?checkedIn=1");
   };
 
-  const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time && currentLocation);
+  const canConfirm =
+    rentalAction === "called_in"
+      ? Boolean(form.vendorId && form.equipmentType && form.calledInDate && form.calledInTime)
+      : Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
   const checkedIn = searchParams.get("checkedIn") === "1";
-  const oldestRentalDaysLabel = activeRentals[0] ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
+  const calledIn = searchParams.get("calledIn") === "1";
+  const oldestRentalDaysLabel = activeRentals[0]?.checked_in_at ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
+  const pendingDeliveries = rentalHistory
+    .filter((record) => isPendingDeliveryStatus(record.status))
+    .sort((left, right) => new Date(left.called_in_at ?? 0).getTime() - new Date(right.called_in_at ?? 0).getTime());
+  const selectedPendingRental = selectedPendingRentalId
+    ? pendingDeliveries.find((record) => record.id === selectedPendingRentalId) ?? null
+    : null;
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
       return accumulator;
@@ -645,25 +918,39 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const filteredHistory = rentalHistory
     .filter((record) => {
       const vendor = firstRelated(record.rental_vendors);
-      const staff = firstRelated(record.staff_profiles);
+      const checkedInStaff = firstRelated(record.checked_in_by);
+      const calledInStaff = firstRelated(record.called_in_by);
       const events = eventsByRentalId[record.id] ?? [];
       const eventStaff = events
         .map((event) => firstRelated(event.staff_profiles)?.display_name ?? "")
         .join(" ");
+      const eventWithinDateRange =
+        rangeStartMs === null ||
+        rangeEndMs === null ||
+        events.some((event) => {
+          const eventTime = new Date(event.event_at).getTime();
+          return eventTime >= rangeStartMs && eventTime <= rangeEndMs;
+        });
       const haystack = [
-        record.serial_number,
+        record.serial_number ?? "",
         record.equipment_type,
         equipmentLabels[record.equipment_type],
         vendor?.name ?? "",
         record.current_location ?? "",
-        staff?.display_name ?? "",
+        checkedInStaff?.display_name ?? "",
+        calledInStaff?.display_name ?? "",
+        record.called_in_by_name ?? "",
         eventStaff,
         record.notes ?? ""
       ]
         .join(" ")
         .toLowerCase();
 
-      if (historyStatus === "active" && record.status !== "active") {
+      if (historyStatus === "pending" && !isPendingDeliveryStatus(record.status)) {
+        return false;
+      }
+
+      if (historyStatus === "active" && !isActiveStatus(record.status)) {
         return false;
       }
 
@@ -683,7 +970,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         return false;
       }
 
-      if (!recordMatchesDateRange(record, rangeStartMs, rangeEndMs)) {
+      if (!recordMatchesDateRange(record, rangeStartMs, rangeEndMs) && !eventWithinDateRange) {
         return false;
       }
 
@@ -691,10 +978,13 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     })
     .sort((left, right) => {
       if (historyStatus === "active") {
-        return new Date(left.checked_in_at).getTime() - new Date(right.checked_in_at).getTime();
+        return new Date(left.checked_in_at ?? 0).getTime() - new Date(right.checked_in_at ?? 0).getTime();
       }
 
-      return new Date(right.checked_in_at).getTime() - new Date(left.checked_in_at).getTime();
+      return (
+        new Date(right.checked_in_at ?? right.called_in_at ?? 0).getTime() -
+        new Date(left.checked_in_at ?? left.called_in_at ?? 0).getTime()
+      );
     });
 
   if (mode === "overview") {
@@ -714,7 +1004,12 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
 
           {checkedIn && (
             <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-              Rental checked in.
+              Rental delivered and active.
+            </p>
+          )}
+          {calledIn && (
+            <p role="status" className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-700">
+              Rental logged as pending delivery.
             </p>
           )}
           {error && (
@@ -757,7 +1052,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             {!loading && activeRentals.length === 0 && (
               <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
                 <p className="text-sm font-black text-hospital-ink">No active rentals.</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">Checked-in rentals will appear here.</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">Delivered rentals will appear here.</p>
               </div>
             )}
             <Link
@@ -765,6 +1060,22 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
             >
               View Active Rentals
+            </Link>
+          </section>
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Pending Delivery</h2>
+            <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
+              <p className="text-2xl font-black text-hospital-ink">{pendingDeliveries.length}</p>
+              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-sky-700">
+                {pendingDeliveries.length === 1 ? "Pending Rental" : "Pending Rentals"}
+              </p>
+            </div>
+            <Link
+              href="/operations/rental-management/history?status=pending"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-sky-100 bg-white px-4 text-sm font-extrabold text-sky-700 shadow-sm"
+            >
+              View Pending Deliveries
             </Link>
           </section>
 
@@ -848,11 +1159,13 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             <div className="mt-3 grid gap-2">
               {activeRentals.map((rental) => {
                 const vendor = firstRelated(rental.rental_vendors);
-                const staff = firstRelated(rental.staff_profiles);
+                const deliveredBy = firstRelated(rental.checked_in_by);
+                const calledInBy = firstRelated(rental.called_in_by);
                 const styles = rentalStatusStyles(rental.status);
                 const rentalEvents = eventsByRentalId[rental.id] ?? [];
                 const pickupEvent = findPickupEvent(rentalEvents);
                 const pickupBy = pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null;
+                const calledInName = calledInBy?.display_name ?? rental.called_in_by_name ?? null;
 
                 return (
                   <article key={rental.id} className={`rounded-2xl border px-3 py-3 ${styles.card}`}>
@@ -868,7 +1181,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                       </div>
                     </div>
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
-                      <p>Serial / Asset ID: {rental.serial_number}</p>
+                      <p>Serial / Asset ID: {rental.serial_number ?? "Pending"}</p>
                       <p>Company: {vendor?.name ?? "Unknown company"}</p>
                       {pickupEvent && (
                         <p>
@@ -877,16 +1190,20 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                         </p>
                       )}
                       <p>Last known location: {rental.current_location || "Unknown"}</p>
-                      <p>In hospital: {daysInHospitalLabel(rental.checked_in_at, departmentTimezone)}</p>
-                      <p>Checked in: {formatDateTime(rental.checked_in_at, departmentTimezone)}</p>
-                      <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
+                      <p>Called in: {rental.called_in_at ? formatDateTime(rental.called_in_at, departmentTimezone) : "Unknown"}</p>
+                      <p>Called in by: {calledInName ?? "Unknown"}</p>
+                      <p>Delivered: {rental.checked_in_at ? formatDateTime(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                      <p>In hospital: {rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                      <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
                     </div>
-                    <Link
-                      href={`/operations/rental-management/history?serial=${encodeURIComponent(rental.serial_number)}`}
-                      className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-cyan-100 bg-white px-3 text-xs font-extrabold text-cyan-700"
-                    >
-                      View History
-                    </Link>
+                    {rental.serial_number && (
+                      <Link
+                        href={`/operations/rental-management/history?serial=${encodeURIComponent(rental.serial_number)}`}
+                        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-cyan-100 bg-white px-3 text-xs font-extrabold text-cyan-700"
+                      >
+                        View History
+                      </Link>
+                    )}
                   </article>
                 );
               })}
@@ -905,7 +1222,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
             <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental History</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              Active and picked-up rental equipment records.
+              Pending, active, called-for-pickup, and picked-up rental records.
             </p>
             <Link
               href="/operations/rental-management"
@@ -936,7 +1253,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {(["all", "active", "pickup", "returned"] as const).map((status) => (
+                  {(["all", "pending", "active", "pickup", "returned"] as const).map((status) => (
                     <button
                       key={status}
                       type="button"
@@ -949,11 +1266,13 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                     >
                       {status === "all"
                         ? "All"
-                        : status === "active"
-                          ? "Active"
-                          : status === "pickup"
-                            ? "Called for Pickup"
-                            : "Picked Up"}
+                        : status === "pending"
+                          ? "Pending Delivery"
+                          : status === "active"
+                            ? "Active"
+                            : status === "pickup"
+                              ? "Called for Pickup"
+                              : "Picked Up"}
                     </button>
                   ))}
                 </div>
@@ -1057,18 +1376,28 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             <div className="mt-3 grid gap-2">
               {filteredHistory.map((record) => {
                 const vendor = firstRelated(record.rental_vendors);
-                const checkedInBy = firstRelated(record.staff_profiles);
+                const deliveredBy = firstRelated(record.checked_in_by);
+                const calledInBy = firstRelated(record.called_in_by);
                 const recordEvents = eventsByRentalId[record.id] ?? [];
+                const calledInEvent = findCalledInEvent(recordEvents);
+                const deliveredEvent = findDeliveredEvent(recordEvents);
                 const pickupEvent = findPickupEvent(recordEvents);
                 const pickupBy = pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null;
                 const pickedUpEvent = findPickedUpEvent(recordEvents);
                 const pickedUpBy = pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : null;
                 const expanded = expandedRentalId === record.id;
+                const pending = isPendingDeliveryStatus(record.status);
                 const pickupCalled = isPickupCalledStatus(record.status);
                 const pickedUp = isPickedUpStatus(record.status);
                 const styles = rentalStatusStyles(record.status);
                 const active = isInHospitalStatus(record.status);
                 const statusLabel = rentalStatusLabel(record.status);
+                const calledInName =
+                  calledInBy?.display_name ??
+                  record.called_in_by_name ??
+                  (calledInEvent ? firstRelated(calledInEvent.staff_profiles)?.display_name : null);
+                const deliveredName =
+                  deliveredBy?.display_name ?? (deliveredEvent ? firstRelated(deliveredEvent.staff_profiles)?.display_name : null);
 
                 return (
                   <article key={record.id} className={`rounded-2xl border px-3 py-3 ${styles.card}`}>
@@ -1081,15 +1410,18 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                         <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} aria-hidden="true" />
                         <div className="min-w-0">
                           <p className="text-sm font-black text-hospital-ink">
-                            {equipmentLabels[record.equipment_type]} · {record.serial_number}
+                            {equipmentLabels[record.equipment_type]}
+                            {record.serial_number ? ` · ${record.serial_number}` : ""}
                           </p>
                           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                             {vendor?.name ?? "Unknown company"}
                           </p>
-                          <p className={`mt-2 text-xs font-bold ${pickupCalled ? "text-amber-700" : "text-slate-600"}`}>
-                            {active
-                              ? `${statusLabel} · ${record.current_location || "Unknown"} · In hospital: ${daysInHospitalLabel(record.checked_in_at, departmentTimezone)}`
-                              : `${statusLabel} · ${shortDate(record.checked_in_at, departmentTimezone)}-${record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Not recorded"} · ${totalDaysLabel(record, departmentTimezone)}`}
+                          <p className={`mt-2 text-xs font-bold ${pending ? "text-sky-700" : pickupCalled ? "text-amber-700" : "text-slate-600"}`}>
+                            {pending
+                              ? `${statusLabel} · Called in ${record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}`
+                              : active && record.checked_in_at
+                                ? `${statusLabel} · ${record.current_location || "Unknown"} · In hospital: ${daysInHospitalLabel(record.checked_in_at, departmentTimezone)}`
+                                : `${statusLabel} · ${record.checked_in_at ? shortDate(record.checked_in_at, departmentTimezone) : "Not delivered"}-${record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Not recorded"} · ${totalDaysLabel(record, departmentTimezone)}`}
                           </p>
                         </div>
                       </div>
@@ -1099,21 +1431,27 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                       <div className="mt-3 border-t border-cyan-100 pt-3 text-xs font-bold text-slate-500">
                         <div className="grid gap-1">
                           <p>Equipment type: {equipmentLabels[record.equipment_type]}</p>
-                          <p>Serial / Asset ID: {record.serial_number}</p>
+                          <p>Serial / Asset ID: {record.serial_number ?? "Pending delivery"}</p>
                           <p>Company: {vendor?.name ?? "Unknown company"}</p>
                           <p>Status: {statusLabel}</p>
+                          <p>Called in: {record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}</p>
+                          <p>Called in by: {calledInName ?? "Unknown"}</p>
                           {pickupEvent && (
                             <p>
                               Called for pickup: {formatDateTime(pickupEvent.event_at, departmentTimezone)}
                               {pickupBy ? ` by ${pickupBy}` : ""}
                             </p>
                           )}
-                          <p>Checked in: {formatDateTime(record.checked_in_at, departmentTimezone)}</p>
-                          <p>Checked in by: {checkedInBy?.display_name ?? "Unknown"}</p>
+                          <p>Delivered: {record.checked_in_at ? formatDateTime(record.checked_in_at, departmentTimezone) : "Not delivered yet"}</p>
+                          <p>Delivered by: {deliveredName ?? "Unknown"}</p>
                           <p>Last known location: {record.current_location || "Unknown"}</p>
                           {record.returned_at && <p>Picked up: {formatDateTime(record.returned_at, departmentTimezone)}</p>}
                           {pickedUp && <p>Picked up by: {pickedUpBy ?? "Not recorded"}</p>}
-                          <p>Total time in hospital: {totalDaysLabel(record, departmentTimezone)}</p>
+                          {pending ? (
+                            <p>Waiting for delivery: {record.called_in_at ? elapsedLabel(record.called_in_at, departmentTimezone) : "Unknown"}</p>
+                          ) : (
+                            <p>Total time in hospital: {totalDaysLabel(record, departmentTimezone)}</p>
+                          )}
                           {record.notes && <p>Notes: {record.notes}</p>}
                         </div>
 
@@ -1123,10 +1461,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                             <div className="mt-2 grid gap-2">
                               {recordEvents.map((event) => {
                                 const actor = firstRelated(event.staff_profiles);
-                                const label = event.event_type
-                                  .split("_")
-                                  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-                                  .join(" ");
+                                const label = rentalEventLabel(event.event_type);
 
                                 return (
                                   <p key={event.id}>
@@ -1177,6 +1512,49 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
 
             <div className="mt-4 space-y-4">
               <section>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Action</p>
+                <div className="mt-2 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRentalAction("delivered");
+                      setForm((current) => ({ ...current, calledInUnknown: current.calledInDate ? false : current.calledInUnknown }));
+                    }}
+                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
+                      rentalAction === "delivered"
+                        ? "border-emerald-200 bg-emerald-50 shadow-md shadow-emerald-900/10"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <p className="text-sm font-black text-hospital-ink">Confirm Delivered / Check In</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">Equipment arrived and is physically in the hospital.</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRentalAction("called_in");
+                      setSelectedPendingRentalId("");
+                      setForm((current) => ({
+                        ...current,
+                        calledInUnknown: false,
+                        calledInByCurrentUser: true,
+                        calledInDate: current.calledInDate || todayValue(),
+                        calledInTime: current.calledInTime || timeValue()
+                      }));
+                    }}
+                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
+                      rentalAction === "called_in"
+                        ? "border-sky-200 bg-sky-50 shadow-md shadow-sky-900/10"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <p className="text-sm font-black text-hospital-ink">Log Called In Only</p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">Rental was ordered but has not arrived yet.</p>
+                  </button>
+                </div>
+              </section>
+
+              <section>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 1: Company</p>
                 <label className="mt-2 block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Rental Company</span>
@@ -1200,6 +1578,49 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 )}
               </section>
 
+              {rentalAction === "delivered" && pendingDeliveries.length > 0 && (
+                <section>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Pending Deliveries</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">Select one if this delivery matches a previously called-in rental.</p>
+                  <div className="mt-2 grid gap-2">
+                    {pendingDeliveries.map((pending) => {
+                      const vendor = firstRelated(pending.rental_vendors);
+                      const selected = selectedPendingRentalId === pending.id;
+
+                      return (
+                        <button
+                          key={pending.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPendingRentalId(selected ? "" : pending.id);
+                            setForm((current) => ({
+                              ...current,
+                              vendorId: pending.vendor_id,
+                              equipmentType: pending.equipment_type,
+                              calledInUnknown: !pending.called_in_at,
+                              calledInDate: pending.called_in_at ? todayValueFromIso(pending.called_in_at) : current.calledInDate,
+                              calledInTime: pending.called_in_at ? timeValueFromIso(pending.called_in_at) : current.calledInTime,
+                              calledInByCurrentUser: false,
+                              notes: current.notes || pending.notes || ""
+                            }));
+                          }}
+                          className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
+                            selected ? "border-sky-200 bg-sky-50 shadow-md shadow-sky-900/10" : "border-slate-200 bg-white"
+                          }`}
+                        >
+                          <p className="text-sm font-black text-hospital-ink">{equipmentLabels[pending.equipment_type]}</p>
+                          <p className="mt-1 text-xs font-bold text-slate-500">{vendor?.name ?? "Unknown company"}</p>
+                          <p className="mt-1 text-xs font-bold text-sky-700">
+                            Called in: {pending.called_in_at ? formatDateTime(pending.called_in_at, departmentTimezone) : "Unknown"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {rentalAction === "delivered" && (
               <section>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 2: Scan Barcode</p>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
@@ -1238,6 +1659,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 )}
                 {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
               </section>
+              )}
 
               <section>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 3: Equipment Details</p>
@@ -1253,63 +1675,47 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                       <option value="v60">V60</option>
                     </select>
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</span>
-                      <input
-                        type="date"
-                        value={form.date}
-                        onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))}
-                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Time</span>
-                      <input
-                        type="time"
-                        value={form.time}
-                        onChange={(event) => setForm((current) => ({ ...current, time: event.target.value }))}
-                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                      />
-                    </label>
-                  </div>
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number / Asset ID</span>
-                    <input
-                      value={form.serialNumber}
-                      onChange={(event) => {
-                        setScannedByCamera(false);
-                        setForm((current) => ({ ...current, serialNumber: event.target.value }));
-                      }}
-                      onBlur={() => void lookupKnownEquipment(form.serialNumber)}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
-                    <select
-                      value={form.location}
-                      onChange={(event) => setForm((current) => ({ ...current, location: event.target.value, otherLocation: "" }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    >
-                      {locationOptions.map((location) => (
-                        <option key={location} value={location}>
-                          {location}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {form.location === "Other" && (
-                    <label className="block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Other Location</span>
-                      <input
-                        value={form.otherLocation}
-                        onChange={(event) => setForm((current) => ({ ...current, otherLocation: event.target.value.slice(0, 80) }))}
-                        maxLength={80}
-                        placeholder="Enter location"
-                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                      />
-                    </label>
+                  {rentalAction === "delivered" && (
+                    <>
+                      <label className="block">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number / Asset ID</span>
+                        <input
+                          value={form.serialNumber}
+                          onChange={(event) => {
+                            setScannedByCamera(false);
+                            setForm((current) => ({ ...current, serialNumber: event.target.value }));
+                          }}
+                          onBlur={() => void lookupKnownEquipment(form.serialNumber)}
+                          className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
+                        <select
+                          value={form.location}
+                          onChange={(event) => setForm((current) => ({ ...current, location: event.target.value, otherLocation: "" }))}
+                          className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                        >
+                          {locationOptions.map((location) => (
+                            <option key={location} value={location}>
+                              {location}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {form.location === "Other" && (
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Other Location</span>
+                          <input
+                            value={form.otherLocation}
+                            onChange={(event) => setForm((current) => ({ ...current, otherLocation: event.target.value.slice(0, 80) }))}
+                            maxLength={80}
+                            placeholder="Enter location"
+                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          />
+                        </label>
+                      )}
+                    </>
                   )}
                   <label className="block">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
@@ -1328,10 +1734,131 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 </div>
               </section>
 
+              <section>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 4: Called In / Delivered Times</p>
+                <div className="mt-2 space-y-3">
+                  <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-hospital-ink">Called In / Ordered</p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          {rentalAction === "called_in" ? "Required for pending delivery." : "Optional if unknown."}
+                        </p>
+                      </div>
+                      {rentalAction === "delivered" && (
+                        <label className="flex items-center gap-2 text-xs font-extrabold text-slate-500">
+                          <input
+                            type="checkbox"
+                            checked={form.calledInUnknown}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                calledInUnknown: event.target.checked,
+                                calledInByCurrentUser: event.target.checked ? false : current.calledInByCurrentUser
+                              }))
+                            }
+                          />
+                          Unknown
+                        </label>
+                      )}
+                    </div>
+                    {!form.calledInUnknown && (
+                      <div className="mt-3 grid gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Date</span>
+                            <input
+                              type="date"
+                              value={form.calledInDate}
+                              onChange={(event) => setForm((current) => ({ ...current, calledInDate: event.target.value }))}
+                              className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Time</span>
+                            <input
+                              type="time"
+                              value={form.calledInTime}
+                              onChange={(event) => setForm((current) => ({ ...current, calledInTime: event.target.value }))}
+                              className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                            />
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((current) => ({
+                                ...current,
+                                calledInDate: todayValue(),
+                                calledInTime: timeValue(),
+                                calledInUnknown: false
+                              }))
+                            }
+                            className="min-h-10 rounded-xl border border-sky-100 bg-white px-3 text-xs font-extrabold text-sky-700"
+                          >
+                            Use current date/time
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setForm((current) => ({
+                                ...current,
+                                calledInByCurrentUser: true,
+                                calledInUnknown: false,
+                                calledInDate: current.calledInDate || todayValue(),
+                                calledInTime: current.calledInTime || timeValue()
+                              }))
+                            }
+                            className="min-h-10 rounded-xl border border-sky-100 bg-white px-3 text-xs font-extrabold text-sky-700"
+                          >
+                            I called it in
+                          </button>
+                        </div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Called In By: {form.calledInByCurrentUser || rentalAction === "called_in" ? authContext.displayName : "Unknown"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {rentalAction === "delivered" && (
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3 py-3">
+                      <p className="text-sm font-black text-hospital-ink">Delivered / Checked In</p>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Date</span>
+                          <input
+                            type="date"
+                            value={form.deliveredDate}
+                            onChange={(event) => setForm((current) => ({ ...current, deliveredDate: event.target.value }))}
+                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Time</span>
+                          <input
+                            type="time"
+                            value={form.deliveredTime}
+                            onChange={(event) => setForm((current) => ({ ...current, deliveredTime: event.target.value }))}
+                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          />
+                        </label>
+                      </div>
+                      <p className="mt-2 text-xs font-bold text-slate-500">Delivered By: {authContext.displayName}</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
               <section className="rounded-3xl border border-violet-200 bg-violet-50/80 p-4 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_0_22px_rgba(139,92,246,0.18),0_14px_28px_rgba(15,23,42,0.10)]">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Step 4: Confirm</p>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Step 5: Confirm</p>
                 <h3 className="mt-1 text-lg font-black text-hospital-ink">Rental Check In</h3>
                 <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Action</dt>
+                    <dd>{rentalAction === "called_in" ? "Log Called In / Pending Delivery" : "Confirm Delivered / Check In"}</dd>
+                  </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
                     <dd>{selectedVendor?.name ?? "Select company"}</dd>
@@ -1342,36 +1869,44 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number / Asset ID</dt>
-                    <dd>{form.serialNumber || "Required"}</dd>
+                    <dd>{rentalAction === "called_in" ? "Not required until delivery" : form.serialNumber || "Required"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Date/Time</dt>
-                    <dd>{form.date} {form.time}</dd>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
+                    <dd>
+                      {form.calledInUnknown
+                        ? selectedPendingRental?.called_in_at
+                          ? `${formatDateTime(selectedPendingRental.called_in_at, departmentTimezone)} by ${firstRelated(selectedPendingRental.called_in_by)?.display_name ?? selectedPendingRental.called_in_by_name ?? "Unknown"}`
+                          : "Unknown"
+                        : `${form.calledInDate || "Date"} ${form.calledInTime || "Time"} by ${
+                            form.calledInByCurrentUser || rentalAction === "called_in" ? authContext.displayName : "Unknown"
+                          }`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>
+                    <dd>{rentalAction === "called_in" ? "Pending delivery" : `${form.deliveredDate} ${form.deliveredTime} by ${authContext.displayName}`}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
-                    <dd>{currentLocation || "Required"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Checked in by</dt>
-                    <dd>{authContext.displayName}</dd>
+                    <dd>{rentalAction === "called_in" ? "Not in hospital yet" : currentLocation || "Required"}</dd>
                   </div>
                 </dl>
                 {duplicateRental && (
                   <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-900">
                     {(() => {
                       const vendor = firstRelated(duplicateRental.rental_vendors);
-                      const staff = firstRelated(duplicateRental.staff_profiles);
+                      const deliveredBy = firstRelated(duplicateRental.checked_in_by);
 
                       return (
                         <>
-                          <p className="font-black">This equipment is already checked in.</p>
+                          <p className="font-black">This equipment is already in the hospital.</p>
                           <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
                           <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
                           <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
                           <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
-                          <p>Checked in: {formatDateTime(duplicateRental.checked_in_at, departmentTimezone)}</p>
-                          <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
+                          <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                          <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             <button
                               type="button"
@@ -1411,7 +1946,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                     disabled={saving || !canConfirm}
                     className="min-h-11 rounded-2xl bg-violet-700 px-3 text-sm font-extrabold text-white shadow-md shadow-violet-900/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {saving ? "Saving..." : "Confirm Check In"}
+                    {saving ? "Saving..." : rentalAction === "called_in" ? "Log Called In" : "Confirm Check In"}
                   </button>
                 </div>
               </section>
