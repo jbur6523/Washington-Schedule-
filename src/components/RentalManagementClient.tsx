@@ -48,8 +48,8 @@ type RentalManagementClientProps = {
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
-  bipap: "BiPAP / V60",
-  v60: "BiPAP / V60"
+  bipap: "BiPAP",
+  v60: "V60"
 };
 
 const locationOptions = ["RT Equipment Room", "ED", "ICU", "2nd Floor", "3rd Floor", "Other"];
@@ -67,22 +67,58 @@ function firstRelated<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
 
-function formatDateTime(value: string) {
+function datePartsInTimezone(value: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(value);
+
+  const getPart = (type: string) => parts.find((part) => part.type === type)?.value ?? "01";
+
+  return {
+    year: Number(getPart("year")),
+    month: Number(getPart("month")),
+    day: Number(getPart("day"))
+  };
+}
+
+function formatDateTime(value: string, timezone: string) {
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false
-  }).format(new Date(value));
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value)).replace(",", "");
 }
 
-function daysActive(value: string) {
-  const start = new Date(value).getTime();
-  const diff = Date.now() - start;
+function daysActive(value: string, timezone: string) {
+  const startParts = datePartsInTimezone(new Date(value), timezone);
+  const todayParts = datePartsInTimezone(new Date(), timezone);
+  const start = Date.UTC(startParts.year, startParts.month - 1, startParts.day);
+  const today = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
+  const diff = today - start;
 
   return Math.max(0, Math.floor(diff / 86_400_000));
+}
+
+function daysInHospitalLabel(value: string, timezone: string) {
+  const days = daysActive(value, timezone);
+
+  if (days === 0) {
+    return "Today";
+  }
+
+  if (days === 1) {
+    return "1 day";
+  }
+
+  return `${days} days`;
 }
 
 function defaultForm(vendorId = ""): RentalCheckInForm {
@@ -108,6 +144,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<RentalVendor[]>([]);
   const [activeRentals, setActiveRentals] = useState<ActiveRentalRecord[]>([]);
+  const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
@@ -130,7 +167,11 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     setError("");
 
     const supabase = createClient();
-    const [{ data: vendorData, error: vendorError }, { data: rentalData, error: rentalError }] = await Promise.all([
+    const [
+      { data: vendorData, error: vendorError },
+      { data: rentalData, error: rentalError },
+      { data: departmentData }
+    ] = await Promise.all([
       supabase
         .from("rental_vendors")
         .select("id, name, phone_number, notes, sort_order")
@@ -142,8 +183,15 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
         .eq("department_id", authContext.departmentId)
         .eq("status", "active")
-        .order("checked_in_at", { ascending: true })
+        .order("checked_in_at", { ascending: true }),
+      supabase
+        .from("departments")
+        .select("timezone")
+        .eq("id", authContext.departmentId)
+        .maybeSingle()
     ]);
+
+    setDepartmentTimezone((departmentData?.timezone as string | null | undefined) || "America/Los_Angeles");
 
     if (vendorError) {
       setError("Unable to load rental vendors. Confirm the rental migration has been applied.");
@@ -397,6 +445,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
 
   const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time && currentLocation);
   const checkedIn = searchParams.get("checkedIn") === "1";
+  const oldestRentalDaysLabel = activeRentals[0] ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
 
   if (mode === "overview") {
     return (
@@ -442,9 +491,22 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
 
           <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                <p className="text-2xl font-black text-hospital-ink">{activeRentals.length}</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Active Rentals</p>
+              </div>
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                <p className="text-2xl font-black text-hospital-ink">{oldestRentalDaysLabel}</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Oldest Rental</p>
+              </div>
+            </div>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
             {!loading && activeRentals.length === 0 && (
-              <p className="mt-2 text-sm font-bold text-slate-500">No active rentals.</p>
+              <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-sm font-black text-hospital-ink">No active rentals.</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">Checked-in rentals will appear here.</p>
+              </div>
             )}
             <div className="mt-3 grid gap-2">
               {activeRentals.map((rental) => {
@@ -455,19 +517,20 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                   <article key={rental.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-black text-hospital-ink">{equipmentLabels[rental.equipment_type]}</p>
-                        <p className="mt-1 text-sm font-bold text-slate-700">Asset ID: {rental.serial_number}</p>
-                        <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">{vendor?.name ?? "Unknown company"}</p>
+                        <p className="flex items-center gap-2 text-base font-black text-hospital-ink">
+                          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.14)]" aria-hidden="true" />
+                          {equipmentLabels[rental.equipment_type]}
+                        </p>
+                        <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
                       </div>
-                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
-                        Active
-                      </span>
                     </div>
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
-                      <p>Location: {rental.current_location ?? "RT Equipment Room"}</p>
-                      <p>Checked in: {formatDateTime(rental.checked_in_at)}</p>
+                      <p>Serial / Asset ID: {rental.serial_number}</p>
+                      <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                      <p>Last known location: {rental.current_location || "Unknown"}</p>
+                      <p>In hospital: {daysInHospitalLabel(rental.checked_in_at, departmentTimezone)}</p>
+                      <p>Checked in: {formatDateTime(rental.checked_in_at, departmentTimezone)}</p>
                       <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
-                      <p>Active: {daysActive(rental.checked_in_at)} days</p>
                     </div>
                   </article>
                 );
@@ -726,7 +789,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                           <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
                           <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
                           <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
-                          <p>Checked in: {formatDateTime(duplicateRental.checked_in_at)}</p>
+                          <p>Checked in: {formatDateTime(duplicateRental.checked_in_at, departmentTimezone)}</p>
                           <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
                           <div className="mt-3 grid grid-cols-2 gap-2">
                             <button

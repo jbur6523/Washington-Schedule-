@@ -96,15 +96,22 @@ The user can view Active Rentals or cancel the check in.
 
 ## Active Rentals Preview
 
-After check in, the rental appears in a simple Active Rentals preview with:
+Active Rentals shows every `rental_records.status = active` row for the department. Returned and cancelled rentals are excluded.
 
-- Company
+The list is sorted by `checked_in_at` ascending so the equipment that has been in the hospital the longest appears first.
+
+At the top, Active Rentals shows:
+
+- Active Rentals count
+- Oldest Rental duration
+
 - BiPAP type
-- Serial number
-- Current location
+- Serial / Asset ID
+- Company
+- Last known location
+- Days in hospital
 - Checked-in date/time
 - Checked-in staff member
-- Days active
 
 Active Rentals are sorted oldest first so long-running rentals are easier to spot. Full return and transfer workflows remain future work.
 
