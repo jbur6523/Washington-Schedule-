@@ -44,17 +44,19 @@ The Rental Management dashboard combines the department operations title and Act
 
 ## Delivery Confirmation
 
-Delivery confirmation starts from a Pending Delivery card on the main Rental Management dashboard.
+Delivery confirmation starts from a Pending Delivery card on the main Rental Management dashboard. The dashboard action opens a centered `Confirm Delivery` modal immediately because the pending rental order is already selected. Staff do not need to leave Rental Management or reselect the rental from this path.
 
 1. Tap `BiPAP V60 Delivered` or `Mark Delivered`.
-2. Scan the equipment barcode or enter the serial / asset ID manually.
-3. Enter current location.
-4. Confirm delivered date and time.
+2. Scan the equipment barcode inside the modal or enter the serial / asset ID manually.
+3. Confirm the current location. It defaults to `RT Equipment Room`.
+4. Use the auto-filled delivered date/time and staff member, or use `Edit delivery details` if corrections are needed.
 5. Confirm delivery.
 
 Confirming delivery updates the pending record to `active`, sets the delivered timestamp in `checked_in_at`, records the current location and serial / asset ID, creates delivery events, and returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads so newly delivered equipment is included in the count.
 
-Cancel and Back to Rental Management leave the active workflow without creating partial delivery records.
+The serial / asset ID is required before `Confirm Delivery` is enabled. Cancel closes the modal without creating partial delivery records.
+
+The full `/operations/rental-management/deliver/[id]` Confirm Delivery page remains available as a direct-route fallback, but the normal Pending Delivery dashboard card uses the modal flow.
 
 ## Rental Lifecycle
 
@@ -238,6 +240,8 @@ Pending Delivery cards are blue and appear when rentals have been ordered but no
 - Cancel Delivery button
 
 Pending Delivery does not count as Active Rentals because the equipment is not physically in the hospital yet.
+
+`BiPAP V60 Delivered` opens the direct `Confirm Delivery` modal with barcode scanning, manual serial entry, current location, delivered date/time, and delivered-by metadata.
 
 `Cancel Delivery` opens a confirmation form. Confirming it changes the rental status to `delivery_cancelled`, creates a `delivery_cancelled` event, removes the blue pending card, does not add the rental to Active Rentals, and keeps the record visible in Rental History.
 
