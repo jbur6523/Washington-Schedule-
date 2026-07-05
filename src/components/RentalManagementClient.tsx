@@ -39,8 +39,10 @@ type RentalStatus =
   | "delivered"
   | "pickup_requested"
   | "pickup_called"
+  | "called_for_pickup"
   | "returned"
   | "picked_up"
+  | "delivery_cancelled"
   | "cancelled";
 type DateRangePreset = "all" | "today" | "7" | "30" | "custom";
 
@@ -59,6 +61,8 @@ type ActiveRentalRecord = {
   pickup_request_note: string | null;
   returned_at: string | null;
   return_note: string | null;
+  cancelled_at: string | null;
+  cancellation_note: string | null;
   notes: string | null;
   rental_vendors:
     | { name: string; phone_number?: string | null; notes?: string | null }
@@ -95,6 +99,7 @@ type RentalCheckInForm = {
 };
 
 type ReturnAction = "pickup" | "picked_up";
+type PendingCancelAction = "delivery" | "pickup";
 
 type ReturnEquipmentForm = {
   selectedRentalId: string;
@@ -140,6 +145,8 @@ const pickupEventTypes = new Set(["pickup_requested", "pickup_called", "called_f
 const pickedUpEventTypes = new Set(["returned", "picked_up"]);
 const calledInEventTypes = new Set(["called_in", "pending_delivery"]);
 const deliveredEventTypes = new Set(["delivered", "checked_in"]);
+const deliveryCancelledEventTypes = new Set(["delivery_cancelled"]);
+const pickupCancelledEventTypes = new Set(["pickup_cancelled"]);
 
 const locationOptions = ["RT Equipment Room", "ED", "ICU", "2nd Floor", "3rd Floor", "Other"];
 const rentalRecordSelect = [
@@ -157,6 +164,8 @@ const rentalRecordSelect = [
   "pickup_request_note",
   "returned_at",
   "return_note",
+  "cancelled_at",
+  "cancellation_note",
   "notes",
   "rental_vendors(name, phone_number, notes)",
   "checked_in_by:staff_profiles!rental_records_checked_in_by_staff_profile_id_fkey(display_name)",
@@ -174,11 +183,15 @@ function isActiveStatus(status: RentalStatus) {
 }
 
 function isPickupCalledStatus(status: RentalStatus) {
-  return status === "pickup_requested" || status === "pickup_called";
+  return status === "pickup_requested" || status === "pickup_called" || status === "called_for_pickup";
 }
 
 function isPickedUpStatus(status: RentalStatus) {
   return status === "returned" || status === "picked_up";
+}
+
+function isDeliveryCancelledStatus(status: RentalStatus) {
+  return status === "delivery_cancelled";
 }
 
 function isInHospitalStatus(status: RentalStatus) {
@@ -196,6 +209,10 @@ function rentalStatusLabel(status: RentalStatus) {
 
   if (isPickedUpStatus(status)) {
     return "Picked Up";
+  }
+
+  if (isDeliveryCancelledStatus(status)) {
+    return "Delivery Canceled";
   }
 
   if (status === "cancelled") {
@@ -222,7 +239,7 @@ function rentalStatusStyles(status: RentalStatus) {
     };
   }
 
-  if (isPickedUpStatus(status) || status === "cancelled") {
+  if (isPickedUpStatus(status) || isDeliveryCancelledStatus(status) || status === "cancelled") {
     return {
       dot: "bg-slate-300",
       text: "text-slate-500",
@@ -270,6 +287,14 @@ function rentalEventLabel(eventType: string) {
     return "Picked Up";
   }
 
+  if (deliveryCancelledEventTypes.has(eventType)) {
+    return "Delivery Canceled";
+  }
+
+  if (pickupCancelledEventTypes.has(eventType)) {
+    return "Pickup Canceled";
+  }
+
   if (eventType === "manual_check_in") {
     return "Manual Entry";
   }
@@ -298,6 +323,10 @@ function rentalEventDotClass(eventType: string) {
   }
 
   if (pickedUpEventTypes.has(eventType)) {
+    return "bg-slate-400";
+  }
+
+  if (deliveryCancelledEventTypes.has(eventType) || pickupCancelledEventTypes.has(eventType)) {
     return "bg-slate-400";
   }
 
@@ -501,6 +530,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
   const [returnForm, setReturnForm] = useState<ReturnEquipmentForm>(() => defaultReturnForm());
+  const [pendingCancellation, setPendingCancellation] = useState<{ rental: ActiveRentalRecord; action: PendingCancelAction } | null>(null);
+  const [cancelNote, setCancelNote] = useState("");
   const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
   const [historyStatus, setHistoryStatus] = useState<HistoryStatusFilter>(
     searchParams.get("status") === "pending" ? "pending" : "all"
@@ -529,6 +560,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const selectedVendor = vendors.find((vendor) => vendor.id === form.vendorId) ?? null;
   const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
+  const requestedReturnRentalId = searchParams.get("rental") ?? "";
+  const requestedReturnAction = searchParams.get("action") === "picked_up" ? "picked_up" : "";
 
   const loadRentalData = useCallback(async () => {
     setLoading(true);
@@ -616,6 +649,34 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
     return () => window.clearTimeout(timer);
   }, [loadRentalData]);
+
+  useEffect(() => {
+    if (mode !== "return" || !requestedReturnRentalId) {
+      return;
+    }
+
+    const requestedRental = activeRentals.find((rental) => rental.id === requestedReturnRentalId);
+
+    if (!requestedRental) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setReturnForm((current) => {
+        if (current.selectedRentalId === requestedRental.id && current.action === requestedReturnAction) {
+          return current;
+        }
+
+        return {
+          ...current,
+          selectedRentalId: requestedRental.id,
+          action: requestedReturnAction || (isPickupCalledStatus(requestedRental.status) ? "picked_up" : current.action)
+        };
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [activeRentals, mode, requestedReturnAction, requestedReturnRentalId]);
 
   const stopScanner = useCallback(() => {
     scannerControlsRef.current?.stop();
@@ -718,6 +779,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const pendingDeliveries = rentalHistory
     .filter((record) => isPendingDeliveryStatus(record.status))
     .sort((left, right) => new Date(left.called_in_at ?? 0).getTime() - new Date(right.called_in_at ?? 0).getTime());
+  const pendingPickups = activeRentals
+    .filter((record) => isPickupCalledStatus(record.status))
+    .sort((left, right) => new Date(left.pickup_requested_at ?? left.checked_in_at ?? 0).getTime() - new Date(right.pickup_requested_at ?? right.checked_in_at ?? 0).getTime());
   const deliveryPendingRental = pendingRentalId
     ? pendingDeliveries.find((record) => record.id === pendingRentalId) ?? null
     : null;
@@ -1078,6 +1142,80 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     router.push("/operations/rental-management?pickedUp=1");
   };
 
+  const submitPendingCancellation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authContext.staffProfileId) {
+      setError("Your staff profile must be linked before cancelling pending rentals.");
+      return;
+    }
+
+    if (!pendingCancellation) {
+      setError("Select a pending rental before cancelling.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const supabase = createClient();
+    const { rental, action } = pendingCancellation;
+    const eventAt = new Date().toISOString();
+    const note = cancelNote.trim() || null;
+    const vendor = firstRelated(rental.rental_vendors);
+    const eventType = action === "delivery" ? "delivery_cancelled" : "pickup_cancelled";
+    const updatePayload =
+      action === "delivery"
+        ? {
+            status: "delivery_cancelled",
+            cancelled_at: eventAt,
+            cancelled_by_staff_profile_id: authContext.staffProfileId,
+            cancellation_note: note
+          }
+        : {
+            status: "active",
+            pickup_requested_at: null,
+            pickup_requested_by_staff_profile_id: null,
+            pickup_confirmation_number: null,
+            pickup_request_note: null
+          };
+    const { error: updateError } = await supabase
+      .from("rental_records")
+      .update(updatePayload)
+      .eq("id", rental.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError(action === "delivery" ? "Unable to cancel delivery." : "Unable to cancel pickup request.");
+      return;
+    }
+
+    await supabase.from("rental_events").insert({
+      department_id: authContext.departmentId,
+      rental_record_id: rental.id,
+      equipment_id: null,
+      event_type: eventType,
+      event_at: eventAt,
+      actor_staff_profile_id: authContext.staffProfileId,
+      event_data: {
+        serial_number: rental.serial_number,
+        equipment_type: rental.equipment_type,
+        vendor_id: rental.vendor_id,
+        vendor_name: vendor?.name ?? null,
+        current_location: rental.current_location,
+        note,
+        cancelled_by: authContext.displayName,
+        timestamp: eventAt
+      }
+    });
+
+    setSaving(false);
+    setPendingCancellation(null);
+    setCancelNote("");
+    await loadRentalData();
+    router.push(action === "delivery" ? "/operations/rental-management?deliveryCancelled=1" : "/operations/rental-management?pickupCancelled=1");
+  };
+
   const missingOrderFields = [
     !form.vendorId ? "Rental Company required" : "",
     !form.equipmentType ? "Equipment Type required" : ""
@@ -1095,6 +1233,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const calledIn = searchParams.get("calledIn") === "1";
   const pickupLogged = searchParams.get("pickup") === "1";
   const pickedUpLogged = searchParams.get("pickedUp") === "1";
+  const deliveryCancelled = searchParams.get("deliveryCancelled") === "1";
+  const pickupCancelled = searchParams.get("pickupCancelled") === "1";
   const oldestRentalDaysLabel = activeRentals[0]?.checked_in_at ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
@@ -1149,6 +1289,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         checkedInStaff?.display_name ?? "",
         calledInStaff?.display_name ?? "",
         record.called_in_by_name ?? "",
+        record.cancellation_note ?? "",
         eventStaff,
         record.notes ?? ""
       ]
@@ -1231,6 +1372,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               Equipment marked picked up.
             </p>
           )}
+          {deliveryCancelled && (
+            <p role="status" className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+              Delivery canceled.
+            </p>
+          )}
+          {pickupCancelled && (
+            <p role="status" className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+              Pickup request canceled.
+            </p>
+          )}
           {error && (
             <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
               {error}
@@ -1284,43 +1435,191 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </Link>
           </section>
 
-          {pendingDeliveries.length > 0 && (
+          {(pendingDeliveries.length > 0 || pendingPickups.length > 0) && (
             <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Pending Delivery</h2>
-              <div className="mt-3 grid gap-2">
-                {pendingDeliveries.map((pending) => {
-                  const vendor = firstRelated(pending.rental_vendors);
-                  const calledInBy = firstRelated(pending.called_in_by);
-                  const calledInName = calledInBy?.display_name ?? pending.called_in_by_name ?? "Unknown";
-                  const calledInText = pending.called_in_at ? formatDateTime(pending.called_in_at, departmentTimezone) : "Unknown";
-                  const deliveredLabel = pending.equipment_type ? `${equipmentLabels[pending.equipment_type]} Delivered` : "Mark Delivered";
+              <h2 className="text-lg font-black text-hospital-ink">Pending</h2>
+              <p className="mt-1 text-sm font-bold text-slate-500">Deliveries and pickups waiting to be completed.</p>
+              <div className="mt-3 grid gap-4">
+                {pendingDeliveries.length > 0 && (
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Pending Deliveries</p>
+                    <div className="mt-2 grid gap-2">
+                      {pendingDeliveries.map((pending) => {
+                        const vendor = firstRelated(pending.rental_vendors);
+                        const calledInBy = firstRelated(pending.called_in_by);
+                        const calledInName = calledInBy?.display_name ?? pending.called_in_by_name ?? "Unknown";
+                        const calledInText = pending.called_in_at ? formatDateTime(pending.called_in_at, departmentTimezone) : "Unknown";
+                        const deliveredLabel = pending.equipment_type ? `${equipmentLabels[pending.equipment_type]} Delivered` : "Mark Delivered";
 
-                  return (
-                    <article key={pending.id} className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
-                      <p className="flex items-start gap-2 text-sm font-black leading-5 text-hospital-ink">
-                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.18)]" aria-hidden="true" />
-                        <span>
-                          {equipmentLabels[pending.equipment_type]} rental ordered by {calledInName}
-                          {pending.called_in_at ? ` at ${formatDateTime(pending.called_in_at, departmentTimezone)}` : ""}
-                        </span>
-                      </p>
-                      <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
-                        <p>Company: {vendor?.name ?? "Unknown company"}</p>
-                        <p>Called in: {calledInText}</p>
-                        <p>Called in by: {calledInName}</p>
-                        {pending.notes && <p>Note: {pending.notes}</p>}
-                      </div>
-                      <Link
-                        href={`/operations/rental-management/deliver/${pending.id}`}
-                        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-sky-700 px-3 text-xs font-extrabold text-white shadow-md shadow-sky-900/20"
-                      >
-                        {deliveredLabel}
-                      </Link>
-                    </article>
-                  );
-                })}
+                        return (
+                          <article key={pending.id} className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
+                            <p className="flex items-start gap-2 text-sm font-black leading-5 text-hospital-ink">
+                              <span className="mt-1 h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.18)]" aria-hidden="true" />
+                              <span>
+                                {equipmentLabels[pending.equipment_type]} rental ordered by {calledInName}
+                                {pending.called_in_at ? ` at ${formatDateTime(pending.called_in_at, departmentTimezone)}` : ""}
+                              </span>
+                            </p>
+                            <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
+                              <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                              <p>Called in: {calledInText}</p>
+                              <p>Called in by: {calledInName}</p>
+                              {pending.notes && <p>Note: {pending.notes}</p>}
+                            </div>
+                            <Link
+                              href={`/operations/rental-management/deliver/${pending.id}`}
+                              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-sky-700 px-3 text-xs font-extrabold text-white shadow-md shadow-sky-900/20"
+                            >
+                              {deliveredLabel}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingCancellation({ rental: pending, action: "delivery" });
+                                setCancelNote("");
+                              }}
+                              className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600 shadow-sm"
+                            >
+                              Cancel Delivery
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {pendingPickups.length > 0 && (
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-wide text-amber-700">Pending Pickups</p>
+                    <div className="mt-2 grid gap-2">
+                      {pendingPickups.map((pending) => {
+                        const vendor = firstRelated(pending.rental_vendors);
+                        const pickupEvent = findPickupEvent(eventsByRentalId[pending.id] ?? []);
+                        const pickupBy =
+                          firstRelated(pending.pickup_requested_by)?.display_name ??
+                          (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null) ??
+                          "Unknown";
+                        const pickupText = pending.pickup_requested_at ?? pickupEvent?.event_at;
+                        const pickupDisplay = pickupText ? formatDateTime(pickupText, departmentTimezone) : "Unknown";
+                        const pickedUpLabel = pending.equipment_type ? `${equipmentLabels[pending.equipment_type]} Picked Up` : "Mark Picked Up";
+
+                        return (
+                          <article key={pending.id} className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
+                            <p className="flex items-start gap-2 text-sm font-black leading-5 text-hospital-ink">
+                              <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" aria-hidden="true" />
+                              <span>
+                                {equipmentLabels[pending.equipment_type]} pickup requested by {pickupBy}
+                                {pickupText ? ` at ${pickupDisplay}` : ""}
+                              </span>
+                            </p>
+                            <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
+                              <p>Serial / Asset ID: {pending.serial_number ?? "Unknown"}</p>
+                              <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                              <p>Location: {pending.current_location || "Unknown"}</p>
+                              <p>Called for pickup: {pickupDisplay}</p>
+                              <p>Called by: {pickupBy}</p>
+                              {pending.pickup_confirmation_number && <p>Confirmation: {pending.pickup_confirmation_number}</p>}
+                              {pending.pickup_request_note && <p>Note: {pending.pickup_request_note}</p>}
+                            </div>
+                            <Link
+                              href={`/operations/rental-management/return?rental=${pending.id}&action=picked_up`}
+                              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-amber-500 px-3 text-xs font-extrabold text-white shadow-md shadow-amber-900/20"
+                            >
+                              {pickedUpLabel}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingCancellation({ rental: pending, action: "pickup" });
+                                setCancelNote("");
+                              }}
+                              className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600 shadow-sm"
+                            >
+                              Cancel Pickup
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </section>
+          )}
+
+          {pendingCancellation && (
+            <form onSubmit={submitPendingCancellation} className="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-soft">
+              {(() => {
+                const { rental, action } = pendingCancellation;
+                const vendor = firstRelated(rental.rental_vendors);
+                const isDeliveryCancel = action === "delivery";
+                const calledInBy = firstRelated(rental.called_in_by);
+                const pickupEvent = findPickupEvent(eventsByRentalId[rental.id] ?? []);
+                const pickupBy =
+                  firstRelated(rental.pickup_requested_by)?.display_name ??
+                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null) ??
+                  "Unknown";
+                const eventAt = isDeliveryCancel ? rental.called_in_at : rental.pickup_requested_at ?? pickupEvent?.event_at;
+
+                return (
+                  <>
+                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                      {isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
+                    </p>
+                    <h2 className="mt-1 text-lg font-black text-hospital-ink">
+                      {isDeliveryCancel ? "Cancel Delivery?" : "Cancel Pickup Request?"}
+                    </h2>
+                    <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                      {isDeliveryCancel
+                        ? "This will mark the rental order as canceled. Use this only if the rental was called in but will not be delivered."
+                        : "This will cancel the pending pickup request. The rental will stay active because the equipment is still in the hospital."}
+                    </p>
+                    <div className="mt-3 grid gap-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-600">
+                      <p>Equipment: {equipmentLabels[rental.equipment_type]}</p>
+                      {rental.serial_number && <p>Serial / Asset ID: {rental.serial_number}</p>}
+                      <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                      {rental.current_location && <p>Location: {rental.current_location}</p>}
+                      <p>{isDeliveryCancel ? "Called in" : "Called for pickup"}: {eventAt ? formatDateTime(eventAt, departmentTimezone) : "Unknown"}</p>
+                      <p>{isDeliveryCancel ? "Called in by" : "Called by"}: {isDeliveryCancel ? calledInBy?.display_name ?? rental.called_in_by_name ?? "Unknown" : pickupBy}</p>
+                    </div>
+                    <label className="mt-3 block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Cancellation note</span>
+                      <textarea
+                        value={cancelNote}
+                        onChange={(event) => setCancelNote(event.target.value.slice(0, 140))}
+                        maxLength={140}
+                        placeholder="Optional"
+                        className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-slate-300"
+                      />
+                      <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
+                        <span>No patient information.</span>
+                        <span>{cancelNote.length}/140</span>
+                      </span>
+                    </label>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingCancellation(null);
+                          setCancelNote("");
+                        }}
+                        className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                      >
+                        {isDeliveryCancel ? "Keep Pending" : "Keep Pending Pickup"}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        className="min-h-11 rounded-2xl bg-slate-600 px-3 text-sm font-extrabold text-white shadow-md shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {saving ? "Saving..." : isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </form>
           )}
 
           <Link
@@ -1425,9 +1724,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
                       <p>Serial / Asset ID: {rental.serial_number ?? "Pending"}</p>
                       <p>Company: {vendor?.name ?? "Unknown company"}</p>
-                      {(pickupEvent || rental.pickup_requested_at) && (
+                      {isPickupCalledStatus(rental.status) && (pickupEvent || rental.pickup_requested_at) && (
                         <p>
-                          Called for pickup: {formatDateTime(pickupEvent?.event_at ?? rental.pickup_requested_at!, departmentTimezone)}
+                          Called for pickup: {formatDateTime(rental.pickup_requested_at ?? pickupEvent!.event_at, departmentTimezone)}
                           {pickupBy ? ` by ${pickupBy}` : ""}
                         </p>
                       )}
@@ -1793,6 +2092,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : null);
                 const expanded = expandedRentalId === record.id;
                 const pending = isPendingDeliveryStatus(record.status);
+                const deliveryCancelled = isDeliveryCancelledStatus(record.status);
                 const pickedUp = isPickedUpStatus(record.status);
                 const styles = rentalStatusStyles(record.status);
                 const statusLabel = rentalStatusLabel(record.status);
@@ -1802,13 +2102,18 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   (calledInEvent ? firstRelated(calledInEvent.staff_profiles)?.display_name : null);
                 const deliveredName =
                   deliveredBy?.display_name ?? (deliveredEvent ? firstRelated(deliveredEvent.staff_profiles)?.display_name : null);
-                const dateRangeLabel = pending
-                  ? `Called in: ${record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}`
-                  : record.checked_in_at
-                    ? `${shortDate(record.checked_in_at, departmentTimezone)} - ${
-                        record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Present"
+                const dateRangeLabel =
+                  pending || deliveryCancelled
+                    ? `${deliveryCancelled ? "Canceled" : "Called in"}: ${
+                        (deliveryCancelled ? record.cancelled_at : record.called_in_at)
+                          ? formatDateTime((deliveryCancelled ? record.cancelled_at : record.called_in_at)!, departmentTimezone)
+                          : "Unknown"
                       }`
-                    : "Not delivered";
+                    : record.checked_in_at
+                      ? `${shortDate(record.checked_in_at, departmentTimezone)} - ${
+                          record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Present"
+                        }`
+                      : "Not delivered";
 
                 return (
                   <article key={record.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
@@ -1831,7 +2136,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <Building2 size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
                             <span className="truncate">{vendor?.name ?? "Unknown company"}</span>
                           </p>
-                          {!pending && (
+                          {!pending && !deliveryCancelled && (
                             <p className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-600">
                               <MapPin size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
                               <span className="truncate">{record.current_location || "Unknown"}</span>
@@ -1881,6 +2186,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                           )}
                           {record.pickup_confirmation_number && <p>Pickup confirmation: {record.pickup_confirmation_number}</p>}
                           {record.pickup_request_note && <p>Pickup note: {record.pickup_request_note}</p>}
+                          {deliveryCancelled && (
+                            <p>
+                              <span className="text-slate-400">Delivery canceled:</span>{" "}
+                              {record.cancelled_at ? formatDateTime(record.cancelled_at, departmentTimezone) : "Unknown"}
+                            </p>
+                          )}
+                          {record.cancellation_note && <p>Cancellation note: {record.cancellation_note}</p>}
                           <p>
                             <span className="text-slate-400">Delivered:</span>{" "}
                             {record.checked_in_at ? formatDateTime(record.checked_in_at, departmentTimezone) : "Not delivered yet"}
@@ -1906,6 +2218,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <p>
                               <span className="text-slate-400">Waiting for delivery:</span>{" "}
                               {record.called_in_at ? elapsedLabel(record.called_in_at, departmentTimezone) : "Unknown"}
+                            </p>
+                          ) : deliveryCancelled ? (
+                            <p>
+                              <span className="text-slate-400">Total time in hospital:</span> Not delivered
                             </p>
                           ) : (
                             <p>
@@ -2075,7 +2391,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <p className={`mt-2 text-xs font-bold ${isPickupCalledStatus(rental.status) ? "text-amber-700" : "text-emerald-700"}`}>
                       {rental.current_location || "Unknown"} ·{" "}
                       {isPickupCalledStatus(rental.status)
-                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` · Called: ${formatDateTime(pickupEvent?.event_at ?? rental.pickup_requested_at!, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
+                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` · Called: ${formatDateTime(rental.pickup_requested_at ?? pickupEvent!.event_at, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
                         : `In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
                     </p>
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -2133,11 +2449,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Current status</dt>
                   <dd>{rentalStatusLabel(selectedReturnRental.status)}</dd>
                 </div>
-                {(selectedPickupEvent || selectedReturnRental.pickup_requested_at) && (
+                {isPickupCalledStatus(selectedReturnRental.status) && (selectedPickupEvent || selectedReturnRental.pickup_requested_at) && (
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Called for pickup</dt>
                     <dd>
-                      {formatDateTime(selectedPickupEvent?.event_at ?? selectedReturnRental.pickup_requested_at!, departmentTimezone)}
+                      {formatDateTime(selectedReturnRental.pickup_requested_at ?? selectedPickupEvent!.event_at, departmentTimezone)}
                       {selectedPickupBy ? ` by ${selectedPickupBy}` : ""}
                     </dd>
                   </div>
@@ -2232,6 +2548,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           {selectedReturnRental && returnForm.action === "picked_up" && (
             <form onSubmit={submitPickedUp} className="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-soft">
               <h2 className="text-lg font-black text-hospital-ink">Confirm Picked Up</h2>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Confirm this rental has physically left the hospital.</p>
               <div className="mt-3 grid gap-3">
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">
@@ -2289,9 +2606,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         <div className="mx-auto max-w-xl space-y-4">
           <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
-            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Confirm Delivered</h1>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Confirm Delivery</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              Scan or enter the equipment serial number.
+              Confirm this rental has physically arrived.
             </p>
             <Link
               href="/operations/rental-management"
@@ -2507,7 +2824,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
               <section className="mt-4 rounded-3xl border border-violet-200 bg-violet-50/80 p-4 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_0_22px_rgba(139,92,246,0.18),0_14px_28px_rgba(15,23,42,0.10)]">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Confirm</p>
-                <h3 className="mt-1 text-lg font-black text-hospital-ink">Confirm Delivered</h3>
+                <h3 className="mt-1 text-lg font-black text-hospital-ink">Confirm Delivery</h3>
                 <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number / Asset ID</dt>
@@ -2538,7 +2855,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     disabled={saving || !canConfirmDelivery}
                     className="min-h-11 rounded-2xl bg-violet-700 px-3 text-sm font-extrabold text-white shadow-md shadow-violet-900/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {saving ? "Saving..." : "Confirm Delivered"}
+                    {saving ? "Saving..." : "Confirm Delivery"}
                   </button>
                 </div>
               </section>

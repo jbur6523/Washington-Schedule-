@@ -9,8 +9,10 @@ type RentalStatus =
   | "delivered"
   | "pickup_requested"
   | "pickup_called"
+  | "called_for_pickup"
   | "returned"
   | "picked_up"
+  | "delivery_cancelled"
   | "cancelled";
 type EquipmentType = "bipap" | "v60";
 type StatusFilter = "all" | "pending" | "active" | "pickup" | "returned";
@@ -32,6 +34,8 @@ type RentalRecord = {
   checked_in_at: string | null;
   pickup_requested_at: string | null;
   returned_at: string | null;
+  cancelled_at: string | null;
+  cancellation_note: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -82,11 +86,15 @@ function isActiveStatus(status: RentalStatus) {
 }
 
 function isPickupCalledStatus(status: RentalStatus) {
-  return status === "pickup_requested" || status === "pickup_called";
+  return status === "pickup_requested" || status === "pickup_called" || status === "called_for_pickup";
 }
 
 function isPickedUpStatus(status: RentalStatus) {
   return status === "returned" || status === "picked_up";
+}
+
+function isDeliveryCancelledStatus(status: RentalStatus) {
+  return status === "delivery_cancelled";
 }
 
 function rentalStatusLabel(status: RentalStatus) {
@@ -100,6 +108,10 @@ function rentalStatusLabel(status: RentalStatus) {
 
   if (isPickedUpStatus(status)) {
     return "Picked Up";
+  }
+
+  if (isDeliveryCancelledStatus(status)) {
+    return "Delivery Canceled";
   }
 
   if (status === "cancelled") {
@@ -162,6 +174,7 @@ function recordMatchesDateRange(record: RentalRecord, rangeStartMs: number | nul
   const calledInMs = record.called_in_at ? new Date(record.called_in_at).getTime() : null;
   const checkedInMs = record.checked_in_at ? new Date(record.checked_in_at).getTime() : null;
   const returnedMs = record.returned_at ? new Date(record.returned_at).getTime() : null;
+  const cancelledMs = record.cancelled_at ? new Date(record.cancelled_at).getTime() : null;
 
   if (calledInMs !== null && calledInMs >= rangeStartMs && calledInMs <= rangeEndMs) {
     return true;
@@ -172,6 +185,10 @@ function recordMatchesDateRange(record: RentalRecord, rangeStartMs: number | nul
   }
 
   if (returnedMs !== null && returnedMs >= rangeStartMs && returnedMs <= rangeEndMs) {
+    return true;
+  }
+
+  if (cancelledMs !== null && cancelledMs >= rangeStartMs && cancelledMs <= rangeEndMs) {
     return true;
   }
 
@@ -211,7 +228,7 @@ function formatTimePart(value: string | null, timezone: string) {
 
 function totalTimeInHospital(record: RentalRecord) {
   if (!record.checked_in_at) {
-    return "Not delivered yet";
+    return isDeliveryCancelledStatus(record.status) ? "Not delivered" : "Not delivered yet";
   }
 
   const start = new Date(record.checked_in_at).getTime();
@@ -317,6 +334,8 @@ export async function GET(request: Request) {
     "checked_in_at",
     "pickup_requested_at",
     "returned_at",
+    "cancelled_at",
+    "cancellation_note",
     "notes",
     "created_at",
     "updated_at",
@@ -387,6 +406,7 @@ export async function GET(request: Request) {
         pickupStaff?.display_name ?? "",
         returnedStaff?.display_name ?? "",
         record.called_in_by_name ?? "",
+        record.cancellation_note ?? "",
         eventStaff,
         record.notes ?? ""
       ]
@@ -445,6 +465,7 @@ export async function GET(request: Request) {
     const pickedUpBy = firstRelated(record.returned_by)?.display_name ?? (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : "");
     const pickupAt = pickupEvent?.event_at ?? record.pickup_requested_at;
     const pickedUpAt = pickedUpEvent?.event_at ?? record.returned_at;
+    const noteParts = [record.notes, record.cancellation_note].filter(Boolean);
 
     return {
       "Rental Record ID": record.id,
@@ -466,7 +487,7 @@ export async function GET(request: Request) {
       "Picked Up Time": formatTimePart(pickedUpAt ?? null, timezone),
       "Picked Up By": pickedUpBy ?? "",
       "Total Time In Hospital": totalTimeInHospital(record),
-      Notes: record.notes ?? "",
+      Notes: noteParts.join(" | "),
       "Created At": `${formatDatePart(record.created_at, timezone)} ${formatTimePart(record.created_at, timezone)}`.trim(),
       "Updated At": `${formatDatePart(record.updated_at, timezone)} ${formatTimePart(record.updated_at, timezone)}`.trim()
     };

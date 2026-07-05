@@ -36,7 +36,7 @@ The Rental Check In screen separates the form into clear sections:
 
 `Save Pending Delivery` remains disabled until Rental Company and Equipment Type are selected. Notes are optional, limited to 140 characters, and continue to show the `No patient information` reminder.
 
-The Rental Management dashboard shows no Pending Delivery section when there are zero pending rentals. When pending records exist, it shows one compact blue card per pending rental.
+The Rental Management dashboard shows a `Pending` section only when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
 ## Delivery Confirmation
 
@@ -54,12 +54,13 @@ Cancel and Back to Rental Management leave the active workflow without creating 
 
 ## Rental Lifecycle
 
-Rental records use four user-facing lifecycle states:
+Rental records use these user-facing lifecycle states:
 
 - `Pending Delivery` displays blue. The rental was called in, but the equipment has not arrived.
 - `Active` displays green. The equipment has been delivered and is physically in the hospital.
 - `Called for Pickup` displays yellow. The vendor has been called, but the equipment is still physically in the hospital.
 - `Picked Up` displays gray. The equipment has physically left the hospital.
+- `Delivery Canceled` displays gray. The rental order was called in but will not be delivered.
 
 `checked_in_at` remains the stored delivered time for compatibility. In the UI it is shown as `Delivered`.
 
@@ -138,9 +139,9 @@ The user can view Active Rentals or cancel the check in.
 Active Rentals shows equipment that is still physically in the hospital:
 
 - `active` records display green as `Active`.
-- `pickup_requested` / `pickup_called` records display yellow as `Called for Pickup`.
+- `pickup_requested` / `pickup_called` / `called_for_pickup` records display yellow as `Called for Pickup`.
 
-Pending Delivery records are shown separately on the Rental Management dashboard only when pending records exist, and they also appear in Rental History. Picked-up records (`returned` / `picked_up`) and cancelled rentals are excluded from Active Rentals and remain available in Rental History.
+Pending Delivery records are shown in the dashboard `Pending` section only when pending records exist, and they also appear in Rental History. Called-for-pickup rentals remain in Active Rentals because the equipment is still physically in the hospital, and they also show as yellow pending pickup cards on the dashboard. Picked-up records (`returned` / `picked_up`) and delivery-canceled records are excluded from Active Rentals and remain available in Rental History.
 
 The list is sorted by `checked_in_at` ascending so the equipment that has been in the hospital the longest appears first.
 
@@ -189,6 +190,8 @@ The form captures:
 
 Saving changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, and keeps the equipment in Active Rentals.
 
+Called-for-pickup rentals also appear in the dashboard `Pending` section as yellow pending pickup cards. The `Picked Up` button opens the existing picked-up confirmation workflow before saving.
+
 ### Confirm Picked Up
 
 For yellow `Called for Pickup` rentals, `Confirm Picked Up` records that the equipment physically left the hospital. It is also available as a secondary option for Active rentals if pickup happens without the pickup call being logged first.
@@ -202,11 +205,15 @@ The form captures:
 
 Saving changes the rental status to `picked_up`, sets `returned_at`, creates a `picked_up` rental event, removes the equipment from Active Rentals, and keeps it visible in Rental History.
 
+If a pickup request was created by mistake, `Cancel Pickup` opens a confirmation form. Confirming it changes the rental back to `active`, clears the current pickup request fields, creates a `pickup_cancelled` rental event, keeps the original pickup event in history, and leaves the equipment in Active Rentals as green Active.
+
 Full transfer workflow remains future work.
 
-## Pending Delivery Cards
+## Pending Section
 
-Pending Delivery cards are blue and appear only when rentals have been ordered but not delivered. Each card shows:
+The dashboard `Pending` section is hidden when there are no pending deliveries or pending pickups.
+
+Pending Delivery cards are blue and appear when rentals have been ordered but not delivered. Each card shows:
 
 - Equipment type
 - Rental company
@@ -214,8 +221,24 @@ Pending Delivery cards are blue and appear only when rentals have been ordered b
 - Called-in staff member
 - Optional note
 - Delivered action button
+- Cancel Delivery button
 
 Pending Delivery does not count as Active Rentals because the equipment is not physically in the hospital yet.
+
+`Cancel Delivery` opens a confirmation form. Confirming it changes the rental status to `delivery_cancelled`, creates a `delivery_cancelled` event, removes the blue pending card, does not add the rental to Active Rentals, and keeps the record visible in Rental History.
+
+Pending Pickup cards are yellow and appear when a rental has been called for pickup but is still physically in the hospital. Each card shows:
+
+- Equipment type
+- Serial / Asset ID
+- Rental company
+- Current location
+- Pickup requested date/time
+- Pickup requested staff member
+- Optional confirmation/reference number
+- Optional note
+- Picked Up action button
+- Cancel Pickup button
 
 ## Rental History
 
