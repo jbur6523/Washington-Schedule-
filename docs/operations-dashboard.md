@@ -32,7 +32,7 @@ The first dashboard tool is `Rental Management`.
 Purpose:
 
 - Track BiPAP and ventilator rentals.
-- Check in rented BiPAP and V60 equipment as it arrives.
+- Check in rented BiPAP/V60 equipment as it arrives.
 - Prepare for future check-out, transfer, barcode-driven lookup, room tracking, and return workflows.
 
 The first active workflow is `Rental Check In`.
@@ -43,7 +43,7 @@ Rental Management currently supports:
 
 - Rental company selection
 - 1D barcode scan or manual serial entry
-- BiPAP/V60 equipment type
+- BiPAP type: V60
 - check-in date/time
 - optional notes with no patient information
 - active rental preview

@@ -46,8 +46,8 @@ type RentalManagementClientProps = {
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
-  bipap: "BiPAP",
-  v60: "V60"
+  bipap: "BiPAP / V60",
+  v60: "BiPAP / V60"
 };
 
 const locationOptions = ["RT Equipment Room", "ED", "ICU", "2nd Floor", "3rd Floor", "Other"];
@@ -257,7 +257,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
       setForm((current) => ({
         ...current,
         vendorId: (data.vendor_id as string | null) ?? current.vendorId,
-        equipmentType: (data.equipment_type as EquipmentType | null) ?? current.equipmentType
+        equipmentType: data.equipment_type ? "v60" : current.equipmentType
       }));
     }
   };
@@ -271,7 +271,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
     }
 
     if (!form.vendorId || !form.equipmentType || !form.serialNumber.trim() || !form.date || !form.time) {
-      setError("Company, equipment type, date/time, and serial number are required.");
+      setError("Company, BiPAP type, date/time, and serial number are required.");
       return;
     }
 
@@ -411,7 +411,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
             BiPAP and ventilator rental tracking
           </p>
           <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-            Check in rented BiPAP and V60 equipment as it arrives.
+            Check in rented BiPAP/V60 equipment as it arrives.
           </p>
         </section>
 
@@ -597,14 +597,13 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 3: Equipment Details</p>
                 <div className="mt-2 grid gap-3">
                   <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Equipment Type</span>
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">BiPAP Type</span>
                     <select
                       value={form.equipmentType}
                       onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
                       className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                     >
-                      <option value="">Select equipment</option>
-                      <option value="bipap">BiPAP</option>
+                      <option value="">Select BiPAP type</option>
                       <option value="v60">V60</option>
                     </select>
                   </label>
@@ -692,8 +691,8 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                     <dd>{selectedVendor?.name ?? "Select company"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
-                    <dd>{form.equipmentType ? equipmentLabels[form.equipmentType] : "Select equipment"}</dd>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
+                    <dd>{form.equipmentType ? equipmentLabels[form.equipmentType] : "Select BiPAP type"}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number / Asset ID</dt>

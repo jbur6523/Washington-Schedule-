@@ -1,6 +1,6 @@
 # Rental Management
 
-Rental Management is a department operations tool for tracking rented BiPAP and V60 equipment.
+Rental Management is a department operations tool for tracking rented BiPAP/V60 equipment.
 
 This phase implements Rental Check In only.
 
@@ -56,9 +56,8 @@ The scanner shows camera permission and scanning status. After a successful scan
 
 ## Equipment Details
 
-Supported equipment types in this phase:
+Supported BiPAP type in this phase:
 
-- BiPAP
 - V60
 
 Date defaults to the current date. Time defaults to the current time in 24-hour input format.
@@ -83,7 +82,7 @@ Before saving a check in, the app checks for an existing active rental with the 
 If an active rental already exists, the app does not create a duplicate. It shows:
 
 - Company
-- Equipment type
+- BiPAP type
 - Serial number / asset ID
 - Current location
 - Checked-in date/time
@@ -96,7 +95,7 @@ The user can view Active Rentals or cancel the check in.
 After check in, the rental appears in a simple Active Rentals preview with:
 
 - Company
-- Equipment type
+- BiPAP type
 - Serial number
 - Current location
 - Checked-in date/time
