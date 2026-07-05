@@ -62,6 +62,14 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - Optional compressed images are stored by private path in the `gossip-images` Supabase Storage bucket.
 - Soft-deleted posts are hidden with `is_deleted = true`.
 
+### Rental Management
+
+- `rental_vendors`: department rental companies, including US Med Equipment, Med One Capital, Agiliti Health Inc, SRC, and Other.
+- `rental_equipment`: reusable equipment identity by serial number or asset ID.
+- `rental_records`: active and historical rental records. Phase 1 creates `active` records from Rental Check In.
+- `rental_events`: audit-style rental events such as `checked_in`, `manual_check_in`, and `barcode_scanned`.
+- Rental notes are capped at 140 characters and must not contain patient information.
+
 ### Import and Review
 
 - `schedule_imports`: admin-only schedule import jobs.
@@ -83,6 +91,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - A schedule entry can have employee-level shift requests.
 - A coverage offer targets one Short Shift alert.
 - A shift request offer targets one Switch Requested or Coverage Requested row.
+- A rental record references one rental equipment row, one vendor, and the staff member who checked it in.
 
 ## Role Model
 
