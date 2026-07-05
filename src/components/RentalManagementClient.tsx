@@ -574,6 +574,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [pendingDeliveryConfirmation, setPendingDeliveryConfirmation] = useState<ActiveRentalRecord | null>(null);
   const [deliveryDetailsOpen, setDeliveryDetailsOpen] = useState(false);
   const [pendingPickupConfirmation, setPendingPickupConfirmation] = useState<ActiveRentalRecord | null>(null);
+  const [pickupCallDetailsOpen, setPickupCallDetailsOpen] = useState(false);
   const [pickupDetailsOpen, setPickupDetailsOpen] = useState(false);
   const [pickupDateDraft, setPickupDateDraft] = useState("");
   const [pickupTimeDraft, setPickupTimeDraft] = useState("");
@@ -615,7 +616,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const requestedReturnAction = "";
 
   useEffect(() => {
-    if (!pendingCancellation && !pendingDeliveryConfirmation && !pendingPickupConfirmation) {
+    if (!pendingCancellation && !pendingDeliveryConfirmation && !pendingPickupConfirmation && returnForm.action !== "pickup") {
       return;
     }
 
@@ -625,7 +626,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [pendingCancellation, pendingDeliveryConfirmation, pendingPickupConfirmation]);
+  }, [pendingCancellation, pendingDeliveryConfirmation, pendingPickupConfirmation, returnForm.action]);
 
   const loadRentalData = useCallback(async () => {
     setLoading(true);
@@ -1152,14 +1153,41 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               : "No active rental found for this barcode / serial number."
         : "No active rental found for this barcode / serial number."
     : "";
-
   const selectReturnRental = (rental: ActiveRentalRecord) => {
     setReturnForm((current) => ({
       ...current,
       selectedRentalId: rental.id,
-      action: current.action
+      action: ""
     }));
+    setPickupCallDetailsOpen(false);
     setError("");
+  };
+
+  const updateReturnIdentifierSearch = (value: string) => {
+    setForm((current) => ({ ...current, barcodeNumber: value }));
+
+    const trimmed = value.trim().toLowerCase();
+
+    if (!trimmed) {
+      return;
+    }
+
+    const matches = returnEligibleRentals.filter(
+      (rental) =>
+        (rental.barcode_number ?? "").toLowerCase() === trimmed ||
+        (rental.serial_number ?? "").toLowerCase() === trimmed
+    );
+
+    if (matches.length === 1) {
+      const [match] = matches;
+      setReturnForm((current) => ({
+        ...current,
+        selectedRentalId: match.id,
+        action: ""
+      }));
+      setPickupCallDetailsOpen(false);
+      setError("");
+    }
   };
 
   const submitPickupCall = async (event: FormEvent<HTMLFormElement>) => {
@@ -1226,69 +1254,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     setForm((current) => ({ ...current, barcodeNumber: "", serialNumber: "" }));
     await loadRentalData();
     router.push("/operations/rental-management?pickup=1");
-  };
-
-  const submitPickedUp = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before confirming pickup.");
-      return;
-    }
-
-    if (!selectedReturnRental || !returnForm.date || !returnForm.time) {
-      setError("Select a rental and enter picked-up date/time.");
-      return;
-    }
-
-    setSaving(true);
-    setError("");
-
-    const supabase = createClient();
-    const vendor = firstRelated(selectedReturnRental.rental_vendors);
-    const eventAt = new Date(`${returnForm.date}T${returnForm.time}:00`).toISOString();
-    const note = returnForm.note.trim() || null;
-    const { error: updateError } = await supabase
-      .from("rental_records")
-      .update({
-        status: "picked_up",
-        returned_at: eventAt,
-        returned_by_staff_profile_id: authContext.staffProfileId,
-        return_note: note
-      })
-      .eq("id", selectedReturnRental.id);
-
-    if (updateError) {
-      setSaving(false);
-      setError("Unable to confirm picked up.");
-      return;
-    }
-
-    await supabase.from("rental_events").insert({
-      department_id: authContext.departmentId,
-      rental_record_id: selectedReturnRental.id,
-      equipment_id: null,
-      event_type: "picked_up",
-      event_at: eventAt,
-      actor_staff_profile_id: authContext.staffProfileId,
-      event_data: {
-        barcode_number: selectedReturnRental.barcode_number,
-        serial_number: selectedReturnRental.serial_number,
-        equipment_type: selectedReturnRental.equipment_type,
-        vendor_id: selectedReturnRental.vendor_id,
-        vendor_name: vendor?.name ?? null,
-        current_location: selectedReturnRental.current_location,
-        note,
-        picked_up_by: authContext.displayName,
-        timestamp: eventAt
-      }
-    });
-
-    setSaving(false);
-    setReturnForm(defaultReturnForm());
-    setForm((current) => ({ ...current, barcodeNumber: "", serialNumber: "" }));
-    await loadRentalData();
-    router.push("/operations/rental-management?pickedUp=1");
   };
 
   const submitPendingPickupPickedUp = async (event: FormEvent<HTMLFormElement>) => {
@@ -1447,7 +1412,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     pendingDeliveryConfirmation && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation
   );
   const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time);
-  const canConfirmPickedUp = Boolean(selectedReturnRental && returnForm.action === "picked_up" && returnForm.date && returnForm.time);
   const checkedIn = searchParams.get("checkedIn") === "1";
   const calledIn = searchParams.get("calledIn") === "1";
   const pickupLogged = searchParams.get("pickup") === "1";
@@ -2008,6 +1972,144 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         );
       })()
     : null;
+  const pickupCallModal =
+    selectedReturnRental && returnForm.action === "pickup"
+      ? (() => {
+          const rental = selectedReturnRental;
+          const vendor = firstRelated(rental.rental_vendors);
+          const phoneHref = vendor?.phone_number ? `tel:${vendor.phone_number.replace(/\D/g, "")}` : "";
+          const closePickupCallModal = () => {
+            setReturnForm((current) => ({
+              ...current,
+              action: "",
+              confirmationNumber: "",
+              note: ""
+            }));
+            setPickupCallDetailsOpen(false);
+          };
+
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
+              role="presentation"
+            >
+              <form
+                onSubmit={submitPickupCall}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="rental-pickup-call-title"
+                className="max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_18px_50px_rgba(15,23,42,0.28)]"
+              >
+                <p className="text-xs font-extrabold uppercase tracking-wide text-amber-700">Return Rental</p>
+                <h2 id="rental-pickup-call-title" className="mt-1 text-xl font-black text-hospital-ink">
+                  Call for Pickup
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                  Confirm pickup request for this BiPAP V60 rental.
+                </p>
+                <div className="mt-3 grid gap-1 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3 text-xs font-bold text-slate-700">
+                  <p>Equipment: {equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</p>
+                  <p>Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
+                  <p>Serial Number: {serialNumberLabel(rental.serial_number)}</p>
+                  <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                  <p>Location: {rental.current_location || "Unknown"}</p>
+                  <p>Delivered: {rental.checked_in_at ? formatDateTime(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                  <p>In hospital: {rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                  {vendor?.phone_number && (
+                    <p>
+                      Vendor phone:{" "}
+                      <a className="text-amber-800 underline" href={phoneHref}>
+                        {vendor.phone_number}
+                      </a>
+                    </p>
+                  )}
+                </div>
+                <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700">
+                  <p>Pickup requested: {returnForm.date} {returnForm.time}</p>
+                  <p>Requested by: {authContext.displayName}</p>
+                  {!pickupCallDetailsOpen ? (
+                    <button
+                      type="button"
+                      onClick={() => setPickupCallDetailsOpen(true)}
+                      className="mt-3 min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-600 shadow-sm"
+                    >
+                      Edit pickup details
+                    </button>
+                  ) : (
+                    <div className="mt-3 grid gap-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Pickup date</span>
+                          <input
+                            type="date"
+                            value={returnForm.date}
+                            onChange={(event) => setReturnForm((current) => ({ ...current, date: event.target.value }))}
+                            className="mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Pickup time</span>
+                          <input
+                            type="time"
+                            value={returnForm.time}
+                            onChange={(event) => setReturnForm((current) => ({ ...current, time: event.target.value }))}
+                            className="mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                          />
+                        </label>
+                      </div>
+                      <label className="block">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Pickup confirmation / reference</span>
+                        <input
+                          value={returnForm.confirmationNumber}
+                          onChange={(event) => setReturnForm((current) => ({ ...current, confirmationNumber: event.target.value.slice(0, 80) }))}
+                          maxLength={80}
+                          placeholder="Optional"
+                          className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Optional note</span>
+                        <textarea
+                          value={returnForm.note}
+                          onChange={(event) => setReturnForm((current) => ({ ...current, note: event.target.value.slice(0, 140) }))}
+                          maxLength={140}
+                          placeholder="Optional"
+                          className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                        />
+                        <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
+                          <span>No patient information.</span>
+                          <span>{returnForm.note.length}/140</span>
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+                {error && (
+                  <p role="alert" className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                    {error}
+                  </p>
+                )}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="submit"
+                    disabled={saving || !canLogPickupCall}
+                    className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Confirm Pickup Request"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closePickupCallModal}
+                    className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          );
+        })()
+      : null;
 
   if (mode === "overview") {
     return (
@@ -2905,10 +3007,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   }
 
   if (mode === "return") {
-    const selectedVendor = selectedReturnRental ? firstRelated(selectedReturnRental.rental_vendors) : null;
-    const selectedDeliveredBy = selectedReturnRental ? firstRelated(selectedReturnRental.checked_in_by) : null;
     return (
       <main className="min-h-screen px-4 py-8">
+        {pickupCallModal}
         <div className="mx-auto max-w-xl space-y-4">
           <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
@@ -2960,7 +3061,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Barcode # or Serial Number</span>
               <input
                 value={form.barcodeNumber}
-                onChange={(event) => setForm((current) => ({ ...current, barcodeNumber: event.target.value }))}
+                onChange={(event) => updateReturnIdentifierSearch(event.target.value)}
                 placeholder="Scan barcode or enter barcode/serial number"
                 className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
               />
@@ -2989,218 +3090,56 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 const styles = rentalStatusStyles(rental.status);
                 const selected = selectedReturnRental?.id === rental.id;
                 return (
-                  <button
+                  <article
                     key={rental.id}
-                    type="button"
-                    onClick={() => selectReturnRental(rental)}
-                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
+                    className={`rounded-2xl border px-3 py-3 transition ${
                       selected ? "border-cyan-300 bg-cyan-50 shadow-md shadow-cyan-900/10" : styles.card
                     }`}
                   >
-                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-hospital-ink">
-                      <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                      <span>{equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</span>
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-600">Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
-                    {!rental.serial_number && <p className="mt-1 text-xs font-bold text-slate-600">Serial Number: Not entered</p>}
-                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                      {vendor?.name ?? "Unknown company"}
-                    </p>
-                    <p className="mt-2 text-xs font-bold text-emerald-700">
-                      {rental.current_location || "Unknown"} {" - "}
-                      {`In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
-                    </p>
-                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                      Status: {rentalStatusLabel(rental.status)}
-                    </p>
-                  </button>
+                    <button type="button" onClick={() => selectReturnRental(rental)} className="w-full text-left active:scale-[0.99]">
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-hospital-ink">
+                        <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
+                        <span>{equipmentQuickLabel(rental.equipment_type, rental.barcode_number, rental.serial_number)}</span>
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-600">Barcode #: {barcodeNumberLabel(rental.barcode_number)}</p>
+                      {!rental.serial_number && <p className="mt-1 text-xs font-bold text-slate-600">Serial Number: Not entered</p>}
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                        {vendor?.name ?? "Unknown company"}
+                      </p>
+                      <p className="mt-2 text-xs font-bold text-emerald-700">
+                        {rental.current_location || "Unknown"} {" - "}
+                        {`In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
+                      </p>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                        Status: {rentalStatusLabel(rental.status)}
+                      </p>
+                    </button>
+                    {selected && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReturnForm((current) => ({
+                            ...current,
+                            selectedRentalId: rental.id,
+                            action: "pickup",
+                            date: todayValue(),
+                            time: timeValue(),
+                            confirmationNumber: "",
+                            note: ""
+                          }));
+                          setPickupCallDetailsOpen(false);
+                          setError("");
+                        }}
+                        className="mt-3 min-h-11 w-full rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
+                      >
+                        Call for Pickup
+                      </button>
+                    )}
+                  </article>
                 );
               })}
             </div>
           </section>
-
-          {selectedReturnRental && (
-            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Selected rental</h2>
-              <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment</dt>
-                  <dd>{equipmentLabels[selectedReturnRental.equipment_type]}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
-                  <dd>{equipmentTypeCategoryLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Model</dt>
-                  <dd>{equipmentModelLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Barcode #</dt>
-                  <dd>{barcodeNumberLabel(selectedReturnRental.barcode_number)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number</dt>
-                  <dd>{serialNumberLabel(selectedReturnRental.serial_number)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
-                  <dd>{selectedVendor?.name ?? "Unknown company"}</dd>
-                </div>
-                {selectedVendor?.phone_number && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Vendor phone</dt>
-                    <dd>
-                      <a className="text-cyan-700 underline" href={`tel:${selectedVendor.phone_number.replace(/\D/g, "")}`}>
-                        {selectedVendor.phone_number}
-                      </a>
-                    </dd>
-                  </div>
-                )}
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Last known location</dt>
-                  <dd>{selectedReturnRental.current_location || "Unknown"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>
-                  <dd>{selectedReturnRental.checked_in_at ? formatDateTime(selectedReturnRental.checked_in_at, departmentTimezone) : "Unknown"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered by</dt>
-                  <dd>{selectedDeliveredBy?.display_name ?? "Unknown"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Days in hospital</dt>
-                  <dd>{selectedReturnRental.checked_in_at ? daysInHospitalLabel(selectedReturnRental.checked_in_at, departmentTimezone) : "Unknown"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Current status</dt>
-                  <dd>{rentalStatusLabel(selectedReturnRental.status)}</dd>
-                </div>
-              </dl>
-
-              <div className="mt-4 grid gap-2">
-                <button
-                  type="button"
-                  onClick={() => setReturnForm((current) => ({ ...current, action: "pickup", date: todayValue(), time: timeValue() }))}
-                  className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
-                >
-                  Call for Pickup
-                </button>
-              </div>
-            </section>
-          )}
-
-          {selectedReturnRental && returnForm.action === "pickup" && (
-            <form onSubmit={submitPickupCall} className="rounded-3xl border border-amber-100 bg-amber-50/80 p-4 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Call for Pickup</h2>
-              <div className="mt-3 grid gap-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date called</span>
-                    <input
-                      type="date"
-                      value={returnForm.date}
-                      onChange={(event) => setReturnForm((current) => ({ ...current, date: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Time called</span>
-                    <input
-                      type="time"
-                      value={returnForm.time}
-                      onChange={(event) => setReturnForm((current) => ({ ...current, time: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
-                    />
-                  </label>
-                </div>
-                <p className="text-xs font-bold text-slate-600">Called by: {authContext.displayName}</p>
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Pickup confirmation / reference</span>
-                  <input
-                    value={returnForm.confirmationNumber}
-                    onChange={(event) => setReturnForm((current) => ({ ...current, confirmationNumber: event.target.value.slice(0, 80) }))}
-                    maxLength={80}
-                    placeholder="Optional"
-                    className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Note</span>
-                  <textarea
-                    value={returnForm.note}
-                    onChange={(event) => setReturnForm((current) => ({ ...current, note: event.target.value.slice(0, 140) }))}
-                    maxLength={140}
-                    placeholder="Optional"
-                    className="mt-1 min-h-20 w-full rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
-                  />
-                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
-                    <span>No patient information.</span>
-                    <span>{returnForm.note.length}/140</span>
-                  </span>
-                </label>
-                <button
-                  type="submit"
-                  disabled={saving || !canLogPickupCall}
-                  className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Log Pickup Call"}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {selectedReturnRental && returnForm.action === "picked_up" && (
-            <form onSubmit={submitPickedUp} className="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Confirm Picked Up</h2>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Confirm this rental has physically left the hospital.</p>
-              <div className="mt-3 grid gap-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date picked up</span>
-                    <input
-                      type="date"
-                      value={returnForm.date}
-                      onChange={(event) => setReturnForm((current) => ({ ...current, date: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Time picked up</span>
-                    <input
-                      type="time"
-                      value={returnForm.time}
-                      onChange={(event) => setReturnForm((current) => ({ ...current, time: event.target.value }))}
-                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                    />
-                  </label>
-                </div>
-                <p className="text-xs font-bold text-slate-600">Picked up confirmed by: {authContext.displayName}</p>
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Note</span>
-                  <textarea
-                    value={returnForm.note}
-                    onChange={(event) => setReturnForm((current) => ({ ...current, note: event.target.value.slice(0, 140) }))}
-                    maxLength={140}
-                    placeholder="Optional"
-                    className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                  />
-                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
-                    <span>No patient information.</span>
-                    <span>{returnForm.note.length}/140</span>
-                  </span>
-                </label>
-                <button
-                  type="submit"
-                  disabled={saving || !canConfirmPickedUp}
-                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Confirm Picked Up"}
-                </button>
-              </div>
-            </form>
-          )}
         </div>
       </main>
     );

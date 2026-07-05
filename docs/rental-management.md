@@ -199,7 +199,7 @@ This page starts a new pickup request for equipment that is currently green `Act
 
 The Return Rental selection list only shows active rentals that have not already been called for pickup. Yellow `Called for Pickup` rentals are completed or canceled from the dashboard `Pending` section instead.
 
-Staff can find equipment by scanning a 1D barcode, manually entering a barcode or serial number, or selecting from active rentals. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
+Staff can find equipment by scanning a 1D barcode, manually entering a barcode or serial number, or selecting from active rentals. A single barcode/serial match highlights the active rental automatically. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
 
 Barcode/manual serial lookup uses these messages for non-active matches:
 
@@ -208,13 +208,15 @@ Barcode/manual serial lookup uses these messages for non-active matches:
 - Pending Delivery: this rental has not been delivered yet.
 - No match: no active rental was found for that barcode / serial number.
 
-The Return Rental screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
+The Return Rental screen remains the starting point when staff need to scan or select equipment from scratch. It does not show a large selected-rental detail page; selected cards reveal a compact `Call for Pickup` action, and the confirmation details live in the modal. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
 
 ### Call for Pickup
 
-For green `Active` rentals, `Call for Pickup` records that the vendor was called but the equipment is still physically in the hospital.
+For green `Active` rentals, `Call for Pickup` records that the vendor was called but the equipment is still physically in the hospital. The selected rental opens a centered `Call for Pickup` modal instead of a long inline detail form.
 
-The form captures:
+The modal shows the equipment, Barcode #, optional Serial Number, company, current location, delivered date/time, in-hospital duration, and vendor phone when available. Pickup request date/time/by are auto-captured from the current user and current time.
+
+`Edit pickup details` expands optional fields for:
 
 - Date called
 - Time called
@@ -222,7 +224,7 @@ The form captures:
 - Optional pickup confirmation / reference number
 - Optional note
 
-Saving changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, and keeps the equipment in Active Rentals.
+Saving with `Confirm Pickup Request` changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, returns to Rental Management, and keeps the equipment in Active Rentals because it is still in the hospital.
 
 Called-for-pickup rentals also appear in the dashboard `Pending` section as yellow pending pickup cards. When staff start from a Pending Pickup card, the `BiPAP V60 Picked Up` button opens a centered `Confirm Picked Up` modal immediately because the rental has already been selected. Staff do not need to scan, search, or re-select the rental from that path.
 
