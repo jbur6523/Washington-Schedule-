@@ -52,13 +52,12 @@ Rental Management currently supports:
 - active rental summary on the Rental Management dashboard
 - dedicated Active Rentals screen with full active rental details
 - dedicated Rental History screen for searching pending, active, called-for-pickup, and picked-up rental records
+- Return Equipment workflow for pickup calls and picked-up confirmation
 
 The Rental Management dashboard stays summary-focused. `View Active Rentals` opens the full list, sorted oldest active rental first.
 `Rental History` opens the searchable history list with status, equipment, vendor, and date range filters.
 
-Future cards still labeled `Coming Soon`:
-
-- Return Equipment
+Return Equipment is active and opens a dedicated workflow screen.
 
 ## Out of Scope
 

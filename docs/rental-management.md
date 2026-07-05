@@ -2,7 +2,7 @@
 
 Rental Management is a department operations tool for tracking rented BiPAP/V60 equipment.
 
-This phase implements Rental Check In, Pending Delivery cards, Active Rentals, and Rental History.
+This phase implements Rental Check In, Pending Delivery cards, Active Rentals, Return Equipment, and Rental History.
 
 ## Access
 
@@ -155,7 +155,45 @@ Each detail card shows:
 
 Called-for-pickup cards also show the pickup call time and staff member when a pickup event exists.
 
-Full return and transfer workflows remain future work.
+## Return Equipment
+
+Return Equipment is available at `/operations/rental-management/return`.
+
+The workflow supports two operational steps:
+
+1. `Call for Pickup`
+2. `Confirm Picked Up`
+
+Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active and called-for-pickup rentals. Pending Delivery and Picked Up records are not selectable for return actions.
+
+### Call for Pickup
+
+For green `Active` rentals, `Call for Pickup` records that the vendor was called but the equipment is still physically in the hospital.
+
+The form captures:
+
+- Date called
+- Time called
+- Called by current logged-in staff member
+- Optional pickup confirmation / reference number
+- Optional note
+
+Saving changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, and keeps the equipment in Active Rentals.
+
+### Confirm Picked Up
+
+For yellow `Called for Pickup` rentals, `Confirm Picked Up` records that the equipment physically left the hospital. It is also available as a secondary option for Active rentals if pickup happens without the pickup call being logged first.
+
+The form captures:
+
+- Date picked up
+- Time picked up
+- Picked up confirmed by current logged-in staff member
+- Optional note
+
+Saving changes the rental status to `picked_up`, sets `returned_at`, creates a `picked_up` rental event, removes the equipment from Active Rentals, and keeps it visible in Rental History.
+
+Full transfer workflow remains future work.
 
 ## Pending Delivery Cards
 
@@ -181,6 +219,7 @@ It is the permanent searchable record of BiPAP/V60 rental records in the app. It
 - Called-for-pickup rental records
 - Picked-up rental records
 - Multiple rental cycles for the same serial number / asset ID
+- Pickup call and picked-up lifecycle events
 
 Search supports serial number / asset ID, company, equipment type, last known location, called-in staff, delivered staff, picked-up-by staff when a pickup event exists, and notes.
 
@@ -211,8 +250,11 @@ History rows are compact by default and expand to show:
 - Delivered staff member
 - Last known location
 - Called-for-pickup date/time, when present
+- Pickup confirmation / reference number, when present
+- Pickup note, when present
 - Picked-up date/time, when present
 - Picked-up-by staff member, when a picked-up event exists
+- Return note, when present
 - Total time in hospital
 - Notes, if present
 - Rental event timeline, when events exist

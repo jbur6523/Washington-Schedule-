@@ -40,11 +40,20 @@ type ActiveRentalRecord = {
   called_in_at: string | null;
   called_in_by_name: string | null;
   checked_in_at: string | null;
+  pickup_requested_at: string | null;
+  pickup_confirmation_number: string | null;
+  pickup_request_note: string | null;
   returned_at: string | null;
+  return_note: string | null;
   notes: string | null;
-  rental_vendors: { name: string } | { name: string }[] | null;
+  rental_vendors:
+    | { name: string; phone_number?: string | null; notes?: string | null }
+    | { name: string; phone_number?: string | null; notes?: string | null }[]
+    | null;
   checked_in_by: { display_name: string } | { display_name: string }[] | null;
   called_in_by: { display_name: string } | { display_name: string }[] | null;
+  pickup_requested_by: { display_name: string } | { display_name: string }[] | null;
+  returned_by: { display_name: string } | { display_name: string }[] | null;
 };
 
 type RentalEventRecord = {
@@ -71,9 +80,20 @@ type RentalCheckInForm = {
   notes: string;
 };
 
+type ReturnAction = "pickup" | "picked_up";
+
+type ReturnEquipmentForm = {
+  selectedRentalId: string;
+  action: ReturnAction | "";
+  date: string;
+  time: string;
+  confirmationNumber: string;
+  note: string;
+};
+
 type RentalManagementClientProps = {
   authContext: AuthenticatedUserContext;
-  mode?: "overview" | "check-in" | "active" | "history" | "deliver";
+  mode?: "overview" | "check-in" | "active" | "history" | "deliver" | "return";
   pendingRentalId?: string;
 };
 
@@ -98,11 +118,17 @@ const rentalRecordSelect = [
   "called_in_at",
   "called_in_by_name",
   "checked_in_at",
+  "pickup_requested_at",
+  "pickup_confirmation_number",
+  "pickup_request_note",
   "returned_at",
+  "return_note",
   "notes",
-  "rental_vendors(name)",
+  "rental_vendors(name, phone_number, notes)",
   "checked_in_by:staff_profiles!rental_records_checked_in_by_staff_profile_id_fkey(display_name)",
-  "called_in_by:staff_profiles!rental_records_called_in_by_staff_profile_id_fkey(display_name)"
+  "called_in_by:staff_profiles!rental_records_called_in_by_staff_profile_id_fkey(display_name)",
+  "pickup_requested_by:staff_profiles!rental_records_pickup_requested_by_staff_profile_id_fkey(display_name)",
+  "returned_by:staff_profiles!rental_records_returned_by_staff_profile_id_fkey(display_name)"
 ].join(", ");
 
 function isPendingDeliveryStatus(status: RentalStatus) {
@@ -390,9 +416,16 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
   };
 }
 
-const futureFeatures = [
-  { title: "Return Equipment", icon: RotateCcw }
-];
+function defaultReturnForm(): ReturnEquipmentForm {
+  return {
+    selectedRentalId: "",
+    action: "",
+    date: todayValue(),
+    time: timeValue(),
+    confirmationNumber: "",
+    note: ""
+  };
+}
 
 export function RentalManagementClient({ authContext, mode = "overview", pendingRentalId = "" }: RentalManagementClientProps) {
   const router = useRouter();
@@ -403,6 +436,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [rentalEvents, setRentalEvents] = useState<RentalEventRecord[]>([]);
   const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
+  const [returnForm, setReturnForm] = useState<ReturnEquipmentForm>(() => defaultReturnForm());
   const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
   const [historyStatus, setHistoryStatus] = useState<"all" | "pending" | "active" | "pickup" | "returned">(
     searchParams.get("status") === "pending" ? "pending" : "all"
@@ -559,6 +593,17 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           if (result) {
             const scannedValue = result.getText().trim();
             setForm((current) => ({ ...current, serialNumber: scannedValue }));
+            if (mode === "return") {
+              const matches = activeRentals.filter((rental) => (rental.serial_number ?? "").toLowerCase() === scannedValue.toLowerCase());
+              if (matches.length === 1) {
+                const [match] = matches;
+                setReturnForm((current) => ({
+                  ...current,
+                  selectedRentalId: match.id,
+                  action: isPickupCalledStatus(match.status) ? "picked_up" : current.action
+                }));
+              }
+            }
             setScannedByCamera(true);
             setScannerSuccess(`Scanned: ${scannedValue}`);
             setScannerStatus("");
@@ -823,10 +868,157 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     router.push("/operations/rental-management?checkedIn=1");
   };
 
+  const returnEligibleRentals = activeRentals;
+  const selectedReturnRental = returnEligibleRentals.find((rental) => rental.id === returnForm.selectedRentalId) ?? null;
+  const returnSerialSearch = form.serialNumber.trim().toLowerCase();
+  const returnSerialMatches = returnSerialSearch
+    ? returnEligibleRentals.filter((rental) => (rental.serial_number ?? "").toLowerCase() === returnSerialSearch)
+    : [];
+
+  const selectReturnRental = (rental: ActiveRentalRecord) => {
+    setReturnForm((current) => ({
+      ...current,
+      selectedRentalId: rental.id,
+      action: isPickupCalledStatus(rental.status) ? "picked_up" : current.action
+    }));
+    setError("");
+  };
+
+  const submitPickupCall = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authContext.staffProfileId) {
+      setError("Your staff profile must be linked before logging pickup calls.");
+      return;
+    }
+
+    if (!selectedReturnRental || !returnForm.date || !returnForm.time) {
+      setError("Select a rental and enter pickup call date/time.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const supabase = createClient();
+    const vendor = firstRelated(selectedReturnRental.rental_vendors);
+    const eventAt = new Date(`${returnForm.date}T${returnForm.time}:00`).toISOString();
+    const note = returnForm.note.trim() || null;
+    const confirmationNumber = returnForm.confirmationNumber.trim() || null;
+    const { error: updateError } = await supabase
+      .from("rental_records")
+      .update({
+        status: "pickup_called",
+        pickup_requested_at: eventAt,
+        pickup_requested_by_staff_profile_id: authContext.staffProfileId,
+        pickup_confirmation_number: confirmationNumber,
+        pickup_request_note: note
+      })
+      .eq("id", selectedReturnRental.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError("Unable to log pickup call.");
+      return;
+    }
+
+    await supabase.from("rental_events").insert({
+      department_id: authContext.departmentId,
+      rental_record_id: selectedReturnRental.id,
+      equipment_id: null,
+      event_type: "pickup_called",
+      event_at: eventAt,
+      actor_staff_profile_id: authContext.staffProfileId,
+      event_data: {
+        serial_number: selectedReturnRental.serial_number,
+        equipment_type: selectedReturnRental.equipment_type,
+        vendor_id: selectedReturnRental.vendor_id,
+        vendor_name: vendor?.name ?? null,
+        current_location: selectedReturnRental.current_location,
+        confirmation_number: confirmationNumber,
+        note,
+        called_by: authContext.displayName,
+        timestamp: eventAt
+      }
+    });
+
+    setSaving(false);
+    setReturnForm(defaultReturnForm());
+    setForm((current) => ({ ...current, serialNumber: "" }));
+    await loadRentalData();
+    router.push("/operations/rental-management?pickup=1");
+  };
+
+  const submitPickedUp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authContext.staffProfileId) {
+      setError("Your staff profile must be linked before confirming pickup.");
+      return;
+    }
+
+    if (!selectedReturnRental || !returnForm.date || !returnForm.time) {
+      setError("Select a rental and enter picked-up date/time.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    const supabase = createClient();
+    const vendor = firstRelated(selectedReturnRental.rental_vendors);
+    const eventAt = new Date(`${returnForm.date}T${returnForm.time}:00`).toISOString();
+    const note = returnForm.note.trim() || null;
+    const { error: updateError } = await supabase
+      .from("rental_records")
+      .update({
+        status: "picked_up",
+        returned_at: eventAt,
+        returned_by_staff_profile_id: authContext.staffProfileId,
+        return_note: note
+      })
+      .eq("id", selectedReturnRental.id);
+
+    if (updateError) {
+      setSaving(false);
+      setError("Unable to confirm picked up.");
+      return;
+    }
+
+    await supabase.from("rental_events").insert({
+      department_id: authContext.departmentId,
+      rental_record_id: selectedReturnRental.id,
+      equipment_id: null,
+      event_type: "picked_up",
+      event_at: eventAt,
+      actor_staff_profile_id: authContext.staffProfileId,
+      event_data: {
+        serial_number: selectedReturnRental.serial_number,
+        equipment_type: selectedReturnRental.equipment_type,
+        vendor_id: selectedReturnRental.vendor_id,
+        vendor_name: vendor?.name ?? null,
+        current_location: selectedReturnRental.current_location,
+        note,
+        picked_up_by: authContext.displayName,
+        timestamp: eventAt
+      }
+    });
+
+    setSaving(false);
+    setReturnForm(defaultReturnForm());
+    setForm((current) => ({ ...current, serialNumber: "" }));
+    await loadRentalData();
+    router.push("/operations/rental-management?pickedUp=1");
+  };
+
   const canLogOrder = Boolean(form.vendorId && form.equipmentType && form.calledInDate && form.calledInTime);
   const canConfirmDelivery = Boolean(deliveryPendingRental && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
+  const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time);
+  const canConfirmPickedUp = Boolean(selectedReturnRental && returnForm.action === "picked_up" && returnForm.date && returnForm.time);
   const checkedIn = searchParams.get("checkedIn") === "1";
   const calledIn = searchParams.get("calledIn") === "1";
+  const pickupLogged = searchParams.get("pickup") === "1";
+  const pickedUpLogged = searchParams.get("pickedUp") === "1";
   const oldestRentalDaysLabel = activeRentals[0]?.checked_in_at ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
@@ -953,6 +1145,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               Rental logged as pending delivery.
             </p>
           )}
+          {pickupLogged && (
+            <p role="status" className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-700">
+              Pickup call logged.
+            </p>
+          )}
+          {pickedUpLogged && (
+            <p role="status" className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700">
+              Equipment marked picked up.
+            </p>
+          )}
           {error && (
             <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
               {error}
@@ -1061,25 +1263,21 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </div>
           </Link>
 
-          <section className="grid gap-3">
-            {futureFeatures.map((feature) => {
-              const Icon = feature.icon;
-
-              return (
-                <div key={feature.title} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
-                      <Icon size={20} />
-                    </span>
-                    <div>
-                      <h2 className="text-base font-black text-hospital-ink">{feature.title}</h2>
-                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-violet-700">Coming Soon</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
+          <Link
+            href="/operations/rental-management/return"
+            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <RotateCcw size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-black text-hospital-ink">Return Equipment</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Call for pickup or confirm picked up equipment.</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
+              </div>
+            </div>
+          </Link>
 
           <Link
             href="/operations"
@@ -1130,7 +1328,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 const styles = rentalStatusStyles(rental.status);
                 const rentalEvents = eventsByRentalId[rental.id] ?? [];
                 const pickupEvent = findPickupEvent(rentalEvents);
-                const pickupBy = pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null;
+                const pickupBy =
+                  firstRelated(rental.pickup_requested_by)?.display_name ??
+                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null);
                 const calledInName = calledInBy?.display_name ?? rental.called_in_by_name ?? null;
 
                 return (
@@ -1149,9 +1349,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
                       <p>Serial / Asset ID: {rental.serial_number ?? "Pending"}</p>
                       <p>Company: {vendor?.name ?? "Unknown company"}</p>
-                      {pickupEvent && (
+                      {(pickupEvent || rental.pickup_requested_at) && (
                         <p>
-                          Called: {formatDateTime(pickupEvent.event_at, departmentTimezone)}
+                          Called for pickup: {formatDateTime(pickupEvent?.event_at ?? rental.pickup_requested_at!, departmentTimezone)}
                           {pickupBy ? ` by ${pickupBy}` : ""}
                         </p>
                       )}
@@ -1348,9 +1548,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 const calledInEvent = findCalledInEvent(recordEvents);
                 const deliveredEvent = findDeliveredEvent(recordEvents);
                 const pickupEvent = findPickupEvent(recordEvents);
-                const pickupBy = pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null;
+                const pickupBy =
+                  firstRelated(record.pickup_requested_by)?.display_name ??
+                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null);
                 const pickedUpEvent = findPickedUpEvent(recordEvents);
-                const pickedUpBy = pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : null;
+                const pickedUpBy =
+                  firstRelated(record.returned_by)?.display_name ??
+                  (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : null);
                 const expanded = expandedRentalId === record.id;
                 const pending = isPendingDeliveryStatus(record.status);
                 const pickupCalled = isPickupCalledStatus(record.status);
@@ -1402,17 +1606,20 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                           <p>Status: {statusLabel}</p>
                           <p>Called in: {record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}</p>
                           <p>Called in by: {calledInName ?? "Unknown"}</p>
-                          {pickupEvent && (
+                          {(pickupEvent || record.pickup_requested_at) && (
                             <p>
-                              Called for pickup: {formatDateTime(pickupEvent.event_at, departmentTimezone)}
+                              Called for pickup: {formatDateTime(pickupEvent?.event_at ?? record.pickup_requested_at!, departmentTimezone)}
                               {pickupBy ? ` by ${pickupBy}` : ""}
                             </p>
                           )}
+                          {record.pickup_confirmation_number && <p>Pickup confirmation: {record.pickup_confirmation_number}</p>}
+                          {record.pickup_request_note && <p>Pickup note: {record.pickup_request_note}</p>}
                           <p>Delivered: {record.checked_in_at ? formatDateTime(record.checked_in_at, departmentTimezone) : "Not delivered yet"}</p>
                           <p>Delivered by: {deliveredName ?? "Unknown"}</p>
                           <p>Last known location: {record.current_location || "Unknown"}</p>
                           {record.returned_at && <p>Picked up: {formatDateTime(record.returned_at, departmentTimezone)}</p>}
                           {pickedUp && <p>Picked up by: {pickedUpBy ?? "Not recorded"}</p>}
+                          {record.return_note && <p>Return note: {record.return_note}</p>}
                           {pending ? (
                             <p>Waiting for delivery: {record.called_in_at ? elapsedLabel(record.called_in_at, departmentTimezone) : "Unknown"}</p>
                           ) : (
@@ -1446,6 +1653,340 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               })}
             </div>
           </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (mode === "return") {
+    const selectedVendor = selectedReturnRental ? firstRelated(selectedReturnRental.rental_vendors) : null;
+    const selectedDeliveredBy = selectedReturnRental ? firstRelated(selectedReturnRental.checked_in_by) : null;
+    const selectedPickupEvent = selectedReturnRental ? findPickupEvent(eventsByRentalId[selectedReturnRental.id] ?? []) : null;
+    const selectedPickupBy =
+      selectedReturnRental
+        ? firstRelated(selectedReturnRental.pickup_requested_by)?.display_name ??
+          (selectedPickupEvent ? firstRelated(selectedPickupEvent.staff_profiles)?.display_name : null)
+        : null;
+
+    return (
+      <main className="min-h-screen px-4 py-8">
+        <div className="mx-auto max-w-xl space-y-4">
+          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Return Equipment</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              Call for pickup or confirm equipment was picked up.
+            </p>
+            <Link
+              href="/operations/rental-management"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            >
+              Back to Rental Management
+            </Link>
+          </section>
+
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Scan Barcode</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+              Scan the 1D barcode or enter the serial / asset ID.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void startScanner()}
+                className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white"
+              >
+                {scannerSuccess ? "Rescan" : "Scan Barcode"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  stopScanner();
+                  setScannerStatus("");
+                  setScannerError("");
+                }}
+                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+              >
+                Use Manual Entry
+              </button>
+            </div>
+            {scannerOpen && (
+              <div className="mt-3 rounded-2xl border border-cyan-100 bg-slate-950 p-2">
+                <video ref={videoRef} className="aspect-video w-full rounded-xl object-cover" muted playsInline />
+              </div>
+            )}
+            {scannerStatus && <p className="mt-2 text-xs font-bold text-cyan-700">{scannerStatus}</p>}
+            {scannerSuccess && (
+              <p className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700 shadow-[0_0_18px_rgba(16,185,129,0.22)]">
+                {scannerSuccess}
+              </p>
+            )}
+            {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
+            <label className="mt-3 block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Manual Serial / Asset ID</span>
+              <input
+                value={form.serialNumber}
+                onChange={(event) => setForm((current) => ({ ...current, serialNumber: event.target.value }))}
+                className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              />
+            </label>
+            {returnSerialSearch && returnSerialMatches.length === 0 && (
+              <p className="mt-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                No active rental found for this serial / asset ID.
+              </p>
+            )}
+            {returnSerialMatches.length > 1 && (
+              <p className="mt-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-bold text-cyan-800">
+                Multiple matching rentals found. Select the correct rental below.
+              </p>
+            )}
+          </section>
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Select from rentals</h2>
+            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
+            {!loading && returnEligibleRentals.length === 0 && (
+              <p className="mt-2 text-sm font-bold text-slate-500">No active or called-for-pickup rentals.</p>
+            )}
+            <div className="mt-3 grid gap-2">
+              {returnEligibleRentals.map((rental) => {
+                const vendor = firstRelated(rental.rental_vendors);
+                const styles = rentalStatusStyles(rental.status);
+                const selected = selectedReturnRental?.id === rental.id;
+                const rentalEvents = eventsByRentalId[rental.id] ?? [];
+                const pickupEvent = findPickupEvent(rentalEvents);
+                const pickupBy =
+                  firstRelated(rental.pickup_requested_by)?.display_name ??
+                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null);
+
+                return (
+                  <button
+                    key={rental.id}
+                    type="button"
+                    onClick={() => selectReturnRental(rental)}
+                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
+                      selected ? "border-cyan-300 bg-cyan-50 shadow-md shadow-cyan-900/10" : styles.card
+                    }`}
+                  >
+                    <p className="flex items-center gap-2 text-sm font-black text-hospital-ink">
+                      <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
+                      {equipmentLabels[rental.equipment_type]} {rental.serial_number ? `· ${rental.serial_number}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                      {vendor?.name ?? "Unknown company"}
+                    </p>
+                    <p className={`mt-2 text-xs font-bold ${isPickupCalledStatus(rental.status) ? "text-amber-700" : "text-emerald-700"}`}>
+                      {rental.current_location || "Unknown"} ·{" "}
+                      {isPickupCalledStatus(rental.status)
+                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` · Called: ${formatDateTime(pickupEvent?.event_at ?? rental.pickup_requested_at!, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
+                        : `In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
+                    </p>
+                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                      Status: {rentalStatusLabel(rental.status)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {selectedReturnRental && (
+            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+              <h2 className="text-lg font-black text-hospital-ink">Selected rental</h2>
+              <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment</dt>
+                  <dd>{equipmentLabels[selectedReturnRental.equipment_type]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Serial / Asset ID</dt>
+                  <dd>{selectedReturnRental.serial_number ?? "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
+                  <dd>{selectedVendor?.name ?? "Unknown company"}</dd>
+                </div>
+                {selectedVendor?.phone_number && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Vendor phone</dt>
+                    <dd>
+                      <a className="text-cyan-700 underline" href={`tel:${selectedVendor.phone_number.replace(/\D/g, "")}`}>
+                        {selectedVendor.phone_number}
+                      </a>
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Last known location</dt>
+                  <dd>{selectedReturnRental.current_location || "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>
+                  <dd>{selectedReturnRental.checked_in_at ? formatDateTime(selectedReturnRental.checked_in_at, departmentTimezone) : "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered by</dt>
+                  <dd>{selectedDeliveredBy?.display_name ?? "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Days in hospital</dt>
+                  <dd>{selectedReturnRental.checked_in_at ? daysInHospitalLabel(selectedReturnRental.checked_in_at, departmentTimezone) : "Unknown"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Current status</dt>
+                  <dd>{rentalStatusLabel(selectedReturnRental.status)}</dd>
+                </div>
+                {(selectedPickupEvent || selectedReturnRental.pickup_requested_at) && (
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called for pickup</dt>
+                    <dd>
+                      {formatDateTime(selectedPickupEvent?.event_at ?? selectedReturnRental.pickup_requested_at!, departmentTimezone)}
+                      {selectedPickupBy ? ` by ${selectedPickupBy}` : ""}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              <div className="mt-4 grid gap-2">
+                {isActiveStatus(selectedReturnRental.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setReturnForm((current) => ({ ...current, action: "pickup", date: todayValue(), time: timeValue() }))}
+                    className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
+                  >
+                    Call for Pickup
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setReturnForm((current) => ({ ...current, action: "picked_up", date: todayValue(), time: timeValue() }))}
+                  className={`min-h-11 rounded-2xl px-3 text-sm font-extrabold shadow-md ${
+                    isPickupCalledStatus(selectedReturnRental.status)
+                      ? "bg-cyan-700 text-white shadow-cyan-900/20"
+                      : "border border-slate-200 bg-white text-slate-700 shadow-slate-900/10"
+                  }`}
+                >
+                  Confirm Picked Up
+                </button>
+              </div>
+            </section>
+          )}
+
+          {selectedReturnRental && returnForm.action === "pickup" && (
+            <form onSubmit={submitPickupCall} className="rounded-3xl border border-amber-100 bg-amber-50/80 p-4 shadow-soft">
+              <h2 className="text-lg font-black text-hospital-ink">Call for Pickup</h2>
+              <div className="mt-3 grid gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date called</span>
+                    <input
+                      type="date"
+                      value={returnForm.date}
+                      onChange={(event) => setReturnForm((current) => ({ ...current, date: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Time called</span>
+                    <input
+                      type="time"
+                      value={returnForm.time}
+                      onChange={(event) => setReturnForm((current) => ({ ...current, time: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs font-bold text-slate-600">Called by: {authContext.displayName}</p>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Pickup confirmation / reference</span>
+                  <input
+                    value={returnForm.confirmationNumber}
+                    onChange={(event) => setReturnForm((current) => ({ ...current, confirmationNumber: event.target.value.slice(0, 80) }))}
+                    maxLength={80}
+                    placeholder="Optional"
+                    className="mt-1 min-h-12 w-full rounded-2xl border border-amber-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Note</span>
+                  <textarea
+                    value={returnForm.note}
+                    onChange={(event) => setReturnForm((current) => ({ ...current, note: event.target.value.slice(0, 140) }))}
+                    maxLength={140}
+                    placeholder="Optional"
+                    className="mt-1 min-h-20 w-full rounded-2xl border border-amber-100 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-amber-300"
+                  />
+                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
+                    <span>No patient information.</span>
+                    <span>{returnForm.note.length}/140</span>
+                  </span>
+                </label>
+                <button
+                  type="submit"
+                  disabled={saving || !canLogPickupCall}
+                  className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Log Pickup Call"}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {selectedReturnRental && returnForm.action === "picked_up" && (
+            <form onSubmit={submitPickedUp} className="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-soft">
+              <h2 className="text-lg font-black text-hospital-ink">Confirm Picked Up</h2>
+              <div className="mt-3 grid gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date picked up</span>
+                    <input
+                      type="date"
+                      value={returnForm.date}
+                      onChange={(event) => setReturnForm((current) => ({ ...current, date: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Time picked up</span>
+                    <input
+                      type="time"
+                      value={returnForm.time}
+                      onChange={(event) => setReturnForm((current) => ({ ...current, time: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs font-bold text-slate-600">Picked up confirmed by: {authContext.displayName}</p>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Note</span>
+                  <textarea
+                    value={returnForm.note}
+                    onChange={(event) => setReturnForm((current) => ({ ...current, note: event.target.value.slice(0, 140) }))}
+                    maxLength={140}
+                    placeholder="Optional"
+                    className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-500">
+                    <span>No patient information.</span>
+                    <span>{returnForm.note.length}/140</span>
+                  </span>
+                </label>
+                <button
+                  type="submit"
+                  disabled={saving || !canConfirmPickedUp}
+                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Confirm Picked Up"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </main>
     );
