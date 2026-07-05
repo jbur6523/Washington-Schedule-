@@ -1987,21 +1987,24 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           )}
 
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <ScanLine size={20} />
-              </span>
-              <div>
-                <h2 className="text-base font-black text-hospital-ink">Order Rental</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a BiPAP V60 rental order.</p>
-              </div>
+            <h2 className="text-base font-black text-hospital-ink">Rental Actions</h2>
+            <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Order or return a BiPAP V60 rental.</p>
+            <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
+              <Link
+                href="/operations/rental-management/check-in"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+              >
+                <ScanLine size={18} aria-hidden="true" />
+                Order Rental
+              </Link>
+              <Link
+                href="/operations/rental-management/return"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-sm"
+              >
+                <RotateCcw size={18} aria-hidden="true" />
+                Return Rental
+              </Link>
             </div>
-            <Link
-              href="/operations/rental-management/check-in"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
-            >
-              Order Rental
-            </Link>
           </section>
 
           {(pendingDeliveries.length > 0 || pendingPickups.length > 0) && (
@@ -2145,22 +2148,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               </div>
             </section>
           )}
-
-          <Link
-            href="/operations/rental-management/return"
-            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <RotateCcw size={20} />
-              </span>
-              <div>
-                <h2 className="text-base font-black text-hospital-ink">Return Equipment</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Call for pickup or confirm picked up equipment.</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
-              </div>
-            </div>
-          </Link>
 
           <Link
             href="/operations/rental-management/history"
@@ -2814,9 +2801,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         <div className="mx-auto max-w-xl space-y-4">
           <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
-            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Return Equipment</h1>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Return Rental</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              Select an active rental to request pickup.
+              Request pickup for an active BiPAP V60 rental.
             </p>
             <Link
               href="/operations/rental-management"

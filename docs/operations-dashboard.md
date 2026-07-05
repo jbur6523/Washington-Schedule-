@@ -35,7 +35,7 @@ Purpose:
 - Log called-in BiPAP V60 rental orders and confirm delivery from pending cards.
 - Prepare for future check-out, transfer, barcode-driven lookup, room tracking, and return workflows.
 
-The first active workflow is `Order Rental`.
+The dashboard starts with `Rental Actions`, which contains `Order Rental` and `Return Rental`.
 
 ## Current Rental Scope
 
@@ -53,13 +53,13 @@ Rental Management currently supports:
 - combined Rental Management overview card with Active Rentals count and Oldest Rental `MM/DD` date
 - dedicated Active Rentals screen with full active rental details
 - dedicated Rental History screen for searching, filtering, and manually exporting pending, active, called-for-pickup, and picked-up rental records
-- Return Equipment workflow for pickup calls and picked-up confirmation
+- Return Rental workflow for pickup calls and picked-up confirmation
 - dashboard Pending section for pending deliveries and pending pickups, with neutral cancel actions that preserve Rental History events
 
-The Rental Management dashboard stays summary-focused. The top overview card combines the page title with Active Rentals count, Oldest Rental date, and `View Active Rentals`. `View Active Rentals` opens the full list, sorted oldest active rental first.
+The Rental Management dashboard stays summary-focused. The top overview card combines the page title with Active Rentals count, Oldest Rental date, and `View Active Rentals`. `View Active Rentals` opens the full list, sorted oldest active rental first. The compact `Rental Actions` card combines `Order Rental` and `Return Rental` so the dashboard does not need separate action cards for each workflow.
 `Rental History` opens the searchable history list with status, equipment, vendor, and date range filters. It can export the current filtered view or all history as an Excel-compatible CSV paper trail. The app database remains the source of truth, and this phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, or Excel Online.
 
-Return Equipment is active and opens a dedicated workflow screen.
+Return Rental is active and opens the existing dedicated pickup request workflow screen.
 
 ## Out of Scope
 

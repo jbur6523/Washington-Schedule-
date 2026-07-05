@@ -4,7 +4,7 @@ Rental Management is a department operations tool for tracking rented BiPAP V60 
 
 BiPAP is the equipment category. V60 is the model. User-facing rental screens should identify this equipment as `BiPAP V60`, and quick-reference cards should use `BiPAP V60 - SN XXXXX`.
 
-This phase implements Order Rental, Pending Delivery cards, Active Rentals, Return Equipment, and Rental History.
+This phase implements Rental Actions, Pending Delivery cards, Active Rentals, Return Rental, and Rental History.
 
 ## Access
 
@@ -40,7 +40,7 @@ The Order Rental screen is intentionally compact:
 
 `Save Pending Delivery` remains disabled until required details are complete. Notes are optional, hidden by default, limited to 140 characters, and continue to show the `No patient information` reminder.
 
-The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
+The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. A compact `Rental Actions` card sits below the overview card with `Order Rental` and `Return Rental` buttons. The old separate Order Rental and Return Equipment dashboard cards were removed to reduce scrolling. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
 ## Delivery Confirmation
 
@@ -173,13 +173,13 @@ Each detail card shows:
 
 Called-for-pickup cards also show the pickup call time and staff member when a pickup event exists.
 
-## Return Equipment
+## Return Rental
 
-Return Equipment is available at `/operations/rental-management/return`.
+Return Rental is available at `/operations/rental-management/return`.
 
 This page starts a new pickup request for equipment that is currently green `Active`.
 
-The Return Equipment selection list only shows active rentals that have not already been called for pickup. Yellow `Called for Pickup` rentals are completed or canceled from the dashboard `Pending` section instead.
+The Return Rental selection list only shows active rentals that have not already been called for pickup. Yellow `Called for Pickup` rentals are completed or canceled from the dashboard `Pending` section instead.
 
 Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active rentals. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
 
@@ -190,7 +190,7 @@ Barcode/manual serial lookup uses these messages for non-active matches:
 - Pending Delivery: this rental has not been delivered yet.
 - No match: no active rental was found for that serial / asset ID.
 
-The Return Equipment screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
+The Return Rental screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
 
 ### Call for Pickup
 
