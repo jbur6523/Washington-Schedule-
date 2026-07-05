@@ -1,6 +1,8 @@
 # Rental Management
 
-Rental Management is a department operations tool for tracking rented BiPAP/V60 equipment.
+Rental Management is a department operations tool for tracking rented BiPAP V60 equipment.
+
+BiPAP is the equipment category. V60 is the model. User-facing rental screens should identify this equipment as `BiPAP V60`, and quick-reference cards should use `BiPAP V60 - SN XXXXX`.
 
 This phase implements Rental Check In, Pending Delivery cards, Active Rentals, Return Equipment, and Rental History.
 
@@ -21,7 +23,7 @@ Rental Check In opens as a dedicated workflow at `/operations/rental-management/
 It now logs the called-in rental order only:
 
 1. Select the rental company.
-2. Select the equipment type: `BiPAP` or `V60`.
+2. Review the prefilled equipment details: Equipment Type `BiPAP`, Model `V60`.
 3. Review the auto-filled called-in date, time, and staff member.
 4. Add an optional note.
 5. Save the pending delivery.
@@ -34,7 +36,7 @@ The Rental Check In screen separates the form into clear sections:
 - `Auto-filled Order Info` shows the called-in date, called-in time, and called-in staff member from the current user/session.
 - `Review & Save` shows `Ready to Save` only after required fields are complete. Otherwise, it lists missing required fields.
 
-`Save Pending Delivery` remains disabled until Rental Company and Equipment Type are selected. Notes are optional, limited to 140 characters, and continue to show the `No patient information` reminder.
+`Save Pending Delivery` remains disabled until required details are complete. Notes are optional, limited to 140 characters, and continue to show the `No patient information` reminder.
 
 The Rental Management dashboard shows a `Pending` section only when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
@@ -42,7 +44,7 @@ The Rental Management dashboard shows a `Pending` section only when there is at 
 
 Delivery confirmation starts from a Pending Delivery card on the main Rental Management dashboard.
 
-1. Tap `V60 Delivered`, `BiPAP Delivered`, or `Mark Delivered`.
+1. Tap `BiPAP V60 Delivered` or `Mark Delivered`.
 2. Scan the equipment barcode or enter the serial / asset ID manually.
 3. Enter current location.
 4. Confirm delivered date and time.
@@ -97,10 +99,12 @@ The scanner shows camera permission and scanning status. After a successful scan
 
 ## Equipment Details
 
-Supported equipment types in this phase:
+Supported equipment in this phase:
 
-- BiPAP
-- V60
+- Equipment Type: BiPAP
+- Model: V60
+
+Older records may store `bipap` or `v60` in `equipment_type`; the UI normalizes both to `BiPAP V60`.
 
 Delivered Date defaults to the current date. Delivered Time defaults to the current time in 24-hour input format.
 
@@ -244,7 +248,7 @@ Pending Pickup cards are yellow and appear when a rental has been called for pic
 
 Rental History is available at `/operations/rental-management/history` and replaces the old Transfer Room placeholder.
 
-It is the permanent searchable record of BiPAP/V60 rental records in the app. It includes:
+It is the permanent searchable record of BiPAP V60 rental records in the app. It includes:
 
 - Active rental records
 - Pending Delivery records
@@ -266,7 +270,7 @@ Rental History uses a compact filter card so records appear quickly on mobile:
 Filter options include:
 
 - Status: All, Pending Delivery, Active, Called for Pickup, Picked Up
-- Equipment: All Equipment, BiPAP, V60
+- Equipment: All Equipment, BiPAP V60
 - Company/vendor
 - Date range: All Time, Today, Last 7 Days, Last 30 Days, Custom Range
 

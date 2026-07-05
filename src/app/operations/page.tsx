@@ -76,7 +76,7 @@ export default async function OperationsDashboardPage() {
             </span>
             <div className="min-w-0">
               <h2 className="text-lg font-black text-hospital-ink">Rental Management</h2>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Track BiPAP and ventilator rentals.</p>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Track BiPAP V60 rentals.</p>
               <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
                 Active
               </span>

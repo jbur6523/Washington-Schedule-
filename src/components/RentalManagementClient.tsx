@@ -121,9 +121,12 @@ type HistoryEquipmentFilter = "all" | EquipmentType;
 type HistoryFilterPanel = "" | "status" | "date" | "equipment" | "more";
 
 const equipmentLabels: Record<EquipmentType, string> = {
-  bipap: "BiPAP",
-  v60: "V60"
+  bipap: "BiPAP V60",
+  v60: "BiPAP V60"
 };
+
+const equipmentTypeCategoryLabel = "BiPAP";
+const equipmentModelLabel = "V60";
 
 const historyStatusLabels: Record<HistoryStatusFilter, string> = {
   all: "All",
@@ -256,6 +259,10 @@ function rentalStatusStyles(status: RentalStatus) {
 
 function serialNumberLabel(serialNumber: string | null) {
   return serialNumber?.trim() || "Missing";
+}
+
+function equipmentQuickLabel(equipmentType: EquipmentType, serialNumber: string | null) {
+  return `${equipmentLabels[equipmentType]} \u2014 SN ${serialNumberLabel(serialNumber)}`;
 }
 
 function findPickupEvent(events: RentalEventRecord[]) {
@@ -499,7 +506,7 @@ function shortDate(value: string, timezone: string) {
 function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
-    equipmentType: "",
+    equipmentType: "bipap",
     deliveredDate: todayValue(),
     deliveredTime: timeValue(),
     calledInDate: todayValue(),
@@ -775,7 +782,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       setForm((current) => ({
         ...current,
         vendorId: (data.vendor_id as string | null) ?? current.vendorId,
-        equipmentType: data.equipment_type ? "v60" : current.equipmentType
+        equipmentType: data.equipment_type ? "bipap" : current.equipmentType
       }));
     }
   };
@@ -799,7 +806,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     }
 
     if (!form.vendorId || !form.equipmentType || !form.calledInDate || !form.calledInTime) {
-      setError("Rental Company, Equipment Type, Called In Date, and Called In Time are required.");
+      setError("Rental Company, Called In Date, and Called In Time are required.");
       return;
     }
 
@@ -1222,7 +1229,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const missingOrderFields = [
     !form.vendorId ? "Rental Company required" : "",
-    !form.equipmentType ? "Equipment Type required" : ""
+    !form.equipmentType ? "Equipment details required" : ""
   ].filter(Boolean);
   const missingAutoFilledFields = [
     !form.calledInDate ? "Called In Date required" : "",
@@ -1316,7 +1323,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         return false;
       }
 
-      if (historyEquipment !== "all" && record.equipment_type !== historyEquipment) {
+      if (historyEquipment !== "all" && !["bipap", "v60"].includes(record.equipment_type)) {
         return false;
       }
 
@@ -1349,10 +1356,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
             <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Management</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              BiPAP and ventilator rental tracking
+              BiPAP V60 rental tracking
             </p>
             <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-              Track called-in, delivered, and active rented BiPAP/V60 equipment.
+              Track called-in, delivered, and active rented BiPAP V60 equipment.
             </p>
           </section>
 
@@ -1399,7 +1406,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               </span>
               <div>
                 <h2 className="text-base font-black text-hospital-ink">Rental Check In</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a rented BiPAP/V60 order.</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a rented BiPAP V60 order.</p>
               </div>
             </div>
             <Link
@@ -1513,7 +1520,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             <p className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm font-black leading-5 text-hospital-ink">
                               <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" aria-hidden="true" />
                               <span>
-                                {equipmentLabels[pending.equipment_type]} <span aria-hidden="true">&mdash;</span> SN {serialNumberLabel(pending.serial_number)} pickup requested by {pickupBy}
+                                {equipmentQuickLabel(pending.equipment_type, pending.serial_number)} pickup requested by {pickupBy}
                                 {pickupText ? ` at ${pickupDisplay}` : ""}
                               </span>
                             </p>
@@ -1718,9 +1725,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <div>
                         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
                           <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                          <span>{equipmentLabels[rental.equipment_type]}</span>
-                          <span aria-hidden="true">&mdash;</span>
-                          <span>SN <span className="font-black">{serialNumberLabel(rental.serial_number)}</span></span>
+                          <span>{equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</span>
                         </p>
                         <p className={`mt-1 text-xs font-extrabold uppercase tracking-wide ${styles.text}`}>
                           {rentalStatusLabel(rental.status)}
@@ -1975,7 +1980,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
                 {openHistoryFilter === "equipment" && (
                   <div className="grid gap-2">
-                    {(["all", "bipap", "v60"] as const).map((equipment) => (
+                    {(["all", "bipap"] as const).map((equipment) => (
                       <button
                         key={equipment}
                         type="button"
@@ -2143,9 +2148,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                             </>
                           ) : (
                             <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
-                              <span>{equipmentLabels[record.equipment_type]}</span>
-                              <span aria-hidden="true">&mdash;</span>
-                              <span>SN <span className="font-black">{serialNumberLabel(record.serial_number)}</span></span>
+                              <span>{equipmentQuickLabel(record.equipment_type, record.serial_number)}</span>
                             </p>
                           )}
                           <p className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
@@ -2176,6 +2179,12 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                         <div className="grid gap-2 rounded-2xl bg-slate-50/80 p-3">
                           <p>
                             <span className="text-slate-400">Equipment:</span> {equipmentLabels[record.equipment_type]}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Equipment Type:</span> {equipmentTypeCategoryLabel}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Model:</span> {equipmentModelLabel}
                           </p>
                           <p>
                             <span className="text-slate-400">Serial / Asset ID:</span> {record.serial_number ?? "Pending delivery"}
@@ -2399,9 +2408,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   >
                     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-hospital-ink">
                       <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                      <span>{equipmentLabels[rental.equipment_type]}</span>
-                      <span aria-hidden="true">&mdash;</span>
-                      <span>SN <span className="font-black">{serialNumberLabel(rental.serial_number)}</span></span>
+                      <span>{equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</span>
                     </p>
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                       {vendor?.name ?? "Unknown company"}
@@ -2428,6 +2435,14 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment</dt>
                   <dd>{equipmentLabels[selectedReturnRental.equipment_type]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                  <dd>{equipmentTypeCategoryLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Model</dt>
+                  <dd>{equipmentModelLabel}</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Serial / Asset ID</dt>
@@ -2665,8 +2680,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <dd>{firstRelated(deliveryPendingRental.rental_vendors)?.name ?? "Unknown company"}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment</dt>
                     <dd>{equipmentLabels[deliveryPendingRental.equipment_type]}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                    <dd>{equipmentTypeCategoryLabel}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Model</dt>
+                    <dd>{equipmentModelLabel}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
@@ -2813,8 +2836,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       <>
                         <p className="font-black">This equipment is already in the hospital.</p>
                         <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
-                        <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
-                        <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
+                        <p>Equipment: {equipmentQuickLabel(duplicateRental.equipment_type, duplicateRental.serial_number)}</p>
                         <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
                         <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
                         <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
@@ -2891,7 +2913,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
           <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Check In</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Log a rented BiPAP/V60 order.
+            Log a rented BiPAP V60 order.
           </p>
           <Link
             href="/operations/rental-management"
@@ -2967,21 +2989,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </div>
               )}
 
-              <label className="block">
-                <span className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  Equipment Type
-                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
-                </span>
-                <select
-                  value={form.equipmentType}
-                  onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
-                  className="mt-1 min-h-12 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink shadow-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                >
-                  <option value="">Select equipment type</option>
-                  <option value="bipap">BiPAP</option>
-                  <option value="v60">V60</option>
-                </select>
-              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wide text-cyan-700">Equipment Type</p>
+                  <p className="mt-1 text-sm font-black text-hospital-ink">{equipmentTypeCategoryLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wide text-cyan-700">Model</p>
+                  <p className="mt-1 text-sm font-black text-hospital-ink">{equipmentModelLabel}</p>
+                </div>
+              </div>
 
               <label className="block">
                 <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes (optional)</span>
@@ -3076,8 +3093,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <dd>{selectedVendor?.name}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment</dt>
                   <dd>{equipmentLabels[form.equipmentType as EquipmentType]}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Equipment Type</dt>
+                  <dd>{equipmentTypeCategoryLabel}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Model</dt>
+                  <dd>{equipmentModelLabel}</dd>
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
@@ -3112,7 +3137,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </div>
             {!canLogOrder && (
               <p className="mt-2 text-xs font-bold text-amber-800">
-                {form.equipmentType ? "Complete required details to continue." : "Select equipment type to continue."}
+                Complete required details to continue.
               </p>
             )}
           </section>

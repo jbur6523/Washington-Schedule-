@@ -56,8 +56,8 @@ type RentalEvent = {
 
 const fallbackTimezone = "America/Los_Angeles";
 const equipmentLabels: Record<EquipmentType, string> = {
-  bipap: "BiPAP",
-  v60: "V60"
+  bipap: "BiPAP V60",
+  v60: "BiPAP V60"
 };
 const statusFilters = new Set(["all", "pending", "active", "pickup", "returned"]);
 const equipmentFilters = new Set(["all", "bipap", "v60"]);
@@ -429,7 +429,7 @@ export async function GET(request: Request) {
         return false;
       }
 
-      if (equipment !== "all" && record.equipment_type !== equipment) {
+      if (equipment !== "all" && !["bipap", "v60"].includes(record.equipment_type)) {
         return false;
       }
 

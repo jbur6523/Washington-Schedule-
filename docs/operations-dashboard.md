@@ -31,8 +31,8 @@ The first dashboard tool is `Rental Management`.
 
 Purpose:
 
-- Track BiPAP and ventilator rentals.
-- Log called-in BiPAP/V60 rental orders and confirm delivery from pending cards.
+- Track BiPAP V60 rentals.
+- Log called-in BiPAP V60 rental orders and confirm delivery from pending cards.
 - Prepare for future check-out, transfer, barcode-driven lookup, room tracking, and return workflows.
 
 The first active workflow is `Rental Check In`.
@@ -42,7 +42,8 @@ The first active workflow is `Rental Check In`.
 Rental Management currently supports:
 
 - Rental company selection
-- BiPAP type: V60
+- Equipment Type: BiPAP
+- Model: V60
 - Called In / Pending Delivery logging
 - Pending Delivery cards only when pending records exist
 - delivery confirmation from a Pending Delivery card
