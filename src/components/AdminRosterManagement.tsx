@@ -12,6 +12,7 @@ type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | 
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
 type OperationsRole = "none" | "aide";
+type VisibleRole = StaffRole | "aide";
 type RosterFilter =
   | "all"
   | "admin"
@@ -148,11 +149,6 @@ const roleLabels: Record<StaffRole, string> = {
   staff: "Staff"
 };
 
-const operationsRoleLabels: Record<OperationsRole, string> = {
-  none: "None",
-  aide: "Aide Dashboard"
-};
-
 const leadDisplayNames = new Set([
   "allantimbang",
   "jonathanburdick",
@@ -192,6 +188,20 @@ function roleForStaff(displayName: string, username: string): StaffRole {
   }
 
   return leadDisplayNames.has(normalizedName) ? "lead" : "staff";
+}
+
+function visibleRoleForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">): VisibleRole {
+  return profile.operations_role === "aide" ? "aide" : profile.assigned_role;
+}
+
+function visibleRoleForForm(form: StaffProfileForm): VisibleRole {
+  return form.operations_role === "aide" ? "aide" : form.assigned_role;
+}
+
+function roleLabelForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">) {
+  const visibleRole = visibleRoleForProfile(profile);
+
+  return visibleRole === "aide" ? "Aide" : roleLabels[visibleRole];
 }
 
 function nextAvailableUsername(displayName: string, profiles: StaffProfile[], excludeProfileId?: string) {
@@ -414,28 +424,26 @@ function StaffProfileEditor({
               />
             ) : (
               <select
-                value={form.assigned_role === "admin" ? "staff" : form.assigned_role}
-                onChange={(event) => onChange({ ...form, assigned_role: event.target.value as StaffRole })}
+                value={visibleRoleForForm(form) === "admin" ? "staff" : visibleRoleForForm(form)}
+                onChange={(event) => {
+                  const nextRole = event.target.value as Exclude<VisibleRole, "admin">;
+
+                  if (nextRole === "aide") {
+                    onChange({ ...form, assigned_role: "staff", operations_role: "aide" });
+                    return;
+                  }
+
+                  onChange({ ...form, assigned_role: nextRole, operations_role: "none" });
+                }}
                 className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               >
                 <option value="staff">Staff</option>
                 <option value="lead">Lead</option>
+                <option value="aide">Aide</option>
               </select>
             )}
-          </label>
-
-          <label className="block">
-            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Operations dashboard</span>
-            <select
-              value={form.operations_role}
-              onChange={(event) => onChange({ ...form, operations_role: event.target.value as OperationsRole })}
-              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-            >
-              <option value="none">None</option>
-              <option value="aide">Aide Dashboard</option>
-            </select>
             <span className="mt-1 block text-xs font-bold text-slate-400">
-              Admin and Lead dashboards come from the main role. Use Aide Dashboard for aide access.
+              Aide gives access to the Aide Dashboard and Rental Management.
             </span>
           </label>
 
@@ -546,13 +554,8 @@ function AdminRosterCard({ profile, onEdit }: { profile: StaffProfile; onEdit: (
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
-          {roleLabels[profile.assigned_role]}
+          {roleLabelForProfile(profile)}
         </span>
-        {profile.operations_role === "aide" && (
-          <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
-            {operationsRoleLabels[profile.operations_role]}
-          </span>
-        )}
         {profile.account_claimed_at ? (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
             <UserRoundCheck size={13} />
@@ -639,8 +642,12 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
         return true;
       }
 
-      if (selectedFilter === "admin" || selectedFilter === "lead" || selectedFilter === "staff") {
+      if (selectedFilter === "admin" || selectedFilter === "lead") {
         return profile.assigned_role === selectedFilter;
+      }
+
+      if (selectedFilter === "staff") {
+        return profile.assigned_role === "staff" && profile.operations_role !== "aide";
       }
 
       if (selectedFilter === "aide") {
@@ -975,11 +982,15 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     const assignedRole: StaffRole =
       finalUsernameNormalized === "burj"
         ? "admin"
+        : form.operations_role === "aide"
+          ? "staff"
         : form.assigned_role === "admin"
           ? "staff"
           : form.id
             ? form.assigned_role
-            : roleForStaff(form.display_name, finalUsernameNormalized);
+            : form.assigned_role !== "staff"
+              ? form.assigned_role
+              : roleForStaff(form.display_name, finalUsernameNormalized);
     const payload = {
       department_id: authContext.departmentId,
       display_name: form.display_name.trim(),

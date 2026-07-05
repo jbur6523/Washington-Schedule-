@@ -41,10 +41,10 @@ Returning claimed users are not forced through contact setup on every login. Sta
 - Authenticated department members can view Staff Directory records allowed by RLS.
 - The normal Staff Directory is a shared contact directory and does not show usernames, claim status, auth links, or reset controls.
 - Admin users can create and edit staff profiles.
-- Admin users can assign `lead` or `staff` roles. Only username `burj` is admin.
+- Admin users can assign `staff`, `lead`, or `aide` from the roster Role control. Only username `burj` is admin.
 - Admin users can reset/unclaim staff accounts without deleting the staff profile.
 - Admin users can preload phone numbers by assigned username.
-- Admin users can assign Aide Dashboard access without granting lead/admin schedule permissions.
+- Selecting `Aide` grants Aide Dashboard and Rental Management access without granting lead/admin schedule permissions.
 - Admin users mark staff inactive instead of deleting records.
 - Staff users can view the directory and update only their own optional contact fields from `My Settings`.
 - Lead users have the same Staff Directory privacy as staff unless they also have admin permissions.
@@ -89,7 +89,7 @@ The admin-only page contains roster provisioning details:
 - Manual add/edit
 - Batch roster creation
 - Phone Number Preload
-- Operations dashboard access for aides
+- Aide role selection for operations dashboard access
 - Admin-only filters for role and account state
 
 Staff and lead users cannot see this panel. Account-management actions remain protected by UI role checks, server-side API checks, and Supabase RLS.
