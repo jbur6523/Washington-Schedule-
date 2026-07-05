@@ -5,7 +5,20 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
-import { History, RotateCcw, ScanLine } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Filter,
+  History,
+  MapPin,
+  RotateCcw,
+  ScanLine,
+  Search
+} from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -97,9 +110,29 @@ type RentalManagementClientProps = {
   pendingRentalId?: string;
 };
 
+type HistoryStatusFilter = "all" | "pending" | "active" | "pickup" | "returned";
+type HistoryEquipmentFilter = "all" | EquipmentType;
+type HistoryFilterPanel = "" | "status" | "date" | "equipment" | "more";
+
 const equipmentLabels: Record<EquipmentType, string> = {
   bipap: "BiPAP",
   v60: "V60"
+};
+
+const historyStatusLabels: Record<HistoryStatusFilter, string> = {
+  all: "All",
+  pending: "Pending Delivery",
+  active: "Active",
+  pickup: "Called for Pickup",
+  returned: "Picked Up"
+};
+
+const dateRangeLabels: Record<DateRangePreset, string> = {
+  all: "All Time",
+  today: "Today",
+  "7": "Last 7 Days",
+  "30": "Last 30 Days",
+  custom: "Custom Range"
 };
 
 const pickupEventTypes = new Set(["pickup_requested", "pickup_called", "called_for_pickup"]);
@@ -248,6 +281,26 @@ function rentalEventLabel(eventType: string) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function rentalEventDotClass(eventType: string) {
+  if (calledInEventTypes.has(eventType)) {
+    return "bg-sky-500";
+  }
+
+  if (deliveredEventTypes.has(eventType)) {
+    return "bg-emerald-500";
+  }
+
+  if (pickupEventTypes.has(eventType)) {
+    return "bg-amber-400";
+  }
+
+  if (pickedUpEventTypes.has(eventType)) {
+    return "bg-slate-400";
+  }
+
+  return "bg-slate-300";
 }
 
 function todayValue() {
@@ -438,14 +491,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
   const [returnForm, setReturnForm] = useState<ReturnEquipmentForm>(() => defaultReturnForm());
   const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
-  const [historyStatus, setHistoryStatus] = useState<"all" | "pending" | "active" | "pickup" | "returned">(
+  const [historyStatus, setHistoryStatus] = useState<HistoryStatusFilter>(
     searchParams.get("status") === "pending" ? "pending" : "all"
   );
-  const [historyEquipment, setHistoryEquipment] = useState<"all" | EquipmentType>("all");
+  const [historyEquipment, setHistoryEquipment] = useState<HistoryEquipmentFilter>("all");
   const [historyVendorId, setHistoryVendorId] = useState("all");
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
+  const [openHistoryFilter, setOpenHistoryFilter] = useState<HistoryFilterPanel>("");
   const [expandedRentalId, setExpandedRentalId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
@@ -1381,19 +1435,45 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   }
 
   if (mode === "history") {
+    const selectedVendorFilter = vendors.find((vendor) => vendor.id === historyVendorId) ?? null;
+    const filtersActive =
+      Boolean(historySearch.trim()) ||
+      historyStatus !== "all" ||
+      historyEquipment !== "all" ||
+      historyVendorId !== "all" ||
+      dateRangePreset !== "all";
+    const summaryParts = [
+      historyEquipment === "all" ? "all equipment" : equipmentLabels[historyEquipment],
+      historyStatus === "all" ? null : historyStatusLabels[historyStatus],
+      historyVendorId === "all" ? null : selectedVendorFilter?.name,
+      dateRangePreset === "all" ? "all time" : dateRangeLabels[dateRangePreset].toLowerCase()
+    ].filter(Boolean);
+    const filterSummary = filtersActive ? `Showing ${summaryParts.join(" - ")}` : "Showing all rental records";
+    const resetHistoryFilters = () => {
+      setHistorySearch("");
+      setHistoryStatus("all");
+      setHistoryEquipment("all");
+      setHistoryVendorId("all");
+      setDateRangePreset("all");
+      setCustomStartDate("");
+      setCustomEndDate("");
+      setOpenHistoryFilter("");
+    };
+    const toggleHistoryFilter = (filter: HistoryFilterPanel) => {
+      setOpenHistoryFilter((current) => (current === filter ? "" : filter));
+    };
+
     return (
       <main className="min-h-screen px-4 py-8">
-        <div className="mx-auto max-w-xl space-y-4">
-          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
-            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental History</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              Pending, active, called-for-pickup, and picked-up rental records.
-            </p>
+        <div className="mx-auto max-w-xl space-y-4 pb-24">
+          <section className="px-1">
+            <h1 className="text-3xl font-black text-hospital-ink">Rental History</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">View active and past rental records.</p>
             <Link
               href="/operations/rental-management"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+              className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-extrabold text-cyan-800 shadow-sm"
             >
+              <ArrowLeft size={18} aria-hidden="true" />
               Back to Rental Management
             </Link>
           </section>
@@ -1404,134 +1484,204 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </p>
           )}
 
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <label className="block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Search</span>
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.10)]">
+            <label className="relative block">
+              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} aria-hidden="true" />
               <input
                 value={historySearch}
                 onChange={(event) => setHistorySearch(event.target.value)}
-                placeholder="Search serial number, company, location, or staff..."
-                className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                placeholder="Search serial number or company"
+                className="min-h-14 w-full rounded-2xl border border-slate-200 bg-white py-3 pl-12 pr-3 text-sm font-bold text-hospital-ink outline-none shadow-inner focus:border-cyan-300"
               />
             </label>
 
-            <div className="mt-4 space-y-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(["all", "pending", "active", "pickup", "returned"] as const).map((status) => (
-                    <button
-                      key={status}
-                      type="button"
-                      onClick={() => setHistoryStatus(status)}
-                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
-                        historyStatus === status
-                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
-                          : "border border-slate-200 bg-white text-slate-600"
-                      }`}
-                    >
-                      {status === "all"
-                        ? "All"
-                        : status === "pending"
-                          ? "Pending Delivery"
-                          : status === "active"
-                            ? "Active"
-                            : status === "pickup"
-                              ? "Called for Pickup"
-                              : "Picked Up"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => toggleHistoryFilter("status")}
+                className={`flex min-h-14 items-center justify-between rounded-2xl border px-3 text-left shadow-sm ${
+                  openHistoryFilter === "status" ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+                }`}
+              >
+                <span>
+                  <span className="block text-[11px] font-extrabold text-slate-400">Status</span>
+                  <span className="block text-sm font-black text-hospital-ink">{historyStatusLabels[historyStatus]}</span>
+                </span>
+                <ChevronDown size={16} className="text-slate-500" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleHistoryFilter("date")}
+                className={`flex min-h-14 items-center justify-between rounded-2xl border px-3 text-left shadow-sm ${
+                  openHistoryFilter === "date" ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+                }`}
+              >
+                <span>
+                  <span className="block text-[11px] font-extrabold text-slate-400">Date</span>
+                  <span className="block text-sm font-black text-hospital-ink">{dateRangeLabels[dateRangePreset]}</span>
+                </span>
+                <ChevronDown size={16} className="text-slate-500" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleHistoryFilter("equipment")}
+                className={`flex min-h-14 items-center justify-between rounded-2xl border px-3 text-left shadow-sm ${
+                  openHistoryFilter === "equipment" ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+                }`}
+              >
+                <span>
+                  <span className="block text-[11px] font-extrabold text-slate-400">Equipment</span>
+                  <span className="block text-sm font-black text-hospital-ink">
+                    {historyEquipment === "all" ? "All" : equipmentLabels[historyEquipment]}
+                  </span>
+                </span>
+                <ChevronDown size={16} className="text-slate-500" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleHistoryFilter("more")}
+                className={`flex min-h-14 items-center justify-between rounded-2xl border px-3 text-left shadow-sm ${
+                  openHistoryFilter === "more" ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+                }`}
+              >
+                <span className="inline-flex items-center gap-2 text-sm font-black text-hospital-ink">
+                  <Filter size={16} aria-hidden="true" />
+                  More Filters
+                </span>
+                <ChevronDown size={16} className="text-slate-500" aria-hidden="true" />
+              </button>
+            </div>
 
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Equipment</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(["all", "bipap", "v60"] as const).map((equipment) => (
-                    <button
-                      key={equipment}
-                      type="button"
-                      onClick={() => setHistoryEquipment(equipment)}
-                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
-                        historyEquipment === equipment
-                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
-                          : "border border-slate-200 bg-white text-slate-600"
-                      }`}
-                    >
-                      {equipment === "all" ? "All Equipment" : equipmentLabels[equipment]}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {openHistoryFilter && (
+              <div className="mt-3 rounded-2xl border border-cyan-100 bg-slate-50/80 p-3">
+                {openHistoryFilter === "status" && (
+                  <div className="grid gap-2">
+                    {(["all", "pending", "active", "pickup", "returned"] as const).map((status) => (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => {
+                          setHistoryStatus(status);
+                          setOpenHistoryFilter("");
+                        }}
+                        className={`min-h-11 rounded-2xl px-3 text-left text-sm font-extrabold ${
+                          historyStatus === status ? "bg-cyan-700 text-white" : "border border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        {historyStatusLabels[status]}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-              <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Company</span>
-                <select
-                  value={historyVendorId}
-                  onChange={(event) => setHistoryVendorId(event.target.value)}
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                >
-                  <option value="all">All Companies</option>
-                  {vendors.map((vendor) => (
-                    <option key={vendor.id} value={vendor.id}>
-                      {vendor.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                {openHistoryFilter === "date" && (
+                  <div className="grid gap-2">
+                    {(["all", "today", "7", "30", "custom"] as const).map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setDateRangePreset(preset)}
+                        className={`min-h-11 rounded-2xl px-3 text-left text-sm font-extrabold ${
+                          dateRangePreset === preset ? "bg-cyan-700 text-white" : "border border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        {dateRangeLabels[preset]}
+                      </button>
+                    ))}
+                    {dateRangePreset === "custom" && (
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Start date</span>
+                          <input
+                            type="date"
+                            value={customStartDate}
+                            onChange={(event) => setCustomStartDate(event.target.value)}
+                            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">End date</span>
+                          <input
+                            type="date"
+                            value={customEndDate}
+                            onChange={(event) => setCustomEndDate(event.target.value)}
+                            className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                )}
 
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date Range</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {([
-                    ["all", "All Time"],
-                    ["today", "Today"],
-                    ["7", "Last 7 Days"],
-                    ["30", "Last 30 Days"],
-                    ["custom", "Custom Range"]
-                  ] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setDateRangePreset(value)}
-                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
-                        dateRangePreset === value
-                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
-                          : "border border-slate-200 bg-white text-slate-600"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {dateRangePreset === "custom" && (
-                  <div className="mt-2 grid grid-cols-2 gap-2">
+                {openHistoryFilter === "equipment" && (
+                  <div className="grid gap-2">
+                    {(["all", "bipap", "v60"] as const).map((equipment) => (
+                      <button
+                        key={equipment}
+                        type="button"
+                        onClick={() => {
+                          setHistoryEquipment(equipment);
+                          setOpenHistoryFilter("");
+                        }}
+                        className={`min-h-11 rounded-2xl px-3 text-left text-sm font-extrabold ${
+                          historyEquipment === equipment ? "bg-cyan-700 text-white" : "border border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        {equipment === "all" ? "All Equipment" : equipmentLabels[equipment]}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {openHistoryFilter === "more" && (
+                  <div className="grid gap-3">
                     <label className="block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Start date</span>
-                      <input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(event) => setCustomStartDate(event.target.value)}
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Company</span>
+                      <select
+                        value={historyVendorId}
+                        onChange={(event) => setHistoryVendorId(event.target.value)}
                         className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                      />
+                      >
+                        <option value="all">All Companies</option>
+                        {vendors.map((vendor) => (
+                          <option key={vendor.id} value={vendor.id}>
+                            {vendor.name}
+                          </option>
+                        ))}
+                      </select>
                     </label>
-                    <label className="block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">End date</span>
-                      <input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(event) => setCustomEndDate(event.target.value)}
-                        className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                      />
-                    </label>
+                    <button
+                      type="button"
+                      onClick={resetHistoryFilters}
+                      className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
+                    >
+                      Clear filters
+                    </button>
                   </div>
                 )}
               </div>
+            )}
+
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs font-bold text-slate-500">
+              <p className="inline-flex min-w-0 items-center gap-2">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-cyan-700" aria-hidden="true" />
+                <span className="truncate">{filterSummary}</span>
+              </p>
+              {filtersActive && (
+                <button type="button" onClick={resetHistoryFilters} className="shrink-0 font-extrabold text-cyan-800">
+                  Clear
+                </button>
+              )}
             </div>
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">{filteredHistory.length} records found</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-black text-hospital-ink">Rental Records</h2>
+              <p className="text-sm font-extrabold text-slate-500">
+                {filteredHistory.length} {filteredHistory.length === 1 ? "record" : "records"}
+              </p>
+            </div>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rental history...</p>}
             {!loading && filteredHistory.length === 0 && (
               <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
@@ -1557,10 +1707,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : null);
                 const expanded = expandedRentalId === record.id;
                 const pending = isPendingDeliveryStatus(record.status);
-                const pickupCalled = isPickupCalledStatus(record.status);
                 const pickedUp = isPickedUpStatus(record.status);
                 const styles = rentalStatusStyles(record.status);
-                const active = isInHospitalStatus(record.status);
                 const statusLabel = rentalStatusLabel(record.status);
                 const calledInName =
                   calledInBy?.display_name ??
@@ -1568,79 +1716,136 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   (calledInEvent ? firstRelated(calledInEvent.staff_profiles)?.display_name : null);
                 const deliveredName =
                   deliveredBy?.display_name ?? (deliveredEvent ? firstRelated(deliveredEvent.staff_profiles)?.display_name : null);
+                const dateRangeLabel = pending
+                  ? `Called in: ${record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}`
+                  : record.checked_in_at
+                    ? `${shortDate(record.checked_in_at, departmentTimezone)} - ${
+                        record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Present"
+                      }`
+                    : "Not delivered";
 
                 return (
-                  <article key={record.id} className={`rounded-2xl border px-3 py-3 ${styles.card}`}>
+                  <article key={record.id} className="rounded-2xl border border-slate-100 bg-white px-3 py-3 shadow-[0_8px_22px_rgba(15,23,42,0.05)]">
                     <button
                       type="button"
                       onClick={() => setExpandedRentalId((current) => (current === record.id ? null : record.id))}
                       className="w-full text-left"
                     >
-                      <div className="flex items-start gap-2">
-                        <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${styles.dot}`} aria-hidden="true" />
+                      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3">
+                        <span className={`h-3 w-3 shrink-0 rounded-full ${styles.dot}`} aria-hidden="true" />
                         <div className="min-w-0">
-                          <p className="text-sm font-black text-hospital-ink">
-                            {equipmentLabels[record.equipment_type]}
-                            {record.serial_number ? ` · ${record.serial_number}` : ""}
+                          <p className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black ${styles.text} ${styles.card}`}>
+                            {statusLabel}
                           </p>
-                          <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                            {vendor?.name ?? "Unknown company"}
+                          <p className="mt-2 text-base font-black text-hospital-ink">{equipmentLabels[record.equipment_type]}</p>
+                          <p className="mt-1 text-xs font-bold text-slate-600">
+                            Serial / Asset ID: {record.serial_number ?? "Pending"}
                           </p>
-                          <p className={`mt-2 text-xs font-bold ${pending ? "text-sky-700" : pickupCalled ? "text-amber-700" : "text-slate-600"}`}>
-                            {pending
-                              ? `${statusLabel} · Called in ${record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}`
-                              : active && record.checked_in_at
-                                ? `${statusLabel} · ${record.current_location || "Unknown"} · In hospital: ${daysInHospitalLabel(record.checked_in_at, departmentTimezone)}`
-                                : `${statusLabel} · ${record.checked_in_at ? shortDate(record.checked_in_at, departmentTimezone) : "Not delivered"}-${record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Not recorded"} · ${totalDaysLabel(record, departmentTimezone)}`}
+                          <p className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
+                            <Building2 size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+                            <span className="truncate">{vendor?.name ?? "Unknown company"}</span>
+                          </p>
+                          {!pending && (
+                            <p className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-600">
+                              <MapPin size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+                              <span className="truncate">{record.current_location || "Unknown"}</span>
+                            </p>
+                          )}
+                          <p className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-600">
+                            <CalendarDays size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
+                            <span className="truncate">{dateRangeLabel}</span>
                           </p>
                         </div>
+                        {expanded ? (
+                          <ChevronUp size={20} className="text-slate-500" aria-hidden="true" />
+                        ) : (
+                          <ChevronRight size={20} className="text-slate-500" aria-hidden="true" />
+                        )}
                       </div>
                     </button>
 
                     {expanded && (
-                      <div className="mt-3 border-t border-cyan-100 pt-3 text-xs font-bold text-slate-500">
-                        <div className="grid gap-1">
-                          <p>Equipment type: {equipmentLabels[record.equipment_type]}</p>
-                          <p>Serial / Asset ID: {record.serial_number ?? "Pending delivery"}</p>
-                          <p>Company: {vendor?.name ?? "Unknown company"}</p>
-                          <p>Status: {statusLabel}</p>
-                          <p>Called in: {record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}</p>
-                          <p>Called in by: {calledInName ?? "Unknown"}</p>
+                      <div className="mt-3 border-t border-slate-100 pt-3 text-xs font-bold text-slate-500">
+                        <div className="grid gap-2 rounded-2xl bg-slate-50/80 p-3">
+                          <p>
+                            <span className="text-slate-400">Equipment:</span> {equipmentLabels[record.equipment_type]}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Serial / Asset ID:</span> {record.serial_number ?? "Pending delivery"}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Company:</span> {vendor?.name ?? "Unknown company"}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Status:</span> {statusLabel}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Called in:</span>{" "}
+                            {record.called_in_at ? formatDateTime(record.called_in_at, departmentTimezone) : "Unknown"}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Called in by:</span> {calledInName ?? "Unknown"}
+                          </p>
                           {(pickupEvent || record.pickup_requested_at) && (
                             <p>
-                              Called for pickup: {formatDateTime(pickupEvent?.event_at ?? record.pickup_requested_at!, departmentTimezone)}
+                              <span className="text-slate-400">Called for pickup:</span>{" "}
+                              {formatDateTime(pickupEvent?.event_at ?? record.pickup_requested_at!, departmentTimezone)}
                               {pickupBy ? ` by ${pickupBy}` : ""}
                             </p>
                           )}
                           {record.pickup_confirmation_number && <p>Pickup confirmation: {record.pickup_confirmation_number}</p>}
                           {record.pickup_request_note && <p>Pickup note: {record.pickup_request_note}</p>}
-                          <p>Delivered: {record.checked_in_at ? formatDateTime(record.checked_in_at, departmentTimezone) : "Not delivered yet"}</p>
-                          <p>Delivered by: {deliveredName ?? "Unknown"}</p>
-                          <p>Last known location: {record.current_location || "Unknown"}</p>
-                          {record.returned_at && <p>Picked up: {formatDateTime(record.returned_at, departmentTimezone)}</p>}
-                          {pickedUp && <p>Picked up by: {pickedUpBy ?? "Not recorded"}</p>}
+                          <p>
+                            <span className="text-slate-400">Delivered:</span>{" "}
+                            {record.checked_in_at ? formatDateTime(record.checked_in_at, departmentTimezone) : "Not delivered yet"}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Delivered by:</span> {deliveredName ?? "Unknown"}
+                          </p>
+                          <p>
+                            <span className="text-slate-400">Last known location:</span> {record.current_location || "Unknown"}
+                          </p>
+                          {record.returned_at && (
+                            <p>
+                              <span className="text-slate-400">Picked up:</span> {formatDateTime(record.returned_at, departmentTimezone)}
+                            </p>
+                          )}
+                          {pickedUp && (
+                            <p>
+                              <span className="text-slate-400">Picked up by:</span> {pickedUpBy ?? "Not recorded"}
+                            </p>
+                          )}
                           {record.return_note && <p>Return note: {record.return_note}</p>}
                           {pending ? (
-                            <p>Waiting for delivery: {record.called_in_at ? elapsedLabel(record.called_in_at, departmentTimezone) : "Unknown"}</p>
+                            <p>
+                              <span className="text-slate-400">Waiting for delivery:</span>{" "}
+                              {record.called_in_at ? elapsedLabel(record.called_in_at, departmentTimezone) : "Unknown"}
+                            </p>
                           ) : (
-                            <p>Total time in hospital: {totalDaysLabel(record, departmentTimezone)}</p>
+                            <p>
+                              <span className="text-slate-400">Total time in hospital:</span> {totalDaysLabel(record, departmentTimezone)}
+                            </p>
                           )}
                           {record.notes && <p>Notes: {record.notes}</p>}
                         </div>
 
                         {recordEvents.length > 0 && (
-                          <div className="mt-3 rounded-2xl border border-white bg-white/80 px-3 py-2">
+                          <div className="mt-3 rounded-2xl border border-slate-100 bg-white px-3 py-3">
                             <p className="font-black text-hospital-ink">Event timeline</p>
-                            <div className="mt-2 grid gap-2">
+                            <div className="mt-3 grid gap-3">
                               {recordEvents.map((event) => {
                                 const actor = firstRelated(event.staff_profiles);
                                 const label = rentalEventLabel(event.event_type);
 
                                 return (
-                                  <p key={event.id}>
-                                    {formatDateTime(event.event_at, departmentTimezone)} - {label}
-                                    {actor?.display_name ? ` by ${actor.display_name}` : ""}
-                                  </p>
+                                  <div key={event.id} className="grid grid-cols-[14px_1fr] gap-2">
+                                    <span className={`mt-1 h-3 w-3 rounded-full ${rentalEventDotClass(event.event_type)}`} aria-hidden="true" />
+                                    <p>
+                                      <span className="font-black text-hospital-ink">{label}</span> -{" "}
+                                      {formatDateTime(event.event_at, departmentTimezone)}
+                                      {actor?.display_name ? ` by ${actor.display_name}` : ""}
+                                    </p>
+                                  </div>
                                 );
                               })}
                             </div>

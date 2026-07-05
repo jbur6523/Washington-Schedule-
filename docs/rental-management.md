@@ -223,7 +223,15 @@ It is the permanent searchable record of BiPAP/V60 rental records in the app. It
 
 Search supports serial number / asset ID, company, equipment type, last known location, called-in staff, delivered staff, picked-up-by staff when a pickup event exists, and notes.
 
-Filters include:
+Rental History uses a compact filter card so records appear quickly on mobile:
+
+- Search bar at the top
+- Dropdown-style Status filter
+- Dropdown-style Date filter
+- Dropdown-style Equipment filter
+- More Filters panel for company/vendor and clearing filters
+
+Filter options include:
 
 - Status: All, Pending Delivery, Active, Called for Pickup, Picked Up
 - Equipment: All Equipment, BiPAP, V60
@@ -238,7 +246,9 @@ Date range matching includes a rental if it was active at any point during the s
 - delivered before the range and picked up after the range
 - delivered before the range and still active
 
-History rows are compact by default and expand to show:
+History rows are compact by default. Each row shows status color, status label, equipment type, serial / asset ID, company, location when delivered, date range, and an expand chevron.
+
+Expanded history rows show:
 
 - Equipment type
 - Serial / Asset ID
