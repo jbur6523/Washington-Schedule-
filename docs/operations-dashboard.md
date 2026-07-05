@@ -46,11 +46,13 @@ Rental Management currently supports:
 - BiPAP type: V60
 - check-in date/time
 - optional notes with no patient information
-- active rental preview
+- active rental summary on the Rental Management dashboard
+- dedicated Active Rentals screen with full active rental details
+
+The Rental Management dashboard stays summary-focused. `View Active Rentals` opens the full list, sorted oldest active rental first.
 
 Future cards still labeled `Coming Soon`:
 
-- Active Rentals full workflow
 - Transfer Room
 - Return Equipment
 

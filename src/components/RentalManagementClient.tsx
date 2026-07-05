@@ -44,7 +44,7 @@ type RentalCheckInForm = {
 
 type RentalManagementClientProps = {
   authContext: AuthenticatedUserContext;
-  mode?: "overview" | "check-in";
+  mode?: "overview" | "check-in" | "active";
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
@@ -494,7 +494,9 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             <div className="mt-3 grid grid-cols-2 gap-2">
               <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
                 <p className="text-2xl font-black text-hospital-ink">{activeRentals.length}</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Active Rentals</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  {activeRentals.length === 1 ? "Active Rental" : "Active Rentals"}
+                </p>
               </div>
               <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
                 <p className="text-2xl font-black text-hospital-ink">{oldestRentalDaysLabel}</p>
@@ -507,6 +509,75 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 <p className="text-sm font-black text-hospital-ink">No active rentals.</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">Checked-in rentals will appear here.</p>
               </div>
+            )}
+            <Link
+              href="/operations/rental-management/active"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+            >
+              View Active Rentals
+            </Link>
+          </section>
+
+          <section className="grid gap-3">
+            {futureFeatures.map((feature) => {
+              const Icon = feature.icon;
+
+              return (
+                <div key={feature.title} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
+                      <Icon size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-base font-black text-hospital-ink">{feature.title}</h2>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-violet-700">Coming Soon</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+
+          <Link
+            href="/operations"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (mode === "active") {
+    return (
+      <main className="min-h-screen px-4 py-8">
+        <div className="mx-auto max-w-xl space-y-4">
+          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Active Rentals</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              Rented equipment currently in the hospital.
+            </p>
+            <Link
+              href="/operations/rental-management"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            >
+              Back to Rental Management
+            </Link>
+          </section>
+
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
+            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
+            {!loading && activeRentals.length === 0 && (
+              <p className="mt-2 text-sm font-bold text-slate-500">No active rentals.</p>
             )}
             <div className="mt-3 grid gap-2">
               {activeRentals.map((rental) => {
@@ -537,33 +608,6 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
               })}
             </div>
           </section>
-
-          <section className="grid gap-3">
-            {futureFeatures.map((feature) => {
-              const Icon = feature.icon;
-
-              return (
-                <div key={feature.title} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
-                      <Icon size={20} />
-                    </span>
-                    <div>
-                      <h2 className="text-base font-black text-hospital-ink">{feature.title}</h2>
-                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-violet-700">Coming Soon</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </section>
-
-          <Link
-            href="/operations"
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-          >
-            Back to Dashboard
-          </Link>
         </div>
       </main>
     );

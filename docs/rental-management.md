@@ -23,7 +23,7 @@ Rental Check In opens as a dedicated workflow at `/operations/rental-management/
 3. Enter equipment details and current location.
 4. Confirm the check in.
 
-After confirmation, the app creates an active rental record and event log, then returns to the main Rental Management page with a `Rental checked in.` success message. The Active Rentals preview reloads on the main page so the newly checked-in equipment appears there.
+After confirmation, the app creates an active rental record and event log, then returns to the main Rental Management page with a `Rental checked in.` success message. The Active Rentals summary reloads on the main page so the newly checked-in equipment is included in the count.
 
 Cancel and Back to Rental Management leave the workflow without creating rental records.
 
@@ -94,16 +94,20 @@ If an active rental already exists, the app does not create a duplicate. It show
 
 The user can view Active Rentals or cancel the check in.
 
-## Active Rentals Preview
+## Active Rentals
 
 Active Rentals shows every `rental_records.status = active` row for the department. Returned and cancelled rentals are excluded.
 
 The list is sorted by `checked_in_at` ascending so the equipment that has been in the hospital the longest appears first.
 
-At the top, Active Rentals shows:
+The Rental Management dashboard shows a compact summary only:
 
 - Active Rentals count
 - Oldest Rental duration
+
+The full Active Rentals details live on `/operations/rental-management/active`, opened by the `View Active Rentals` button.
+
+Each detail card shows:
 
 - BiPAP type
 - Serial / Asset ID
@@ -113,7 +117,7 @@ At the top, Active Rentals shows:
 - Checked-in date/time
 - Checked-in staff member
 
-Active Rentals are sorted oldest first so long-running rentals are easier to spot. Full return and transfer workflows remain future work.
+Full return and transfer workflows remain future work.
 
 ## Privacy
 
@@ -123,7 +127,6 @@ This phase does not store room numbers or patient-linked data.
 
 ## Future Phases
 
-- Active Rentals detail view
 - Transfer Room
 - Return Equipment
 - Barcode-driven lookup and history
