@@ -77,8 +77,8 @@ export default async function OperationsDashboardPage() {
             <div className="min-w-0">
               <h2 className="text-lg font-black text-hospital-ink">Rental Management</h2>
               <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Track BiPAP and ventilator rentals.</p>
-              <span className="mt-2 inline-flex rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
-                Coming soon
+              <span className="mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
+                Active
               </span>
             </div>
           </div>
@@ -98,6 +98,13 @@ export default async function OperationsDashboardPage() {
             Admin tools
           </Link>
         )}
+
+        <Link
+          href="/"
+          className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+        >
+          Back to Schedule
+        </Link>
       </div>
     </main>
   );

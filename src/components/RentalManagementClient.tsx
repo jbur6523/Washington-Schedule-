@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
-import { ClipboardCheck, DoorOpen, RotateCcw, ScanLine } from "lucide-react";
+import { DoorOpen, RotateCcw, ScanLine } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -43,6 +44,7 @@ type RentalCheckInForm = {
 
 type RentalManagementClientProps = {
   authContext: AuthenticatedUserContext;
+  mode?: "overview" | "check-in";
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
@@ -97,27 +99,25 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
 }
 
 const futureFeatures = [
-  { title: "Active Rentals", icon: ClipboardCheck },
   { title: "Transfer Room", icon: DoorOpen },
   { title: "Return Equipment", icon: RotateCcw }
 ];
 
-export function RentalManagementClient({ authContext }: RentalManagementClientProps) {
+export function RentalManagementClient({ authContext, mode = "overview" }: RentalManagementClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<RentalVendor[]>([]);
   const [activeRentals, setActiveRentals] = useState<ActiveRentalRecord[]>([]);
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
-  const [checkInOpen, setCheckInOpen] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
   const [scannerError, setScannerError] = useState("");
   const [scannerSuccess, setScannerSuccess] = useState("");
   const [scannedByCamera, setScannedByCamera] = useState(false);
   const [duplicateRental, setDuplicateRental] = useState<ActiveRentalRecord | null>(null);
-  const [lastCheckedInRental, setLastCheckedInRental] = useState<ActiveRentalRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const activeRentalsRef = useRef<HTMLElement>(null);
@@ -277,9 +277,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
 
     setSaving(true);
     setError("");
-    setSuccess("");
     setDuplicateRental(null);
-    setLastCheckedInRental(null);
 
     const supabase = createClient();
     const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
@@ -389,111 +387,46 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
     ]);
 
     setSaving(false);
-    setSuccess("");
-    setLastCheckedInRental(record as unknown as ActiveRentalRecord);
-    setCheckInOpen(false);
     setScannerOpen(false);
     setScannerSuccess("");
     setScannedByCamera(false);
     setForm(defaultForm(vendors[0]?.id ?? ""));
     await loadRentalData();
+    router.push("/operations/rental-management?checkedIn=1");
   };
 
   const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time && currentLocation);
+  const checkedIn = searchParams.get("checkedIn") === "1";
 
-  return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
-          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Management</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            BiPAP and ventilator rental tracking
-          </p>
-          <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-            Check in rented BiPAP/V60 equipment as it arrives.
-          </p>
-        </section>
-
-        {error && (
-          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-            {error}
-          </p>
-        )}
-        {success && (
-          <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-            {success}
-          </p>
-        )}
-
-        {lastCheckedInRental && (
-          <section className="rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_0_22px_rgba(16,185,129,0.18),0_16px_32px_rgba(15,23,42,0.10)]">
-            {(() => {
-              const vendor = firstRelated(lastCheckedInRental.rental_vendors);
-              const staff = firstRelated(lastCheckedInRental.staff_profiles);
-
-              return (
-                <>
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">Rental checked in.</p>
-                  <h2 className="mt-1 text-xl font-black text-hospital-ink">
-                    {equipmentLabels[lastCheckedInRental.equipment_type]} {lastCheckedInRental.serial_number}
-                  </h2>
-                  <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
-                      <dd>{vendor?.name ?? "Unknown company"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
-                      <dd>{lastCheckedInRental.current_location ?? "RT Equipment Room"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-slate-400">Checked in by</dt>
-                      <dd>{staff?.display_name ?? authContext.displayName}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-xs uppercase tracking-wide text-slate-400">Date/Time</dt>
-                      <dd>{formatDateTime(lastCheckedInRental.checked_in_at)}</dd>
-                    </div>
-                  </dl>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLastCheckedInRental(null);
-                        activeRentalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }}
-                      className="min-h-11 rounded-2xl bg-emerald-700 px-3 text-sm font-extrabold text-white shadow-md shadow-emerald-900/20"
-                    >
-                      View Active Rentals
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLastCheckedInRental(null);
-                        setForm(defaultForm(vendors[0]?.id ?? ""));
-                        setCheckInOpen(true);
-                      }}
-                      className="min-h-11 rounded-2xl border border-emerald-200 bg-white px-3 text-sm font-extrabold text-emerald-700"
-                    >
-                      Check In Another
-                    </button>
-                  </div>
-                </>
-              );
-            })()}
+  if (mode === "overview") {
+    return (
+      <main className="min-h-screen px-4 py-8">
+        <div className="mx-auto max-w-xl space-y-4">
+          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Management</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              BiPAP and ventilator rental tracking
+            </p>
+            <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
+              Check in rented BiPAP/V60 equipment as it arrives.
+            </p>
           </section>
-        )}
 
-        <section className="grid gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              setCheckInOpen((current) => !current);
-              setSuccess("");
-              setError("");
-            }}
-            className="rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
+          {checkedIn && (
+            <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+              Rental checked in.
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <Link
+            href="/operations/rental-management/check-in"
+            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
           >
             <div className="flex items-center gap-3">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
@@ -501,32 +434,101 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
               </span>
               <div>
                 <h2 className="text-base font-black text-hospital-ink">Rental Check In</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Check in rented BiPAP/V60 equipment.</p>
                 <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
               </div>
             </div>
-          </button>
+          </Link>
 
-          {futureFeatures.map((feature) => {
-            const Icon = feature.icon;
+          <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
+            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
+            {!loading && activeRentals.length === 0 && (
+              <p className="mt-2 text-sm font-bold text-slate-500">No active rentals.</p>
+            )}
+            <div className="mt-3 grid gap-2">
+              {activeRentals.map((rental) => {
+                const vendor = firstRelated(rental.rental_vendors);
+                const staff = firstRelated(rental.staff_profiles);
 
-            return (
-              <div key={feature.title} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
-                    <Icon size={20} />
-                  </span>
-                  <div>
-                    <h2 className="text-base font-black text-hospital-ink">{feature.title}</h2>
-                    <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-violet-700">Coming Soon</p>
+                return (
+                  <article key={rental.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-hospital-ink">{equipmentLabels[rental.equipment_type]}</p>
+                        <p className="mt-1 text-sm font-bold text-slate-700">Asset ID: {rental.serial_number}</p>
+                        <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">{vendor?.name ?? "Unknown company"}</p>
+                      </div>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
+                        Active
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
+                      <p>Location: {rental.current_location ?? "RT Equipment Room"}</p>
+                      <p>Checked in: {formatDateTime(rental.checked_in_at)}</p>
+                      <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
+                      <p>Active: {daysActive(rental.checked_in_at)} days</p>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="grid gap-3">
+            {futureFeatures.map((feature) => {
+              const Icon = feature.icon;
+
+              return (
+                <div key={feature.title} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-50 text-slate-500">
+                      <Icon size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-base font-black text-hospital-ink">{feature.title}</h2>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-violet-700">Coming Soon</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </section>
+
+          <Link
+            href="/operations"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen px-4 py-8">
+      <div className="mx-auto max-w-xl space-y-4">
+        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
+          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Check In</h1>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            Check in rented BiPAP/V60 equipment as it arrives.
+          </p>
+          <Link
+            href="/operations/rental-management"
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          >
+            Back to Rental Management
+          </Link>
         </section>
 
-        {checkInOpen && (
-          <form onSubmit={submitCheckIn} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+        {error && (
+          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+            {error}
+          </p>
+        )}
+        <form onSubmit={submitCheckIn} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <h2 className="text-xl font-black text-hospital-ink">Rental Check In</h2>
 
             <div className="mt-4 space-y-4">
@@ -730,8 +732,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                             <button
                               type="button"
                               onClick={() => {
-                                setCheckInOpen(false);
-                                activeRentalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                router.push("/operations/rental-management");
                               }}
                               className="min-h-10 rounded-xl bg-rose-700 px-3 text-xs font-extrabold text-white"
                             >
@@ -755,7 +756,7 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                     type="button"
                     onClick={() => {
                       stopScanner();
-                      setCheckInOpen(false);
+                      router.push("/operations/rental-management");
                     }}
                     className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
                   >
@@ -772,49 +773,6 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
               </section>
             </div>
           </form>
-        )}
-
-        <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
-          {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
-          {!loading && activeRentals.length === 0 && (
-            <p className="mt-2 text-sm font-bold text-slate-500">No active rentals.</p>
-          )}
-          <div className="mt-3 grid gap-2">
-            {activeRentals.map((rental) => {
-              const vendor = firstRelated(rental.rental_vendors);
-              const staff = firstRelated(rental.staff_profiles);
-
-              return (
-                <article key={rental.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black text-hospital-ink">{equipmentLabels[rental.equipment_type]}</p>
-                      <p className="mt-1 text-sm font-bold text-slate-700">Asset ID: {rental.serial_number}</p>
-                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">{vendor?.name ?? "Unknown company"}</p>
-                    </div>
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
-                      Active
-                    </span>
-                  </div>
-                  <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
-                    <p>Location: {rental.current_location ?? "RT Equipment Room"}</p>
-                    <p>Checked in: {formatDateTime(rental.checked_in_at)}</p>
-                    <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
-                    <p>Active: {daysActive(rental.checked_in_at)} days</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-
-        <Link
-          href="/operations"
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-        >
-          Back to Dashboard
-        </Link>
       </div>
     </main>
   );

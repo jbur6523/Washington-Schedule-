@@ -16,12 +16,16 @@ Regular staff cannot access Rental Management routes.
 
 ## Rental Check In Workflow
 
+Rental Check In opens as a dedicated workflow at `/operations/rental-management/check-in` instead of expanding inline on the main Rental Management page.
+
 1. Select the rental company.
 2. Scan the equipment barcode or enter the serial number manually.
 3. Enter equipment details and current location.
 4. Confirm the check in.
 
-After confirmation, the app creates an active rental record and event log, then shows a success card with the checked-in equipment details.
+After confirmation, the app creates an active rental record and event log, then returns to the main Rental Management page with a `Rental checked in.` success message. The Active Rentals preview reloads on the main page so the newly checked-in equipment appears there.
+
+Cancel and Back to Rental Management leave the workflow without creating rental records.
 
 ## Vendors
 
