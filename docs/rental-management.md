@@ -2,7 +2,7 @@
 
 Rental Management is a department operations tool for tracking rented BiPAP/V60 equipment.
 
-This phase implements Rental Check In only.
+This phase implements Rental Check In, Pending Delivery cards, Active Rentals, and Rental History.
 
 ## Access
 
@@ -18,18 +18,31 @@ Regular staff cannot access Rental Management routes.
 
 Rental Check In opens as a dedicated workflow at `/operations/rental-management/check-in` instead of expanding inline on the main Rental Management page.
 
+It now logs the called-in rental order only:
+
 1. Select the rental company.
-2. Choose `Log Called In Only` or `Confirm Delivered / Check In`.
-3. For a pending delivery, enter the called-in date/time and BiPAP type.
-4. For a delivered rental, scan the equipment barcode or enter the serial number manually.
-5. Enter equipment details, current location, and delivered date/time.
-6. Confirm the record.
+2. Select the BiPAP type.
+3. Enter the called-in date and time.
+4. Add an optional note.
+5. Save the pending delivery.
 
-`Log Called In Only` creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
+Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
 
-`Confirm Delivered / Check In` creates or completes an active rental record and event log, then returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads on the main page so newly delivered equipment is included in the count.
+The Rental Management dashboard shows no Pending Delivery section when there are zero pending rentals. When pending records exist, it shows one compact blue card per pending rental.
 
-Cancel and Back to Rental Management leave the workflow without creating rental records.
+## Delivery Confirmation
+
+Delivery confirmation starts from a Pending Delivery card on the main Rental Management dashboard.
+
+1. Tap `V60 Delivered`, `BiPAP Delivered`, or `Mark Delivered`.
+2. Scan the equipment barcode or enter the serial / asset ID manually.
+3. Enter current location.
+4. Confirm delivered date and time.
+5. Confirm delivery.
+
+Confirming delivery updates the pending record to `active`, sets the delivered timestamp in `checked_in_at`, records the current location and serial / asset ID, creates delivery events, and returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads so newly delivered equipment is included in the count.
+
+Cancel and Back to Rental Management leave the active workflow without creating partial delivery records.
 
 ## Rental Lifecycle
 
@@ -81,7 +94,7 @@ Supported BiPAP type in this phase:
 
 Delivered Date defaults to the current date. Delivered Time defaults to the current time in 24-hour input format.
 
-Called In Date and Called In Time are optional for delivered check-ins when the original order time is unknown. Staff can use `Use current date/time` or `I called it in` when they know the called-in details.
+Called In Date and Called In Time default to the current date/time on the Rental Check In order form. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
 
 Current location defaults to `RT Equipment Room`. Available locations are:
 
@@ -118,7 +131,7 @@ Active Rentals shows equipment that is still physically in the hospital:
 - `active` records display green as `Active`.
 - `pickup_requested` / `pickup_called` records display yellow as `Called for Pickup`.
 
-Pending Delivery records are shown separately on the Rental Management dashboard and in Rental History. Picked-up records (`returned` / `picked_up`) and cancelled rentals are excluded from Active Rentals and remain available in Rental History.
+Pending Delivery records are shown separately on the Rental Management dashboard only when pending records exist, and they also appear in Rental History. Picked-up records (`returned` / `picked_up`) and cancelled rentals are excluded from Active Rentals and remain available in Rental History.
 
 The list is sorted by `checked_in_at` ascending so the equipment that has been in the hospital the longest appears first.
 
@@ -143,6 +156,19 @@ Each detail card shows:
 Called-for-pickup cards also show the pickup call time and staff member when a pickup event exists.
 
 Full return and transfer workflows remain future work.
+
+## Pending Delivery Cards
+
+Pending Delivery cards are blue and appear only when rentals have been ordered but not delivered. Each card shows:
+
+- BiPAP type
+- Rental company
+- Called-in date/time
+- Called-in staff member
+- Optional note
+- Delivered action button
+
+Pending Delivery does not count as Active Rentals because the equipment is not physically in the hospital yet.
 
 ## Rental History
 
@@ -201,8 +227,8 @@ This phase does not store room numbers or patient-linked data.
 
 ## Future Phases
 
-- Transfer Room
 - Return Equipment
+- Transfer Room
 - Barcode-driven lookup and history
 - Rental analytics
 - Notifications

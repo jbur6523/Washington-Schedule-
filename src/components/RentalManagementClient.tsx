@@ -28,7 +28,6 @@ type RentalStatus =
   | "returned"
   | "picked_up"
   | "cancelled";
-type RentalAction = "delivered" | "called_in";
 type DateRangePreset = "all" | "today" | "7" | "30" | "custom";
 
 type ActiveRentalRecord = {
@@ -74,7 +73,8 @@ type RentalCheckInForm = {
 
 type RentalManagementClientProps = {
   authContext: AuthenticatedUserContext;
-  mode?: "overview" | "check-in" | "active" | "history";
+  mode?: "overview" | "check-in" | "active" | "history" | "deliver";
+  pendingRentalId?: string;
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
@@ -233,15 +233,6 @@ function timeValue() {
   return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
-function todayValueFromIso(value: string) {
-  return new Date(value).toISOString().slice(0, 10);
-}
-
-function timeValueFromIso(value: string) {
-  const date = new Date(value);
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
 function firstRelated<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
 }
@@ -388,10 +379,10 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
     equipmentType: "",
     deliveredDate: todayValue(),
     deliveredTime: timeValue(),
-    calledInDate: "",
-    calledInTime: "",
-    calledInUnknown: true,
-    calledInByCurrentUser: false,
+    calledInDate: todayValue(),
+    calledInTime: timeValue(),
+    calledInUnknown: false,
+    calledInByCurrentUser: true,
     serialNumber: "",
     location: "RT Equipment Room",
     otherLocation: "",
@@ -403,7 +394,7 @@ const futureFeatures = [
   { title: "Return Equipment", icon: RotateCcw }
 ];
 
-export function RentalManagementClient({ authContext, mode = "overview" }: RentalManagementClientProps) {
+export function RentalManagementClient({ authContext, mode = "overview", pendingRentalId = "" }: RentalManagementClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<RentalVendor[]>([]);
@@ -412,8 +403,6 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const [rentalEvents, setRentalEvents] = useState<RentalEventRecord[]>([]);
   const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
-  const [rentalAction, setRentalAction] = useState<RentalAction>("delivered");
-  const [selectedPendingRentalId, setSelectedPendingRentalId] = useState("");
   const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
   const [historyStatus, setHistoryStatus] = useState<"all" | "pending" | "active" | "pickup" | "returned">(
     searchParams.get("status") === "pending" ? "pending" : "all"
@@ -614,26 +603,23 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     }
   };
 
+  const pendingDeliveries = rentalHistory
+    .filter((record) => isPendingDeliveryStatus(record.status))
+    .sort((left, right) => new Date(left.called_in_at ?? 0).getTime() - new Date(right.called_in_at ?? 0).getTime());
+  const deliveryPendingRental = pendingRentalId
+    ? pendingDeliveries.find((record) => record.id === pendingRentalId) ?? null
+    : null;
+
   const submitCheckIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before checking in rental equipment.");
+      setError("Your staff profile must be linked before logging rental orders.");
       return;
     }
 
-    if (!form.vendorId || !form.equipmentType) {
-      setError("Company and BiPAP type are required.");
-      return;
-    }
-
-    if (rentalAction === "called_in" && (!form.calledInDate || !form.calledInTime)) {
-      setError("Called In Date and Called In Time are required when logging a pending delivery.");
-      return;
-    }
-
-    if (rentalAction === "delivered" && (!form.serialNumber.trim() || !form.deliveredDate || !form.deliveredTime || !currentLocation)) {
-      setError("Delivered date/time, serial number, and current location are required.");
+    if (!form.vendorId || !form.equipmentType || !form.calledInDate || !form.calledInTime) {
+      setError("Company, BiPAP type, Called In Date, and Called In Time are required.");
       return;
     }
 
@@ -643,74 +629,84 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
 
     const supabase = createClient();
     const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
-    const serialNumber = form.serialNumber.trim();
-    const location = currentLocation || "RT Equipment Room";
-    const selectedPendingRental = selectedPendingRentalId
-      ? rentalHistory.find((record) => record.id === selectedPendingRentalId)
-      : null;
-    const calledInAt =
-      !form.calledInUnknown && form.calledInDate && form.calledInTime
-        ? new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString()
-        : selectedPendingRental?.called_in_at ?? null;
-    const deliveredAt = new Date(`${form.deliveredDate}T${form.deliveredTime}:00`).toISOString();
-
-    if (rentalAction === "called_in") {
-      const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
-      const { data: pendingRecord, error: pendingError } = await supabase
-        .from("rental_records")
-        .insert({
-          department_id: authContext.departmentId,
-          equipment_id: null,
-          vendor_id: form.vendorId,
-          equipment_type: form.equipmentType,
-          serial_number: null,
-          status: "pending_delivery",
-          called_in_at: pendingAt,
-          called_in_by_staff_profile_id: authContext.staffProfileId,
-          called_in_by_name: authContext.displayName,
-          checked_in_at: null,
-          checked_in_by_staff_profile_id: null,
-          current_location: null,
-          notes: form.notes.trim() || null
-        })
-        .select(rentalRecordSelect)
-        .single();
-
-      const savedPendingRecord = pendingRecord as unknown as ActiveRentalRecord | null;
-
-      if (pendingError || !savedPendingRecord?.id) {
-        setSaving(false);
-        setError("Unable to save pending delivery.");
-        return;
-      }
-
-      await supabase.from("rental_events").insert({
+    const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
+    const { data: pendingRecord, error: pendingError } = await supabase
+      .from("rental_records")
+      .insert({
         department_id: authContext.departmentId,
-        rental_record_id: savedPendingRecord.id,
         equipment_id: null,
-        event_type: "called_in",
-        event_at: pendingAt,
-        actor_staff_profile_id: authContext.staffProfileId,
-        event_data: {
-          equipment_type: form.equipmentType,
-          vendor_id: form.vendorId,
-          vendor_name: vendor?.name ?? null,
-          called_in_by: authContext.displayName,
-          timestamp: pendingAt
-        }
-      });
+        vendor_id: form.vendorId,
+        equipment_type: form.equipmentType,
+        serial_number: null,
+        status: "pending_delivery",
+        called_in_at: pendingAt,
+        called_in_by_staff_profile_id: authContext.staffProfileId,
+        called_in_by_name: authContext.displayName,
+        checked_in_at: null,
+        checked_in_by_staff_profile_id: null,
+        current_location: null,
+        notes: form.notes.trim() || null
+      })
+      .select(rentalRecordSelect)
+      .single();
 
+    const savedPendingRecord = pendingRecord as unknown as ActiveRentalRecord | null;
+
+    if (pendingError || !savedPendingRecord?.id) {
       setSaving(false);
-      setScannerOpen(false);
-      setScannerSuccess("");
-      setScannedByCamera(false);
-      setSelectedPendingRentalId("");
-      setForm(defaultForm(vendors[0]?.id ?? ""));
-      await loadRentalData();
-      router.push("/operations/rental-management?calledIn=1");
+      setError("Unable to save pending delivery.");
       return;
     }
 
+    await supabase.from("rental_events").insert({
+      department_id: authContext.departmentId,
+      rental_record_id: savedPendingRecord.id,
+      equipment_id: null,
+      event_type: "called_in",
+      event_at: pendingAt,
+      actor_staff_profile_id: authContext.staffProfileId,
+      event_data: {
+        equipment_type: form.equipmentType,
+        vendor_id: form.vendorId,
+        vendor_name: vendor?.name ?? null,
+        called_in_by: authContext.displayName,
+        timestamp: pendingAt
+      }
+    });
+
+    setSaving(false);
+    setForm(defaultForm(vendors[0]?.id ?? ""));
+    await loadRentalData();
+    router.push("/operations/rental-management?calledIn=1");
+  };
+
+  const submitDelivery = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!authContext.staffProfileId) {
+      setError("Your staff profile must be linked before confirming delivery.");
+      return;
+    }
+
+    if (!deliveryPendingRental) {
+      setError("Pending delivery could not be found.");
+      return;
+    }
+
+    if (!form.serialNumber.trim() || !form.deliveredDate || !form.deliveredTime || !currentLocation) {
+      setError("Delivered date/time, serial number, and current location are required.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setDuplicateRental(null);
+
+    const supabase = createClient();
+    const vendor = vendors.find((candidate) => candidate.id === deliveryPendingRental.vendor_id);
+    const serialNumber = form.serialNumber.trim();
+    const location = currentLocation || "RT Equipment Room";
+    const deliveredAt = new Date(`${form.deliveredDate}T${form.deliveredTime}:00`).toISOString();
     const { data: existingRentals, error: existingRentalError } = await supabase
       .from("rental_records")
       .select(rentalRecordSelect)
@@ -725,8 +721,8 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       return;
     }
 
-    const existingInHospitalRental = ((existingRentals ?? []) as unknown as ActiveRentalRecord[]).find((record) =>
-      isInHospitalStatus(record.status)
+    const existingInHospitalRental = ((existingRentals ?? []) as unknown as ActiveRentalRecord[]).find(
+      (record) => record.id !== deliveryPendingRental.id && isInHospitalStatus(record.status)
     );
 
     if (existingInHospitalRental) {
@@ -740,8 +736,8 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       .upsert(
         {
           department_id: authContext.departmentId,
-          vendor_id: form.vendorId,
-          equipment_type: form.equipmentType,
+          vendor_id: deliveryPendingRental.vendor_id,
+          equipment_type: deliveryPendingRental.equipment_type,
           serial_number: serialNumber,
           last_known_company: vendor?.name ?? null,
           is_active: true
@@ -757,75 +753,31 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       return;
     }
 
-    const recordMutation = selectedPendingRental
-      ? supabase
-          .from("rental_records")
-          .update({
-            equipment_id: equipment.id,
-            vendor_id: form.vendorId,
-            equipment_type: form.equipmentType,
-            serial_number: serialNumber,
-            status: "active",
-            checked_in_at: deliveredAt,
-            checked_in_by_staff_profile_id: authContext.staffProfileId,
-            current_location: location,
-            notes: form.notes.trim() || selectedPendingRental.notes || null
-          })
-          .eq("id", selectedPendingRental.id)
-          .select(rentalRecordSelect)
-          .single()
-      : supabase
-          .from("rental_records")
-          .insert({
-            department_id: authContext.departmentId,
-            equipment_id: equipment.id,
-            vendor_id: form.vendorId,
-            equipment_type: form.equipmentType,
-            serial_number: serialNumber,
-            status: "active",
-            called_in_at: calledInAt,
-            called_in_by_staff_profile_id: calledInAt && form.calledInByCurrentUser ? authContext.staffProfileId : null,
-            called_in_by_name: calledInAt && form.calledInByCurrentUser ? authContext.displayName : null,
-            checked_in_at: deliveredAt,
-            checked_in_by_staff_profile_id: authContext.staffProfileId,
-            current_location: location,
-            notes: form.notes.trim() || null
-          })
-          .select(rentalRecordSelect)
-          .single();
-
-    const { data: record, error: recordError } = await recordMutation;
+    const { data: record, error: recordError } = await supabase
+      .from("rental_records")
+      .update({
+        equipment_id: equipment.id,
+        serial_number: serialNumber,
+        status: "active",
+        checked_in_at: deliveredAt,
+        checked_in_by_staff_profile_id: authContext.staffProfileId,
+        current_location: location,
+        notes: form.notes.trim() || deliveryPendingRental.notes || null
+      })
+      .eq("id", deliveryPendingRental.id)
+      .select(rentalRecordSelect)
+      .single();
 
     const savedRecord = record as unknown as ActiveRentalRecord | null;
 
     if (recordError || !savedRecord?.id) {
       setSaving(false);
-      setError("Unable to save rental check in.");
+      setError("Unable to confirm rental delivery.");
       return;
     }
 
     const eventType = scannedByCamera ? "barcode_scanned" : "manual_check_in";
-    const rentalEvents = [
-      ...(!selectedPendingRental && calledInAt
-        ? [
-            {
-              department_id: authContext.departmentId,
-              rental_record_id: savedRecord.id,
-              equipment_id: equipment.id,
-              event_type: "called_in",
-              event_at: calledInAt,
-              actor_staff_profile_id: authContext.staffProfileId,
-              event_data: {
-                serial_number: serialNumber,
-                equipment_type: form.equipmentType,
-                vendor_id: form.vendorId,
-                vendor_name: vendor?.name ?? null,
-                called_in_by: form.calledInByCurrentUser ? authContext.displayName : "Unknown",
-                timestamp: calledInAt
-              }
-            }
-          ]
-        : []),
+    await supabase.from("rental_events").insert([
       {
         department_id: authContext.departmentId,
         rental_record_id: savedRecord.id,
@@ -835,8 +787,8 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
           serial_number: serialNumber,
-          equipment_type: form.equipmentType,
-          vendor_id: form.vendorId,
+          equipment_type: deliveryPendingRental.equipment_type,
+          vendor_id: deliveryPendingRental.vendor_id,
           vendor_name: vendor?.name ?? null,
           current_location: location,
           timestamp: deliveredAt
@@ -852,41 +804,30 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         event_data: {
           source: scannedByCamera ? "barcode" : "manual",
           serial_number: serialNumber,
-          equipment_type: form.equipmentType,
-          vendor_id: form.vendorId,
+          equipment_type: deliveryPendingRental.equipment_type,
+          vendor_id: deliveryPendingRental.vendor_id,
           vendor_name: vendor?.name ?? null,
           current_location: location,
           delivered_by: authContext.displayName,
           timestamp: deliveredAt
         }
       }
-    ];
-
-    await supabase.from("rental_events").insert(rentalEvents);
+    ]);
 
     setSaving(false);
     setScannerOpen(false);
     setScannerSuccess("");
     setScannedByCamera(false);
-    setSelectedPendingRentalId("");
     setForm(defaultForm(vendors[0]?.id ?? ""));
     await loadRentalData();
     router.push("/operations/rental-management?checkedIn=1");
   };
 
-  const canConfirm =
-    rentalAction === "called_in"
-      ? Boolean(form.vendorId && form.equipmentType && form.calledInDate && form.calledInTime)
-      : Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
+  const canLogOrder = Boolean(form.vendorId && form.equipmentType && form.calledInDate && form.calledInTime);
+  const canConfirmDelivery = Boolean(deliveryPendingRental && form.serialNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
   const checkedIn = searchParams.get("checkedIn") === "1";
   const calledIn = searchParams.get("calledIn") === "1";
   const oldestRentalDaysLabel = activeRentals[0]?.checked_in_at ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
-  const pendingDeliveries = rentalHistory
-    .filter((record) => isPendingDeliveryStatus(record.status))
-    .sort((left, right) => new Date(left.called_in_at ?? 0).getTime() - new Date(right.called_in_at ?? 0).getTime());
-  const selectedPendingRental = selectedPendingRentalId
-    ? pendingDeliveries.find((record) => record.id === selectedPendingRentalId) ?? null
-    : null;
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
       return accumulator;
@@ -998,7 +939,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
               BiPAP and ventilator rental tracking
             </p>
             <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-              Check in rented BiPAP/V60 equipment as it arrives.
+              Track called-in, delivered, and active rented BiPAP/V60 equipment.
             </p>
           </section>
 
@@ -1018,21 +959,23 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             </p>
           )}
 
-          <Link
-            href="/operations/rental-management/check-in"
-            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
-          >
+          <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
                 <ScanLine size={20} />
               </span>
               <div>
                 <h2 className="text-base font-black text-hospital-ink">Rental Check In</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Check in rented BiPAP/V60 equipment.</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a rented BiPAP/V60 order.</p>
               </div>
             </div>
-          </Link>
+            <Link
+              href="/operations/rental-management/check-in"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+            >
+              Log Rental Check In
+            </Link>
+          </section>
 
           <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
@@ -1063,21 +1006,44 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
             </Link>
           </section>
 
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Pending Delivery</h2>
-            <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
-              <p className="text-2xl font-black text-hospital-ink">{pendingDeliveries.length}</p>
-              <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-sky-700">
-                {pendingDeliveries.length === 1 ? "Pending Rental" : "Pending Rentals"}
-              </p>
-            </div>
-            <Link
-              href="/operations/rental-management/history?status=pending"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-sky-100 bg-white px-4 text-sm font-extrabold text-sky-700 shadow-sm"
-            >
-              View Pending Deliveries
-            </Link>
-          </section>
+          {pendingDeliveries.length > 0 && (
+            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+              <h2 className="text-lg font-black text-hospital-ink">Pending Delivery</h2>
+              <div className="mt-3 grid gap-2">
+                {pendingDeliveries.map((pending) => {
+                  const vendor = firstRelated(pending.rental_vendors);
+                  const calledInBy = firstRelated(pending.called_in_by);
+                  const calledInName = calledInBy?.display_name ?? pending.called_in_by_name ?? "Unknown";
+                  const calledInText = pending.called_in_at ? formatDateTime(pending.called_in_at, departmentTimezone) : "Unknown";
+                  const deliveredLabel = pending.equipment_type ? `${equipmentLabels[pending.equipment_type]} Delivered` : "Mark Delivered";
+
+                  return (
+                    <article key={pending.id} className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
+                      <p className="flex items-start gap-2 text-sm font-black leading-5 text-hospital-ink">
+                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-sky-500 shadow-[0_0_0_3px_rgba(14,165,233,0.18)]" aria-hidden="true" />
+                        <span>
+                          {equipmentLabels[pending.equipment_type]} rental ordered by {calledInName}
+                          {pending.called_in_at ? ` at ${formatDateTime(pending.called_in_at, departmentTimezone)}` : ""}
+                        </span>
+                      </p>
+                      <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
+                        <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                        <p>Called in: {calledInText}</p>
+                        <p>Called in by: {calledInName}</p>
+                        {pending.notes && <p>Note: {pending.notes}</p>}
+                      </div>
+                      <Link
+                        href={`/operations/rental-management/deliver/${pending.id}`}
+                        className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl bg-sky-700 px-3 text-xs font-extrabold text-white shadow-md shadow-sky-900/20"
+                      >
+                        {deliveredLabel}
+                      </Link>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           <Link
             href="/operations/rental-management/history"
@@ -1485,144 +1451,75 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     );
   }
 
-  return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
-          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Check In</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Check in rented BiPAP/V60 equipment as it arrives.
-          </p>
-          <Link
-            href="/operations/rental-management"
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-          >
-            Back to Rental Management
-          </Link>
-        </section>
+  if (mode === "deliver") {
+    return (
+      <main className="min-h-screen px-4 py-8">
+        <div className="mx-auto max-w-xl space-y-4">
+          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Confirm Delivered</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              Scan or enter the equipment serial number.
+            </p>
+            <Link
+              href="/operations/rental-management"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            >
+              Back to Rental Management
+            </Link>
+          </section>
 
-        {error && (
-          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-            {error}
-          </p>
-        )}
-        <form onSubmit={submitCheckIn} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-            <h2 className="text-xl font-black text-hospital-ink">Rental Check In</h2>
+          {loading && (
+            <p className="rounded-2xl border border-slate-100 bg-white px-3 py-2 text-sm font-bold text-slate-500">
+              Loading pending delivery...
+            </p>
+          )}
+          {!loading && !deliveryPendingRental && (
+            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+              <h2 className="text-lg font-black text-hospital-ink">Pending delivery not found.</h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                It may have already been delivered or cancelled.
+              </p>
+            </section>
+          )}
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
 
-            <div className="mt-4 space-y-4">
-              <section>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Action</p>
-                <div className="mt-2 grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRentalAction("delivered");
-                      setForm((current) => ({ ...current, calledInUnknown: current.calledInDate ? false : current.calledInUnknown }));
-                    }}
-                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
-                      rentalAction === "delivered"
-                        ? "border-emerald-200 bg-emerald-50 shadow-md shadow-emerald-900/10"
-                        : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    <p className="text-sm font-black text-hospital-ink">Confirm Delivered / Check In</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">Equipment arrived and is physically in the hospital.</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRentalAction("called_in");
-                      setSelectedPendingRentalId("");
-                      setForm((current) => ({
-                        ...current,
-                        calledInUnknown: false,
-                        calledInByCurrentUser: true,
-                        calledInDate: current.calledInDate || todayValue(),
-                        calledInTime: current.calledInTime || timeValue()
-                      }));
-                    }}
-                    className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
-                      rentalAction === "called_in"
-                        ? "border-sky-200 bg-sky-50 shadow-md shadow-sky-900/10"
-                        : "border-slate-200 bg-white"
-                    }`}
-                  >
-                    <p className="text-sm font-black text-hospital-ink">Log Called In Only</p>
-                    <p className="mt-1 text-xs font-bold text-slate-500">Rental was ordered but has not arrived yet.</p>
-                  </button>
-                </div>
-              </section>
-
-              <section>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 1: Company</p>
-                <label className="mt-2 block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Rental Company</span>
-                  <select
-                    value={form.vendorId}
-                    onChange={(event) => setForm((current) => ({ ...current, vendorId: event.target.value }))}
-                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                  >
-                    {vendors.map((vendor) => (
-                      <option key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {selectedVendor && (
-                  <p className="mt-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-bold leading-5 text-cyan-900">
-                    {selectedVendor.notes ? `${selectedVendor.notes}. ` : ""}
-                    {selectedVendor.phone_number ? `Phone: ${selectedVendor.phone_number}` : "No phone listed."}
-                  </p>
-                )}
-              </section>
-
-              {rentalAction === "delivered" && pendingDeliveries.length > 0 && (
-                <section>
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Pending Deliveries</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">Select one if this delivery matches a previously called-in rental.</p>
-                  <div className="mt-2 grid gap-2">
-                    {pendingDeliveries.map((pending) => {
-                      const vendor = firstRelated(pending.rental_vendors);
-                      const selected = selectedPendingRentalId === pending.id;
-
-                      return (
-                        <button
-                          key={pending.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedPendingRentalId(selected ? "" : pending.id);
-                            setForm((current) => ({
-                              ...current,
-                              vendorId: pending.vendor_id,
-                              equipmentType: pending.equipment_type,
-                              calledInUnknown: !pending.called_in_at,
-                              calledInDate: pending.called_in_at ? todayValueFromIso(pending.called_in_at) : current.calledInDate,
-                              calledInTime: pending.called_in_at ? timeValueFromIso(pending.called_in_at) : current.calledInTime,
-                              calledInByCurrentUser: false,
-                              notes: current.notes || pending.notes || ""
-                            }));
-                          }}
-                          className={`rounded-2xl border px-3 py-3 text-left transition active:scale-[0.99] ${
-                            selected ? "border-sky-200 bg-sky-50 shadow-md shadow-sky-900/10" : "border-slate-200 bg-white"
-                          }`}
-                        >
-                          <p className="text-sm font-black text-hospital-ink">{equipmentLabels[pending.equipment_type]}</p>
-                          <p className="mt-1 text-xs font-bold text-slate-500">{vendor?.name ?? "Unknown company"}</p>
-                          <p className="mt-1 text-xs font-bold text-sky-700">
-                            Called in: {pending.called_in_at ? formatDateTime(pending.called_in_at, departmentTimezone) : "Unknown"}
-                          </p>
-                        </button>
-                      );
-                    })}
+          {deliveryPendingRental && (
+            <form onSubmit={submitDelivery} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+              <section className="rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Pending Order</p>
+                <dl className="mt-2 grid gap-1 text-sm font-bold text-slate-700">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
+                    <dd>{firstRelated(deliveryPendingRental.rental_vendors)?.name ?? "Unknown company"}</dd>
                   </div>
-                </section>
-              )}
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
+                    <dd>{equipmentLabels[deliveryPendingRental.equipment_type]}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
+                    <dd>{deliveryPendingRental.called_in_at ? formatDateTime(deliveryPendingRental.called_in_at, departmentTimezone) : "Unknown"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called In By</dt>
+                    <dd>{firstRelated(deliveryPendingRental.called_in_by)?.display_name ?? deliveryPendingRental.called_in_by_name ?? "Unknown"}</dd>
+                  </div>
+                  {deliveryPendingRental.notes && (
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Order Note</dt>
+                      <dd>{deliveryPendingRental.notes}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
 
-              {rentalAction === "delivered" && (
-              <section>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 2: Scan Barcode</p>
+              <section className="mt-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Scan Barcode</p>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
                   Scan the 1D barcode or enter the printed equipment number manually.
                 </p>
@@ -1659,64 +1556,69 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 )}
                 {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
               </section>
-              )}
 
-              <section>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 3: Equipment Details</p>
+              <section className="mt-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Delivery Details</p>
                 <div className="mt-2 grid gap-3">
                   <label className="block">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">BiPAP Type</span>
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number / Asset ID</span>
+                    <input
+                      value={form.serialNumber}
+                      onChange={(event) => {
+                        setScannedByCamera(false);
+                        setForm((current) => ({ ...current, serialNumber: event.target.value }));
+                      }}
+                      onBlur={() => void lookupKnownEquipment(form.serialNumber)}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
                     <select
-                      value={form.equipmentType}
-                      onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
+                      value={form.location}
+                      onChange={(event) => setForm((current) => ({ ...current, location: event.target.value, otherLocation: "" }))}
                       className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                     >
-                      <option value="">Select BiPAP type</option>
-                      <option value="v60">V60</option>
+                      {locationOptions.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
                     </select>
                   </label>
-                  {rentalAction === "delivered" && (
-                    <>
-                      <label className="block">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Serial Number / Asset ID</span>
-                        <input
-                          value={form.serialNumber}
-                          onChange={(event) => {
-                            setScannedByCamera(false);
-                            setForm((current) => ({ ...current, serialNumber: event.target.value }));
-                          }}
-                          onBlur={() => void lookupKnownEquipment(form.serialNumber)}
-                          className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
-                        <select
-                          value={form.location}
-                          onChange={(event) => setForm((current) => ({ ...current, location: event.target.value, otherLocation: "" }))}
-                          className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                        >
-                          {locationOptions.map((location) => (
-                            <option key={location} value={location}>
-                              {location}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {form.location === "Other" && (
-                        <label className="block">
-                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Other Location</span>
-                          <input
-                            value={form.otherLocation}
-                            onChange={(event) => setForm((current) => ({ ...current, otherLocation: event.target.value.slice(0, 80) }))}
-                            maxLength={80}
-                            placeholder="Enter location"
-                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                          />
-                        </label>
-                      )}
-                    </>
+                  {form.location === "Other" && (
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Other Location</span>
+                      <input
+                        value={form.otherLocation}
+                        onChange={(event) => setForm((current) => ({ ...current, otherLocation: event.target.value.slice(0, 80) }))}
+                        maxLength={80}
+                        placeholder="Enter location"
+                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
                   )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Date</span>
+                      <input
+                        type="date"
+                        value={form.deliveredDate}
+                        onChange={(event) => setForm((current) => ({ ...current, deliveredDate: event.target.value }))}
+                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Time</span>
+                      <input
+                        type="time"
+                        value={form.deliveredTime}
+                        onChange={(event) => setForm((current) => ({ ...current, deliveredTime: event.target.value }))}
+                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-xs font-bold text-slate-500">Delivered By: {authContext.displayName}</p>
                   <label className="block">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
                     <textarea
@@ -1734,202 +1636,60 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                 </div>
               </section>
 
-              <section>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Step 4: Called In / Delivered Times</p>
-                <div className="mt-2 space-y-3">
-                  <div className="rounded-2xl border border-sky-100 bg-sky-50/60 px-3 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-black text-hospital-ink">Called In / Ordered</p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          {rentalAction === "called_in" ? "Required for pending delivery." : "Optional if unknown."}
-                        </p>
-                      </div>
-                      {rentalAction === "delivered" && (
-                        <label className="flex items-center gap-2 text-xs font-extrabold text-slate-500">
-                          <input
-                            type="checkbox"
-                            checked={form.calledInUnknown}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                calledInUnknown: event.target.checked,
-                                calledInByCurrentUser: event.target.checked ? false : current.calledInByCurrentUser
-                              }))
-                            }
-                          />
-                          Unknown
-                        </label>
-                      )}
-                    </div>
-                    {!form.calledInUnknown && (
-                      <div className="mt-3 grid gap-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          <label className="block">
-                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Date</span>
-                            <input
-                              type="date"
-                              value={form.calledInDate}
-                              onChange={(event) => setForm((current) => ({ ...current, calledInDate: event.target.value }))}
-                              className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Time</span>
-                            <input
-                              type="time"
-                              value={form.calledInTime}
-                              onChange={(event) => setForm((current) => ({ ...current, calledInTime: event.target.value }))}
-                              className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                            />
-                          </label>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm((current) => ({
-                                ...current,
-                                calledInDate: todayValue(),
-                                calledInTime: timeValue(),
-                                calledInUnknown: false
-                              }))
-                            }
-                            className="min-h-10 rounded-xl border border-sky-100 bg-white px-3 text-xs font-extrabold text-sky-700"
-                          >
-                            Use current date/time
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setForm((current) => ({
-                                ...current,
-                                calledInByCurrentUser: true,
-                                calledInUnknown: false,
-                                calledInDate: current.calledInDate || todayValue(),
-                                calledInTime: current.calledInTime || timeValue()
-                              }))
-                            }
-                            className="min-h-10 rounded-xl border border-sky-100 bg-white px-3 text-xs font-extrabold text-sky-700"
-                          >
-                            I called it in
-                          </button>
-                        </div>
-                        <p className="text-xs font-bold text-slate-500">
-                          Called In By: {form.calledInByCurrentUser || rentalAction === "called_in" ? authContext.displayName : "Unknown"}
-                        </p>
-                      </div>
-                    )}
-                  </div>
+              {duplicateRental && (
+                <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-900">
+                  {(() => {
+                    const vendor = firstRelated(duplicateRental.rental_vendors);
+                    const deliveredBy = firstRelated(duplicateRental.checked_in_by);
 
-                  {rentalAction === "delivered" && (
-                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-3 py-3">
-                      <p className="text-sm font-black text-hospital-ink">Delivered / Checked In</p>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <label className="block">
-                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Date</span>
-                          <input
-                            type="date"
-                            value={form.deliveredDate}
-                            onChange={(event) => setForm((current) => ({ ...current, deliveredDate: event.target.value }))}
-                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Delivered Time</span>
-                          <input
-                            type="time"
-                            value={form.deliveredTime}
-                            onChange={(event) => setForm((current) => ({ ...current, deliveredTime: event.target.value }))}
-                            className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                          />
-                        </label>
-                      </div>
-                      <p className="mt-2 text-xs font-bold text-slate-500">Delivered By: {authContext.displayName}</p>
-                    </div>
-                  )}
+                    return (
+                      <>
+                        <p className="font-black">This equipment is already in the hospital.</p>
+                        <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
+                        <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
+                        <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
+                        <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
+                        <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
+                        <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => router.push("/operations/rental-management/active")}
+                            className="min-h-10 rounded-xl bg-rose-700 px-3 text-xs font-extrabold text-white"
+                          >
+                            View Active Rental
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDuplicateRental(null)}
+                            className="min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-extrabold text-rose-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
-              </section>
+              )}
 
-              <section className="rounded-3xl border border-violet-200 bg-violet-50/80 p-4 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_0_22px_rgba(139,92,246,0.18),0_14px_28px_rgba(15,23,42,0.10)]">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Step 5: Confirm</p>
-                <h3 className="mt-1 text-lg font-black text-hospital-ink">Rental Check In</h3>
+              <section className="mt-4 rounded-3xl border border-violet-200 bg-violet-50/80 p-4 shadow-[0_0_0_1px_rgba(124,58,237,0.08),0_0_22px_rgba(139,92,246,0.18),0_14px_28px_rgba(15,23,42,0.10)]">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-violet-700">Confirm</p>
+                <h3 className="mt-1 text-lg font-black text-hospital-ink">Confirm Delivered</h3>
                 <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Action</dt>
-                    <dd>{rentalAction === "called_in" ? "Log Called In / Pending Delivery" : "Confirm Delivered / Check In"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
-                    <dd>{selectedVendor?.name ?? "Select company"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
-                    <dd>{form.equipmentType ? equipmentLabels[form.equipmentType] : "Select BiPAP type"}</dd>
-                  </div>
-                  <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Serial Number / Asset ID</dt>
-                    <dd>{rentalAction === "called_in" ? "Not required until delivery" : form.serialNumber || "Required"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
-                    <dd>
-                      {form.calledInUnknown
-                        ? selectedPendingRental?.called_in_at
-                          ? `${formatDateTime(selectedPendingRental.called_in_at, departmentTimezone)} by ${firstRelated(selectedPendingRental.called_in_by)?.display_name ?? selectedPendingRental.called_in_by_name ?? "Unknown"}`
-                          : "Unknown"
-                        : `${form.calledInDate || "Date"} ${form.calledInTime || "Time"} by ${
-                            form.calledInByCurrentUser || rentalAction === "called_in" ? authContext.displayName : "Unknown"
-                          }`}
-                    </dd>
+                    <dd>{form.serialNumber || "Required"}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>
-                    <dd>{rentalAction === "called_in" ? "Pending delivery" : `${form.deliveredDate} ${form.deliveredTime} by ${authContext.displayName}`}</dd>
+                    <dd>{form.deliveredDate} {form.deliveredTime} by {authContext.displayName}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
-                    <dd>{rentalAction === "called_in" ? "Not in hospital yet" : currentLocation || "Required"}</dd>
+                    <dd>{currentLocation || "Required"}</dd>
                   </div>
                 </dl>
-                {duplicateRental && (
-                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-900">
-                    {(() => {
-                      const vendor = firstRelated(duplicateRental.rental_vendors);
-                      const deliveredBy = firstRelated(duplicateRental.checked_in_by);
-
-                      return (
-                        <>
-                          <p className="font-black">This equipment is already in the hospital.</p>
-                          <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
-                          <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
-                          <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
-                          <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
-                          <p>Delivered: {duplicateRental.checked_in_at ? formatDateTime(duplicateRental.checked_in_at, departmentTimezone) : "Unknown"}</p>
-                          <p>Delivered by: {deliveredBy?.display_name ?? "Unknown"}</p>
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                router.push("/operations/rental-management");
-                              }}
-                              className="min-h-10 rounded-xl bg-rose-700 px-3 text-xs font-extrabold text-white"
-                            >
-                              View Active Rental
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDuplicateRental(null)}
-                              className="min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-extrabold text-rose-700"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -1943,15 +1703,163 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                   </button>
                   <button
                     type="submit"
-                    disabled={saving || !canConfirm}
+                    disabled={saving || !canConfirmDelivery}
                     className="min-h-11 rounded-2xl bg-violet-700 px-3 text-sm font-extrabold text-white shadow-md shadow-violet-900/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {saving ? "Saving..." : rentalAction === "called_in" ? "Log Called In" : "Confirm Check In"}
+                    {saving ? "Saving..." : "Confirm Delivered"}
                   </button>
                 </div>
               </section>
-            </div>
-          </form>
+            </form>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen px-4 py-8">
+      <div className="mx-auto max-w-xl space-y-4">
+        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
+          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Check In</h1>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            Log a rented BiPAP/V60 order.
+          </p>
+          <Link
+            href="/operations/rental-management"
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          >
+            Back to Rental Management
+          </Link>
+        </section>
+
+        {error && (
+          <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+            {error}
+          </p>
+        )}
+        <form onSubmit={submitCheckIn} className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+          <h2 className="text-xl font-black text-hospital-ink">Rental Check In</h2>
+          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Log a rented BiPAP/V60 order.</p>
+
+          <div className="mt-4 space-y-4">
+            <section>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Company</p>
+              <label className="mt-2 block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Rental Company</span>
+                <select
+                  value={form.vendorId}
+                  onChange={(event) => setForm((current) => ({ ...current, vendorId: event.target.value }))}
+                  className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                >
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {selectedVendor && (
+                <p className="mt-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-xs font-bold leading-5 text-cyan-900">
+                  {selectedVendor.notes ? `${selectedVendor.notes}. ` : ""}
+                  {selectedVendor.phone_number ? `Phone: ${selectedVendor.phone_number}` : "No phone listed."}
+                </p>
+              )}
+            </section>
+
+            <section>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Details</p>
+              <div className="mt-2 grid gap-3">
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">BiPAP Type</span>
+                  <select
+                    value={form.equipmentType}
+                    onChange={(event) => setForm((current) => ({ ...current, equipmentType: event.target.value as EquipmentType }))}
+                    className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  >
+                    <option value="">Select BiPAP type</option>
+                    <option value="v60">V60</option>
+                  </select>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Date</span>
+                    <input
+                      type="date"
+                      value={form.calledInDate}
+                      onChange={(event) => setForm((current) => ({ ...current, calledInDate: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Called In Time</span>
+                    <input
+                      type="time"
+                      value={form.calledInTime}
+                      onChange={(event) => setForm((current) => ({ ...current, calledInTime: event.target.value }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    />
+                  </label>
+                </div>
+                <p className="text-xs font-bold text-slate-500">Called In By: {authContext.displayName}</p>
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
+                  <textarea
+                    value={form.notes}
+                    onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value.slice(0, 140) }))}
+                    maxLength={140}
+                    placeholder="Optional"
+                    className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                  <span className="mt-1 flex justify-between text-xs font-bold text-slate-400">
+                    <span>No patient information.</span>
+                    <span>{form.notes.length}/140</span>
+                  </span>
+                </label>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-sky-200 bg-sky-50/80 p-4 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_0_20px_rgba(14,165,233,0.14),0_12px_24px_rgba(15,23,42,0.08)]">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-sky-700">Confirm</p>
+              <h3 className="mt-1 text-lg font-black text-hospital-ink">Save Pending Delivery</h3>
+              <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
+                  <dd>{selectedVendor?.name ?? "Select company"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">BiPAP Type</dt>
+                  <dd>{form.equipmentType ? equipmentLabels[form.equipmentType] : "Select BiPAP type"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
+                  <dd>{form.calledInDate || "Date"} {form.calledInTime || "Time"} by {authContext.displayName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Status</dt>
+                  <dd>Pending Delivery</dd>
+                </div>
+              </dl>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push("/operations/rental-management")}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || !canLogOrder}
+                  className="min-h-11 rounded-2xl bg-sky-700 px-3 text-sm font-extrabold text-white shadow-md shadow-sky-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : "Save Pending Delivery"}
+                </button>
+              </div>
+            </section>
+          </div>
+        </form>
       </div>
     </main>
   );
