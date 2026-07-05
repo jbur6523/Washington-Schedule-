@@ -96,7 +96,12 @@ The user can view Active Rentals or cancel the check in.
 
 ## Active Rentals
 
-Active Rentals shows every `rental_records.status = active` row for the department. Returned and cancelled rentals are excluded.
+Active Rentals shows equipment that is still physically in the hospital:
+
+- `active` records display green as `Active`.
+- `pickup_requested` / `pickup_called` records display yellow as `Called for Pickup`.
+
+Picked-up records (`returned` / `picked_up`) and cancelled rentals are excluded from Active Rentals and remain available in Rental History.
 
 The list is sorted by `checked_in_at` ascending so the equipment that has been in the hospital the longest appears first.
 
@@ -117,6 +122,8 @@ Each detail card shows:
 - Checked-in date/time
 - Checked-in staff member
 
+Called-for-pickup cards also show the pickup call time and staff member when a pickup event exists.
+
 Full return and transfer workflows remain future work.
 
 ## Rental History
@@ -126,14 +133,15 @@ Rental History is available at `/operations/rental-management/history` and repla
 It is the permanent searchable record of BiPAP/V60 rental records in the app. It includes:
 
 - Active rental records
-- Returned rental records
+- Called-for-pickup rental records
+- Picked-up rental records
 - Multiple rental cycles for the same serial number / asset ID
 
-Search supports serial number / asset ID, company, equipment type, last known location, checked-in staff, returned-by staff when a returned event exists, and notes.
+Search supports serial number / asset ID, company, equipment type, last known location, checked-in staff, picked-up-by staff when a pickup event exists, and notes.
 
 Filters include:
 
-- Status: All, Active, Returned
+- Status: All, Active, Called for Pickup, Picked Up
 - Equipment: All Equipment, BiPAP, V60
 - Company/vendor
 - Date range: All Time, Today, Last 7 Days, Last 30 Days, Custom Range
@@ -141,8 +149,8 @@ Filters include:
 Date range matching includes a rental if it was active at any point during the selected range:
 
 - checked in during the range
-- returned during the range
-- checked in before the range and returned after the range
+- picked up during the range
+- checked in before the range and picked up after the range
 - checked in before the range and still active
 
 History rows are compact by default and expand to show:
@@ -154,8 +162,9 @@ History rows are compact by default and expand to show:
 - Checked-in date/time
 - Checked-in staff member
 - Last known location
-- Returned date/time, when present
-- Returned-by staff member, when a returned event exists
+- Called-for-pickup date/time, when present
+- Picked-up date/time, when present
+- Picked-up-by staff member, when a picked-up event exists
 - Total time in hospital
 - Notes, if present
 - Rental event timeline, when events exist
