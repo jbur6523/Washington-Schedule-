@@ -2,7 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, ChevronDown, LogOut, Pencil, Plus, Settings, ShieldCheck, Undo2 } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Ban,
+  CalendarDays,
+  ChevronDown,
+  Clock3,
+  FileText,
+  LogOut,
+  MoveRight,
+  Pencil,
+  Plus,
+  Settings,
+  ShieldCheck,
+  Undo2,
+  UserMinus,
+  Users
+} from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { GossipBoard } from "@/components/GossipBoard";
@@ -189,6 +205,11 @@ function isWithinWeek(dateValue: string, weekStart: string, weekEnd: string) {
 function formatDateShort(dateValue: string) {
   const date = dateOnly(dateValue);
   return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "numeric", day: "numeric" }).format(date);
+}
+
+function formatManageShiftDate(dateValue: string) {
+  const date = dateOnly(dateValue);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(date);
 }
 
 function formatDateNumeric(dateValue: string) {
@@ -1511,32 +1532,41 @@ function ManageScheduleScreen({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
-        <p className="mt-1 text-sm font-bold text-slate-500">Active baseline: {schedule.version.label}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setAddFormOpen((current) => !current);
-            setAddForm(emptyAddShiftForm);
-          }}
-          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white"
-        >
-          <Plus size={16} />
-          Add Myself to Another Shift
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setAddFormOpen(true);
-            setAddForm({ ...emptyAddShiftForm, mode: "available" });
-          }}
-          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-sm font-extrabold text-emerald-700"
-        >
-          <Plus size={16} />
-          Add Myself Available
-        </button>
-        <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-[0_16px_34px_rgba(15,23,42,0.10)]">
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <CalendarDays size={22} aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-black text-hospital-ink">My Schedule</h2>
+            <p className="mt-1 text-sm font-bold text-slate-500">Active baseline: {schedule.version.label}</p>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => {
+              setAddFormOpen((current) => !current);
+              setAddForm(emptyAddShiftForm);
+            }}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-lg shadow-cyan-900/15"
+          >
+            <Plus size={17} />
+            Add Myself to Another Shift
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAddFormOpen(true);
+              setAddForm({ ...emptyAddShiftForm, mode: "available" });
+            }}
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-sm font-extrabold text-emerald-700 shadow-sm"
+          >
+            <Plus size={17} />
+            Add Myself Available
+          </button>
+        </div>
+        <p className="mt-3 text-xs font-bold leading-5 text-slate-500">
           Availability is self-reported.
         </p>
       </section>
@@ -1773,19 +1803,31 @@ function ManageScheduleScreen({
           const targetKey = `${entry.id}-${entry.shift_date}-${entry.shift_start}`;
           const activeNote = wantsOffRequest?.note ?? switchRequest?.note ?? coverageRequest?.note ?? "";
           const selfAdded = entry.id.startsWith("override-");
+          const accentClass = selfAdded
+            ? "border-t-4 border-t-emerald-400"
+            : entry.shift_type === "night_shift"
+              ? "border-t-4 border-t-violet-500"
+              : entry.shift_type === "day_shift"
+                ? "border-t-4 border-t-cyan-500"
+                : "border-t-4 border-t-teal-400";
 
           return (
-            <article key={entry.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <article
+              key={entry.id}
+              className={`rounded-3xl border border-white bg-white/95 p-4 shadow-[0_14px_32px_rgba(15,23,42,0.11)] ${accentClass}`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-                    {entry.day_of_week} - {entry.shift_date}
+                  <p className="flex items-center gap-2 text-xl font-black text-hospital-ink">
+                    <CalendarDays size={18} className="shrink-0 text-cyan-700" aria-hidden="true" />
+                    {formatManageShiftDate(entry.shift_date)}
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-hospital-ink">
-                    {shiftTypeLabels[entry.shift_type]}
-                  </h2>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                  <p className="mt-3 flex items-center gap-2 text-3xl font-black tracking-tight text-hospital-ink">
+                    <Clock3 size={21} className="shrink-0 text-slate-400" aria-hidden="true" />
                     {formatShiftTime(entry.shift_start, entry.shift_end)}
+                  </p>
+                  <p className="mt-1 text-base font-extrabold text-slate-500">
+                    {shiftTypeLabels[entry.shift_type]}
                   </p>
                 </div>
                 <StaffTypeBadge staffType={displayStaffType(entry.staff_profiles)} />
@@ -1828,48 +1870,52 @@ function ManageScheduleScreen({
                 </div>
               )}
 
-              <div className="mt-4 grid gap-2">
+              <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
                   onClick={() => void saveRequest(entry, "switch_requested", switchRequest)}
                   disabled={saving}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                  className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold shadow-sm ${
                     switchRequest
                       ? "border-fuchsia-200 bg-white text-fuchsia-700"
                       : "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-700"
                   } disabled:opacity-60`}
                 >
+                  <ArrowLeftRight size={16} aria-hidden="true" />
                   {switchRequest ? "Cancel Switch Request" : "Request Switch"}
                 </button>
                 <button
                   type="button"
                   onClick={() => void saveRequest(entry, "coverage_requested", coverageRequest)}
                   disabled={saving}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                  className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold shadow-sm ${
                     coverageRequest
                       ? "border-violet-200 bg-white text-violet-700"
                       : "border-violet-100 bg-violet-50 text-violet-700"
                   } disabled:opacity-60`}
                 >
+                  <Users size={16} aria-hidden="true" />
                   {coverageRequest ? "Cancel Coverage Request" : "Request Coverage"}
                 </button>
                 <button
                   type="button"
                   onClick={() => void saveRequest(entry, "wants_off", wantsOffRequest)}
                   disabled={saving}
-                  className={`rounded-2xl border px-3 py-3 text-sm font-extrabold ${
+                  className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold shadow-sm ${
                     wantsOffRequest
                       ? "border-rose-200 bg-white text-rose-700"
                       : "border-rose-100 bg-rose-50 text-rose-700"
                   } disabled:opacity-60`}
                 >
+                  <Ban size={16} aria-hidden="true" />
                   {wantsOffRequest ? "Cancel Wants Off" : "Wants Off"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setNoteEditor({ targetKey, note: activeNote })}
-                  className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700"
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 shadow-sm"
                 >
+                  <FileText size={16} aria-hidden="true" />
                   Add/Edit Note
                 </button>
                 {selfAdded ? (
@@ -1877,18 +1923,20 @@ function ManageScheduleScreen({
                     type="button"
                     onClick={() => void undoOverride(entry.id.replace("override-", ""), "Self-added shift removed.")}
                     disabled={saving}
-                    className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 disabled:opacity-60"
+                    className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 shadow-sm disabled:opacity-60"
                   >
+                    <Undo2 size={16} aria-hidden="true" />
                     Remove Self-added Shift
                   </button>
                 ) : (
-                  <div className="grid grid-cols-2 gap-2">
+                  <>
                     <button
                       type="button"
                       onClick={() => void removeSelf(entry)}
                       disabled={saving}
-                      className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-extrabold text-rose-700 disabled:opacity-60"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
                     >
+                      <UserMinus size={16} aria-hidden="true" />
                       Remove Myself
                     </button>
                     <button
@@ -1905,11 +1953,12 @@ function ManageScheduleScreen({
                         });
                         setAddFormOpen(true);
                       }}
-                      className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 shadow-sm"
                     >
+                      <MoveRight size={16} aria-hidden="true" />
                       Move Myself
                     </button>
-                  </div>
+                  </>
                 )}
               </div>
             </article>
