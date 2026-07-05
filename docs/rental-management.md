@@ -18,10 +18,10 @@ Regular staff cannot access Rental Management routes.
 
 1. Select the rental company.
 2. Scan the equipment barcode or enter the serial number manually.
-3. Enter equipment details.
+3. Enter equipment details and current location.
 4. Confirm the check in.
 
-After confirmation, the app creates an active rental record and event log.
+After confirmation, the app creates an active rental record and event log, then shows a success card with the checked-in equipment details.
 
 ## Vendors
 
@@ -52,6 +52,8 @@ Supported browser barcode formats include:
 
 If camera access is denied or scanning is unsupported, staff can enter `Serial Number / Asset ID` manually.
 
+The scanner shows camera permission and scanning status. After a successful scan, the scanned asset value is shown with a green confirmation state and can be rescanned if needed.
+
 ## Equipment Details
 
 Supported equipment types in this phase:
@@ -61,7 +63,33 @@ Supported equipment types in this phase:
 
 Date defaults to the current date. Time defaults to the current time in 24-hour input format.
 
+Current location defaults to `RT Equipment Room`. Available locations are:
+
+- RT Equipment Room
+- ED
+- ICU
+- 2nd Floor
+- 3rd Floor
+- Other
+
+If `Other` is selected, staff can enter a short custom location. Patient names, MRNs, and clinical details must not be entered.
+
 Notes are optional and limited to 140 characters.
+
+## Duplicate Protection
+
+Before saving a check in, the app checks for an existing active rental with the same department and serial number / asset ID.
+
+If an active rental already exists, the app does not create a duplicate. It shows:
+
+- Company
+- Equipment type
+- Serial number / asset ID
+- Current location
+- Checked-in date/time
+- Checked-in staff member
+
+The user can view Active Rentals or cancel the check in.
 
 ## Active Rentals Preview
 
@@ -70,10 +98,12 @@ After check in, the rental appears in a simple Active Rentals preview with:
 - Company
 - Equipment type
 - Serial number
+- Current location
 - Checked-in date/time
 - Checked-in staff member
+- Days active
 
-Full Active Rentals management remains future work.
+Active Rentals are sorted oldest first so long-running rentals are easier to spot. Full return and transfer workflows remain future work.
 
 ## Privacy
 

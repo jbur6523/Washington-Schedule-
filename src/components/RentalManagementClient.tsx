@@ -23,6 +23,7 @@ type ActiveRentalRecord = {
   vendor_id: string;
   equipment_type: EquipmentType;
   serial_number: string;
+  current_location: string | null;
   checked_in_at: string;
   notes: string | null;
   rental_vendors: { name: string } | { name: string }[] | null;
@@ -35,6 +36,8 @@ type RentalCheckInForm = {
   date: string;
   time: string;
   serialNumber: string;
+  location: string;
+  otherLocation: string;
   notes: string;
 };
 
@@ -46,6 +49,8 @@ const equipmentLabels: Record<EquipmentType, string> = {
   bipap: "BiPAP",
   v60: "V60"
 };
+
+const locationOptions = ["RT Equipment Room", "ED", "ICU", "2nd Floor", "3rd Floor", "Other"];
 
 function todayValue() {
   return new Date().toISOString().slice(0, 10);
@@ -71,6 +76,13 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function daysActive(value: string) {
+  const start = new Date(value).getTime();
+  const diff = Date.now() - start;
+
+  return Math.max(0, Math.floor(diff / 86_400_000));
+}
+
 function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
@@ -78,6 +90,8 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
     date: todayValue(),
     time: timeValue(),
     serialNumber: "",
+    location: "RT Equipment Room",
+    otherLocation: "",
     notes: ""
   };
 }
@@ -96,15 +110,20 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
   const [scannerError, setScannerError] = useState("");
+  const [scannerSuccess, setScannerSuccess] = useState("");
   const [scannedByCamera, setScannedByCamera] = useState(false);
+  const [duplicateRental, setDuplicateRental] = useState<ActiveRentalRecord | null>(null);
+  const [lastCheckedInRental, setLastCheckedInRental] = useState<ActiveRentalRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const activeRentalsRef = useRef<HTMLElement>(null);
 
   const selectedVendor = vendors.find((vendor) => vendor.id === form.vendorId) ?? null;
+  const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
 
   const loadRentalData = useCallback(async () => {
     setLoading(true);
@@ -120,10 +139,10 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
         .order("sort_order", { ascending: true }),
       supabase
         .from("rental_records")
-        .select("id, vendor_id, equipment_type, serial_number, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
+        .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
         .eq("department_id", authContext.departmentId)
         .eq("status", "active")
-        .order("checked_in_at", { ascending: false })
+        .order("checked_in_at", { ascending: true })
     ]);
 
     if (vendorError) {
@@ -171,7 +190,8 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
     }
 
     setScannerError("");
-    setScannerStatus("Starting camera...");
+    setScannerSuccess("");
+    setScannerStatus("Requesting camera permission...");
     setScannerOpen(true);
 
     window.setTimeout(async () => {
@@ -199,16 +219,17 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
             const scannedValue = result.getText().trim();
             setForm((current) => ({ ...current, serialNumber: scannedValue }));
             setScannedByCamera(true);
-            setScannerStatus(`Scanned: ${scannedValue}`);
+            setScannerSuccess(`Scanned: ${scannedValue}`);
+            setScannerStatus("");
             callbackControls.stop();
             scannerControlsRef.current = null;
             setScannerOpen(false);
           } else if (scanError) {
-            setScannerStatus("Point the camera at the 1D barcode.");
+            setScannerStatus("Point camera at the equipment barcode.");
           }
         });
         scannerControlsRef.current = controls;
-        setScannerStatus("Point the camera at the 1D barcode.");
+        setScannerStatus("Point camera at the equipment barcode.");
       } catch {
         setScannerError("Camera permission was denied or scanning could not start. Enter the serial number manually.");
         setScannerStatus("");
@@ -257,11 +278,34 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
     setSaving(true);
     setError("");
     setSuccess("");
+    setDuplicateRental(null);
+    setLastCheckedInRental(null);
 
     const supabase = createClient();
     const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
     const serialNumber = form.serialNumber.trim();
+    const location = currentLocation || "RT Equipment Room";
     const checkedInAt = new Date(`${form.date}T${form.time}:00`).toISOString();
+    const { data: existingRental, error: existingRentalError } = await supabase
+      .from("rental_records")
+      .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
+      .eq("department_id", authContext.departmentId)
+      .eq("status", "active")
+      .eq("serial_number", serialNumber)
+      .maybeSingle();
+
+    if (existingRentalError) {
+      setSaving(false);
+      setError("Unable to check existing active rentals.");
+      return;
+    }
+
+    if (existingRental) {
+      setSaving(false);
+      setDuplicateRental(existingRental as unknown as ActiveRentalRecord);
+      return;
+    }
+
     const { data: equipment, error: equipmentError } = await supabase
       .from("rental_equipment")
       .upsert(
@@ -295,9 +339,10 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
         status: "active",
         checked_in_at: checkedInAt,
         checked_in_by_staff_profile_id: authContext.staffProfileId,
+        current_location: location,
         notes: form.notes.trim() || null
       })
-      .select("id")
+      .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
       .single();
 
     if (recordError || !record?.id) {
@@ -318,7 +363,10 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
         event_data: {
           serial_number: serialNumber,
           equipment_type: form.equipmentType,
-          vendor_name: vendor?.name ?? null
+          vendor_id: form.vendorId,
+          vendor_name: vendor?.name ?? null,
+          current_location: location,
+          timestamp: checkedInAt
         }
       },
       {
@@ -329,21 +377,29 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
         event_at: checkedInAt,
         actor_staff_profile_id: authContext.staffProfileId,
         event_data: {
-          source: scannedByCamera ? "barcode" : "manual"
+          source: scannedByCamera ? "barcode" : "manual",
+          serial_number: serialNumber,
+          equipment_type: form.equipmentType,
+          vendor_id: form.vendorId,
+          vendor_name: vendor?.name ?? null,
+          current_location: location,
+          timestamp: checkedInAt
         }
       }
     ]);
 
     setSaving(false);
-    setSuccess("Rental checked in.");
+    setSuccess("");
+    setLastCheckedInRental(record as unknown as ActiveRentalRecord);
     setCheckInOpen(false);
     setScannerOpen(false);
+    setScannerSuccess("");
     setScannedByCamera(false);
     setForm(defaultForm(vendors[0]?.id ?? ""));
     await loadRentalData();
   };
 
-  const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time);
+  const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time && currentLocation);
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -368,6 +424,65 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
           <p role="status" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
             {success}
           </p>
+        )}
+
+        {lastCheckedInRental && (
+          <section className="rounded-3xl border border-emerald-200 bg-emerald-50/90 p-4 shadow-[0_0_0_1px_rgba(16,185,129,0.10),0_0_22px_rgba(16,185,129,0.18),0_16px_32px_rgba(15,23,42,0.10)]">
+            {(() => {
+              const vendor = firstRelated(lastCheckedInRental.rental_vendors);
+              const staff = firstRelated(lastCheckedInRental.staff_profiles);
+
+              return (
+                <>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">Rental checked in.</p>
+                  <h2 className="mt-1 text-xl font-black text-hospital-ink">
+                    {equipmentLabels[lastCheckedInRental.equipment_type]} {lastCheckedInRental.serial_number}
+                  </h2>
+                  <dl className="mt-3 grid gap-2 text-sm font-bold text-slate-700">
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Company</dt>
+                      <dd>{vendor?.name ?? "Unknown company"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
+                      <dd>{lastCheckedInRental.current_location ?? "RT Equipment Room"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Checked in by</dt>
+                      <dd>{staff?.display_name ?? authContext.displayName}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs uppercase tracking-wide text-slate-400">Date/Time</dt>
+                      <dd>{formatDateTime(lastCheckedInRental.checked_in_at)}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLastCheckedInRental(null);
+                        activeRentalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      className="min-h-11 rounded-2xl bg-emerald-700 px-3 text-sm font-extrabold text-white shadow-md shadow-emerald-900/20"
+                    >
+                      View Active Rentals
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLastCheckedInRental(null);
+                        setForm(defaultForm(vendors[0]?.id ?? ""));
+                        setCheckInOpen(true);
+                      }}
+                      className="min-h-11 rounded-2xl border border-emerald-200 bg-white px-3 text-sm font-extrabold text-emerald-700"
+                    >
+                      Check In Another
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </section>
         )}
 
         <section className="grid gap-3">
@@ -450,14 +565,18 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                     onClick={() => void startScanner()}
                     className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white"
                   >
-                    Scan Barcode
+                    {scannerSuccess ? "Rescan" : "Scan Barcode"}
                   </button>
                   <button
                     type="button"
-                    onClick={stopScanner}
+                    onClick={() => {
+                      stopScanner();
+                      setScannerStatus("");
+                      setScannerError("");
+                    }}
                     className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
                   >
-                    Manual Entry
+                    Use Manual Entry
                   </button>
                 </div>
                 {scannerOpen && (
@@ -466,6 +585,11 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                   </div>
                 )}
                 {scannerStatus && <p className="mt-2 text-xs font-bold text-cyan-700">{scannerStatus}</p>}
+                {scannerSuccess && (
+                  <p className="mt-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-extrabold text-emerald-700 shadow-[0_0_18px_rgba(16,185,129,0.22)]">
+                    {scannerSuccess}
+                  </p>
+                )}
                 {scannerError && <p className="mt-2 text-xs font-bold text-rose-700">{scannerError}</p>}
               </section>
 
@@ -517,6 +641,32 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                     />
                   </label>
                   <label className="block">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Current Location</span>
+                    <select
+                      value={form.location}
+                      onChange={(event) => setForm((current) => ({ ...current, location: event.target.value, otherLocation: "" }))}
+                      className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    >
+                      {locationOptions.map((location) => (
+                        <option key={location} value={location}>
+                          {location}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {form.location === "Other" && (
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Other Location</span>
+                      <input
+                        value={form.otherLocation}
+                        onChange={(event) => setForm((current) => ({ ...current, otherLocation: event.target.value.slice(0, 80) }))}
+                        maxLength={80}
+                        placeholder="Enter location"
+                        className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
+                  )}
+                  <label className="block">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
                     <textarea
                       value={form.notes}
@@ -554,10 +704,53 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                     <dd>{form.date} {form.time}</dd>
                   </div>
                   <div>
+                    <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
+                    <dd>{currentLocation || "Required"}</dd>
+                  </div>
+                  <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Checked in by</dt>
                     <dd>{authContext.displayName}</dd>
                   </div>
                 </dl>
+                {duplicateRental && (
+                  <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-900">
+                    {(() => {
+                      const vendor = firstRelated(duplicateRental.rental_vendors);
+                      const staff = firstRelated(duplicateRental.staff_profiles);
+
+                      return (
+                        <>
+                          <p className="font-black">This equipment is already checked in.</p>
+                          <p className="mt-2">Company: {vendor?.name ?? "Unknown company"}</p>
+                          <p>Equipment: {equipmentLabels[duplicateRental.equipment_type]}</p>
+                          <p>Serial / Asset ID: {duplicateRental.serial_number}</p>
+                          <p>Location: {duplicateRental.current_location ?? "RT Equipment Room"}</p>
+                          <p>Checked in: {formatDateTime(duplicateRental.checked_in_at)}</p>
+                          <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCheckInOpen(false);
+                                activeRentalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }}
+                              className="min-h-10 rounded-xl bg-rose-700 px-3 text-xs font-extrabold text-white"
+                            >
+                              View Active Rental
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDuplicateRental(null)}
+                              className="min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-extrabold text-rose-700"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -582,11 +775,11 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
           </form>
         )}
 
-        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+        <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
           {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
           {!loading && activeRentals.length === 0 && (
-            <p className="mt-2 text-sm font-bold text-slate-500">No active rentals checked in yet.</p>
+            <p className="mt-2 text-sm font-bold text-slate-500">No active rentals.</p>
           )}
           <div className="mt-3 grid gap-2">
             {activeRentals.map((rental) => {
@@ -598,18 +791,19 @@ export function RentalManagementClient({ authContext }: RentalManagementClientPr
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-black text-hospital-ink">{equipmentLabels[rental.equipment_type]}</p>
-                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                        {vendor?.name ?? "Unknown company"}
-                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-700">Asset ID: {rental.serial_number}</p>
+                      <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">{vendor?.name ?? "Unknown company"}</p>
                     </div>
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
                       Active
                     </span>
                   </div>
-                  <p className="mt-2 text-sm font-bold text-slate-700">Serial: {rental.serial_number}</p>
-                  <p className="mt-1 text-xs font-bold text-slate-500">
-                    Checked in {formatDateTime(rental.checked_in_at)} by {staff?.display_name ?? "Unknown"}
-                  </p>
+                  <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
+                    <p>Location: {rental.current_location ?? "RT Equipment Room"}</p>
+                    <p>Checked in: {formatDateTime(rental.checked_in_at)}</p>
+                    <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
+                    <p>Active: {daysActive(rental.checked_in_at)} days</p>
+                  </div>
                 </article>
               );
             })}
