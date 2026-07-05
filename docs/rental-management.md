@@ -363,6 +363,40 @@ Exports intentionally exclude patient information, MRNs, clinical details, staff
 
 Before official department use, run the deployed smoke test for Order Rental, Pending Delivery, Confirm Delivery, Return Rental, Pending Pickup, Confirm Picked Up, Rental History, and export. After that smoke test passes, run the one-time rental test-data wipe so production starts with a clean rental history.
 
+### One-time test-data wipe before go-live
+
+Manual SQL script:
+
+`supabase/manual/one_time_wipe_rental_test_data.sql`
+
+Run this script manually in the Supabase SQL editor only after final deployed smoke testing. It is a one-time go-live cleanup, not a routine app feature and not a user-facing delete-history workflow.
+
+The script deletes Rental Management test data from:
+
+- `rental_events`
+- `rental_records`
+- `rental_equipment`
+- optional rental helper/export/sync tables if they exist
+
+The script preserves:
+
+- `rental_vendors`
+- users and staff profiles
+- role assignments and operations permissions
+- schedules and availability
+- Cover/Switch requests
+- Gossip posts
+- app settings
+
+After running it, verify the included count queries:
+
+- `rental_events_count = 0`
+- `rental_records_count = 0`
+- `rental_equipment_count = 0`
+- `rental_vendors_count > 0`
+
+Expected app state after the wipe: Active Rentals count is `0`, Oldest Rental shows `—` or `None`, the Pending section is hidden, Return Rental has no active rentals, Rental History has no records, and Order Rental still shows the seeded vendor list with US Med Equipment available.
+
 Only Admin, Lead, and Aide users can export Rental History. The export route validates access server-side.
 
 ## Privacy
