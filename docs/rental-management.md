@@ -271,6 +271,26 @@ Expanded history rows show:
 
 Active Rental cards include a `View History` action that opens Rental History filtered to that machine serial number.
 
+### Rental History Export
+
+Rental History includes manual CSV exports that open cleanly in Excel:
+
+- `Export Current View` exports records matching the current search, status, equipment, company, and date filters.
+- `Export All History` exports all rental history records the user can access for the department.
+
+Export filenames use:
+
+- `whhs-rental-history-filtered-YYYY-MM-DD.csv`
+- `whhs-rental-history-all-YYYY-MM-DD.csv`
+
+The app and Supabase database remain the source of truth. CSV files are paper-trail copies only. This phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, Excel Online, or any personal cloud account.
+
+Exported columns include rental record ID, user-facing status, equipment type, serial / asset ID, rental company, last known location, Called In date/time/by, Delivered date/time/by, Called for Pickup date/time/by, Picked Up date/time/by, total time in hospital, notes, created at, and updated at.
+
+Exports intentionally exclude patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, and staff emails.
+
+Only Admin, Lead, and Aide users can export Rental History. The export route validates access server-side.
+
 ## Privacy
 
 Do not enter patient information, clinical notes, MRNs, account numbers, or patient identifiers.
@@ -279,8 +299,6 @@ This phase does not store room numbers or patient-linked data.
 
 ## Future Phases
 
-- Return Equipment
 - Transfer Room
-- Barcode-driven lookup and history
 - Rental analytics
 - Notifications

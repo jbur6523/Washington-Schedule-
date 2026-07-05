@@ -51,11 +51,11 @@ Rental Management currently supports:
 - optional notes with no patient information
 - active rental summary on the Rental Management dashboard
 - dedicated Active Rentals screen with full active rental details
-- dedicated Rental History screen for searching pending, active, called-for-pickup, and picked-up rental records
+- dedicated Rental History screen for searching, filtering, and manually exporting pending, active, called-for-pickup, and picked-up rental records
 - Return Equipment workflow for pickup calls and picked-up confirmation
 
 The Rental Management dashboard stays summary-focused. `View Active Rentals` opens the full list, sorted oldest active rental first.
-`Rental History` opens the searchable history list with status, equipment, vendor, and date range filters.
+`Rental History` opens the searchable history list with status, equipment, vendor, and date range filters. It can export the current filtered view or all history as an Excel-compatible CSV paper trail. The app database remains the source of truth, and this phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, or Excel Online.
 
 Return Equipment is active and opens a dedicated workflow screen.
 

@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Download,
   Filter,
   History,
   MapPin,
@@ -500,6 +501,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [openHistoryFilter, setOpenHistoryFilter] = useState<HistoryFilterPanel>("");
+  const [exportingHistory, setExportingHistory] = useState<"" | "current" | "all">("");
+  const [exportError, setExportError] = useState("");
   const [expandedRentalId, setExpandedRentalId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
@@ -1462,6 +1465,39 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     const toggleHistoryFilter = (filter: HistoryFilterPanel) => {
       setOpenHistoryFilter((current) => (current === filter ? "" : filter));
     };
+    const exportHistory = (scope: "current" | "all") => {
+      setExportError("");
+
+      if (scope === "current" && filteredHistory.length === 0) {
+        setExportError("No rental records to export.");
+        return;
+      }
+
+      if (scope === "all" && rentalHistory.length === 0) {
+        setExportError("No rental records to export.");
+        return;
+      }
+
+      const params = new URLSearchParams({ scope });
+
+      if (scope === "current") {
+        params.set("search", historySearch);
+        params.set("status", historyStatus);
+        params.set("equipment", historyEquipment);
+        params.set("vendorId", historyVendorId);
+        params.set("dateRange", dateRangePreset);
+        if (customStartDate) {
+          params.set("startDate", customStartDate);
+        }
+        if (customEndDate) {
+          params.set("endDate", customEndDate);
+        }
+      }
+
+      setExportingHistory(scope);
+      window.location.assign(`/api/rental-history/export?${params.toString()}`);
+      window.setTimeout(() => setExportingHistory(""), 1500);
+    };
 
     return (
       <main className="min-h-screen px-4 py-8">
@@ -1671,6 +1707,37 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <button type="button" onClick={resetHistoryFilters} className="shrink-0 font-extrabold text-cyan-800">
                   Clear
                 </button>
+              )}
+            </div>
+            <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-3">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Export paper trail</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => exportHistory("current")}
+                  disabled={Boolean(exportingHistory) || loading || filteredHistory.length === 0}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download size={16} aria-hidden="true" />
+                  {exportingHistory === "current" ? "Preparing CSV..." : "Export Current View"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => exportHistory("all")}
+                  disabled={Boolean(exportingHistory) || loading || rentalHistory.length === 0}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-extrabold text-cyan-800 shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Download size={16} aria-hidden="true" />
+                  {exportingHistory === "all" ? "Preparing CSV..." : "Export All History"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                CSV opens in Excel. The app database remains the source of truth.
+              </p>
+              {exportError && (
+                <p role="alert" className="mt-2 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700">
+                  {exportError}
+                </p>
               )}
             </div>
           </section>
