@@ -209,7 +209,7 @@ function staffInitials(displayName: string | null | undefined) {
   const normalized = displayName?.trim();
 
   if (!normalized) {
-    return "—";
+    return "";
   }
 
   const initials = normalized
@@ -219,7 +219,7 @@ function staffInitials(displayName: string | null | undefined) {
     .join("")
     .toUpperCase();
 
-  return initials || "—";
+  return initials || "";
 }
 
 function escapeCsvCell(value: unknown) {
@@ -450,7 +450,7 @@ export async function GET(request: Request) {
       "Picked Up Initials": staffInitials(pickedUpBy)
     };
   });
-  const csv = `\uFEFF${csvFromRows(rows)}`;
+  const csv = csvFromRows(rows);
   const filename = `whhs-rental-equipment-log-${scope === "all" ? "all-" : ""}${exportDateSlug(timezone)}.csv`;
 
   return new Response(csv, {
