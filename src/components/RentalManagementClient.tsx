@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
-import { DoorOpen, RotateCcw, ScanLine } from "lucide-react";
+import { History, RotateCcw, ScanLine } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,16 +18,29 @@ type RentalVendor = {
 };
 
 type EquipmentType = "bipap" | "v60";
+type RentalStatus = "active" | "returned" | "cancelled";
+type DateRangePreset = "all" | "today" | "7" | "30" | "custom";
 
 type ActiveRentalRecord = {
   id: string;
   vendor_id: string;
   equipment_type: EquipmentType;
   serial_number: string;
+  status: RentalStatus;
   current_location: string | null;
   checked_in_at: string;
+  returned_at: string | null;
   notes: string | null;
   rental_vendors: { name: string } | { name: string }[] | null;
+  staff_profiles: { display_name: string } | { display_name: string }[] | null;
+};
+
+type RentalEventRecord = {
+  id: string;
+  rental_record_id: string | null;
+  event_type: string;
+  event_at: string;
+  event_data: Record<string, unknown> | null;
   staff_profiles: { display_name: string } | { display_name: string }[] | null;
 };
 
@@ -44,7 +57,7 @@ type RentalCheckInForm = {
 
 type RentalManagementClientProps = {
   authContext: AuthenticatedUserContext;
-  mode?: "overview" | "check-in" | "active";
+  mode?: "overview" | "check-in" | "active" | "history";
 };
 
 const equipmentLabels: Record<EquipmentType, string> = {
@@ -121,6 +134,59 @@ function daysInHospitalLabel(value: string, timezone: string) {
   return `${days} days`;
 }
 
+function startOfDateRangeDay(dateValue: string) {
+  const parts = dateValue
+    ? dateValue.split("-").map((part) => Number(part))
+    : [1970, 1, 1];
+  const [year, month, day] = parts;
+  return Date.UTC(year, (month || 1) - 1, day || 1, 0, 0, 0);
+}
+
+function recordMatchesDateRange(record: ActiveRentalRecord, startMs: number | null, endMs: number | null) {
+  if (startMs === null || endMs === null) {
+    return true;
+  }
+
+  const checkedInMs = new Date(record.checked_in_at).getTime();
+  const returnedMs = record.returned_at ? new Date(record.returned_at).getTime() : null;
+  const activeEndMs = returnedMs ?? Date.now();
+
+  return checkedInMs <= endMs && activeEndMs >= startMs;
+}
+
+function totalDaysInHospital(record: ActiveRentalRecord, timezone: string) {
+  const end = record.returned_at ?? new Date().toISOString();
+  const startParts = datePartsInTimezone(new Date(record.checked_in_at), timezone);
+  const endParts = datePartsInTimezone(new Date(end), timezone);
+  const startMs = Date.UTC(startParts.year, startParts.month - 1, startParts.day);
+  const endMs = Date.UTC(endParts.year, endParts.month - 1, endParts.day);
+
+  return Math.max(0, Math.floor((endMs - startMs) / 86_400_000));
+}
+
+function totalDaysLabel(record: ActiveRentalRecord, timezone: string) {
+  const days = totalDaysInHospital(record, timezone);
+
+  if (days === 0) {
+    return "Today";
+  }
+
+  if (days === 1) {
+    return "1 day";
+  }
+
+  return `${days} days`;
+}
+
+function shortDate(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit"
+  }).format(new Date(value));
+}
+
 function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
@@ -135,7 +201,6 @@ function defaultForm(vendorId = ""): RentalCheckInForm {
 }
 
 const futureFeatures = [
-  { title: "Transfer Room", icon: DoorOpen },
   { title: "Return Equipment", icon: RotateCcw }
 ];
 
@@ -144,8 +209,18 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<RentalVendor[]>([]);
   const [activeRentals, setActiveRentals] = useState<ActiveRentalRecord[]>([]);
+  const [rentalHistory, setRentalHistory] = useState<ActiveRentalRecord[]>([]);
+  const [rentalEvents, setRentalEvents] = useState<RentalEventRecord[]>([]);
   const [departmentTimezone, setDepartmentTimezone] = useState("America/Los_Angeles");
   const [form, setForm] = useState<RentalCheckInForm>(() => defaultForm());
+  const [historySearch, setHistorySearch] = useState(() => searchParams.get("serial") ?? "");
+  const [historyStatus, setHistoryStatus] = useState<"all" | "active" | "returned">("all");
+  const [historyEquipment, setHistoryEquipment] = useState<"all" | EquipmentType>("all");
+  const [historyVendorId, setHistoryVendorId] = useState("all");
+  const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [expandedRentalId, setExpandedRentalId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState("");
   const [scannerError, setScannerError] = useState("");
@@ -170,6 +245,8 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     const [
       { data: vendorData, error: vendorError },
       { data: rentalData, error: rentalError },
+      { data: historyData, error: historyError },
+      { data: eventData, error: eventError },
       { data: departmentData }
     ] = await Promise.all([
       supabase
@@ -180,10 +257,21 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         .order("sort_order", { ascending: true }),
       supabase
         .from("rental_records")
-        .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
+        .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
         .eq("department_id", authContext.departmentId)
         .eq("status", "active")
         .order("checked_in_at", { ascending: true }),
+      supabase
+        .from("rental_records")
+        .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
+        .eq("department_id", authContext.departmentId)
+        .in("status", ["active", "returned"])
+        .order("checked_in_at", { ascending: false }),
+      supabase
+        .from("rental_events")
+        .select("id, rental_record_id, event_type, event_at, event_data, staff_profiles(display_name)")
+        .eq("department_id", authContext.departmentId)
+        .order("event_at", { ascending: true }),
       supabase
         .from("departments")
         .select("timezone")
@@ -210,6 +298,19 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
       setActiveRentals([]);
     } else {
       setActiveRentals((rentalData ?? []) as unknown as ActiveRentalRecord[]);
+    }
+
+    if (historyError) {
+      setError("Unable to load rental history.");
+      setRentalHistory([]);
+    } else {
+      setRentalHistory((historyData ?? []) as unknown as ActiveRentalRecord[]);
+    }
+
+    if (eventError) {
+      setRentalEvents([]);
+    } else {
+      setRentalEvents((eventData ?? []) as unknown as RentalEventRecord[]);
     }
 
     setLoading(false);
@@ -334,7 +435,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
     const checkedInAt = new Date(`${form.date}T${form.time}:00`).toISOString();
     const { data: existingRental, error: existingRentalError } = await supabase
       .from("rental_records")
-      .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
+      .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
       .eq("department_id", authContext.departmentId)
       .eq("status", "active")
       .eq("serial_number", serialNumber)
@@ -388,7 +489,7 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
         current_location: location,
         notes: form.notes.trim() || null
       })
-      .select("id, vendor_id, equipment_type, serial_number, current_location, checked_in_at, notes, rental_vendors(name), staff_profiles(display_name)")
+      .select("id, vendor_id, equipment_type, serial_number, status, current_location, checked_in_at, returned_at, notes, rental_vendors(name), staff_profiles(display_name)")
       .single();
 
     if (recordError || !record?.id) {
@@ -446,6 +547,80 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
   const canConfirm = Boolean(form.vendorId && form.equipmentType && form.serialNumber.trim() && form.date && form.time && currentLocation);
   const checkedIn = searchParams.get("checkedIn") === "1";
   const oldestRentalDaysLabel = activeRentals[0] ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
+  const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
+    if (!event.rental_record_id) {
+      return accumulator;
+    }
+
+    accumulator[event.rental_record_id] = [...(accumulator[event.rental_record_id] ?? []), event];
+    return accumulator;
+  }, {});
+  const todayParts = datePartsInTimezone(new Date(), departmentTimezone);
+  const todayStartMs = Date.UTC(todayParts.year, todayParts.month - 1, todayParts.day);
+  const dayMs = 86_400_000;
+  const rangeStartMs =
+    dateRangePreset === "today"
+      ? todayStartMs
+      : dateRangePreset === "7"
+        ? todayStartMs - 6 * dayMs
+        : dateRangePreset === "30"
+          ? todayStartMs - 29 * dayMs
+          : dateRangePreset === "custom" && customStartDate
+            ? startOfDateRangeDay(customStartDate)
+            : null;
+  const rangeEndMs =
+    dateRangePreset === "today" || dateRangePreset === "7" || dateRangePreset === "30"
+      ? todayStartMs + dayMs - 1
+      : dateRangePreset === "custom" && customEndDate
+        ? startOfDateRangeDay(customEndDate) + dayMs - 1
+        : null;
+  const normalizedHistorySearch = historySearch.trim().toLowerCase();
+  const filteredHistory = rentalHistory
+    .filter((record) => {
+      const vendor = firstRelated(record.rental_vendors);
+      const staff = firstRelated(record.staff_profiles);
+      const events = eventsByRentalId[record.id] ?? [];
+      const eventStaff = events
+        .map((event) => firstRelated(event.staff_profiles)?.display_name ?? "")
+        .join(" ");
+      const haystack = [
+        record.serial_number,
+        record.equipment_type,
+        equipmentLabels[record.equipment_type],
+        vendor?.name ?? "",
+        record.current_location ?? "",
+        staff?.display_name ?? "",
+        eventStaff,
+        record.notes ?? ""
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      if (historyStatus !== "all" && record.status !== historyStatus) {
+        return false;
+      }
+
+      if (historyEquipment !== "all" && record.equipment_type !== historyEquipment) {
+        return false;
+      }
+
+      if (historyVendorId !== "all" && record.vendor_id !== historyVendorId) {
+        return false;
+      }
+
+      if (!recordMatchesDateRange(record, rangeStartMs, rangeEndMs)) {
+        return false;
+      }
+
+      return !normalizedHistorySearch || haystack.includes(normalizedHistorySearch);
+    })
+    .sort((left, right) => {
+      if (historyStatus === "active") {
+        return new Date(left.checked_in_at).getTime() - new Date(right.checked_in_at).getTime();
+      }
+
+      return new Date(right.checked_in_at).getTime() - new Date(left.checked_in_at).getTime();
+    });
 
   if (mode === "overview") {
     return (
@@ -517,6 +692,22 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
               View Active Rentals
             </Link>
           </section>
+
+          <Link
+            href="/operations/rental-management/history"
+            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <History size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-black text-hospital-ink">Rental History</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Search active and returned rental records.</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
+              </div>
+            </div>
+          </Link>
 
           <section className="grid gap-3">
             {futureFeatures.map((feature) => {
@@ -603,6 +794,252 @@ export function RentalManagementClient({ authContext, mode = "overview" }: Renta
                       <p>Checked in: {formatDateTime(rental.checked_in_at, departmentTimezone)}</p>
                       <p>Checked in by: {staff?.display_name ?? "Unknown"}</p>
                     </div>
+                    <Link
+                      href={`/operations/rental-management/history?serial=${encodeURIComponent(rental.serial_number)}`}
+                      className="mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-cyan-100 bg-white px-3 text-xs font-extrabold text-cyan-700"
+                    >
+                      View History
+                    </Link>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  if (mode === "history") {
+    return (
+      <main className="min-h-screen px-4 py-8">
+        <div className="mx-auto max-w-xl space-y-4">
+          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
+            <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental History</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+              Active and returned rental equipment records.
+            </p>
+            <Link
+              href="/operations/rental-management"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            >
+              Back to Rental Management
+            </Link>
+          </section>
+
+          {error && (
+            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <label className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Search</span>
+              <input
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+                placeholder="Search serial number, company, location, or staff..."
+                className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+              />
+            </label>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Status</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(["all", "active", "returned"] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setHistoryStatus(status)}
+                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
+                        historyStatus === status
+                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
+                          : "border border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {status === "all" ? "All" : status === "active" ? "Active" : "Returned"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Equipment</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(["all", "bipap", "v60"] as const).map((equipment) => (
+                    <button
+                      key={equipment}
+                      type="button"
+                      onClick={() => setHistoryEquipment(equipment)}
+                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
+                        historyEquipment === equipment
+                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
+                          : "border border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {equipment === "all" ? "All Equipment" : equipmentLabels[equipment]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Company</span>
+                <select
+                  value={historyVendorId}
+                  onChange={(event) => setHistoryVendorId(event.target.value)}
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                >
+                  <option value="all">All Companies</option>
+                  {vendors.map((vendor) => (
+                    <option key={vendor.id} value={vendor.id}>
+                      {vendor.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date Range</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {([
+                    ["all", "All Time"],
+                    ["today", "Today"],
+                    ["7", "Last 7 Days"],
+                    ["30", "Last 30 Days"],
+                    ["custom", "Custom Range"]
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setDateRangePreset(value)}
+                      className={`min-h-10 rounded-full px-3 text-xs font-extrabold ${
+                        dateRangePreset === value
+                          ? "bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
+                          : "border border-slate-200 bg-white text-slate-600"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {dateRangePreset === "custom" && (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Start date</span>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(event) => setCustomStartDate(event.target.value)}
+                        className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">End date</span>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(event) => setCustomEndDate(event.target.value)}
+                        className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">{filteredHistory.length} records found</h2>
+            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rental history...</p>}
+            {!loading && filteredHistory.length === 0 && (
+              <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-sm font-black text-hospital-ink">No rental records found.</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">Try changing your search or date range.</p>
+              </div>
+            )}
+            <div className="mt-3 grid gap-2">
+              {filteredHistory.map((record) => {
+                const vendor = firstRelated(record.rental_vendors);
+                const checkedInBy = firstRelated(record.staff_profiles);
+                const recordEvents = eventsByRentalId[record.id] ?? [];
+                const returnedEvent = recordEvents.find((event) => event.event_type === "returned");
+                const returnedBy = returnedEvent ? firstRelated(returnedEvent.staff_profiles)?.display_name : null;
+                const expanded = expandedRentalId === record.id;
+                const active = record.status === "active";
+
+                return (
+                  <article key={record.id} className="rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedRentalId((current) => (current === record.id ? null : record.id))}
+                      className="w-full text-left"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span
+                          className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                            active ? "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.14)]" : "bg-slate-300"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-black text-hospital-ink">
+                            {equipmentLabels[record.equipment_type]} · {record.serial_number}
+                          </p>
+                          <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                            {vendor?.name ?? "Unknown company"}
+                          </p>
+                          <p className="mt-2 text-xs font-bold text-slate-600">
+                            {active
+                              ? `Active · ${record.current_location || "Unknown"} · In hospital: ${daysInHospitalLabel(record.checked_in_at, departmentTimezone)}`
+                              : `Returned · ${shortDate(record.checked_in_at, departmentTimezone)}-${record.returned_at ? shortDate(record.returned_at, departmentTimezone) : "Not recorded"} · ${totalDaysLabel(record, departmentTimezone)}`}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {expanded && (
+                      <div className="mt-3 border-t border-cyan-100 pt-3 text-xs font-bold text-slate-500">
+                        <div className="grid gap-1">
+                          <p>Equipment type: {equipmentLabels[record.equipment_type]}</p>
+                          <p>Serial / Asset ID: {record.serial_number}</p>
+                          <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                          <p>Status: {active ? "Active" : "Returned"}</p>
+                          <p>Checked in: {formatDateTime(record.checked_in_at, departmentTimezone)}</p>
+                          <p>Checked in by: {checkedInBy?.display_name ?? "Unknown"}</p>
+                          <p>Last known location: {record.current_location || "Unknown"}</p>
+                          {record.returned_at && <p>Returned: {formatDateTime(record.returned_at, departmentTimezone)}</p>}
+                          {!active && <p>Returned by: {returnedBy ?? "Not recorded"}</p>}
+                          <p>Total time in hospital: {totalDaysLabel(record, departmentTimezone)}</p>
+                          {record.notes && <p>Notes: {record.notes}</p>}
+                        </div>
+
+                        {recordEvents.length > 0 && (
+                          <div className="mt-3 rounded-2xl border border-white bg-white/80 px-3 py-2">
+                            <p className="font-black text-hospital-ink">Event timeline</p>
+                            <div className="mt-2 grid gap-2">
+                              {recordEvents.map((event) => {
+                                const actor = firstRelated(event.staff_profiles);
+                                const label = event.event_type
+                                  .split("_")
+                                  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+                                  .join(" ");
+
+                                return (
+                                  <p key={event.id}>
+                                    {formatDateTime(event.event_at, departmentTimezone)} - {label}
+                                    {actor?.display_name ? ` by ${actor.display_name}` : ""}
+                                  </p>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </article>
                 );
               })}

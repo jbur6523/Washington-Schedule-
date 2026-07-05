@@ -66,8 +66,8 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 - `rental_vendors`: department rental companies, including US Med Equipment, Med One Capital, Agiliti Health Inc, SRC, and Other.
 - `rental_equipment`: reusable equipment identity by serial number or asset ID.
-- `rental_records`: active and historical rental records. Phase 1 creates `active` records from Rental Check In and stores the current location for the checked-in equipment.
-- `rental_events`: audit-style rental events such as `checked_in`, `manual_check_in`, and `barcode_scanned`.
+- `rental_records`: active and historical rental records. Rental Check In creates `active` records and stores the current location for the checked-in equipment. Rental History reads both `active` and `returned` records and excludes cancelled rows from the normal history view.
+- `rental_events`: audit-style rental events such as `checked_in`, `manual_check_in`, `barcode_scanned`, and future `returned` / `transferred` events. Rental History can use events for timeline details and returned-by display when those events exist.
 - Rental notes are capped at 140 characters and must not contain patient information.
 
 ### Import and Review

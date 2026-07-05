@@ -48,12 +48,13 @@ Rental Management currently supports:
 - optional notes with no patient information
 - active rental summary on the Rental Management dashboard
 - dedicated Active Rentals screen with full active rental details
+- dedicated Rental History screen for searching active and returned rental records
 
 The Rental Management dashboard stays summary-focused. `View Active Rentals` opens the full list, sorted oldest active rental first.
+`Rental History` opens the searchable history list with status, equipment, vendor, and date range filters.
 
 Future cards still labeled `Coming Soon`:
 
-- Transfer Room
 - Return Equipment
 
 ## Out of Scope

@@ -119,6 +119,49 @@ Each detail card shows:
 
 Full return and transfer workflows remain future work.
 
+## Rental History
+
+Rental History is available at `/operations/rental-management/history` and replaces the old Transfer Room placeholder.
+
+It is the permanent searchable record of BiPAP/V60 rental records in the app. It includes:
+
+- Active rental records
+- Returned rental records
+- Multiple rental cycles for the same serial number / asset ID
+
+Search supports serial number / asset ID, company, equipment type, last known location, checked-in staff, returned-by staff when a returned event exists, and notes.
+
+Filters include:
+
+- Status: All, Active, Returned
+- Equipment: All Equipment, BiPAP, V60
+- Company/vendor
+- Date range: All Time, Today, Last 7 Days, Last 30 Days, Custom Range
+
+Date range matching includes a rental if it was active at any point during the selected range:
+
+- checked in during the range
+- returned during the range
+- checked in before the range and returned after the range
+- checked in before the range and still active
+
+History rows are compact by default and expand to show:
+
+- Equipment type
+- Serial / Asset ID
+- Company
+- Status
+- Checked-in date/time
+- Checked-in staff member
+- Last known location
+- Returned date/time, when present
+- Returned-by staff member, when a returned event exists
+- Total time in hospital
+- Notes, if present
+- Rental event timeline, when events exist
+
+Active Rental cards include a `View History` action that opens Rental History filtered to that machine serial number.
+
 ## Privacy
 
 Do not enter patient information, clinical notes, MRNs, account numbers, or patient identifiers.
