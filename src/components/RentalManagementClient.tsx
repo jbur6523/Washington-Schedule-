@@ -574,6 +574,19 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const requestedReturnRentalId = searchParams.get("rental") ?? "";
   const requestedReturnAction = searchParams.get("action") === "picked_up" ? "picked_up" : "";
 
+  useEffect(() => {
+    if (!pendingCancellation) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [pendingCancellation]);
+
   const loadRentalData = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -1347,6 +1360,88 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         new Date(left.checked_in_at ?? left.called_in_at ?? 0).getTime()
       );
     });
+  const cancellationModal = pendingCancellation
+    ? (() => {
+        const { rental, action } = pendingCancellation;
+        const vendor = firstRelated(rental.rental_vendors);
+        const isDeliveryCancel = action === "delivery";
+        const calledInBy = firstRelated(rental.called_in_by);
+        const pickupEvent = findPickupEvent(eventsByRentalId[rental.id] ?? []);
+        const pickupBy =
+          firstRelated(rental.pickup_requested_by)?.display_name ??
+          (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null) ??
+          "Unknown";
+        const eventAt = isDeliveryCancel ? rental.called_in_at : rental.pickup_requested_at ?? pickupEvent?.event_at;
+        const closeCancellationModal = () => {
+          setPendingCancellation(null);
+          setCancelNote("");
+        };
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6"
+            role="presentation"
+          >
+            <form
+              onSubmit={submitPendingCancellation}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rental-cancel-title"
+              className="max-h-[calc(100vh-3rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_0_0_1px_rgba(15,23,42,0.08),0_18px_50px_rgba(15,23,42,0.28)]"
+            >
+              <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                {isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
+              </p>
+              <h2 id="rental-cancel-title" className="mt-1 text-xl font-black text-hospital-ink">
+                {isDeliveryCancel ? "Cancel Delivery?" : "Cancel Pickup Request?"}
+              </h2>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                {isDeliveryCancel
+                  ? "This will mark the rental order as canceled. Use this only if the rental was called in but will not be delivered."
+                  : "This will cancel the pending pickup request. The rental will stay active because the equipment is still in the hospital."}
+              </p>
+              <div className="mt-3 grid gap-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-600">
+                <p>Equipment: {isDeliveryCancel ? equipmentLabels[rental.equipment_type] : equipmentQuickLabel(rental.equipment_type, rental.serial_number)}</p>
+                <p>Company: {vendor?.name ?? "Unknown company"}</p>
+                {rental.current_location && <p>Location: {rental.current_location}</p>}
+                <p>{isDeliveryCancel ? "Called in" : "Pickup requested"}: {eventAt ? formatDateTime(eventAt, departmentTimezone) : "Unknown"}</p>
+                <p>{isDeliveryCancel ? "Called in by" : "Pickup requested by"}: {isDeliveryCancel ? calledInBy?.display_name ?? rental.called_in_by_name ?? "Unknown" : pickupBy}</p>
+              </div>
+              <label className="mt-3 block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Cancellation note</span>
+                <textarea
+                  value={cancelNote}
+                  onChange={(event) => setCancelNote(event.target.value.slice(0, 140))}
+                  maxLength={140}
+                  placeholder="Optional"
+                  className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-slate-300"
+                />
+                <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
+                  <span>No patient information.</span>
+                  <span>{cancelNote.length}/140</span>
+                </span>
+              </label>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={closeCancellationModal}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+                >
+                  {isDeliveryCancel ? "Keep Pending" : "Keep Pending Pickup"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="min-h-11 rounded-2xl bg-slate-600 px-3 text-sm font-extrabold text-white shadow-md shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {saving ? "Saving..." : isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
+                </button>
+              </div>
+            </form>
+          </div>
+        );
+      })()
+    : null;
 
   if (mode === "overview") {
     return (
@@ -1559,80 +1654,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </section>
           )}
 
-          {pendingCancellation && (
-            <form onSubmit={submitPendingCancellation} className="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-soft">
-              {(() => {
-                const { rental, action } = pendingCancellation;
-                const vendor = firstRelated(rental.rental_vendors);
-                const isDeliveryCancel = action === "delivery";
-                const calledInBy = firstRelated(rental.called_in_by);
-                const pickupEvent = findPickupEvent(eventsByRentalId[rental.id] ?? []);
-                const pickupBy =
-                  firstRelated(rental.pickup_requested_by)?.display_name ??
-                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null) ??
-                  "Unknown";
-                const eventAt = isDeliveryCancel ? rental.called_in_at : rental.pickup_requested_at ?? pickupEvent?.event_at;
-
-                return (
-                  <>
-                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                      {isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
-                    </p>
-                    <h2 className="mt-1 text-lg font-black text-hospital-ink">
-                      {isDeliveryCancel ? "Cancel Delivery?" : "Cancel Pickup Request?"}
-                    </h2>
-                    <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                      {isDeliveryCancel
-                        ? "This will mark the rental order as canceled. Use this only if the rental was called in but will not be delivered."
-                        : "This will cancel the pending pickup request. The rental will stay active because the equipment is still in the hospital."}
-                    </p>
-                    <div className="mt-3 grid gap-1 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-600">
-                      <p>Equipment: {equipmentLabels[rental.equipment_type]}</p>
-                      {rental.serial_number && <p>Serial / Asset ID: {rental.serial_number}</p>}
-                      <p>Company: {vendor?.name ?? "Unknown company"}</p>
-                      {rental.current_location && <p>Location: {rental.current_location}</p>}
-                      <p>{isDeliveryCancel ? "Called in" : "Called for pickup"}: {eventAt ? formatDateTime(eventAt, departmentTimezone) : "Unknown"}</p>
-                      <p>{isDeliveryCancel ? "Called in by" : "Called by"}: {isDeliveryCancel ? calledInBy?.display_name ?? rental.called_in_by_name ?? "Unknown" : pickupBy}</p>
-                    </div>
-                    <label className="mt-3 block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Cancellation note</span>
-                      <textarea
-                        value={cancelNote}
-                        onChange={(event) => setCancelNote(event.target.value.slice(0, 140))}
-                        maxLength={140}
-                        placeholder="Optional"
-                        className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-slate-300"
-                      />
-                      <span className="mt-1 flex justify-between gap-3 text-xs font-bold text-slate-500">
-                        <span>No patient information.</span>
-                        <span>{cancelNote.length}/140</span>
-                      </span>
-                    </label>
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPendingCancellation(null);
-                          setCancelNote("");
-                        }}
-                        className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
-                      >
-                        {isDeliveryCancel ? "Keep Pending" : "Keep Pending Pickup"}
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="min-h-11 rounded-2xl bg-slate-600 px-3 text-sm font-extrabold text-white shadow-md shadow-slate-900/15 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {saving ? "Saving..." : isDeliveryCancel ? "Cancel Delivery" : "Cancel Pickup"}
-                      </button>
-                    </div>
-                  </>
-                );
-              })()}
-            </form>
-          )}
-
           <Link
             href="/operations/rental-management/history"
             className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
@@ -1672,6 +1693,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             Back to Dashboard
           </Link>
         </div>
+        {cancellationModal}
       </main>
     );
   }
