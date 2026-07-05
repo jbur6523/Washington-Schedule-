@@ -345,21 +345,41 @@ Active Rental cards include a `View History` action that opens Rental History fi
 
 ### Rental History Export
 
-Rental History includes manual CSV exports that open cleanly in Excel:
+Rental History includes manual CSV exports formatted as a compact printable respiratory rental equipment log:
 
 - `Export Current View` exports records matching the current search, status, equipment, company, and date filters.
 - `Export All History` exports all rental history records the user can access for the department.
 
 Export filenames use:
 
-- `whhs-rental-history-filtered-YYYY-MM-DD.csv`
-- `whhs-rental-history-all-YYYY-MM-DD.csv`
+- `whhs-rental-equipment-log-YYYY-MM-DD.csv`
+- `whhs-rental-equipment-log-all-YYYY-MM-DD.csv`
 
 The app and Supabase database remain the source of truth. CSV files are paper-trail copies only. This phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, Excel Online, or any personal cloud account.
 
-Exported columns include rental record ID, user-facing status, equipment type, Barcode #, Serial Number, rental company, last known location, Called In date/time/by, Delivered date/time/by, Called for Pickup date/time/by, Picked Up date/time/by, total time in hospital, notes, created at, and updated at.
+Exported columns match the printable paper log layout:
 
-Exports intentionally exclude patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, and staff emails.
+- Rental Company
+- Qty
+- Barcode #
+- Serial Number
+- Equipment Description
+- Ordered Date
+- Ordered Time
+- Ordered Initials
+- Delivered Date
+- Delivered Time
+- Delivered Initials
+- Called for Return Date
+- Called for Return Time
+- Called for Return Initials
+- Picked Up Date
+- Picked Up Time
+- Picked Up Initials
+
+Staff names export as initials only. Dates export as `MM/DD/YYYY`; times export as military `HH:mm`. Serial Number can be blank when it was not entered.
+
+Exports intentionally exclude rental record IDs, user-facing status, notes, created/updated timestamps, patient information, MRNs, clinical details, staff full names, staff usernames, auth IDs, staff phone numbers, and staff emails.
 
 ## Go-Live Note
 

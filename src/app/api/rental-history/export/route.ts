@@ -38,8 +38,6 @@ type RentalRecord = {
   cancelled_at: string | null;
   cancellation_note: string | null;
   notes: string | null;
-  created_at: string;
-  updated_at: string;
   rental_vendors: RelatedVendor;
   checked_in_by: RelatedStaff;
   called_in_by: RelatedStaff;
@@ -96,30 +94,6 @@ function isPickedUpStatus(status: RentalStatus) {
 
 function isDeliveryCancelledStatus(status: RentalStatus) {
   return status === "delivery_cancelled";
-}
-
-function rentalStatusLabel(status: RentalStatus) {
-  if (isPendingDeliveryStatus(status)) {
-    return "Pending Delivery";
-  }
-
-  if (isPickupCalledStatus(status)) {
-    return "Called for Pickup";
-  }
-
-  if (isPickedUpStatus(status)) {
-    return "Picked Up";
-  }
-
-  if (isDeliveryCancelledStatus(status)) {
-    return "Delivery Canceled";
-  }
-
-  if (status === "cancelled") {
-    return "Cancelled";
-  }
-
-  return "Active";
 }
 
 function datePartsInTimezone(value: Date, timezone: string) {
@@ -227,30 +201,25 @@ function formatTimePart(value: string | null, timezone: string) {
   }).format(new Date(value));
 }
 
-function totalTimeInHospital(record: RentalRecord) {
-  if (!record.checked_in_at) {
-    return isDeliveryCancelledStatus(record.status) ? "Not delivered" : "Not delivered yet";
-  }
-
-  const start = new Date(record.checked_in_at).getTime();
-  const end = record.returned_at ? new Date(record.returned_at).getTime() : Date.now();
-  const totalHours = Math.max(0, Math.floor((end - start) / 3_600_000));
-  const days = Math.floor(totalHours / 24);
-  const hours = totalHours % 24;
-
-  if (days > 0 && hours > 0) {
-    return `${days} ${days === 1 ? "day" : "days"} ${hours} ${hours === 1 ? "hour" : "hours"}`;
-  }
-
-  if (days > 0) {
-    return `${days} ${days === 1 ? "day" : "days"}`;
-  }
-
-  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
-}
-
 function findEvent(events: RentalEvent[], eventTypes: Set<string>) {
   return events.find((event) => eventTypes.has(event.event_type)) ?? null;
+}
+
+function staffInitials(displayName: string | null | undefined) {
+  const normalized = displayName?.trim();
+
+  if (!normalized) {
+    return "—";
+  }
+
+  const initials = normalized
+    .split(/\s+/)
+    .map((part) => part.split("-")[0]?.match(/[A-Za-z0-9]/)?.[0] ?? "")
+    .filter(Boolean)
+    .join("")
+    .toUpperCase();
+
+  return initials || "—";
 }
 
 function escapeCsvCell(value: unknown) {
@@ -260,29 +229,23 @@ function escapeCsvCell(value: unknown) {
 
 function csvFromRows(rows: Array<Record<string, string>>) {
   const headers = [
-    "Rental Record ID",
-    "Status",
-    "Equipment Type",
+    "Rental Company",
+    "Qty",
     "Barcode #",
     "Serial Number",
-    "Rental Company",
-    "Last Known Location",
-    "Called In Date",
-    "Called In Time",
-    "Called In By",
+    "Equipment Description",
+    "Ordered Date",
+    "Ordered Time",
+    "Ordered Initials",
     "Delivered Date",
     "Delivered Time",
-    "Delivered By",
-    "Called for Pickup Date",
-    "Called for Pickup Time",
-    "Called for Pickup By",
+    "Delivered Initials",
+    "Called for Return Date",
+    "Called for Return Time",
+    "Called for Return Initials",
     "Picked Up Date",
     "Picked Up Time",
-    "Picked Up By",
-    "Total Time In Hospital",
-    "Notes",
-    "Created At",
-    "Updated At"
+    "Picked Up Initials"
   ];
 
   return [headers.map(escapeCsvCell).join(","), ...rows.map((row) => headers.map((header) => escapeCsvCell(row[header])).join(","))].join("\r\n");
@@ -340,8 +303,6 @@ export async function GET(request: Request) {
     "cancelled_at",
     "cancellation_note",
     "notes",
-    "created_at",
-    "updated_at",
     "rental_vendors(name)",
     "checked_in_by:staff_profiles!rental_records_checked_in_by_staff_profile_id_fkey(display_name)",
     "called_in_by:staff_profiles!rental_records_called_in_by_staff_profile_id_fkey(display_name)",
@@ -469,36 +430,28 @@ export async function GET(request: Request) {
     const pickedUpBy = firstRelated(record.returned_by)?.display_name ?? (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : "");
     const pickupAt = pickupEvent?.event_at ?? record.pickup_requested_at;
     const pickedUpAt = pickedUpEvent?.event_at ?? record.returned_at;
-    const noteParts = [record.notes, record.cancellation_note].filter(Boolean);
-
     return {
-      "Rental Record ID": record.id,
-      Status: rentalStatusLabel(record.status),
-      "Equipment Type": equipmentLabels[record.equipment_type],
+      "Rental Company": vendor?.name ?? "",
+      Qty: "1",
       "Barcode #": record.barcode_number ?? "",
       "Serial Number": record.serial_number ?? "",
-      "Rental Company": vendor?.name ?? "",
-      "Last Known Location": record.current_location ?? "",
-      "Called In Date": formatDatePart(record.called_in_at, timezone),
-      "Called In Time": formatTimePart(record.called_in_at, timezone),
-      "Called In By": calledInBy ?? "",
+      "Equipment Description": isDeliveryCancelledStatus(record.status) ? `${equipmentLabels[record.equipment_type]} - Delivery Canceled` : equipmentLabels[record.equipment_type],
+      "Ordered Date": formatDatePart(record.called_in_at, timezone),
+      "Ordered Time": formatTimePart(record.called_in_at, timezone),
+      "Ordered Initials": staffInitials(calledInBy),
       "Delivered Date": formatDatePart(record.checked_in_at, timezone),
       "Delivered Time": formatTimePart(record.checked_in_at, timezone),
-      "Delivered By": deliveredBy ?? "",
-      "Called for Pickup Date": formatDatePart(pickupAt ?? null, timezone),
-      "Called for Pickup Time": formatTimePart(pickupAt ?? null, timezone),
-      "Called for Pickup By": pickupBy ?? "",
+      "Delivered Initials": staffInitials(deliveredBy),
+      "Called for Return Date": formatDatePart(pickupAt ?? null, timezone),
+      "Called for Return Time": formatTimePart(pickupAt ?? null, timezone),
+      "Called for Return Initials": staffInitials(pickupBy),
       "Picked Up Date": formatDatePart(pickedUpAt ?? null, timezone),
       "Picked Up Time": formatTimePart(pickedUpAt ?? null, timezone),
-      "Picked Up By": pickedUpBy ?? "",
-      "Total Time In Hospital": totalTimeInHospital(record),
-      Notes: noteParts.join(" | "),
-      "Created At": `${formatDatePart(record.created_at, timezone)} ${formatTimePart(record.created_at, timezone)}`.trim(),
-      "Updated At": `${formatDatePart(record.updated_at, timezone)} ${formatTimePart(record.updated_at, timezone)}`.trim()
+      "Picked Up Initials": staffInitials(pickedUpBy)
     };
   });
-  const csv = csvFromRows(rows);
-  const filename = `whhs-rental-history-${scope === "all" ? "all" : "filtered"}-${exportDateSlug(timezone)}.csv`;
+  const csv = `\uFEFF${csvFromRows(rows)}`;
+  const filename = `whhs-rental-equipment-log-${scope === "all" ? "all-" : ""}${exportDateSlug(timezone)}.csv`;
 
   return new Response(csv, {
     status: 200,
