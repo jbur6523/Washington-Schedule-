@@ -4,7 +4,7 @@ Rental Management is a department operations tool for tracking rented BiPAP V60 
 
 BiPAP is the equipment category. V60 is the model. User-facing rental screens should identify this equipment as `BiPAP V60`, and quick-reference cards should use `BiPAP V60 - SN XXXXX`.
 
-This phase implements Rental Check In, Pending Delivery cards, Active Rentals, Return Equipment, and Rental History.
+This phase implements Order Rental, Pending Delivery cards, Active Rentals, Return Equipment, and Rental History.
 
 ## Access
 
@@ -16,11 +16,11 @@ Rental Management is available to:
 
 Regular staff cannot access Rental Management routes.
 
-## Rental Check In Workflow
+## Order Rental Workflow
 
-Rental Check In opens as a dedicated workflow at `/operations/rental-management/check-in` instead of expanding inline on the main Rental Management page.
+Order Rental opens as a dedicated workflow at `/operations/rental-management/check-in` instead of expanding inline on the main Rental Management page.
 
-It now logs the called-in rental order only:
+It logs the called-in rental order only:
 
 1. Select the rental company.
 2. Review the prefilled equipment details: Equipment Type `BiPAP`, Model `V60`.
@@ -30,7 +30,7 @@ It now logs the called-in rental order only:
 
 Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
 
-The Rental Check In screen is intentionally compact:
+The Order Rental screen is intentionally compact:
 
 - `Order Details` contains the rental company, vendor info, BiPAP V60 equipment display, and compact called-in metadata.
 - Called-in date/time/by are auto-captured from the current user/session and shown as small metadata.
@@ -40,7 +40,7 @@ The Rental Check In screen is intentionally compact:
 
 `Save Pending Delivery` remains disabled until required details are complete. Notes are optional, hidden by default, limited to 140 characters, and continue to show the `No patient information` reminder.
 
-The Rental Management dashboard shows a `Pending` section only when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
+The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
 ## Delivery Confirmation
 
@@ -110,7 +110,7 @@ Older records may store `bipap` or `v60` in `equipment_type`; the UI normalizes 
 
 Delivered Date defaults to the current date. Delivered Time defaults to the current time in 24-hour input format.
 
-Called In Date and Called In Time default to the current date/time on the Rental Check In order form and are presented as compact metadata inside Order Details. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
+Called In Date and Called In Time default to the current date/time on the Order Rental form and are presented as compact metadata inside Order Details. Delivery Date defaults to the current date. Delivery Time defaults to the current time in 24-hour input format on the delivery confirmation screen.
 
 Current location defaults to `RT Equipment Room`. Available locations are:
 

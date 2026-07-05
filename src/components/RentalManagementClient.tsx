@@ -503,6 +503,14 @@ function shortDate(value: string, timezone: string) {
   }).format(new Date(value));
 }
 
+function shortMonthDay(value: string, timezone: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(value));
+}
+
 function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
@@ -572,7 +580,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const [error, setError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
-  const activeRentalsRef = useRef<HTMLElement>(null);
+  const activeRentalsRef = useRef<HTMLDivElement>(null);
 
   const selectedVendor = vendors.find((vendor) => vendor.id === form.vendorId) ?? null;
   const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
@@ -1269,7 +1277,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const pickedUpLogged = searchParams.get("pickedUp") === "1";
   const deliveryCancelled = searchParams.get("deliveryCancelled") === "1";
   const pickupCancelled = searchParams.get("pickupCancelled") === "1";
-  const oldestRentalDaysLabel = activeRentals[0]?.checked_in_at ? daysInHospitalLabel(activeRentals[0].checked_in_at, departmentTimezone) : "None";
+  const oldestRentalDateLabel = activeRentals[0]?.checked_in_at ? shortMonthDay(activeRentals[0].checked_in_at, departmentTimezone) : "—";
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
       return accumulator;
@@ -1463,9 +1471,28 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
               BiPAP V60 rental tracking
             </p>
-            <p className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-bold leading-6 text-cyan-900">
-              Track called-in, delivered, and active rented BiPAP V60 equipment.
-            </p>
+            <div ref={activeRentalsRef} className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                <p className="text-2xl font-black text-hospital-ink">{activeRentals.length}</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  {activeRentals.length === 1 ? "Active Rental" : "Active Rentals"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                <p className="text-2xl font-black text-hospital-ink">{oldestRentalDateLabel}</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Oldest Rental</p>
+              </div>
+            </div>
+            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
+            {!loading && activeRentals.length === 0 && (
+              <p className="mt-2 text-xs font-bold text-slate-500">Delivered rentals will appear here.</p>
+            )}
+            <Link
+              href="/operations/rental-management/active"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+            >
+              View Active Rentals
+            </Link>
           </section>
 
           {checkedIn && (
@@ -1510,44 +1537,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <ScanLine size={20} />
               </span>
               <div>
-                <h2 className="text-base font-black text-hospital-ink">Rental Check In</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a rented BiPAP V60 order.</p>
+                <h2 className="text-base font-black text-hospital-ink">Order Rental</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Log a BiPAP V60 rental order.</p>
               </div>
             </div>
             <Link
               href="/operations/rental-management/check-in"
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
             >
-              Log Rental Check In
-            </Link>
-          </section>
-
-          <section ref={activeRentalsRef} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Active Rentals</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                <p className="text-2xl font-black text-hospital-ink">{activeRentals.length}</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  {activeRentals.length === 1 ? "Active Rental" : "Active Rentals"}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                <p className="text-2xl font-black text-hospital-ink">{oldestRentalDaysLabel}</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Oldest Rental</p>
-              </div>
-            </div>
-            {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
-            {!loading && activeRentals.length === 0 && (
-              <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
-                <p className="text-sm font-black text-hospital-ink">No active rentals.</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">Delivered rentals will appear here.</p>
-              </div>
-            )}
-            <Link
-              href="/operations/rental-management/active"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
-            >
-              View Active Rentals
+              Order Rental
             </Link>
           </section>
 
@@ -1665,22 +1663,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           )}
 
           <Link
-            href="/operations/rental-management/history"
-            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
-          >
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <History size={20} />
-              </span>
-              <div>
-                <h2 className="text-base font-black text-hospital-ink">Rental History</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Search active and picked-up rental records.</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
             href="/operations/rental-management/return"
             className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
           >
@@ -1691,6 +1673,22 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <div>
                 <h2 className="text-base font-black text-hospital-ink">Return Equipment</h2>
                 <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Call for pickup or confirm picked up equipment.</p>
+                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/operations/rental-management/history"
+            className="block rounded-3xl border border-cyan-100 bg-white/95 p-4 text-left shadow-soft transition active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <History size={20} />
+              </span>
+              <div>
+                <h2 className="text-base font-black text-hospital-ink">Rental History</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Search active and picked-up rental records.</p>
                 <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-emerald-700">Active</p>
               </div>
             </div>
@@ -2943,9 +2941,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       <div className="mx-auto max-w-xl space-y-4">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Department Operations</p>
-          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Rental Check In</h1>
+          <h1 className="mt-2 text-2xl font-black text-hospital-ink">Order Rental</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Log a rented BiPAP V60 order.
+            Log a BiPAP V60 rental order.
           </p>
           <Link
             href="/operations/rental-management"

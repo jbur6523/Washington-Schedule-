@@ -35,7 +35,7 @@ Purpose:
 - Log called-in BiPAP V60 rental orders and confirm delivery from pending cards.
 - Prepare for future check-out, transfer, barcode-driven lookup, room tracking, and return workflows.
 
-The first active workflow is `Rental Check In`.
+The first active workflow is `Order Rental`.
 
 ## Current Rental Scope
 
@@ -48,15 +48,15 @@ Rental Management currently supports:
 - Pending Delivery cards only when pending records exist
 - delivery confirmation from a Pending Delivery card
 - 1D barcode scan or manual serial entry during delivery confirmation
-- Delivered / Check In date/time
+- Delivered / Confirm Delivery date/time
 - optional notes with no patient information
-- active rental summary on the Rental Management dashboard
+- combined Rental Management overview card with Active Rentals count and Oldest Rental `MM/DD` date
 - dedicated Active Rentals screen with full active rental details
 - dedicated Rental History screen for searching, filtering, and manually exporting pending, active, called-for-pickup, and picked-up rental records
 - Return Equipment workflow for pickup calls and picked-up confirmation
 - dashboard Pending section for pending deliveries and pending pickups, with neutral cancel actions that preserve Rental History events
 
-The Rental Management dashboard stays summary-focused. `View Active Rentals` opens the full list, sorted oldest active rental first.
+The Rental Management dashboard stays summary-focused. The top overview card combines the page title with Active Rentals count, Oldest Rental date, and `View Active Rentals`. `View Active Rentals` opens the full list, sorted oldest active rental first.
 `Rental History` opens the searchable history list with status, equipment, vendor, and date range filters. It can export the current filtered view or all history as an Excel-compatible CSV paper trail. The app database remains the source of truth, and this phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, or Excel Online.
 
 Return Equipment is active and opens a dedicated workflow screen.
