@@ -1999,7 +1999,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               </Link>
               <Link
                 href="/operations/rental-management/return"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-sm"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
               >
                 <RotateCcw size={18} aria-hidden="true" />
                 Return Rental
