@@ -1771,7 +1771,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <button
                   type="submit"
                   disabled={saving || !canConfirmPendingDelivery}
-                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="min-h-11 rounded-2xl bg-emerald-600 px-3 text-sm font-extrabold text-white shadow-md shadow-emerald-900/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Confirm Delivery"}
                 </button>
