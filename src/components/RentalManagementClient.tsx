@@ -254,6 +254,10 @@ function rentalStatusStyles(status: RentalStatus) {
   };
 }
 
+function serialNumberLabel(serialNumber: string | null) {
+  return serialNumber?.trim() || "Missing";
+}
+
 function findPickupEvent(events: RentalEventRecord[]) {
   return events.find((event) => pickupEventTypes.has(event.event_type));
 }
@@ -1506,15 +1510,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
                         return (
                           <article key={pending.id} className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
-                            <p className="flex items-start gap-2 text-sm font-black leading-5 text-hospital-ink">
+                            <p className="flex flex-wrap items-start gap-x-2 gap-y-1 text-sm font-black leading-5 text-hospital-ink">
                               <span className="mt-1 h-2.5 w-2.5 rounded-full bg-amber-400 shadow-[0_0_0_3px_rgba(245,158,11,0.18)]" aria-hidden="true" />
                               <span>
-                                {equipmentLabels[pending.equipment_type]} pickup requested by {pickupBy}
+                                {equipmentLabels[pending.equipment_type]} <span aria-hidden="true">&mdash;</span> SN {serialNumberLabel(pending.serial_number)} pickup requested by {pickupBy}
                                 {pickupText ? ` at ${pickupDisplay}` : ""}
                               </span>
                             </p>
                             <div className="mt-2 grid gap-1 text-xs font-bold text-slate-600">
-                              <p>Serial / Asset ID: {pending.serial_number ?? "Unknown"}</p>
+                              {!pending.serial_number && <p className="text-amber-700">Serial number missing</p>}
                               <p>Company: {vendor?.name ?? "Unknown company"}</p>
                               <p>Location: {pending.current_location || "Unknown"}</p>
                               <p>Called for pickup: {pickupDisplay}</p>
@@ -1712,9 +1716,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <article key={rental.id} className={`rounded-2xl border px-3 py-3 ${styles.card}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="flex items-center gap-2 text-base font-black text-hospital-ink">
+                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
                           <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                          {equipmentLabels[rental.equipment_type]}
+                          <span>{equipmentLabels[rental.equipment_type]}</span>
+                          <span aria-hidden="true">&mdash;</span>
+                          <span>SN <span className="font-black">{serialNumberLabel(rental.serial_number)}</span></span>
                         </p>
                         <p className={`mt-1 text-xs font-extrabold uppercase tracking-wide ${styles.text}`}>
                           {rentalStatusLabel(rental.status)}
@@ -1722,7 +1728,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       </div>
                     </div>
                     <div className="mt-3 grid gap-1 text-xs font-bold text-slate-500">
-                      <p>Serial / Asset ID: {rental.serial_number ?? "Pending"}</p>
+                      {!rental.serial_number && <p className="text-amber-700">Serial number missing</p>}
                       <p>Company: {vendor?.name ?? "Unknown company"}</p>
                       {isPickupCalledStatus(rental.status) && (pickupEvent || rental.pickup_requested_at) && (
                         <p>
@@ -2128,10 +2134,20 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                           <p className={`inline-flex rounded-full px-2 py-1 text-[11px] font-black ${styles.text} ${styles.card}`}>
                             {statusLabel}
                           </p>
-                          <p className="mt-2 text-base font-black text-hospital-ink">{equipmentLabels[record.equipment_type]}</p>
-                          <p className="mt-1 text-xs font-bold text-slate-600">
-                            Serial / Asset ID: {record.serial_number ?? "Pending"}
-                          </p>
+                          {pending || deliveryCancelled ? (
+                            <>
+                              <p className="mt-2 text-base font-black text-hospital-ink">{equipmentLabels[record.equipment_type]}</p>
+                              <p className="mt-1 text-xs font-bold text-slate-600">
+                                Serial / Asset ID: {record.serial_number ?? "Pending"}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-base font-black text-hospital-ink">
+                              <span>{equipmentLabels[record.equipment_type]}</span>
+                              <span aria-hidden="true">&mdash;</span>
+                              <span>SN <span className="font-black">{serialNumberLabel(record.serial_number)}</span></span>
+                            </p>
+                          )}
                           <p className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
                             <Building2 size={14} className="shrink-0 text-slate-400" aria-hidden="true" />
                             <span className="truncate">{vendor?.name ?? "Unknown company"}</span>
@@ -2381,17 +2397,19 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       selected ? "border-cyan-300 bg-cyan-50 shadow-md shadow-cyan-900/10" : styles.card
                     }`}
                   >
-                    <p className="flex items-center gap-2 text-sm font-black text-hospital-ink">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-black text-hospital-ink">
                       <span className={`h-2.5 w-2.5 rounded-full ${styles.dot}`} aria-hidden="true" />
-                      {equipmentLabels[rental.equipment_type]} {rental.serial_number ? `· ${rental.serial_number}` : ""}
+                      <span>{equipmentLabels[rental.equipment_type]}</span>
+                      <span aria-hidden="true">&mdash;</span>
+                      <span>SN <span className="font-black">{serialNumberLabel(rental.serial_number)}</span></span>
                     </p>
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                       {vendor?.name ?? "Unknown company"}
                     </p>
                     <p className={`mt-2 text-xs font-bold ${isPickupCalledStatus(rental.status) ? "text-amber-700" : "text-emerald-700"}`}>
-                      {rental.current_location || "Unknown"} ·{" "}
+                      {rental.current_location || "Unknown"} {" - "}
                       {isPickupCalledStatus(rental.status)
-                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` · Called: ${formatDateTime(rental.pickup_requested_at ?? pickupEvent!.event_at, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
+                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` - Called: ${formatDateTime(rental.pickup_requested_at ?? pickupEvent!.event_at, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
                         : `In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
                     </p>
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
