@@ -590,7 +590,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const selectedVendor = vendors.find((vendor) => vendor.id === form.vendorId) ?? null;
   const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
   const requestedReturnRentalId = searchParams.get("rental") ?? "";
-  const requestedReturnAction = searchParams.get("action") === "picked_up" ? "picked_up" : "";
+  const requestedReturnAction = "";
 
   useEffect(() => {
     if (!pendingCancellation && !pendingPickupConfirmation) {
@@ -697,7 +697,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return;
     }
 
-    const requestedRental = activeRentals.find((rental) => rental.id === requestedReturnRentalId);
+    const requestedRental = activeRentals.find((rental) => rental.id === requestedReturnRentalId && isActiveStatus(rental.status));
 
     if (!requestedRental) {
       return;
@@ -764,13 +764,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             const scannedValue = result.getText().trim();
             setForm((current) => ({ ...current, serialNumber: scannedValue }));
             if (mode === "return") {
-              const matches = activeRentals.filter((rental) => (rental.serial_number ?? "").toLowerCase() === scannedValue.toLowerCase());
+              const matches = activeRentals.filter(
+                (rental) => isActiveStatus(rental.status) && (rental.serial_number ?? "").toLowerCase() === scannedValue.toLowerCase()
+              );
               if (matches.length === 1) {
                 const [match] = matches;
                 setReturnForm((current) => ({
                   ...current,
                   selectedRentalId: match.id,
-                  action: isPickupCalledStatus(match.status) ? "picked_up" : current.action
+                  action: current.action
                 }));
               }
             }
@@ -1046,18 +1048,35 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     router.push("/operations/rental-management?checkedIn=1");
   };
 
-  const returnEligibleRentals = activeRentals;
+  const returnEligibleRentals = activeRentals.filter((rental) => isActiveStatus(rental.status));
   const selectedReturnRental = returnEligibleRentals.find((rental) => rental.id === returnForm.selectedRentalId) ?? null;
   const returnSerialSearch = form.serialNumber.trim().toLowerCase();
   const returnSerialMatches = returnSerialSearch
     ? returnEligibleRentals.filter((rental) => (rental.serial_number ?? "").toLowerCase() === returnSerialSearch)
     : [];
+  const returnSerialAllMatches = returnSerialSearch
+    ? rentalHistory.filter((rental) => (rental.serial_number ?? "").toLowerCase() === returnSerialSearch)
+    : [];
+  const returnSerialBlockedMatch = returnSerialMatches.length === 0 ? returnSerialAllMatches[0] : null;
+  const returnSerialFeedback = returnSerialSearch
+    ? returnSerialMatches.length > 0
+      ? ""
+      : returnSerialBlockedMatch
+        ? isPickupCalledStatus(returnSerialBlockedMatch.status)
+          ? "This rental is already pending pickup. Use the Pending section to confirm pickup or cancel the pickup request."
+          : isPickedUpStatus(returnSerialBlockedMatch.status)
+            ? "This rental has already been picked up. View Rental History for details."
+            : isPendingDeliveryStatus(returnSerialBlockedMatch.status)
+              ? "This rental has not been delivered yet."
+              : "No active rental found for this serial / asset ID."
+        : "No active rental found for this serial / asset ID."
+    : "";
 
   const selectReturnRental = (rental: ActiveRentalRecord) => {
     setReturnForm((current) => ({
       ...current,
       selectedRentalId: rental.id,
-      action: isPickupCalledStatus(rental.status) ? "picked_up" : current.action
+      action: current.action
     }));
     setError("");
   };
@@ -2516,13 +2535,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   if (mode === "return") {
     const selectedVendor = selectedReturnRental ? firstRelated(selectedReturnRental.rental_vendors) : null;
     const selectedDeliveredBy = selectedReturnRental ? firstRelated(selectedReturnRental.checked_in_by) : null;
-    const selectedPickupEvent = selectedReturnRental ? findPickupEvent(eventsByRentalId[selectedReturnRental.id] ?? []) : null;
-    const selectedPickupBy =
-      selectedReturnRental
-        ? firstRelated(selectedReturnRental.pickup_requested_by)?.display_name ??
-          (selectedPickupEvent ? firstRelated(selectedPickupEvent.staff_profiles)?.display_name : null)
-        : null;
-
     return (
       <main className="min-h-screen px-4 py-8">
         <div className="mx-auto max-w-xl space-y-4">
@@ -2530,7 +2542,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
             <h1 className="mt-2 text-2xl font-black text-hospital-ink">Return Equipment</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              Call for pickup or confirm equipment was picked up.
+              Select an active rental to request pickup.
             </p>
             <Link
               href="/operations/rental-management"
@@ -2591,9 +2603,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               />
             </label>
-            {returnSerialSearch && returnSerialMatches.length === 0 && (
+            {returnSerialFeedback && (
               <p className="mt-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                No active rental found for this serial / asset ID.
+                {returnSerialFeedback}
               </p>
             )}
             {returnSerialMatches.length > 1 && (
@@ -2607,19 +2619,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             <h2 className="text-lg font-black text-hospital-ink">Select from rentals</h2>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
             {!loading && returnEligibleRentals.length === 0 && (
-              <p className="mt-2 text-sm font-bold text-slate-500">No active or called-for-pickup rentals.</p>
+              <p className="mt-2 text-sm font-bold text-slate-500">No active rentals available for pickup request.</p>
             )}
             <div className="mt-3 grid gap-2">
               {returnEligibleRentals.map((rental) => {
                 const vendor = firstRelated(rental.rental_vendors);
                 const styles = rentalStatusStyles(rental.status);
                 const selected = selectedReturnRental?.id === rental.id;
-                const rentalEvents = eventsByRentalId[rental.id] ?? [];
-                const pickupEvent = findPickupEvent(rentalEvents);
-                const pickupBy =
-                  firstRelated(rental.pickup_requested_by)?.display_name ??
-                  (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : null);
-
                 return (
                   <button
                     key={rental.id}
@@ -2636,11 +2642,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                       {vendor?.name ?? "Unknown company"}
                     </p>
-                    <p className={`mt-2 text-xs font-bold ${isPickupCalledStatus(rental.status) ? "text-amber-700" : "text-emerald-700"}`}>
+                    <p className="mt-2 text-xs font-bold text-emerald-700">
                       {rental.current_location || "Unknown"} {" - "}
-                      {isPickupCalledStatus(rental.status)
-                        ? `Called for Pickup${(pickupEvent || rental.pickup_requested_at) ? ` - Called: ${formatDateTime(rental.pickup_requested_at ?? pickupEvent!.event_at, departmentTimezone)}${pickupBy ? ` by ${pickupBy}` : ""}` : ""}`
-                        : `In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
+                      {`In hospital: ${rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}`}
                     </p>
                     <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                       Status: {rentalStatusLabel(rental.status)}
@@ -2705,37 +2709,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Current status</dt>
                   <dd>{rentalStatusLabel(selectedReturnRental.status)}</dd>
                 </div>
-                {isPickupCalledStatus(selectedReturnRental.status) && (selectedPickupEvent || selectedReturnRental.pickup_requested_at) && (
-                  <div>
-                    <dt className="text-xs uppercase tracking-wide text-slate-400">Called for pickup</dt>
-                    <dd>
-                      {formatDateTime(selectedReturnRental.pickup_requested_at ?? selectedPickupEvent!.event_at, departmentTimezone)}
-                      {selectedPickupBy ? ` by ${selectedPickupBy}` : ""}
-                    </dd>
-                  </div>
-                )}
               </dl>
 
               <div className="mt-4 grid gap-2">
-                {isActiveStatus(selectedReturnRental.status) && (
-                  <button
-                    type="button"
-                    onClick={() => setReturnForm((current) => ({ ...current, action: "pickup", date: todayValue(), time: timeValue() }))}
-                    className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
-                  >
-                    Call for Pickup
-                  </button>
-                )}
                 <button
                   type="button"
-                  onClick={() => setReturnForm((current) => ({ ...current, action: "picked_up", date: todayValue(), time: timeValue() }))}
-                  className={`min-h-11 rounded-2xl px-3 text-sm font-extrabold shadow-md ${
-                    isPickupCalledStatus(selectedReturnRental.status)
-                      ? "bg-cyan-700 text-white shadow-cyan-900/20"
-                      : "border border-slate-200 bg-white text-slate-700 shadow-slate-900/10"
-                  }`}
+                  onClick={() => setReturnForm((current) => ({ ...current, action: "pickup", date: todayValue(), time: timeValue() }))}
+                  className="min-h-11 rounded-2xl bg-amber-500 px-3 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
                 >
-                  Confirm Picked Up
+                  Call for Pickup
                 </button>
               </div>
             </section>

@@ -175,12 +175,18 @@ Called-for-pickup cards also show the pickup call time and staff member when a p
 
 Return Equipment is available at `/operations/rental-management/return`.
 
-The workflow supports two operational steps:
+This page starts a new pickup request for equipment that is currently green `Active`.
 
-1. `Call for Pickup`
-2. `Confirm Picked Up`
+The Return Equipment selection list only shows active rentals that have not already been called for pickup. Yellow `Called for Pickup` rentals are completed or canceled from the dashboard `Pending` section instead.
 
-Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active and called-for-pickup rentals. Pending Delivery and Picked Up records are not selectable for return actions.
+Staff can find equipment by scanning a 1D barcode, manually entering a serial / asset ID, or selecting from active rentals. Pending Delivery, Called for Pickup, and Picked Up records are not selectable for new pickup requests.
+
+Barcode/manual serial lookup uses these messages for non-active matches:
+
+- Called for Pickup: use the `Pending` section to confirm pickup or cancel the pickup request.
+- Picked Up: view Rental History for details.
+- Pending Delivery: this rental has not been delivered yet.
+- No match: no active rental was found for that serial / asset ID.
 
 The Return Equipment screen remains the starting point when staff need to scan or select equipment from scratch. Pending Pickup dashboard cards bypass this screen and go straight to the picked-up confirmation modal.
 
