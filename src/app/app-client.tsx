@@ -20,6 +20,7 @@ import {
   Users
 } from "lucide-react";
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
+import { CurrentShiftStatusSummary } from "@/components/CurrentShiftStatusSummary";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
 import { GossipBoard } from "@/components/GossipBoard";
 import { MySettings } from "@/components/MySettings";
@@ -28,6 +29,7 @@ import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
+import { hasOperationsDashboardAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
@@ -237,8 +239,7 @@ function Header({
     await supabase.auth.signOut();
     window.location.href = "/login";
   };
-  const hasOperationsDashboard =
-    authContext.role === "admin" || authContext.role === "lead" || authContext.operationsRole === "aide";
+  const hasOperationsDashboard = hasOperationsDashboardAccess(authContext);
   const dashboardLabel =
     authContext.role === "admin"
       ? "Admin"
@@ -926,6 +927,9 @@ function ScheduleScreen({
           setExpandedDay("");
         }}
       />
+      {!developmentFallback && (
+        <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} />
+      )}
       <MyStatusCard
         authContext={authContext}
         developmentFallback={developmentFallback}

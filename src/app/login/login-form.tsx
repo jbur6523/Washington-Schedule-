@@ -21,6 +21,7 @@ type ClaimResponse = {
   staffProfileId?: string;
   departmentId?: string;
   role?: AppRole;
+  operationsRole?: "none" | "aide" | "command_center" | "director";
   displayName?: string;
   phoneNumber?: string;
 };
@@ -175,8 +176,11 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    if (password.length < 8) {
-      setError("Use a password with at least 8 characters.");
+    const isCommandCenterSetup = assignedUsername === "sputum";
+    const minimumPasswordLength = isCommandCenterSetup ? 4 : 8;
+
+    if (password.length < minimumPasswordLength) {
+      setError(`Use a password with at least ${minimumPasswordLength} characters.`);
       return;
     }
 
@@ -217,6 +221,11 @@ export function LoginForm() {
     }
 
     if (!result.staffProfileId || !result.departmentId) {
+      enterApp();
+      return;
+    }
+
+    if (result.operationsRole === "command_center" || result.operationsRole === "director") {
       enterApp();
       return;
     }
@@ -506,10 +515,15 @@ export function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={8}
+              minLength={assignedUsername === "sputum" ? 4 : 8}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
+            {assignedUsername === "sputum" && (
+              <span className="mt-1 block text-xs font-bold text-slate-400">
+                Temporary command-center password: 2000.
+              </span>
+            )}
           </label>
           <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -520,7 +534,7 @@ export function LoginForm() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               required
-              minLength={8}
+              minLength={assignedUsername === "sputum" ? 4 : 8}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />

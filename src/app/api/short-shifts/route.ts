@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { sendShortShiftNotifications } from "@/lib/notifications/web-push";
 import { createClient } from "@/lib/supabase/server";
@@ -17,6 +18,7 @@ type ShortShiftBody = {
   shift_end?: string;
   severity?: ShiftShortageSeverity;
   message?: string;
+  posted_by_name?: string;
 };
 
 function isValidDate(value: string | undefined) {
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (auth.context.role !== "admin" && auth.context.role !== "lead") {
+  if (auth.context.role !== "admin" && auth.context.role !== "lead" && !isCommandCenter(auth.context)) {
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 
@@ -51,7 +53,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Short Shift payload" }, { status: 400 });
   }
 
-  const message = body.message?.trim().slice(0, 140) || null;
+  const attribution = body.posted_by_name?.trim();
+  const rawMessage = body.message?.trim() || "";
+  const message = [attribution ? `Posted by ${attribution}.` : "", rawMessage]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 140) || null;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("shift_shortages")

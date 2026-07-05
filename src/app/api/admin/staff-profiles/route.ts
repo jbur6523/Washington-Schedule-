@@ -7,7 +7,7 @@ type StaffRole = "admin" | "lead" | "staff";
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
-type OperationsRole = "none" | "aide";
+type OperationsRole = "none" | "aide" | "command_center" | "director";
 
 type StaffProfilePayload = {
   department_id?: string;
@@ -28,7 +28,7 @@ const validRoles = new Set(["admin", "lead", "staff"]);
 const validEmploymentTypes = new Set(["full_time", "per_diem"]);
 const validHomeAssignments = new Set(["day_shift", "night_shift", "pft", "pulmonary_rehab", "rt_aide", "flexible"]);
 const validContactMethods = new Set(["phone", "email", "app"]);
-const validOperationsRoles = new Set(["none", "aide"]);
+const validOperationsRoles = new Set(["none", "aide", "command_center", "director"]);
 
 function cleanOptional(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;

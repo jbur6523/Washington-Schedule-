@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { RentalManagementClient } from "@/components/RentalManagementClient";
-import { hasRentalManagementAccess } from "@/lib/auth/access";
+import { DirectorShiftStatusClient } from "@/components/DirectorShiftStatusClient";
+import { canViewDirectorShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,10 @@ function AccessDenied() {
   return (
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this dashboard.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-          Department operations tools are available to admins, leads, and aides.
+          Shift Status is read-only for director access.
         </p>
         <Link
           href="/"
@@ -26,16 +27,28 @@ function AccessDenied() {
   );
 }
 
-export default async function RentalManagementPage() {
+export default async function DirectorShiftStatusPage() {
   const auth = await getAuthenticatedUserContext();
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
   }
 
-  if (auth.status !== "authenticated" || !hasRentalManagementAccess(auth.context)) {
+  if (auth.status !== "authenticated" || !canViewDirectorShiftStatus(auth.context)) {
     return <AccessDenied />;
   }
 
-  return <RentalManagementClient authContext={auth.context} />;
+  const supabase = await createClient();
+  const { data: department } = await supabase
+    .from("departments")
+    .select("timezone")
+    .eq("id", auth.context.departmentId)
+    .maybeSingle();
+
+  return (
+    <DirectorShiftStatusClient
+      authContext={auth.context}
+      timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
+    />
+  );
 }

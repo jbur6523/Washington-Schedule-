@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
@@ -98,6 +98,11 @@ type RentalCheckInForm = {
   location: string;
   otherLocation: string;
   notes: string;
+};
+
+type StaffAttributionOption = {
+  id: string;
+  display_name: string;
 };
 
 type ReturnAction = "pickup" | "picked_up";
@@ -563,6 +568,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const router = useRouter();
   const searchParams = useSearchParams();
   const [vendors, setVendors] = useState<RentalVendor[]>([]);
+  const [staffOptions, setStaffOptions] = useState<StaffAttributionOption[]>([]);
   const [activeRentals, setActiveRentals] = useState<ActiveRentalRecord[]>([]);
   const [rentalHistory, setRentalHistory] = useState<ActiveRentalRecord[]>([]);
   const [rentalEvents, setRentalEvents] = useState<RentalEventRecord[]>([]);
@@ -610,10 +616,17 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const activeRentalsRef = useRef<HTMLDivElement>(null);
 
+  const commandCenterMode = authContext.operationsRole === "command_center";
+  const [attributionStaffProfileId, setAttributionStaffProfileId] = useState("");
+  const selectedAttributionStaff = staffOptions.find((staff) => staff.id === attributionStaffProfileId) ?? null;
+  const actionStaffProfileId = commandCenterMode ? attributionStaffProfileId : authContext.staffProfileId;
+  const actionDisplayName = commandCenterMode ? selectedAttributionStaff?.display_name ?? "" : authContext.displayName;
   const selectedVendor = vendors.find((vendor) => vendor.id === form.vendorId) ?? null;
   const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
   const requestedReturnRentalId = searchParams.get("rental") ?? "";
   const requestedReturnAction = "";
+  const dashboardBackHref = commandCenterMode ? "/command-center" : "/operations";
+  const dashboardBackLabel = commandCenterMode ? "Back to Command Center" : "Back to Dashboard";
 
   useEffect(() => {
     if (!pendingCancellation && !pendingDeliveryConfirmation && !pendingPickupConfirmation && returnForm.action !== "pickup") {
@@ -638,7 +651,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       { data: rentalData, error: rentalError },
       { data: historyData, error: historyError },
       { data: eventData, error: eventError },
-      { data: departmentData }
+      { data: departmentData },
+      { data: staffData }
     ] = await Promise.all([
       supabase
         .from("rental_vendors")
@@ -667,7 +681,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         .from("departments")
         .select("timezone")
         .eq("id", authContext.departmentId)
-        .maybeSingle()
+        .maybeSingle(),
+      supabase
+        .from("staff_profiles")
+        .select("id, display_name")
+        .eq("department_id", authContext.departmentId)
+        .eq("is_active", true)
+        .order("display_name", { ascending: true })
     ]);
 
     setDepartmentTimezone((departmentData?.timezone as string | null | undefined) || "America/Los_Angeles");
@@ -704,6 +724,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       setRentalEvents((eventData ?? []) as unknown as RentalEventRecord[]);
     }
 
+    setStaffOptions((staffData ?? []) as StaffAttributionOption[]);
     setLoading(false);
   }, [authContext.departmentId]);
 
@@ -861,11 +882,49 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     ? pendingDeliveries.find((record) => record.id === pendingRentalId) ?? null
     : null;
 
+  const requireActionAttribution = (errorMessage: string) => {
+    if (!actionStaffProfileId || !actionDisplayName) {
+      setError(errorMessage);
+      return null;
+    }
+
+    return {
+      staffProfileId: actionStaffProfileId,
+      displayName: actionDisplayName
+    };
+  };
+
+  const attributionField = (label: string): ReactNode => {
+    if (!commandCenterMode) {
+      return null;
+    }
+
+    return (
+      <label className="mt-3 block rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3">
+        <span className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{label}</span>
+        <select
+          value={attributionStaffProfileId}
+          onChange={(event) => setAttributionStaffProfileId(event.target.value)}
+          required
+          className="mt-2 min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+        >
+          <option value="">Select staff</option>
+          {staffOptions.map((staff) => (
+            <option key={staff.id} value={staff.id}>
+              {staff.display_name}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  };
+
   const submitCheckIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before logging rental orders.");
+    const actor = requireActionAttribution("Select who ordered this rental before saving.");
+
+    if (!actor) {
       return;
     }
 
@@ -892,8 +951,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         serial_number: null,
         status: "pending_delivery",
         called_in_at: pendingAt,
-        called_in_by_staff_profile_id: authContext.staffProfileId,
-        called_in_by_name: authContext.displayName,
+        called_in_by_staff_profile_id: actor.staffProfileId,
+        called_in_by_name: actor.displayName,
         checked_in_at: null,
         checked_in_by_staff_profile_id: null,
         current_location: null,
@@ -916,12 +975,12 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       equipment_id: null,
       event_type: "called_in",
       event_at: pendingAt,
-      actor_staff_profile_id: authContext.staffProfileId,
+      actor_staff_profile_id: actor.staffProfileId,
       event_data: {
         equipment_type: form.equipmentType,
         vendor_id: form.vendorId,
         vendor_name: vendor?.name ?? null,
-        called_in_by: authContext.displayName,
+        called_in_by: actor.displayName,
         timestamp: pendingAt
       }
     });
@@ -938,8 +997,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   };
 
   const confirmDeliveryForRental = async (pendingRental: ActiveRentalRecord) => {
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before confirming delivery.");
+    const actor = requireActionAttribution("Select who confirmed this delivery before saving.");
+
+    if (!actor) {
       return false;
     }
 
@@ -1032,7 +1092,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         serial_number: serialNumber,
         status: "active",
         checked_in_at: deliveredAt,
-        checked_in_by_staff_profile_id: authContext.staffProfileId,
+        checked_in_by_staff_profile_id: actor.staffProfileId,
         current_location: location,
         notes: form.notes.trim() || pendingRental.notes || null
       })
@@ -1056,7 +1116,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         equipment_id: equipment.id,
         event_type: eventType,
         event_at: deliveredAt,
-        actor_staff_profile_id: authContext.staffProfileId,
+        actor_staff_profile_id: actor.staffProfileId,
         event_data: {
           barcode_number: barcodeNumber,
           serial_number: serialNumber,
@@ -1073,7 +1133,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         equipment_id: equipment.id,
         event_type: "delivered",
         event_at: deliveredAt,
-        actor_staff_profile_id: authContext.staffProfileId,
+        actor_staff_profile_id: actor.staffProfileId,
         event_data: {
           source: scannedByCamera ? "barcode" : "manual",
           barcode_number: barcodeNumber,
@@ -1082,7 +1142,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           vendor_id: pendingRental.vendor_id,
           vendor_name: vendor?.name ?? null,
           current_location: location,
-          delivered_by: authContext.displayName,
+          delivered_by: actor.displayName,
           timestamp: deliveredAt
         }
       }
@@ -1193,8 +1253,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const submitPickupCall = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before logging pickup calls.");
+    const actor = requireActionAttribution("Select who called for pickup before saving.");
+
+    if (!actor) {
       return;
     }
 
@@ -1216,7 +1277,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       .update({
         status: "pickup_called",
         pickup_requested_at: eventAt,
-        pickup_requested_by_staff_profile_id: authContext.staffProfileId,
+        pickup_requested_by_staff_profile_id: actor.staffProfileId,
         pickup_confirmation_number: confirmationNumber,
         pickup_request_note: note
       })
@@ -1234,7 +1295,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       equipment_id: null,
       event_type: "pickup_called",
       event_at: eventAt,
-      actor_staff_profile_id: authContext.staffProfileId,
+      actor_staff_profile_id: actor.staffProfileId,
       event_data: {
         barcode_number: selectedReturnRental.barcode_number,
         serial_number: selectedReturnRental.serial_number,
@@ -1244,7 +1305,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         current_location: selectedReturnRental.current_location,
         confirmation_number: confirmationNumber,
         note,
-        called_by: authContext.displayName,
+        called_by: actor.displayName,
         timestamp: eventAt
       }
     });
@@ -1259,8 +1320,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const submitPendingPickupPickedUp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before confirming pickup.");
+    const actor = requireActionAttribution("Select who confirmed pickup before saving.");
+
+    if (!actor) {
       return;
     }
 
@@ -1281,7 +1343,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       .update({
         status: "picked_up",
         returned_at: eventAt,
-        returned_by_staff_profile_id: authContext.staffProfileId,
+        returned_by_staff_profile_id: actor.staffProfileId,
         return_note: note
       })
       .eq("id", pendingPickupConfirmation.id);
@@ -1298,7 +1360,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       equipment_id: null,
       event_type: "picked_up",
       event_at: eventAt,
-      actor_staff_profile_id: authContext.staffProfileId,
+      actor_staff_profile_id: actor.staffProfileId,
       event_data: {
         barcode_number: pendingPickupConfirmation.barcode_number,
         serial_number: pendingPickupConfirmation.serial_number,
@@ -1307,7 +1369,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         vendor_name: vendor?.name ?? null,
         current_location: pendingPickupConfirmation.current_location,
         note,
-        picked_up_by: authContext.displayName,
+        picked_up_by: actor.displayName,
         timestamp: eventAt
       }
     });
@@ -1325,8 +1387,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const submitPendingCancellation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!authContext.staffProfileId) {
-      setError("Your staff profile must be linked before cancelling pending rentals.");
+    const actor = requireActionAttribution("Select who completed this cancellation before saving.");
+
+    if (!actor) {
       return;
     }
 
@@ -1349,7 +1412,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         ? {
             status: "delivery_cancelled",
             cancelled_at: eventAt,
-            cancelled_by_staff_profile_id: authContext.staffProfileId,
+            cancelled_by_staff_profile_id: actor.staffProfileId,
             cancellation_note: note
           }
         : {
@@ -1376,7 +1439,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       equipment_id: null,
       event_type: eventType,
       event_at: eventAt,
-      actor_staff_profile_id: authContext.staffProfileId,
+      actor_staff_profile_id: actor.staffProfileId,
       event_data: {
         barcode_number: rental.barcode_number,
         serial_number: rental.serial_number,
@@ -1385,7 +1448,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
         vendor_name: vendor?.name ?? null,
         current_location: rental.current_location,
         note,
-        cancelled_by: authContext.displayName,
+        cancelled_by: actor.displayName,
         timestamp: eventAt
       }
     });
@@ -1406,12 +1469,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     !form.calledInTime ? "Called In Time required" : ""
   ].filter(Boolean);
   const missingCheckInFields = [...missingOrderFields, ...missingAutoFilledFields];
-  const canLogOrder = missingCheckInFields.length === 0;
-  const canConfirmDelivery = Boolean(deliveryPendingRental && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation);
+  const hasActionAttribution = !commandCenterMode || Boolean(actionStaffProfileId);
+  const canLogOrder = missingCheckInFields.length === 0 && hasActionAttribution;
+  const canConfirmDelivery = Boolean(deliveryPendingRental && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation && hasActionAttribution);
   const canConfirmPendingDelivery = Boolean(
-    pendingDeliveryConfirmation && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation
+    pendingDeliveryConfirmation && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation && hasActionAttribution
   );
-  const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time);
+  const canLogPickupCall = Boolean(selectedReturnRental && returnForm.action === "pickup" && returnForm.date && returnForm.time && hasActionAttribution);
   const checkedIn = searchParams.get("checkedIn") === "1";
   const calledIn = searchParams.get("calledIn") === "1";
   const pickupLogged = searchParams.get("pickup") === "1";
@@ -1572,6 +1636,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <p>{isDeliveryCancel ? "Called in" : "Pickup requested"}: {eventAt ? formatDateTime(eventAt, departmentTimezone) : "Unknown"}</p>
                 <p>{isDeliveryCancel ? "Called in by" : "Pickup requested by"}: {isDeliveryCancel ? calledInBy?.display_name ?? rental.called_in_by_name ?? "Unknown" : pickupBy}</p>
               </div>
+              {attributionField(isDeliveryCancel ? "Cancellation completed by" : "Pickup cancellation completed by")}
               <label className="mt-3 block">
                 <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Cancellation note</span>
                 <textarea
@@ -1731,6 +1796,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </label>
               </section>
 
+              {attributionField("Delivered by")}
+
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="submit"
@@ -1752,7 +1819,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 <p>Barcode #: {barcodeNumberLabel(form.barcodeNumber)}</p>
                 <p>Serial Number: {serialNumberLabel(form.serialNumber)}</p>
                 <p>Delivered: {form.deliveredDate} {form.deliveredTime}</p>
-                <p>Delivered by: {authContext.displayName}</p>
+                <p>Delivered by: {actionDisplayName || authContext.displayName}</p>
                 <p>Location: {currentLocation || "RT Equipment Room"}</p>
                 {!deliveryDetailsOpen ? (
                   <button
@@ -1903,8 +1970,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </p>
                 <p>Delivered: {rental.checked_in_at ? formatDateTime(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
                 <p>In hospital: {rental.checked_in_at ? daysInHospitalLabel(rental.checked_in_at, departmentTimezone) : "Unknown"}</p>
-                <p>Picked up by: {authContext.displayName}</p>
+                <p>Picked up by: {actionDisplayName || authContext.displayName}</p>
               </div>
+              {attributionField("Picked up confirmed by")}
               {!pickupDetailsOpen ? (
                 <button
                   type="button"
@@ -1954,7 +2022,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="submit"
-                  disabled={saving || !pickupDateDraft || !pickupTimeDraft}
+                  disabled={saving || !pickupDateDraft || !pickupTimeDraft || !hasActionAttribution}
                   className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? "Saving..." : "Confirm Picked Up"}
@@ -2026,7 +2094,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </div>
                 <div className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-xs font-bold text-slate-700">
                   <p>Pickup requested: {returnForm.date} {returnForm.time}</p>
-                  <p>Requested by: {authContext.displayName}</p>
+                  <p>Requested by: {actionDisplayName || authContext.displayName}</p>
                   {!pickupCallDetailsOpen ? (
                     <button
                       type="button"
@@ -2084,6 +2152,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                     </div>
                   )}
                 </div>
+                {attributionField("Pickup requested by")}
                 {error && (
                   <p role="alert" className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
                     {error}
@@ -2364,10 +2433,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           </Link>
 
           <Link
-            href="/operations"
+            href={dashboardBackHref}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
           >
-            Back to Dashboard
+            {dashboardBackLabel}
           </Link>
         </div>
         {cancellationModal}
@@ -3335,7 +3404,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                       />
                     </label>
                   </div>
-                  <p className="text-xs font-bold text-slate-500">Delivered By: {authContext.displayName}</p>
+                  <p className="text-xs font-bold text-slate-500">Delivered By: {actionDisplayName || authContext.displayName}</p>
                   <label className="block">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Notes</span>
                     <textarea
@@ -3352,6 +3421,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   </label>
                 </div>
               </section>
+              {attributionField("Delivered by")}
 
               {duplicateRental && (
                 <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-900">
@@ -3405,7 +3475,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Delivered</dt>
-                    <dd>{form.deliveredDate} {form.deliveredTime} by {authContext.displayName}</dd>
+                    <dd>{form.deliveredDate} {form.deliveredTime} by {actionDisplayName || authContext.displayName}</dd>
                   </div>
                   <div>
                     <dt className="text-xs uppercase tracking-wide text-slate-400">Current Location</dt>
@@ -3525,7 +3595,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <span className="text-slate-400">Called in:</span> {formatDateInput(form.calledInDate)} {form.calledInTime}
                 </p>
                 <p className="mt-1">
-                  <span className="text-slate-400">Called by:</span> {authContext.displayName}
+                  <span className="text-slate-400">Called by:</span> {actionDisplayName || authContext.displayName}
                 </p>
                 <button
                   type="button"
@@ -3620,7 +3690,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </div>
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
-                  <dd>{formatDateInput(form.calledInDate)} {form.calledInTime} by {authContext.displayName}</dd>
+                  <dd>{formatDateInput(form.calledInDate)} {form.calledInTime} by {actionDisplayName || authContext.displayName}</dd>
                 </div>
                 {form.notes.trim() && (
                   <div>
@@ -3638,6 +3708,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </div>
               </dl>
             )}
+
+            {attributionField("Ordered by")}
 
             {noteEditorOpen && (
               <div className="mt-4 rounded-2xl border border-slate-100 bg-white px-3 py-3">

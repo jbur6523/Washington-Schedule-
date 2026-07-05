@@ -1,5 +1,5 @@
 export type AppRole = "admin" | "lead" | "staff";
-export type OperationsRole = "none" | "aide";
+export type OperationsRole = "none" | "aide" | "command_center" | "director";
 
 export type AuthenticatedUserContext = {
   authUserId: string;

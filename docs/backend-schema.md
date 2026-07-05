@@ -38,6 +38,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `schedule_entries.is_shift_lead`: entry-level Shift Lead flag shown as a crown on Schedule cards.
 - `shift_shortages`: shift-level Short Shift alerts. This is the only table that represents Short Shift.
 - `user_schedule_overrides`: staff-owned self-managed app schedule changes layered on top of the baseline schedule.
+- `shift_status_updates`: Command Center shift-level operational updates. Rows store staffing, vent/BiPAP counts, scheduled procedure counts, and visible updated-by attribution for the Director Shift Status page and compact Schedule summary.
 
 ### Requests and Offers
 
@@ -72,6 +73,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - Rental notes are capped at 140 characters and must not contain patient information.
 - Barcode # and Serial Number are separate identifiers. `barcode_number` is required when delivery is confirmed. `serial_number` is nullable and optional because it may not be easy to find on the equipment label.
 - Rental History export is generated server-side from `rental_records`, `rental_vendors`, `rental_events`, and related `staff_profiles` display names. The database remains the source of truth; exported CSV files include separate Barcode # and Serial Number columns and do not include usernames, auth IDs, staff phone numbers, staff emails, patient information, or clinical details.
+- Shared Command Center rental actions store the selected staff attribution in the existing staff-related rental fields and event actor fields. The shared `sputum` login is not intended to appear as the visible rental actor.
 
 ### Import and Review
 
@@ -119,6 +121,18 @@ Roles are stored in `department_memberships.role`.
 
 The app determines role and membership from `profiles` and `department_memberships`. It must not trust role values sent from browser state. `burj` is the only admin username. Other lead users use the `lead` role.
 
+Operational access beyond the normal app role is stored in `staff_profiles.operations_role`:
+
+- `none`: no special operations experience.
+- `aide`: access to the Aide Dashboard and Rental Management without granting Lead/Admin schedule permissions.
+- `command_center`: shared department phone access. Routes to `/command-center`, can use Shift Update, Rental Management, and Short Shift Alert, and must provide staff attribution for visible actions.
+- `director`: read-only Director Shift Status access. Routes to `/director/shift-status` and cannot edit shift updates or rental workflows.
+
+Seeded special usernames:
+
+- `sputum`: Command Center shared-device login. Temporary password target is `2000`.
+- `aloha`: Director read-only login. Password should be set through the normal password setup/reset process.
+
 ## RLS Strategy
 
 All production tables have Row Level Security enabled.
@@ -128,6 +142,7 @@ Helper functions:
 - `current_profile_id()`: returns the profile linked to `auth.uid()`.
 - `user_is_department_member(department_id)`: checks department membership.
 - `user_is_department_admin(department_id)`: checks department admin role.
+- `user_is_command_center(department_id)`: checks whether the current account is the shared Command Center account for that department.
 - `current_staff_profile_id(department_id)`: returns the staff profile linked to the current profile in a department.
 
 General policy rules:
@@ -136,6 +151,7 @@ General policy rules:
 - Admins can manage department-scoped data.
 - Staff can read active published schedule data and staff directory data for their department.
 - Staff can create/cancel only records tied to their own linked `staff_profiles` row.
+- Command Center can insert department-scoped shift status, Short Shift, and rental workflow rows where policy explicitly allows it.
 - Import tables are admin-only.
 - Audit events are admin-readable only.
 

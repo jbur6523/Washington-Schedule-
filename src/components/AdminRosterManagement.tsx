@@ -11,8 +11,8 @@ type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
-type OperationsRole = "none" | "aide";
-type VisibleRole = StaffRole | "aide";
+type OperationsRole = "none" | "aide" | "command_center" | "director";
+type VisibleRole = StaffRole | "aide" | "command_center" | "director";
 type RosterFilter =
   | "all"
   | "admin"
@@ -129,6 +129,12 @@ const rosterFilters: Array<{ id: RosterFilter; label: string }> = [
   { id: "flexible", label: "Flexible" }
 ];
 
+const operationsRoleLabels: Record<Exclude<OperationsRole, "none">, string> = {
+  aide: "Aide",
+  command_center: "Command Center",
+  director: "Director"
+};
+
 const employmentLabels: Record<EmploymentType, string> = {
   full_time: "Full-time",
   per_diem: "Per diem"
@@ -191,17 +197,19 @@ function roleForStaff(displayName: string, username: string): StaffRole {
 }
 
 function visibleRoleForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">): VisibleRole {
-  return profile.operations_role === "aide" ? "aide" : profile.assigned_role;
+  return profile.operations_role !== "none" ? profile.operations_role : profile.assigned_role;
 }
 
 function visibleRoleForForm(form: StaffProfileForm): VisibleRole {
-  return form.operations_role === "aide" ? "aide" : form.assigned_role;
+  return form.operations_role !== "none" ? form.operations_role : form.assigned_role;
 }
 
 function roleLabelForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">) {
   const visibleRole = visibleRoleForProfile(profile);
 
-  return visibleRole === "aide" ? "Aide" : roleLabels[visibleRole];
+  return visibleRole === "aide" || visibleRole === "command_center" || visibleRole === "director"
+    ? operationsRoleLabels[visibleRole]
+    : roleLabels[visibleRole];
 }
 
 function nextAvailableUsername(displayName: string, profiles: StaffProfile[], excludeProfileId?: string) {
@@ -428,8 +436,8 @@ function StaffProfileEditor({
                 onChange={(event) => {
                   const nextRole = event.target.value as Exclude<VisibleRole, "admin">;
 
-                  if (nextRole === "aide") {
-                    onChange({ ...form, assigned_role: "staff", operations_role: "aide" });
+                  if (nextRole === "aide" || nextRole === "command_center" || nextRole === "director") {
+                    onChange({ ...form, assigned_role: "staff", operations_role: nextRole });
                     return;
                   }
 
@@ -440,10 +448,12 @@ function StaffProfileEditor({
                 <option value="staff">Staff</option>
                 <option value="lead">Lead</option>
                 <option value="aide">Aide</option>
+                <option value="command_center">Command Center</option>
+                <option value="director">Director</option>
               </select>
             )}
             <span className="mt-1 block text-xs font-bold text-slate-400">
-              Aide gives access to the Aide Dashboard and Rental Management.
+              Aide gives dashboard access. Command Center and Director route to simplified operational views.
             </span>
           </label>
 
@@ -647,7 +657,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
       }
 
       if (selectedFilter === "staff") {
-        return profile.assigned_role === "staff" && profile.operations_role !== "aide";
+        return profile.assigned_role === "staff" && profile.operations_role === "none";
       }
 
       if (selectedFilter === "aide") {

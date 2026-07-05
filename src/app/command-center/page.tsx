@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { RentalManagementClient } from "@/components/RentalManagementClient";
-import { hasRentalManagementAccess } from "@/lib/auth/access";
+import { CommandCenterClient } from "@/components/CommandCenterClient";
+import { isCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +10,10 @@ function AccessDenied() {
   return (
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Rental Management</p>
-        <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this dashboard.</h1>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Command Center</p>
+        <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this page.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-          Department operations tools are available to admins, leads, and aides.
+          This page is for the shared respiratory department phone.
         </p>
         <Link
           href="/"
@@ -26,16 +26,16 @@ function AccessDenied() {
   );
 }
 
-export default async function RentalManagementPage() {
+export default async function CommandCenterPage() {
   const auth = await getAuthenticatedUserContext();
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
   }
 
-  if (auth.status !== "authenticated" || !hasRentalManagementAccess(auth.context)) {
+  if (auth.status !== "authenticated" || !isCommandCenter(auth.context)) {
     return <AccessDenied />;
   }
 
-  return <RentalManagementClient authContext={auth.context} />;
+  return <CommandCenterClient />;
 }

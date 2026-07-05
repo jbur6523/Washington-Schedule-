@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasRentalManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -67,10 +68,6 @@ const pickupEventTypes = new Set(["pickup_requested", "pickup_called", "called_f
 const pickedUpEventTypes = new Set(["returned", "picked_up"]);
 
 export const runtime = "nodejs";
-
-function hasDashboardAccess(context: { role: string; operationsRole: string }) {
-  return context.role === "admin" || context.role === "lead" || context.operationsRole === "aide";
-}
 
 function firstRelated<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] ?? null : value ?? null;
@@ -263,7 +260,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!hasDashboardAccess(auth.context)) {
+  if (!hasRentalManagementAccess(auth.context)) {
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
   }
 

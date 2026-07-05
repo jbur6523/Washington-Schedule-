@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ClipboardList, ShieldCheck } from "lucide-react";
+import { hasOperationsDashboardAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
@@ -20,10 +21,6 @@ function dashboardTitle(context: AuthenticatedUserContext) {
   }
 
   return "Operations Dashboard";
-}
-
-function hasDashboardAccess(context: AuthenticatedUserContext) {
-  return context.role === "admin" || context.role === "lead" || context.operationsRole === "aide";
 }
 
 function AccessDenied() {
@@ -53,7 +50,7 @@ export default async function OperationsDashboardPage() {
     redirect("/login");
   }
 
-  if (auth.status !== "authenticated" || !hasDashboardAccess(auth.context)) {
+  if (auth.status !== "authenticated" || !hasOperationsDashboardAccess(auth.context)) {
     return <AccessDenied />;
   }
 

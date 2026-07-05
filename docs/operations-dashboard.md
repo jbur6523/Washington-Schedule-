@@ -9,9 +9,12 @@ Dashboard access is role based:
 - Admin users see `Admin Dashboard`.
 - Lead users see `Lead Dashboard`.
 - Staff with `staff_profiles.operations_role = aide` see `Aide Dashboard`.
+- Staff with `staff_profiles.operations_role = command_center` route to the separate Respiratory Command Center instead of the normal Operations Dashboard.
+- Staff with `staff_profiles.operations_role = director` route to the read-only Shift Status page instead of the normal Operations Dashboard.
 - Regular staff do not see the dashboard button.
 
 Admins and leads use their existing app role. Aide access is a separate operations capability so it does not grant lead/admin schedule permissions.
+Command Center and Director access are separate experiences for shared department operations and director read-only status viewing.
 
 Unauthenticated users are redirected to login. Regular staff who open dashboard routes directly see a friendly access-denied state.
 
@@ -24,6 +27,34 @@ The top header shows one dashboard button for users with operations access:
 - Aide
 
 The dashboard page title uses the full label.
+Command Center and Director accounts do not use this header entry point because they route directly to their simplified pages after login.
+
+## Respiratory Command Center
+
+The Respiratory Command Center is available at `/command-center` for `operations_role = command_center`.
+
+Seeded shared-device login:
+
+- Username: `sputum`
+- Temporary password: `2000`
+
+The command phone menu contains:
+
+- Shift Update
+- Rental Management
+- Short Shift Alert
+
+It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login.
+
+## Director Shift Status
+
+The Director read-only page is available at `/director/shift-status` for `operations_role = director`.
+
+Seeded director username:
+
+- `aloha`
+
+The Director should set or choose his own password through the normal password setup/reset process. The page shows staffing, equipment, procedure counts, last updated time, and updated-by display name/initials. It does not allow editing.
 
 ## Rental Management
 
@@ -63,9 +94,13 @@ The Rental Management dashboard stays summary-focused. The top overview card com
 
 Return Rental is active and opens the existing dedicated pickup request workflow screen.
 
+## Shift Status Updates
+
+Command Center and Lead/Admin users can save shift updates. Normal Schedule users see only the compact current shift summary: RTs on/needed, vent count, and last updated time. The Director Shift Status page shows the full read-only staffing, equipment, and scheduled procedure counts.
+
 ## Go-Live Note
 
-Before official department use, run the deployed smoke test for Admin, Lead, Aide, and regular Staff access. After that smoke test passes, run the one-time rental test-data wipe so the live rental log starts clean.
+Before official department use, run the deployed smoke test for Admin, Lead, Aide, Command Center, Director, and regular Staff access. After that smoke test passes, run the one-time rental test-data wipe so the live rental log starts clean.
 
 ## Out of Scope
 

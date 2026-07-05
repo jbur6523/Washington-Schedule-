@@ -27,14 +27,16 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const confirmPassword = body.confirmPassword ?? "";
 
-  if (!username || password.length < 8 || password !== confirmPassword) {
+  const minimumPasswordLength = username === "sputum" ? 4 : 8;
+
+  if (!username || password.length < minimumPasswordLength || password !== confirmPassword) {
     return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
   }
 
   const supabase = createAdminClient();
   const { data: staffProfile, error: staffError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, assigned_role, phone_number")
+    .select("id, department_id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, assigned_role, operations_role, phone_number")
     .eq("username_normalized", username)
     .maybeSingle();
 
@@ -114,6 +116,7 @@ export async function POST(request: Request) {
     staffProfileId: staffProfile.id,
     departmentId: staffProfile.department_id,
     role,
+    operationsRole: staffProfile.operations_role ?? "none",
     displayName: staffProfile.display_name,
     phoneNumber: staffProfile.phone_number ?? ""
   });

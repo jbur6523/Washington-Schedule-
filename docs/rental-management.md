@@ -18,8 +18,11 @@ Rental Management is available to:
 - Admin
 - Lead
 - Aide Dashboard users
+- Command Center shared-device users
 
 Regular staff cannot access Rental Management routes.
+
+For Command Center users, rental lifecycle actions require staff attribution before saving. The selected staff member is used in Rental History and printable exports. Normal Admin, Lead, and Aide personal logins continue to auto-use the current logged-in staff member.
 
 ## Order Rental Workflow
 
@@ -32,6 +35,8 @@ It logs the called-in rental order only:
 3. Review the compact called-in metadata: date, time, and staff member.
 4. Add an optional note only if needed.
 5. Save the pending delivery.
+
+When the workflow is used from the shared Command Center login, the form requires an ordered-by staff selection before saving.
 
 Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
 
@@ -61,6 +66,8 @@ Delivery confirmation starts from a Pending Delivery card on the main Rental Man
 Confirming delivery updates the pending record to `active`, sets the delivered timestamp in `checked_in_at`, records the current location, saves `Barcode #`, saves `Serial Number` if entered, creates delivery events, and returns to the main Rental Management page with a `Rental delivered and active.` success message. The Active Rentals summary reloads so newly delivered equipment is included in the count.
 
 `Barcode #` is required before `Confirm Delivery` is enabled. `Serial Number` is optional. Cancel closes the modal without creating partial delivery records.
+
+When delivery is confirmed from the shared Command Center login, the modal requires delivered-by staff attribution. Rental History and exports show that selected person rather than the shared `sputum` login.
 
 The full `/operations/rental-management/deliver/[id]` Confirm Delivery page remains available as a direct-route fallback, but the normal Pending Delivery dashboard card uses the modal flow.
 
@@ -226,6 +233,8 @@ The modal shows the equipment, Barcode #, optional Serial Number, company, curre
 
 Saving with `Confirm Pickup Request` changes the rental status to `pickup_called`, turns the card yellow as `Called for Pickup`, creates a `pickup_called` rental event, returns to Rental Management, and keeps the equipment in Active Rentals because it is still in the hospital.
 
+Command Center pickup requests require a selected staff member before saving.
+
 Called-for-pickup rentals also appear in the dashboard `Pending` section as yellow pending pickup cards. When staff start from a Pending Pickup card, the `BiPAP V60 Picked Up` button opens a centered `Confirm Picked Up` modal immediately because the rental has already been selected. Staff do not need to scan, search, or re-select the rental from that path.
 
 ### Confirm Picked Up
@@ -242,6 +251,8 @@ The form captures:
 Saving changes the rental status to `picked_up`, sets `returned_at`, creates a `picked_up` rental event, removes the equipment from Active Rentals, and keeps it visible in Rental History.
 
 If a pickup request was created by mistake, `Cancel Pickup` opens a confirmation form. Confirming it changes the rental back to `active`, clears the current pickup request fields, creates a `pickup_cancelled` rental event, keeps the original pickup event in history, and leaves the equipment in Active Rentals as green Active.
+
+Command Center picked-up confirmation and cancellation require selected staff attribution.
 
 Full transfer workflow remains future work.
 
@@ -380,6 +391,8 @@ Exported columns match the printable paper log layout:
 Staff names export as initials only. Dates export as `MM/DD/YYYY`; times export as military `HH:mm`. Serial Number can be blank when it was not entered.
 
 Exports intentionally exclude rental record IDs, user-facing status, notes, created/updated timestamps, patient information, MRNs, clinical details, staff full names, staff usernames, auth IDs, staff phone numbers, and staff emails.
+
+Command Center rental actions export the initials of the selected staff attribution.
 
 ## Go-Live Note
 

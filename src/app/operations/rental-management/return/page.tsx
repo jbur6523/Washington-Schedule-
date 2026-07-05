@@ -1,14 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { RentalManagementClient } from "@/components/RentalManagementClient";
+import { hasRentalManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
-import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
 export const dynamic = "force-dynamic";
-
-function hasDashboardAccess(context: AuthenticatedUserContext) {
-  return context.role === "admin" || context.role === "lead" || context.operationsRole === "aide";
-}
 
 function AccessDenied() {
   return (
@@ -37,7 +33,7 @@ export default async function ReturnEquipmentPage() {
     redirect("/login");
   }
 
-  if (auth.status !== "authenticated" || !hasDashboardAccess(auth.context)) {
+  if (auth.status !== "authenticated" || !hasRentalManagementAccess(auth.context)) {
     return <AccessDenied />;
   }
 
