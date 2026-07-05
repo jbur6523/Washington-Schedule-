@@ -33,7 +33,8 @@ Purpose:
 
 - Track BiPAP V60 rentals.
 - Log called-in BiPAP V60 rental orders and confirm delivery from pending cards.
-- Prepare for future check-out, transfer, barcode-driven lookup, room tracking, and return workflows.
+- Start pickup requests for active BiPAP V60 rentals and complete pickup from pending cards.
+- Prepare for future transfer, room tracking, notifications, and analytics workflows.
 
 The dashboard starts with `Rental Actions`, which contains `Order Rental` and `Return Rental`.
 
@@ -61,11 +62,14 @@ The Rental Management dashboard stays summary-focused. The top overview card com
 
 Return Rental is active and opens the existing dedicated pickup request workflow screen.
 
+## Go-Live Note
+
+Before official department use, run the deployed smoke test for Admin, Lead, Aide, and regular Staff access. After that smoke test passes, run the one-time rental test-data wipe so the live rental log starts clean.
+
 ## Out of Scope
 
 This phase does not implement:
 
-- Return workflow
 - Room transfer
 - Notifications
 - Analytics

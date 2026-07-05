@@ -40,7 +40,7 @@ The Order Rental screen is intentionally compact:
 
 `Save Pending Delivery` remains disabled until required details are complete. Notes are optional, hidden by default, limited to 140 characters, and continue to show the `No patient information` reminder.
 
-The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. A compact `Rental Actions` card sits below the overview card with `Order Rental` and `Return Rental` buttons. The old separate Order Rental and Return Equipment dashboard cards were removed to reduce scrolling. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
+The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. A compact `Rental Actions` card sits below the overview card with `Order Rental` and `Return Rental` buttons. The old separate Order Rental and Return Rental dashboard cards were removed to reduce scrolling. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
 
 ## Delivery Confirmation
 
@@ -156,7 +156,7 @@ The list is sorted by `checked_in_at` ascending so the equipment that has been i
 The Rental Management dashboard shows a compact summary only:
 
 - Active Rentals count
-- Oldest Rental duration
+- Oldest Rental `MM/DD` date
 
 The full Active Rentals details live on `/operations/rental-management/active`, opened by the `View Active Rentals` button.
 
@@ -338,6 +338,10 @@ The app and Supabase database remain the source of truth. CSV files are paper-tr
 Exported columns include rental record ID, user-facing status, equipment type, serial / asset ID, rental company, last known location, Called In date/time/by, Delivered date/time/by, Called for Pickup date/time/by, Picked Up date/time/by, total time in hospital, notes, created at, and updated at.
 
 Exports intentionally exclude patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, and staff emails.
+
+## Go-Live Note
+
+Before official department use, run the deployed smoke test for Order Rental, Pending Delivery, Confirm Delivery, Return Rental, Pending Pickup, Confirm Picked Up, Rental History, and export. After that smoke test passes, run the one-time rental test-data wipe so production starts with a clean rental history.
 
 Only Admin, Lead, and Aide users can export Rental History. The export route validates access server-side.
 

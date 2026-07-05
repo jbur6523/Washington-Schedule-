@@ -14,7 +14,7 @@ function AccessDenied() {
   return (
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Return Equipment</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Return Rental</p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this dashboard.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
           Department operations tools are available to admins, leads, and aides.
