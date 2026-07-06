@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -75,6 +75,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [notes, setNotes] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
+  const [expandedNotesOrderId, setExpandedNotesOrderId] = useState<string | null>(null);
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
@@ -295,6 +296,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         {orders.map((order) => {
           const created = formatCreatedAt(order.created_at);
           const reqLabel = order.req_number?.trim() || "Not entered";
+          const notesOpen = expandedNotesOrderId === order.id;
 
           return (
             <article key={order.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -335,10 +337,25 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     Created by: {order.created_by_name || "User"}
                   </p>
                   {order.notes && (
-                    <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2">
-                      <p className="text-xs font-extrabold text-slate-400">Notes:</p>
-                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-600">{order.notes}</p>
-                    </div>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedNotesOrderId(notesOpen ? null : order.id)}
+                        className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-pink-100 bg-pink-50 px-3 text-sm font-extrabold text-pink-700"
+                        aria-expanded={notesOpen}
+                      >
+                        {notesOpen ? "Hide Notes" : "View Notes"}
+                        <ChevronDown
+                          size={16}
+                          className={notesOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                        />
+                      </button>
+                      {notesOpen && (
+                        <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2">
+                          <p className="text-sm font-semibold leading-5 text-slate-600">{order.notes}</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -347,7 +364,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         })}
       </div>
     );
-  }, [loading, orders]);
+  }, [expandedNotesOrderId, loading, orders]);
 
   return (
     <main className="min-h-screen px-4 py-8">
