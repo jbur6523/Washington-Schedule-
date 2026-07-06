@@ -90,7 +90,8 @@ Order Management is intentionally simple in this phase:
 - Submit is disabled until the user adds a picture, note, or Req Number.
 - Saved orders show `Order Req - XXXXXX`, created date/time, creator display name, notes, and an image thumbnail when present.
 - Tapping an order thumbnail opens a full-size preview modal.
-- The shared To-Do List auto-saves edits, shows last updated metadata, and requires confirmation before clearing.
+- The shared To-Do List saves only when the user taps `Save`, shows last updated metadata, and requires confirmation before clearing.
+- Clearing the To-Do List closes the modal and shows a small rotating celebration toast.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.

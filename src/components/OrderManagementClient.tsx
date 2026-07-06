@@ -10,6 +10,14 @@ import { createClient } from "@/lib/supabase/client";
 
 const orderImageBucket = "department-order-images";
 const maxNoteLength = 280;
+const todoClearMessageStorageKey = "order-todo-clear-message-index";
+const todoClearMessages = [
+  "Slaaayyyyyy 👏🏻",
+  "Productivity MAXIMIZED ✨",
+  "Clean slate activated ✨",
+  "We are so back. 💅🏻",
+  "Chaos reduced by 3% 💃🏻"
+];
 
 type DepartmentOrderRow = {
   id: string;
@@ -74,6 +82,7 @@ function safeFileName(fileName: string) {
 export function OrderManagementClient({ authContext }: OrderManagementClientProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const todoClearFallbackIndexRef = useRef(-1);
   const [orders, setOrders] = useState<OrderWithPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -96,7 +105,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [todoError, setTodoError] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
-  const [showClearCelebration, setShowClearCelebration] = useState(false);
+  const [todoClearToast, setTodoClearToast] = useState("");
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
@@ -175,7 +184,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setSavedTodoContent(content);
     setTodoUpdatedAt(todo?.updated_at ?? null);
     setTodoUpdatedBy(todo?.updated_by_name ?? null);
-    setShowClearCelebration(false);
     setTodoLoading(false);
   }, [authContext.departmentId]);
 
@@ -263,6 +271,18 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     return () => window.clearTimeout(timer);
   }, [loadTodo, todoOpen]);
 
+  useEffect(() => {
+    if (!todoClearToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setTodoClearToast("");
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [todoClearToast]);
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
 
@@ -306,7 +326,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setTodoSaveStatus("idle");
     setClearConfirmOpen(false);
     setDiscardConfirmOpen(false);
-    setShowClearCelebration(false);
     setTodoOpen(true);
   };
 
@@ -329,7 +348,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setClearConfirmOpen(false);
     setDiscardConfirmOpen(false);
     setTodoError("");
-    setShowClearCelebration(false);
   };
 
   const requestCloseTodo = () => {
@@ -375,7 +393,22 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setTodoContent("");
     setSavedTodoContent("");
     setClearConfirmOpen(false);
-    setShowClearCelebration(true);
+    setDiscardConfirmOpen(false);
+    setTodoOpen(false);
+
+    let nextMessageIndex = 0;
+
+    try {
+      const storedIndex = window.localStorage.getItem(todoClearMessageStorageKey);
+      const previousIndex = storedIndex === null ? -1 : Number(storedIndex);
+      nextMessageIndex = Number.isFinite(previousIndex) ? (previousIndex + 1) % todoClearMessages.length : 0;
+      window.localStorage.setItem(todoClearMessageStorageKey, String(nextMessageIndex));
+    } catch {
+      nextMessageIndex = (todoClearFallbackIndexRef.current + 1) % todoClearMessages.length;
+      todoClearFallbackIndexRef.current = nextMessageIndex;
+    }
+
+    setTodoClearToast(todoClearMessages[nextMessageIndex]);
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -794,7 +827,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                       setTodoContent(event.target.value.slice(0, 5000));
                       setTodoError("");
                       setTodoSaveStatus("idle");
-                      setShowClearCelebration(false);
                     }}
                     placeholder="Add supply/order tasks here..."
                     className="mt-1 min-h-64 w-full rounded-2xl border border-amber-100 bg-amber-50/40 px-3 py-3 text-base font-bold leading-6 text-hospital-ink outline-none focus:border-amber-300 focus:bg-white"
@@ -819,16 +851,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                   <p className="mt-1 font-black text-rose-600">Could not save</p>
                 )}
               </div>
-
-              {showClearCelebration && (
-                <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black leading-6 text-emerald-800 shadow-sm">
-                  <p>Slaaayyyyyy 👏🏻</p>
-                  <p>Productivity MAXIMIZED ✨</p>
-                  <p>Clean slate activated ✨</p>
-                  <p>We are so back. 💅🏻</p>
-                  <p>Chaos reduced by 3% 💃🏻</p>
-                </div>
-              )}
 
               {todoError && (
                 <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
@@ -914,6 +936,18 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 </section>
               </div>
             )}
+          </div>
+        )}
+
+        {todoClearToast && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed inset-x-0 bottom-5 z-[80] flex justify-center px-4"
+          >
+            <div className="max-w-sm rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center text-sm font-black text-emerald-800 shadow-2xl shadow-emerald-900/15">
+              {todoClearToast}
+            </div>
           </div>
         )}
 
