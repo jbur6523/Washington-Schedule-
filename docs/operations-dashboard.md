@@ -56,7 +56,9 @@ Seeded director username:
 
 - `aloha`
 
-The Director should set or choose his own password through the normal password setup/reset process. The page shows staffing, equipment, procedure counts, last updated time, and updated-by display name/initials. It does not allow editing.
+The Director should set or choose his own password through the normal password setup/reset process. The page is the primary live visual reporting dashboard for respiratory shift status. It shows large cards for Staffing, Vents, and BiPAPs; compact scheduled procedure counts; freshness status; last updated time; and updated-by display name/initials. It does not allow editing.
+
+Email reporting is intentionally out of scope for this phase. The Command Center updates the app, and the Director dashboard displays those latest numbers. A copyable text report is available for manual sharing.
 
 ## Rental Management
 
@@ -98,7 +100,7 @@ Return Rental is active and opens the existing dedicated pickup request workflow
 
 ## Shift Status Updates
 
-Command Center and Lead/Admin users can save shift updates. Normal Schedule users see only the compact current shift summary: RTs on/needed, vent count, and last updated time. The Director Shift Status page shows the full read-only staffing, equipment, and scheduled procedure counts.
+Command Center and Lead/Admin users can save shift updates. Normal Schedule users see only the compact current shift summary: RTs on/needed, vent count, and last updated time. The Director Shift Status page shows the full read-only staffing, equipment, scheduled procedure counts, and freshness indicator.
 
 ## Go-Live Note
 

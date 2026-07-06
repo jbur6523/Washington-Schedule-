@@ -100,13 +100,13 @@ Route:
 
 `/director/shift-status`
 
+The Director Shift Status page is the primary live visual reporting dashboard for current respiratory department numbers. Email is secondary/future; the app dashboard is the source of truth for this phase.
+
 The Director view is read-only and shows:
 
-- RTs on
-- RTs required
-- Short count
-- Vent count
-- BiPAP count
+- Large Staffing, Vent Count, and BiPAP Count cards
+- RTs on / RTs required and Short by / Fully staffed status
+- Freshness indicator such as `Updated 18 minutes ago`, `Needs update`, or `No update submitted`
 - C-Sections
 - CABG
 - Bronch
@@ -114,6 +114,10 @@ The Director view is read-only and shows:
 - Other count and note
 - Last updated time
 - Updated by display name or initials
+- Today Day Shift, Today Night Shift, and Previous Shift selector
+- Optional text report with `Copy Report`
+
+If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 
 ## Rental Attribution
 
