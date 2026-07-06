@@ -46,6 +46,8 @@ The command phone menu contains:
 
 It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login.
 
+Trusted-device sign-in persistence is documented in `docs/auth.md`. It keeps the Supabase session on the department phone without storing the command-center password.
+
 ## Director Shift Status
 
 The Director read-only page is available at `/director/shift-status` for `operations_role = director`.

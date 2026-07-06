@@ -18,6 +18,8 @@ Shared-device temporary password:
 
 The `sputum` account routes directly to `/command-center` after login. It does not show the normal Schedule tab, bottom navigation, Gossip, Staff Directory, Admin settings, staff management, or personal staff tools.
 
+The department phone can use `Keep me signed in on this device` so the command-center session survives normal app closes and PWA reopens. This stores a Supabase session, not the password.
+
 Command Center can access only:
 
 - Shift Update
@@ -35,6 +37,8 @@ Seeded username:
 - `aloha`
 
 The Director account routes directly to `/director/shift-status` after login. The Director should choose or set his own password through the normal password setup/reset process. Do not hard-code a permanent director password.
+
+Director sessions can also use `Keep me signed in on this device`; restored sessions still route to `/director/shift-status` and remain read-only.
 
 Director access is read-only. It can view Shift Status numbers but cannot edit shift updates, use Command Center workflows, manage rentals, access Admin tools, use personal staff tools, open Staff Directory, or access Gossip by default.
 

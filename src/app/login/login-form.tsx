@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -47,6 +47,8 @@ const defaultNotificationPreferences: NotificationPreferences = {
   coverage_offer_alerts: true
 };
 
+const rememberedUsernameKey = "whhs-remembered-username";
+
 function isValidEmail(value: string) {
   return !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -86,6 +88,56 @@ async function getServiceWorkerRegistration() {
   return navigator.serviceWorker.register("/sw.js");
 }
 
+function TrustedDeviceOptions({
+  keepSignedIn,
+  setKeepSignedIn,
+  rememberUsername,
+  setRememberUsername
+}: {
+  keepSignedIn: boolean;
+  setKeepSignedIn: (value: boolean) => void;
+  rememberUsername: boolean;
+  setRememberUsername: (value: boolean) => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
+      <label className="flex items-start gap-3 text-sm font-extrabold text-hospital-ink">
+        <input
+          type="checkbox"
+          checked={keepSignedIn}
+          onChange={(event) => {
+            const checked = event.target.checked;
+            setKeepSignedIn(checked);
+            if (!checked) {
+              setRememberUsername(false);
+            }
+          }}
+          className="mt-1 h-5 w-5 shrink-0 accent-cyan-700"
+        />
+        <span>
+          Keep me signed in on this device
+          <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
+            Recommended for personal phones and the department command phone. Do not use on shared public devices.
+          </span>
+        </span>
+      </label>
+      <label className="flex items-center gap-3 text-xs font-bold text-slate-600">
+        <input
+          type="checkbox"
+          checked={rememberUsername}
+          disabled={!keepSignedIn}
+          onChange={(event) => setRememberUsername(event.target.checked)}
+          className="h-4 w-4 shrink-0 accent-cyan-700 disabled:opacity-50"
+        />
+        Remember username only
+      </label>
+      <p className="text-[11px] font-bold leading-4 text-slate-500">
+        Passwords are never saved by WHHS RT Schedule.
+      </p>
+    </div>
+  );
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [mode, setMode] = useState<UsernameMode>("lookup");
@@ -103,9 +155,46 @@ export function LoginForm() {
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [onboardingContext, setOnboardingContext] = useState<OnboardingContext | null>(null);
+  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [rememberUsername, setRememberUsername] = useState(true);
+  const [hasRememberedUsername, setHasRememberedUsername] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const rememberedUsername = window.localStorage.getItem(rememberedUsernameKey) ?? "";
+
+      if (rememberedUsername) {
+        setUsername(rememberedUsername);
+        setHasRememberedUsername(true);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const saveRememberedUsername = (nextUsername: string) => {
+    if (!keepSignedIn || !rememberUsername) {
+      window.localStorage.removeItem(rememberedUsernameKey);
+      setHasRememberedUsername(false);
+      return;
+    }
+
+    const normalized = normalizeUsername(nextUsername);
+    if (normalized) {
+      window.localStorage.setItem(rememberedUsernameKey, normalized);
+      setHasRememberedUsername(true);
+    }
+  };
+
+  const clearRememberedUsername = () => {
+    window.localStorage.removeItem(rememberedUsernameKey);
+    setHasRememberedUsername(false);
+    setRememberUsername(false);
+    setUsername("");
+  };
 
   const enterApp = () => {
     router.replace("/");
@@ -164,10 +253,11 @@ export function LoginForm() {
     setLoading(false);
 
     if (signInError) {
-      setError(signInError.message);
+      setError(signInError.message || "Your session expired. Please sign in again.");
       return;
     }
 
+    saveRememberedUsername(assignedUsername);
     enterApp();
   };
 
@@ -219,6 +309,8 @@ export function LoginForm() {
       setMode("claimed");
       return;
     }
+
+    saveRememberedUsername(result.username ?? assignedUsername);
 
     if (!result.staffProfileId || !result.departmentId) {
       enterApp();
@@ -456,6 +548,15 @@ export function LoginForm() {
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold lowercase text-hospital-ink outline-none focus:border-cyan-300"
             />
           </label>
+          {hasRememberedUsername && (
+            <button
+              type="button"
+              onClick={clearRememberedUsername}
+              className="min-h-10 w-full rounded-2xl border border-slate-200 bg-white px-3 text-xs font-extrabold text-slate-500"
+            >
+              Clear remembered username
+            </button>
+          )}
           <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
             Your username is assigned by the department.
           </p>
@@ -489,6 +590,12 @@ export function LoginForm() {
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
           </label>
+          <TrustedDeviceOptions
+            keepSignedIn={keepSignedIn}
+            setKeepSignedIn={setKeepSignedIn}
+            rememberUsername={rememberUsername}
+            setRememberUsername={setRememberUsername}
+          />
           <button
             type="submit"
             disabled={loading}
@@ -539,6 +646,12 @@ export function LoginForm() {
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
           </label>
+          <TrustedDeviceOptions
+            keepSignedIn={keepSignedIn}
+            setKeepSignedIn={setKeepSignedIn}
+            rememberUsername={rememberUsername}
+            setRememberUsername={setRememberUsername}
+          />
           <button
             type="submit"
             disabled={loading}
