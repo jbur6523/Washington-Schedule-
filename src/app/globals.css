@@ -31,6 +31,40 @@ button {
   font: inherit;
 }
 
+@layer components {
+  :where(button, a[href][class], [role="button"], .interactive-button, .tappable-card) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition-property: transform, box-shadow, border-color, background-color, color, filter, opacity;
+    transition-duration: 120ms;
+    transition-timing-function: ease;
+  }
+
+  :where(button, a[href][class], [role="button"], .interactive-button, .tappable-card):where(:not(:disabled)):active {
+    filter: brightness(0.97);
+    transform: scale(0.98);
+  }
+
+  :where(button, a[href][class], [role="button"], .interactive-button, .tappable-card):focus-visible {
+    outline: 3px solid rgba(8, 145, 178, 0.55);
+    outline-offset: 3px;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :where(button, a[href][class], [role="button"], .interactive-button, .tappable-card) {
+      transition-duration: 0.01ms;
+    }
+
+    :where(button, a[href][class], [role="button"], .interactive-button, .tappable-card):where(:not(:disabled)):active {
+      transform: none;
+    }
+  }
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
