@@ -311,13 +311,41 @@ function directorViewShiftDefaultShift(timezone: string): "day" | "night" {
   return hour >= 7 && hour < 19 ? "day" : "night";
 }
 
-function chooseDefaultScheduleDate(uploadedDates: string[], currentDate: string) {
+function previousShiftDate(currentDate: string, currentShift: "day" | "night") {
+  return currentShift === "day" ? previousDate(currentDate) : currentDate;
+}
+
+function visibleScheduleDropdownDates(uploadedDates: string[], currentDate: string, currentShift: "day" | "night") {
+  const previousDateValue = previousShiftDate(currentDate, currentShift);
+  const visibleDates = new Set<string>();
+
+  if (uploadedDates.includes(previousDateValue)) {
+    visibleDates.add(previousDateValue);
+  }
+
+  if (uploadedDates.includes(currentDate)) {
+    visibleDates.add(currentDate);
+  }
+
+  uploadedDates
+    .filter((dateValue) => dateValue > currentDate)
+    .forEach((dateValue) => visibleDates.add(dateValue));
+
+  return Array.from(visibleDates).sort();
+}
+
+function chooseDefaultScheduleDate(uploadedDates: string[], currentDate: string, currentShift: "day" | "night") {
   if (uploadedDates.includes(currentDate)) {
     return currentDate;
   }
 
-  const yesterday = previousDate(currentDate);
-  return uploadedDates.includes(yesterday) ? yesterday : "";
+  const closestFutureDate = uploadedDates.find((dateValue) => dateValue > currentDate);
+  if (closestFutureDate) {
+    return closestFutureDate;
+  }
+
+  const previousDateValue = previousShiftDate(currentDate, currentShift);
+  return uploadedDates.includes(previousDateValue) ? previousDateValue : "";
 }
 
 function parseManualScheduleDate(value: string) {
@@ -612,7 +640,11 @@ export function DirectorShiftStatusClient({
 
     const uploadedDates = Array.from(new Set(((entries ?? []) as ScheduleEntryRow[]).map((entry) => entry.shift_date))).sort();
     const currentPacificDate = todayInTimezone(timezone);
-    const nextSelectedDate = chooseDefaultScheduleDate(uploadedDates, currentPacificDate);
+    const nextSelectedDate = chooseDefaultScheduleDate(
+      uploadedDates,
+      currentPacificDate,
+      directorViewShiftDefaultShift(timezone)
+    );
 
     setSelectedScheduleDate(nextSelectedDate);
   };
@@ -730,8 +762,7 @@ export function DirectorShiftStatusClient({
   );
   const defaultScheduleDateOptions = useMemo(() => {
     const todayDate = todayInTimezone(timezone);
-    const yesterdayDate = previousDate(todayDate);
-    return [todayDate, yesterdayDate].filter((dateValue) => scheduleDateOptions.includes(dateValue));
+    return visibleScheduleDropdownDates(scheduleDateOptions, todayDate, directorViewShiftDefaultShift(timezone));
   }, [scheduleDateOptions, timezone]);
   const selectedScheduleDay = useMemo(
     () => schedulePreview?.days.find((day) => day.dateValue === selectedScheduleDate) ?? null,
@@ -748,8 +779,9 @@ export function DirectorShiftStatusClient({
   const openShiftPreview = () => {
     const currentPacificDate = todayInTimezone(timezone);
     const availableDates = Array.from(new Set((schedulePreview?.entries ?? []).map((entry) => entry.shift_date))).sort();
-    setSelectedScheduleShift(directorViewShiftDefaultShift(timezone));
-    setSelectedScheduleDate(chooseDefaultScheduleDate(availableDates, currentPacificDate) || currentPacificDate);
+    const defaultShift = directorViewShiftDefaultShift(timezone);
+    setSelectedScheduleShift(defaultShift);
+    setSelectedScheduleDate(chooseDefaultScheduleDate(availableDates, currentPacificDate, defaultShift));
     setManualScheduleDate("");
     setManualScheduleError("");
     setShiftPreviewOpen(true);
@@ -1093,7 +1125,7 @@ export function DirectorShiftStatusClient({
               role="dialog"
               aria-modal="true"
               aria-labelledby="director-view-shift-title"
-              className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
+              className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
             >
               <div className="border-b border-slate-100 px-4 py-4">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
@@ -1117,7 +1149,7 @@ export function DirectorShiftStatusClient({
                   <label className="block">
                     <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Date</span>
                     <select
-                      value={defaultScheduleDateOptions.includes(selectedScheduleDate) ? selectedScheduleDate : ""}
+                      value={selectedScheduleDate || ""}
                       onChange={(event) => {
                         setSelectedScheduleDate(event.target.value);
                         setManualScheduleDate("");
@@ -1126,11 +1158,12 @@ export function DirectorShiftStatusClient({
                       disabled={defaultScheduleDateOptions.length === 0}
                       className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      <option value="">
-                        {selectedScheduleDate && !defaultScheduleDateOptions.includes(selectedScheduleDate)
-                          ? `Manual: ${shortScheduleDateLabel(selectedScheduleDate, timezone)}`
-                          : "No recent uploaded dates"}
-                      </option>
+                      {defaultScheduleDateOptions.length === 0 && <option value="">Select date</option>}
+                      {selectedScheduleDate && !defaultScheduleDateOptions.includes(selectedScheduleDate) && (
+                        <option value={selectedScheduleDate}>
+                          Manual: {shortScheduleDateLabel(selectedScheduleDate, timezone)}
+                        </option>
+                      )}
                       {defaultScheduleDateOptions.map((dateValue) => (
                         <option key={dateValue} value={dateValue}>
                           {shortScheduleDateLabel(dateValue, timezone)}
@@ -1173,7 +1206,7 @@ export function DirectorShiftStatusClient({
                 </div>
               </div>
 
-              <div className="max-h-[56vh] overflow-y-auto px-4 py-4 pb-5">
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(6rem+env(safe-area-inset-bottom))]">
                 {schedulePreviewLoading && (
                   <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
                     Loading shift schedule...
