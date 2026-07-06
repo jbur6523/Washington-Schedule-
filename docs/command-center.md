@@ -118,7 +118,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - Compact header with visible `Refresh` and `Sign Out` controls
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
-- `Department Snapshot` card with Vent count, BiPAP count, scheduled procedure total, and Active Rentals count
+- `Department Snapshot` card with Vent count, BiPAP count, scheduled procedure total, and delivered/active Active Rentals count
 - Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other
 - Last updated freshness text and updated-by initials/display name
 - Compact shift selector with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options

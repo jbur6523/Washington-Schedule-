@@ -879,6 +879,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     .filter((record) => isPickupCalledStatus(record.status))
     .sort((left, right) => new Date(left.pickup_requested_at ?? left.checked_in_at ?? 0).getTime() - new Date(right.pickup_requested_at ?? right.checked_in_at ?? 0).getTime());
   const pendingRentalCount = pendingDeliveries.length + pendingPickups.length;
+  const activeRentalCount = activeRentals.filter((record) => isActiveStatus(record.status)).length;
   const deliveryPendingRental = pendingRentalId
     ? pendingDeliveries.find((record) => record.id === pendingRentalId) ?? null
     : null;
@@ -1483,7 +1484,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const pickedUpLogged = searchParams.get("pickedUp") === "1";
   const deliveryCancelled = searchParams.get("deliveryCancelled") === "1";
   const pickupCancelled = searchParams.get("pickupCancelled") === "1";
-  const oldestRentalDateLabel = activeRentals[0]?.checked_in_at ? shortMonthDay(activeRentals[0].checked_in_at, departmentTimezone) : "—";
+  const oldestActiveRental = activeRentals.find((record) => isActiveStatus(record.status));
+  const oldestRentalDateLabel = oldestActiveRental?.checked_in_at ? shortMonthDay(oldestActiveRental.checked_in_at, departmentTimezone) : "—";
   const eventsByRentalId = rentalEvents.reduce<Record<string, RentalEventRecord[]>>((accumulator, event) => {
     if (!event.rental_record_id) {
       return accumulator;
@@ -2193,7 +2195,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             </p>
             <div ref={activeRentalsRef} className="mt-4 grid grid-cols-3 gap-2">
               <div className="flex min-h-[5rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-2 py-3 text-center">
-                <p className="text-xl font-black leading-none text-hospital-ink min-[390px]:text-2xl">{activeRentals.length}</p>
+                <p className="text-xl font-black leading-none text-hospital-ink min-[390px]:text-2xl">{activeRentalCount}</p>
                 <p className="mt-1.5 text-[10px] font-extrabold uppercase leading-3 tracking-normal text-slate-500 min-[390px]:text-[11px]">
                   Active Rentals
                 </p>
@@ -2208,7 +2210,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               </div>
             </div>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
-            {!loading && activeRentals.length === 0 && (
+            {!loading && activeRentalCount === 0 && (
               <p className="mt-2 text-xs font-bold text-slate-500">Delivered rentals will appear here.</p>
             )}
           </section>

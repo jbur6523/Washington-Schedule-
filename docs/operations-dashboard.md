@@ -109,13 +109,13 @@ Rental Management currently supports:
 - optional Serial Number entry when the equipment label is available
 - Delivered / Confirm Delivery date/time
 - optional notes with no patient information
-- combined Rental Management overview card with Active Rentals count, Pending count, and Oldest Rental `MM/DD` date
+- combined Rental Management overview card with delivered/active Active Rentals count, Pending count, and Oldest Rental `MM/DD` date
 - dedicated Active Rentals screen with full active rental details
 - dedicated Rental History screen for searching, filtering, and manually exporting pending, active, called-for-pickup, and picked-up rental records
 - Return Rental workflow for pickup calls and picked-up confirmation
 - dashboard Pending section for pending deliveries and pending pickups, with neutral cancel actions that preserve Rental History events
 
-The Rental Management dashboard stays summary-focused. The top overview card combines the page title with Active Rentals count, Pending count, and Oldest Rental date. Pending counts include rentals waiting for delivery and rentals waiting for pickup. The compact `Rental Actions` card combines `Order Rental`, `Return Rental`, and `View Active Rentals` so the dashboard does not need separate action cards for each workflow. `View Active Rentals` opens the full list, sorted oldest active rental first.
+The Rental Management dashboard stays summary-focused. The top overview card combines the page title with Active Rentals count, Pending count, and Oldest Rental date. Active Rentals count includes delivered/active rentals only. Pending counts include rentals waiting for delivery and rentals waiting for pickup. The compact `Rental Actions` card combines `Order Rental`, `Return Rental`, and `View Active Rentals` so the dashboard does not need separate action cards for each workflow. `View Active Rentals` opens the full list, sorted oldest active rental first.
 `Rental History` opens the searchable history list with status, equipment, vendor, and date range filters. It can export the current filtered view or all history as an Excel-compatible CSV paper trail. The app database remains the source of truth, and this phase does not sync with Google Drive, Google Sheets, OneDrive, SharePoint, or Excel Online.
 
 Return Rental is active and opens the existing dedicated pickup request workflow screen.

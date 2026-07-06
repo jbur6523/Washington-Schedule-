@@ -54,7 +54,7 @@ const shiftStatusSelect = [
   "staff_profiles(display_name)"
 ].join(", ");
 
-const activeRentalStatuses = ["active", "delivered", "pickup_requested", "pickup_called", "called_for_pickup"];
+const activeRentalStatuses = ["active", "delivered"];
 
 type ShiftChoice = {
   id: string;
