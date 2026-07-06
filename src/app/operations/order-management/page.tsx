@@ -13,7 +13,7 @@ function AccessDenied() {
         <p className="text-xs font-extrabold uppercase tracking-wide text-pink-700">Order Management</p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this tool.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-          Order Management is available to aides only.
+          Order Management is available to aides and admins.
         </p>
         <Link
           href="/"

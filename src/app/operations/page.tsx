@@ -54,6 +54,13 @@ export default async function OperationsDashboardPage() {
     return <AccessDenied />;
   }
 
+  const showOrderManagement = hasOrderManagementAccess(auth.context);
+  const orderManagementLabel = auth.context.role === "admin" ? "Admin view" : "Aide";
+  const orderManagementDescription =
+    auth.context.role === "admin"
+      ? "Monitor department supply orders."
+      : "Create and track department supply orders.";
+
   return (
     <main className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-xl space-y-4">
@@ -87,7 +94,7 @@ export default async function OperationsDashboardPage() {
           </Link>
         </section>
 
-        {hasOrderManagementAccess(auth.context) && (
+        {showOrderManagement && (
           <section className="rounded-3xl border border-pink-100 bg-pink-50/80 p-4 shadow-soft">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">
@@ -96,10 +103,10 @@ export default async function OperationsDashboardPage() {
               <div className="min-w-0">
                 <h2 className="text-lg font-black text-hospital-ink">Order Management</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Create and track department supply orders.
+                  {orderManagementDescription}
                 </p>
                 <span className="mt-2 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-pink-700">
-                  Aide
+                  {orderManagementLabel}
                 </span>
               </div>
             </div>

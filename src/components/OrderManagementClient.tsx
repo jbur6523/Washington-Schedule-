@@ -65,7 +65,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
 
-  const canCreate = Boolean(authContext.staffProfileId) && Boolean(selectedFile) && !saving;
+  const canCreateOrders = authContext.operationsRole === "aide";
+  const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && Boolean(selectedFile) && !saving;
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -127,6 +128,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   const noteLength = notes.length;
   const createdByLabel = authContext.displayName || "Current aide";
+  const backLabel = authContext.role === "admin" ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -161,6 +163,11 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!canCreateOrders) {
+      setError("Only aides can create orders.");
+      return;
+    }
 
     if (!authContext.staffProfileId) {
       setError("Your account is not linked to a staff profile.");
@@ -277,21 +284,24 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-pink-700">
             <PackageCheck size={15} />
-            Aide Tool
+            {authContext.role === "admin" ? "Admin View" : "Aide Tool"}
           </p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Order Management</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Create and track department supply orders.
+            {authContext.role === "admin"
+              ? "Monitor department supply orders."
+              : "Create and track department supply orders."}
           </p>
           <Link
             href="/operations"
             className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
           >
             <ArrowLeft size={17} />
-            Back to Aide Dashboard
+            {backLabel}
           </Link>
         </section>
 
+        {canCreateOrders ? (
         <form onSubmit={createOrder} className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
           <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
           <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
@@ -371,6 +381,19 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             </p>
           )}
         </form>
+        ) : (
+          <section className="rounded-3xl border border-cyan-100 bg-cyan-50/70 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Admin monitoring view</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-cyan-900">
+              Aides create orders. Admin can review submitted orders and thumbnails during beta testing.
+            </p>
+            {error && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                {error}
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">

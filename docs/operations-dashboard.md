@@ -75,7 +75,7 @@ The dashboard starts with `Rental Actions`, which contains `Order Rental` and `R
 
 ## Aide Order Management
 
-Aide users see an additional Aide-only `Order Management` card on the Aide Dashboard. The tool opens `/operations/order-management` and is not shown to Staff, Lead, Director, Command Center, or unauthenticated users.
+Aide users see an additional `Order Management` card on the Aide Dashboard. Admin users also see Order Management as a beta monitoring view. The tool opens `/operations/order-management` and is not shown to Staff, Lead, Director, Command Center, or unauthenticated users.
 
 Order Management is intentionally simple in this phase:
 
@@ -83,8 +83,9 @@ Order Management is intentionally simple in this phase:
 - Aide can add optional notes, capped at 280 characters.
 - The app automatically stores the current Aide as the creator.
 - Saved orders show image thumbnail, created date/time, creator display name, and notes.
+- Admin can view submitted orders and thumbnails for monitoring, but Aides remain the users who create orders.
 
-Order Management is protected by route checks and Supabase RLS/storage policies. It is not an Admin, Lead, Director, or Command Center workflow.
+Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.
 
 Aide schedule/staff cards use a soft pink treatment and an `Aide` badge based on `staff_profiles.operations_role = aide`. This changes only user-facing display; it does not mutate employment type or schedule data.
 

@@ -16,8 +16,8 @@ export function hasRentalManagementAccess(context: Pick<AuthenticatedUserContext
   return hasOperationsDashboardAccess(context) || isCommandCenter(context);
 }
 
-export function hasOrderManagementAccess(context: Pick<AuthenticatedUserContext, "operationsRole">) {
-  return context.operationsRole === "aide";
+export function hasOrderManagementAccess(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
+  return context.role === "admin" || context.operationsRole === "aide";
 }
 
 export function canManageShiftStatus(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
