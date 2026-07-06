@@ -298,8 +298,25 @@ function shortScheduleDateLabel(dateValue: string, timezone: string) {
   }).format(date);
 }
 
-function directorScheduleShiftFromStatus(shiftType: ShiftStatusShiftType): "day" | "night" {
-  return shiftType === "night" ? "night" : "day";
+function directorViewShiftDefaultShift(timezone: string): "day" | "night" {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+
+  return hour >= 7 && hour < 19 ? "day" : "night";
+}
+
+function chooseDefaultScheduleDate(uploadedDates: string[], currentDate: string) {
+  if (uploadedDates.includes(currentDate)) {
+    return currentDate;
+  }
+
+  const nextUploadedDate = uploadedDates.find((dateValue) => dateValue > currentDate);
+  return nextUploadedDate ?? uploadedDates[uploadedDates.length - 1] ?? "";
 }
 
 function DirectorScheduleRow({ entry }: { entry: ScheduleEntry }) {
@@ -368,7 +385,7 @@ export function DirectorShiftStatusClient({
   const [schedulePreviewLoading, setSchedulePreviewLoading] = useState(false);
   const [schedulePreviewError, setSchedulePreviewError] = useState("");
   const [selectedScheduleDate, setSelectedScheduleDate] = useState("");
-  const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorScheduleShiftFromStatus(currentShift));
+  const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorViewShiftDefaultShift(timezone));
 
   const selectedChoice = shiftChoices.find((choice) => choice.id === selectedChoiceId) ?? shiftChoices[0];
   const isSelectedCurrentShift = selectedChoice.shiftDate === today && selectedChoice.shiftType === currentShift;
@@ -478,8 +495,8 @@ export function DirectorShiftStatusClient({
     setSchedulePreviewLoading(false);
 
     const uploadedDates = Array.from(new Set(((entries ?? []) as ScheduleEntryRow[]).map((entry) => entry.shift_date))).sort();
-    const preferredDate = latest?.shift_date ?? selectedChoice.shiftDate ?? today;
-    const nextSelectedDate = uploadedDates.includes(preferredDate) ? preferredDate : uploadedDates[0] ?? "";
+    const currentPacificDate = todayInTimezone(timezone);
+    const nextSelectedDate = chooseDefaultScheduleDate(uploadedDates, currentPacificDate);
 
     setSelectedScheduleDate((current) => (current && uploadedDates.includes(current) ? current : nextSelectedDate));
   };
@@ -549,8 +566,10 @@ export function DirectorShiftStatusClient({
   );
 
   const openShiftPreview = () => {
-    setSelectedScheduleShift(directorScheduleShiftFromStatus(latest?.shift_type ?? selectedChoice.shiftType));
-    setSelectedScheduleDate((current) => current || latest?.shift_date || selectedChoice.shiftDate || today);
+    const currentPacificDate = todayInTimezone(timezone);
+    const availableDates = Array.from(new Set((schedulePreview?.entries ?? []).map((entry) => entry.shift_date))).sort();
+    setSelectedScheduleShift(directorViewShiftDefaultShift(timezone));
+    setSelectedScheduleDate(chooseDefaultScheduleDate(availableDates, currentPacificDate) || currentPacificDate);
     setShiftPreviewOpen(true);
     if (!schedulePreview) {
       void loadSchedulePreview();
@@ -852,7 +871,7 @@ export function DirectorShiftStatusClient({
                 </div>
               </div>
 
-              <div className="max-h-[48vh] overflow-y-auto px-4 py-4">
+              <div className="max-h-[56vh] overflow-y-auto px-4 py-4 pb-5">
                 {schedulePreviewLoading && (
                   <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
                     Loading shift schedule...
@@ -895,25 +914,6 @@ export function DirectorShiftStatusClient({
                     )}
                   </div>
                 )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => void loadSchedulePreview()}
-                  disabled={schedulePreviewLoading}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-black text-cyan-700 disabled:opacity-50"
-                >
-                  <RefreshCw size={16} />
-                  Refresh
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShiftPreviewOpen(false)}
-                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-black text-white"
-                >
-                  Close
-                </button>
               </div>
             </section>
           </div>

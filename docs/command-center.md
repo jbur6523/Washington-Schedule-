@@ -127,7 +127,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 
-The `View Shift` modal uses the active uploaded schedule data. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions.
+The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule; otherwise it selects the closest upcoming uploaded date, then the most recent uploaded date. The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only; there are no redundant bottom `Refresh` or `Close` buttons.
 
 A fuller `Next 3 Days` grid can be added later if the director needs a multi-shift board. For now, the compact selector keeps the mobile dashboard short while still allowing the director to check today, tomorrow, and the previous shift.
 
