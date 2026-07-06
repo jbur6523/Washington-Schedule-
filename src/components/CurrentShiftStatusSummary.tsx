@@ -4,11 +4,11 @@ import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
-  latestShiftStatus,
+  resolveCurrentShiftStatus,
   updatedByName
 } from "@/lib/shift-status/utils";
 
@@ -34,57 +34,6 @@ const shiftStatusSelect = [
   "staff_profiles(display_name)"
 ].join(", ");
 
-function previousDate(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  date.setDate(date.getDate() - 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function zonedDateParts(timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
-
-  return {
-    dateValue: `${year}-${month}-${day}`,
-    hour
-  };
-}
-
-function currentScheduleShiftWindow(timezone: string) {
-  const { dateValue, hour } = zonedDateParts(timezone);
-
-  if (hour >= 8 && hour < 20) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "day" as ShiftStatusShiftType
-    };
-  }
-
-  if (hour >= 20) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "night" as ShiftStatusShiftType
-    };
-  }
-
-  return {
-    shiftDate: previousDate(dateValue),
-    shiftType: "night" as ShiftStatusShiftType
-  };
-}
-
 function titleStatus(update: ShiftStatusUpdate | null) {
   if (!update) {
     return "No Update";
@@ -105,16 +54,13 @@ export function CurrentShiftStatusSummary({
 
   useEffect(() => {
     const loadStatus = async () => {
-      const currentWindow = currentScheduleShiftWindow(timezone);
       const supabase = createClient();
       const { data, error: loadError } = await supabase
         .from("shift_status_updates")
         .select(shiftStatusSelect)
         .eq("department_id", authContext.departmentId)
-        .eq("shift_date", currentWindow.shiftDate)
-        .eq("shift_type", currentWindow.shiftType)
         .order("updated_at", { ascending: false })
-        .limit(3);
+        .limit(30);
 
       if (loadError) {
         setError("Shift status unavailable.");
@@ -139,7 +85,7 @@ export function CurrentShiftStatusSummary({
     };
   }, [authContext.departmentId, timezone]);
 
-  const latest = latestShiftStatus(updates);
+  const { latest } = resolveCurrentShiftStatus(updates, timezone);
   const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
   const staffingStatus = shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
   const statusLabel = titleStatus(latest);
