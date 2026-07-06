@@ -16,6 +16,7 @@ type ShiftUpdateForm = {
   ventCount: string;
   bipapCount: string;
   cSectionCount: string;
+  vaginalDeliveryCount: string;
   cabgCount: string;
   bronchCount: string;
   sputumInductionCount: string;
@@ -91,11 +92,12 @@ export function ShiftUpdateClient({
     rtsRequired: "",
     ventCount: "",
     bipapCount: "",
-    cSectionCount: "0",
-    cabgCount: "0",
-    bronchCount: "0",
-    sputumInductionCount: "0",
-    otherProcedureCount: "0",
+    cSectionCount: "",
+    vaginalDeliveryCount: "",
+    cabgCount: "",
+    bronchCount: "",
+    sputumInductionCount: "",
+    otherProcedureCount: "",
     otherProcedureNote: "",
     updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
     updatedByName: ""
@@ -112,7 +114,7 @@ export function ShiftUpdateClient({
         .select("id, display_name")
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)
-        .eq("assigned_role", "lead")
+        .in("assigned_role", ["admin", "lead"])
         .eq("operations_role", "none")
         .order("display_name", { ascending: true });
 
@@ -160,6 +162,7 @@ export function ShiftUpdateClient({
       vent_count: numberValue(form.ventCount),
       bipap_count: numberValue(form.bipapCount),
       c_section_count: numberValue(form.cSectionCount),
+      vaginal_delivery_count: numberValue(form.vaginalDeliveryCount),
       cabg_count: numberValue(form.cabgCount),
       bronch_count: numberValue(form.bronchCount),
       sputum_induction_count: numberValue(form.sputumInductionCount),
@@ -261,6 +264,7 @@ export function ShiftUpdateClient({
             <div className={twoColumnGridClass}>
               {[
                 ["cSectionCount", "C-Sections"],
+                ["vaginalDeliveryCount", "Vaginal Delivery"],
                 ["cabgCount", "CABG"],
                 ["bronchCount", "Bronch"],
                 ["sputumInductionCount", "Sputum Inductions"],
@@ -285,7 +289,6 @@ export function ShiftUpdateClient({
                 value={form.otherProcedureNote}
                 onChange={(event) => setForm((current) => ({ ...current, otherProcedureNote: event.target.value.slice(0, 100) }))}
                 maxLength={100}
-                placeholder="Optional"
                 className={controlClass}
               />
               <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
@@ -311,7 +314,7 @@ export function ShiftUpdateClient({
             </label>
             {staffOptions.length === 0 && (
               <p className="mt-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
-                No lead users found. Please update lead access first.
+                No lead or admin users found. Please update access first.
               </p>
             )}
             <label className="mt-3 block border-t border-cyan-100 pt-3">

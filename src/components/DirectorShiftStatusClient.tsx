@@ -54,6 +54,7 @@ const shiftStatusSelect = [
   "vent_count",
   "bipap_count",
   "c_section_count",
+  "vaginal_delivery_count",
   "cabg_count",
   "bronch_count",
   "sputum_induction_count",
@@ -162,6 +163,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
     "",
     "Scheduled procedures:",
     `C-Sections: ${update.c_section_count}`,
+    `Vaginal Delivery: ${update.vaginal_delivery_count}`,
     `CABG: ${update.cabg_count}`,
     `Bronchs: ${update.bronch_count}`,
     `Sputum Inductions: ${update.sputum_induction_count}`,
@@ -419,6 +421,7 @@ function updateIsAfterProcedureReset(update: ShiftStatusUpdate, timezone: string
 function procedureCounts(update: ShiftStatusUpdate | null) {
   return {
     cSections: update?.c_section_count ?? 0,
+    vaginalDelivery: update?.vaginal_delivery_count ?? 0,
     cabg: update?.cabg_count ?? 0,
     bronchs: update?.bronch_count ?? 0,
     sputumInductions: update?.sputum_induction_count ?? 0,
@@ -728,6 +731,7 @@ export function DirectorShiftStatusClient({
   const currentProcedureCounts = procedureCounts(procedureLatest);
   const procedureTotal =
     currentProcedureCounts.cSections +
+    currentProcedureCounts.vaginalDelivery +
     currentProcedureCounts.cabg +
     currentProcedureCounts.bronchs +
     currentProcedureCounts.sputumInductions +
@@ -997,6 +1001,7 @@ export function DirectorShiftStatusClient({
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
               <ProcedureCard icon={<User size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
+              <ProcedureCard icon={<Users size={18} />} label="Vaginal Delivery" value={currentProcedureCounts.vaginalDelivery} />
               <ProcedureCard icon={<Activity size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
               <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
               <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />

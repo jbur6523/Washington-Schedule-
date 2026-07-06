@@ -22,6 +22,7 @@ const shiftStatusSelect = [
   "vent_count",
   "bipap_count",
   "c_section_count",
+  "vaginal_delivery_count",
   "cabg_count",
   "bronch_count",
   "sputum_induction_count",

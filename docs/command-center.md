@@ -73,6 +73,7 @@ Fields:
 - Vent count
 - BiPAP count
 - C-Section count
+- Vaginal Delivery count
 - CABG count
 - Bronch count
 - Sputum Induction count
@@ -80,7 +81,7 @@ Fields:
 - Optional other procedure note, max 100 characters
 - Updated by lead selector, with a secondary manual initials/name fallback
 
-The `Updated By` selector shows active Lead users only. It excludes Staff, Aide, Director, Command Center, inactive users, and the shared `Respiratory Command Center` account. The command phone must not use the shared account as the visible updated-by person.
+The `Updated By` selector shows active Lead and Admin users who can act as shift updaters. It excludes Staff, Aide, Director, Command Center, inactive users, and the shared `Respiratory Command Center` account. The command phone must not use the shared account as the visible updated-by person.
 
 The manual initials/name fallback is secondary and should be used only when the appropriate Lead cannot be selected from the dropdown. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
@@ -120,7 +121,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
 - `Department Snapshot` card with left-aligned shift/date context, Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, and last-updated metadata
-- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other with left-aligned shift/date context
+- Scheduled procedure detail cards for C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and Other with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.
 - `View Text Report` and `Copy Summary` actions

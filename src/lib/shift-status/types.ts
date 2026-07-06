@@ -10,6 +10,7 @@ export type ShiftStatusUpdate = {
   vent_count: number;
   bipap_count: number;
   c_section_count: number;
+  vaginal_delivery_count: number;
   cabg_count: number;
   bronch_count: number;
   sputum_induction_count: number;
