@@ -115,19 +115,23 @@ The Director Shift Status page is the primary live visual reporting dashboard fo
 
 The Director view is read-only and uses a polished mobile dashboard layout:
 
-- Compact header with visible `Refresh` and `Sign Out` controls
+- Compact header with visible `Sign Out` control
+- `Respiratory Directory` action for a read-only staff contact modal
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
-- `Department Snapshot` card with Vent count, BiPAP count, scheduled procedure total, and delivered/active Active Rentals count
-- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other
+- `Department Snapshot` card with centered shift/date context, Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, and last-updated metadata
+- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other with centered shift/date context
 - Last updated freshness text and updated-by initials/display name
-- Compact shift selector with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.
 - `View Text Report` and `Copy Summary` actions
 
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 
-The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule; otherwise it selects the closest upcoming uploaded date, then the most recent uploaded date. The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only; there are no redundant bottom `Refresh` or `Close` buttons.
+The `Respiratory Directory` modal reads `staff_profiles` and includes active and inactive staff sorted by display name. It shows display names and phone numbers only, with phone numbers linked by `tel:` when present. It does not show usernames, auth IDs, email addresses, edit buttons, or admin controls.
+
+The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule, then yesterday if today is unavailable. The date dropdown only shows today and yesterday by default. Older uploaded dates can be entered manually as `MMDDYY`; if no uploaded schedule exists for that date, the modal shows `No uploaded schedule found for this date.` The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only.
+
+Scheduled Procedures reset separately from the Department Snapshot. At `07:30` and `19:30` in `America/Los_Angeles`, the procedure counts show `0` until a new Command Center update is submitted after the reset boundary. The Department Snapshot continues to show the latest known Vent, BiPAP, and Active Rentals numbers, while its Scheduled Procedures total follows the reset procedure counts.
 
 A fuller `Next 3 Days` grid can be added later if the director needs a multi-shift board. For now, the compact selector keeps the mobile dashboard short while still allowing the director to check today, tomorrow, and the previous shift.
 

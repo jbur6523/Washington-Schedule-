@@ -14,7 +14,8 @@ import {
   LogOut,
   Moon,
   MoreHorizontal,
-  RefreshCw,
+  Phone,
+  Search,
   Stethoscope,
   Sun,
   User,
@@ -34,8 +35,9 @@ import {
 } from "@/lib/schedule/supabase-schedule";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
-  currentShiftType,
+  currentShiftStatusWindow,
   formatShiftStatusNumber,
+  formatShiftStatusTime,
   latestShiftStatus,
   shiftTypeLabel,
   todayInTimezone,
@@ -70,41 +72,10 @@ const scheduleEntrySelect =
 const scheduleOverrideSelect =
   "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
 
-type ShiftChoice = {
-  id: string;
-  label: string;
-  shiftDate: string;
-  shiftType: ShiftStatusShiftType;
-};
-
 function previousDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00`);
   date.setDate(date.getDate() - 1);
   return date.toISOString().slice(0, 10);
-}
-
-function nextDate(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  date.setDate(date.getDate() + 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function previousShiftChoice(today: string, currentShift: ShiftStatusShiftType): ShiftChoice {
-  if (currentShift === "day") {
-    return {
-      id: "previous",
-      label: "Previous Shift",
-      shiftDate: previousDate(today),
-      shiftType: "night"
-    };
-  }
-
-  return {
-    id: "previous",
-    label: "Previous Shift",
-    shiftDate: today,
-    shiftType: "day"
-  };
 }
 
 function formatDateLabel(dateValue: string, timezone: string) {
@@ -298,6 +269,36 @@ function shortScheduleDateLabel(dateValue: string, timezone: string) {
   }).format(date);
 }
 
+function formatShiftDateSubtitle(shiftType: ShiftStatusShiftType, dateValue: string, timezone: string) {
+  return `${shiftTypeLabel(shiftType)} · ${formatDateLabel(dateValue, timezone)}`;
+}
+
+function formatPhoneHref(phoneNumber: string) {
+  const dialable = phoneNumber.replace(/[^\d+]/g, "");
+  return dialable ? `tel:${dialable}` : undefined;
+}
+
+function zonedDateTimeParts(date: Date, timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(date);
+
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  const dateValue = `${value("year")}-${value("month")}-${value("day")}`;
+
+  return {
+    dateValue,
+    minutes: Number(value("hour") || "0") * 60 + Number(value("minute") || "0")
+  };
+}
+
 function directorViewShiftDefaultShift(timezone: string): "day" | "night" {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
@@ -315,8 +316,124 @@ function chooseDefaultScheduleDate(uploadedDates: string[], currentDate: string)
     return currentDate;
   }
 
-  const nextUploadedDate = uploadedDates.find((dateValue) => dateValue > currentDate);
-  return nextUploadedDate ?? uploadedDates[uploadedDates.length - 1] ?? "";
+  const yesterday = previousDate(currentDate);
+  return uploadedDates.includes(yesterday) ? yesterday : "";
+}
+
+function parseManualScheduleDate(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length !== 6) {
+    return null;
+  }
+
+  const month = Number(digits.slice(0, 2));
+  const day = Number(digits.slice(2, 4));
+  const year = 2000 + Number(digits.slice(4, 6));
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function currentProcedureWindow(timezone: string) {
+  const now = new Date();
+  const { dateValue, minutes } = zonedDateTimeParts(now, timezone);
+  const dayReset = 7 * 60 + 30;
+  const nightReset = 19 * 60 + 30;
+
+  if (minutes >= nightReset) {
+    return {
+      shiftDate: dateValue,
+      shiftType: "night" as ShiftStatusShiftType,
+      resetDate: dateValue,
+      resetMinutes: nightReset
+    };
+  }
+
+  if (minutes >= dayReset) {
+    return {
+      shiftDate: dateValue,
+      shiftType: "day" as ShiftStatusShiftType,
+      resetDate: dateValue,
+      resetMinutes: dayReset
+    };
+  }
+
+  const previous = previousDate(dateValue);
+  return {
+    shiftDate: previous,
+    shiftType: "night" as ShiftStatusShiftType,
+    resetDate: previous,
+    resetMinutes: nightReset
+  };
+}
+
+function updateIsAfterProcedureReset(update: ShiftStatusUpdate, timezone: string, window: ReturnType<typeof currentProcedureWindow>) {
+  if (update.shift_date !== window.shiftDate || update.shift_type !== window.shiftType) {
+    return false;
+  }
+
+  const updated = zonedDateTimeParts(new Date(update.updated_at), timezone);
+  if (updated.dateValue > window.resetDate) {
+    return true;
+  }
+  if (updated.dateValue < window.resetDate) {
+    return false;
+  }
+
+  return updated.minutes >= window.resetMinutes;
+}
+
+function procedureCounts(update: ShiftStatusUpdate | null) {
+  return {
+    cSections: update?.c_section_count ?? 0,
+    cabg: update?.cabg_count ?? 0,
+    bronchs: update?.bronch_count ?? 0,
+    sputumInductions: update?.sputum_induction_count ?? 0,
+    other: update?.other_procedure_count ?? 0,
+    note: update?.other_procedure_note ?? null
+  };
+}
+
+type DirectoryStaffProfile = {
+  id: string;
+  display_name: string;
+  phone_number: string | null;
+  is_active: boolean;
+};
+
+function DirectoryStaffRow({ profile }: { profile: DirectoryStaffProfile }) {
+  const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
+
+  return (
+    <article className="rounded-2xl border border-slate-100 bg-slate-50/80 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-black leading-5 text-hospital-ink">{profile.display_name}</p>
+          <p className={`mt-1 text-[11px] font-extrabold uppercase ${profile.is_active ? "text-emerald-700" : "text-slate-400"}`}>
+            {profile.is_active ? "Active" : "Inactive"}
+          </p>
+        </div>
+        {profile.phone_number && phoneHref ? (
+          <a
+            href={phoneHref}
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-2xl border border-cyan-100 bg-white px-3 text-xs font-black text-cyan-700"
+          >
+            <Phone size={14} />
+            {profile.phone_number}
+          </a>
+        ) : (
+          <span className="shrink-0 rounded-2xl border border-slate-100 bg-white px-3 py-2 text-xs font-bold text-slate-500">
+            No phone listed
+          </span>
+        )}
+      </div>
+    </article>
+  );
 }
 
 function DirectorScheduleRow({ entry }: { entry: ScheduleEntry }) {
@@ -360,35 +477,34 @@ export function DirectorShiftStatusClient({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
-  const today = useMemo(() => todayInTimezone(timezone), [timezone]);
-  const tomorrow = useMemo(() => nextDate(today), [today]);
-  const currentShift = useMemo(() => currentShiftType(), []);
-  const shiftChoices = useMemo<ShiftChoice[]>(
-    () => [
-      { id: "today-day", label: "Today Day Shift", shiftDate: today, shiftType: "day" },
-      { id: "today-night", label: "Today Night Shift", shiftDate: today, shiftType: "night" },
-      { id: "tomorrow-day", label: "Tomorrow Day Shift", shiftDate: tomorrow, shiftType: "day" },
-      { id: "tomorrow-night", label: "Tomorrow Night Shift", shiftDate: tomorrow, shiftType: "night" },
-      previousShiftChoice(today, currentShift)
-    ],
-    [currentShift, today, tomorrow]
+  const currentWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
+  const selectedChoice = useMemo(
+    () => ({
+      shiftDate: currentWindow.shiftDate,
+      shiftType: currentWindow.shiftType
+    }),
+    [currentWindow.shiftDate, currentWindow.shiftType]
   );
-  const [selectedChoiceId, setSelectedChoiceId] = useState(() => (currentShift === "day" ? "today-day" : "today-night"));
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeRentalCount, setActiveRentalCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
+  const [directorySearch, setDirectorySearch] = useState("");
+  const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryStaffProfile[]>([]);
   const [shiftPreviewOpen, setShiftPreviewOpen] = useState(false);
   const [schedulePreview, setSchedulePreview] = useState<ActiveSchedule | null>(null);
   const [schedulePreviewLoading, setSchedulePreviewLoading] = useState(false);
   const [schedulePreviewError, setSchedulePreviewError] = useState("");
   const [selectedScheduleDate, setSelectedScheduleDate] = useState("");
   const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorViewShiftDefaultShift(timezone));
-
-  const selectedChoice = shiftChoices.find((choice) => choice.id === selectedChoiceId) ?? shiftChoices[0];
-  const isSelectedCurrentShift = selectedChoice.shiftDate === today && selectedChoice.shiftType === currentShift;
+  const [manualScheduleDate, setManualScheduleDate] = useState("");
+  const [manualScheduleError, setManualScheduleError] = useState("");
+  const isSelectedCurrentShift = true;
 
   const loadShiftStatus = async () => {
     setLoading(true);
@@ -498,7 +614,29 @@ export function DirectorShiftStatusClient({
     const currentPacificDate = todayInTimezone(timezone);
     const nextSelectedDate = chooseDefaultScheduleDate(uploadedDates, currentPacificDate);
 
-    setSelectedScheduleDate((current) => (current && uploadedDates.includes(current) ? current : nextSelectedDate));
+    setSelectedScheduleDate(nextSelectedDate);
+  };
+
+  const loadDirectory = async () => {
+    setDirectoryLoading(true);
+    setDirectoryError("");
+
+    const supabase = createClient();
+    const { data, error: directoryLoadError } = await supabase
+      .from("staff_profiles")
+      .select("id, display_name, phone_number, is_active")
+      .eq("department_id", authContext.departmentId)
+      .order("display_name", { ascending: true });
+
+    setDirectoryLoading(false);
+
+    if (directoryLoadError) {
+      setDirectoryProfiles([]);
+      setDirectoryError("Could not load respiratory directory.");
+      return;
+    }
+
+    setDirectoryProfiles((data ?? []) as DirectoryStaffProfile[]);
   };
 
   useEffect(() => {
@@ -512,7 +650,7 @@ export function DirectorShiftStatusClient({
   }, [authContext.departmentId]);
 
   useEffect(() => {
-    if (!shiftPreviewOpen) {
+    if (!shiftPreviewOpen && !directoryOpen) {
       return;
     }
 
@@ -522,7 +660,21 @@ export function DirectorShiftStatusClient({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [shiftPreviewOpen]);
+  }, [directoryOpen, shiftPreviewOpen]);
+
+  useEffect(() => {
+    if (!directoryOpen || directoryProfiles.length > 0 || directoryLoading) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadDirectory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+    // loadDirectory intentionally reads current auth context only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directoryLoading, directoryOpen, directoryProfiles.length]);
 
   const selectedUpdates = useMemo(
     () =>
@@ -535,24 +687,52 @@ export function DirectorShiftStatusClient({
   const fallbackLatest = useMemo(() => latestShiftStatus(updates), [updates]);
   const latest = selectedLatest ?? (isSelectedCurrentShift ? fallbackLatest : null);
   const showingFallback = !selectedLatest && Boolean(latest);
+  const snapshotLatest = fallbackLatest;
+  const procedureWindow = useMemo(() => currentProcedureWindow(timezone), [timezone]);
+  const procedureLatest = useMemo(
+    () => latestShiftStatus(updates.filter((update) => updateIsAfterProcedureReset(update, timezone, procedureWindow))),
+    [procedureWindow, timezone, updates]
+  );
+  const currentProcedureCounts = procedureCounts(procedureLatest);
+  const procedureTotal =
+    currentProcedureCounts.cSections +
+    currentProcedureCounts.cabg +
+    currentProcedureCounts.bronchs +
+    currentProcedureCounts.sputumInductions +
+    currentProcedureCounts.other;
   const status = directorStatus(latest);
   const freshness = freshnessLabel(latest, isSelectedCurrentShift && !showingFallback);
   const textReport = latest ? reportText(latest, timezone) : "";
-  const procedureTotal = latest
-    ? latest.c_section_count +
-      latest.cabg_count +
-      latest.bronch_count +
-      latest.sputum_induction_count +
-      latest.other_procedure_count
-    : 0;
   const updatedBy = latest ? displayInitials(updatedByName(latest)) : "";
   const selectedShiftLabel = shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType);
   const selectedShiftDate = formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone);
   const ShiftIcon = (latest?.shift_type ?? selectedChoice.shiftType) === "night" ? Moon : Sun;
+  const snapshotShiftSubtitle = snapshotLatest
+    ? formatShiftDateSubtitle(snapshotLatest.shift_type, snapshotLatest.shift_date, timezone)
+    : formatShiftDateSubtitle(selectedChoice.shiftType, selectedChoice.shiftDate, timezone);
+  const procedureShiftSubtitle = formatShiftDateSubtitle(procedureWindow.shiftType, procedureWindow.shiftDate, timezone);
+  const snapshotUpdatedBy = snapshotLatest ? displayInitials(updatedByName(snapshotLatest)) : "";
+  const filteredDirectoryProfiles = useMemo(() => {
+    const query = directorySearch.trim().toLowerCase();
+    if (!query) {
+      return directoryProfiles;
+    }
+
+    return directoryProfiles.filter(
+      (profile) =>
+        profile.display_name.toLowerCase().includes(query) ||
+        (profile.phone_number ?? "").toLowerCase().includes(query)
+    );
+  }, [directoryProfiles, directorySearch]);
   const scheduleDateOptions = useMemo(
     () => Array.from(new Set((schedulePreview?.entries ?? []).map((entry) => entry.shift_date))).sort(),
     [schedulePreview?.entries]
   );
+  const defaultScheduleDateOptions = useMemo(() => {
+    const todayDate = todayInTimezone(timezone);
+    const yesterdayDate = previousDate(todayDate);
+    return [todayDate, yesterdayDate].filter((dateValue) => scheduleDateOptions.includes(dateValue));
+  }, [scheduleDateOptions, timezone]);
   const selectedScheduleDay = useMemo(
     () => schedulePreview?.days.find((day) => day.dateValue === selectedScheduleDate) ?? null,
     [schedulePreview?.days, selectedScheduleDate]
@@ -570,10 +750,41 @@ export function DirectorShiftStatusClient({
     const availableDates = Array.from(new Set((schedulePreview?.entries ?? []).map((entry) => entry.shift_date))).sort();
     setSelectedScheduleShift(directorViewShiftDefaultShift(timezone));
     setSelectedScheduleDate(chooseDefaultScheduleDate(availableDates, currentPacificDate) || currentPacificDate);
+    setManualScheduleDate("");
+    setManualScheduleError("");
     setShiftPreviewOpen(true);
     if (!schedulePreview) {
       void loadSchedulePreview();
     }
+  };
+
+  const applyManualScheduleDate = (value: string) => {
+    const cleanValue = value.replace(/\D/g, "").slice(0, 6);
+    setManualScheduleDate(cleanValue);
+
+    if (cleanValue.length === 0) {
+      setManualScheduleError("");
+      return;
+    }
+
+    if (cleanValue.length < 6) {
+      setManualScheduleError("");
+      return;
+    }
+
+    const parsedDate = parseManualScheduleDate(cleanValue);
+    if (!parsedDate) {
+      setManualScheduleError("Enter a valid date as MMDDYY.");
+      return;
+    }
+
+    if (!scheduleDateOptions.includes(parsedDate)) {
+      setManualScheduleError("No uploaded schedule found for this date.");
+      return;
+    }
+
+    setSelectedScheduleDate(parsedDate);
+    setManualScheduleError("");
   };
 
   const copyReport = async () => {
@@ -633,42 +844,27 @@ export function DirectorShiftStatusClient({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void loadShiftStatus()}
-                disabled={loading}
-                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-xs font-black text-cyan-700 shadow-sm disabled:opacity-50"
-                aria-label="Refresh shift status"
-              >
-                <RefreshCw size={15} />
-                Refresh
-              </button>
-              <button
-                type="button"
                 onClick={() => void signOut()}
-                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
+                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
               >
                 <LogOut size={15} />
                 Sign Out
               </button>
             </div>
 
-            <label className="block">
-              <span className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">View Shift</span>
-              <select
-                value={selectedChoiceId}
-                onChange={(event) => {
-                  setSelectedChoiceId(event.target.value);
-                  setReportOpen(false);
-                  setCopyMessage("");
-                }}
-                className="mt-1 min-h-10 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-              >
-                {shiftChoices.map((choice) => (
-                  <option key={choice.id} value={choice.id}>
-                    {choice.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <button
+              type="button"
+              onClick={() => setDirectoryOpen(true)}
+              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-left shadow-sm"
+            >
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+                <Phone size={20} />
+              </span>
+              <span>
+                <span className="block text-sm font-black text-hospital-ink">Respiratory Directory</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-500">View RT staff phone numbers.</span>
+              </span>
+            </button>
           </div>
         </section>
 
@@ -696,7 +892,7 @@ export function DirectorShiftStatusClient({
 
           {showingFallback && (
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-              No update was submitted for the selected shift. Showing the most recent Command Center update.
+              No update was submitted for the current shift. Showing the most recent Command Center update.
             </p>
           )}
 
@@ -735,44 +931,58 @@ export function DirectorShiftStatusClient({
           </button>
         </section>
 
+        {snapshotLatest && (
+          <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <Building2 size={22} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
+                <p className="mt-1 text-center text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <SnapshotCard icon={<Wind size={20} />} label="Vents" value={snapshotLatest.vent_count} />
+              <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
+              <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
+              <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
+            </div>
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+              <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
+              <p>Updated by: {snapshotUpdatedBy}</p>
+            </div>
+          </section>
+        )}
+
+        {snapshotLatest && (
+          <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <ClipboardList size={22} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-xl font-black text-hospital-ink">Scheduled Procedures</h2>
+                <p className="mt-1 text-center text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
+              <ProcedureCard icon={<User size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
+              <ProcedureCard icon={<Activity size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
+              <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
+              <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
+              <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={currentProcedureCounts.other} />
+            </div>
+            {currentProcedureCounts.note && (
+              <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                Other note: {currentProcedureCounts.note}
+              </p>
+            )}
+          </section>
+        )}
+
         {latest && (
           <>
-            <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                  <Building2 size={22} />
-                </span>
-                <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={latest.vent_count} />
-                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={latest.bipap_count} />
-                <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
-                <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "—"} />
-              </div>
-            </section>
-
-            <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                  <ClipboardList size={22} />
-                </span>
-                <h2 className="text-xl font-black text-hospital-ink">Scheduled Procedures</h2>
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
-                <ProcedureCard icon={<User size={18} />} label="C-Sections" value={latest.c_section_count} />
-                <ProcedureCard icon={<Activity size={18} />} label="CABG" value={latest.cabg_count} />
-                <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={latest.bronch_count} />
-                <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={latest.sputum_induction_count} />
-                <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={latest.other_procedure_count} />
-              </div>
-              {latest.other_procedure_note && (
-                <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                  Other note: {latest.other_procedure_note}
-                </p>
-              )}
-            </section>
-
             <section className="space-y-3">
               <button
                 type="button"
@@ -809,6 +1019,77 @@ export function DirectorShiftStatusClient({
           </>
         )}
 
+        {directoryOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="respiratory-directory-title"
+              className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
+            >
+              <div className="border-b border-slate-100 px-4 py-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="respiratory-directory-title" className="text-2xl font-black text-hospital-ink">
+                      Respiratory Directory
+                    </h2>
+                    <p className="mt-1 text-sm font-bold text-slate-500">RT staff contact list</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDirectoryOpen(false)}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <label className="mt-4 block">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Search staff</span>
+                  <span className="mt-1 flex min-h-11 items-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 shadow-sm">
+                    <Search size={16} className="text-cyan-700" />
+                    <input
+                      value={directorySearch}
+                      onChange={(event) => setDirectorySearch(event.target.value)}
+                      placeholder="Search staff"
+                      className="min-w-0 flex-1 bg-transparent text-sm font-bold text-hospital-ink outline-none placeholder:text-slate-400"
+                    />
+                  </span>
+                </label>
+              </div>
+
+              <div className="max-h-[58vh] overflow-y-auto px-4 py-4 pb-5">
+                {directoryLoading && (
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                    Loading respiratory directory...
+                  </p>
+                )}
+
+                {directoryError && (
+                  <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-4 text-center text-sm font-bold text-rose-700">
+                    {directoryError}
+                  </p>
+                )}
+
+                {!directoryLoading && !directoryError && filteredDirectoryProfiles.length === 0 && (
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                    No staff found.
+                  </p>
+                )}
+
+                {!directoryLoading && !directoryError && filteredDirectoryProfiles.length > 0 && (
+                  <div className="space-y-2">
+                    {filteredDirectoryProfiles.map((profile) => (
+                      <DirectoryStaffRow key={profile.id} profile={profile} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
         {shiftPreviewOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
             <section
@@ -839,17 +1120,41 @@ export function DirectorShiftStatusClient({
                   <label className="block">
                     <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Date</span>
                     <select
-                      value={selectedScheduleDate}
-                      onChange={(event) => setSelectedScheduleDate(event.target.value)}
-                      disabled={scheduleDateOptions.length === 0}
+                      value={defaultScheduleDateOptions.includes(selectedScheduleDate) ? selectedScheduleDate : ""}
+                      onChange={(event) => {
+                        setSelectedScheduleDate(event.target.value);
+                        setManualScheduleDate("");
+                        setManualScheduleError("");
+                      }}
+                      disabled={defaultScheduleDateOptions.length === 0}
                       className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {scheduleDateOptions.map((dateValue) => (
+                      <option value="">
+                        {selectedScheduleDate && !defaultScheduleDateOptions.includes(selectedScheduleDate)
+                          ? `Manual: ${shortScheduleDateLabel(selectedScheduleDate, timezone)}`
+                          : "No recent uploaded dates"}
+                      </option>
+                      {defaultScheduleDateOptions.map((dateValue) => (
                         <option key={dateValue} value={dateValue}>
                           {shortScheduleDateLabel(dateValue, timezone)}
                         </option>
                       ))}
                     </select>
+                  </label>
+
+                  <label className="block">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Enter Date</span>
+                    <input
+                      value={manualScheduleDate}
+                      onChange={(event) => applyManualScheduleDate(event.target.value)}
+                      inputMode="numeric"
+                      placeholder="MMDDYY"
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                    />
+                    <span className="mt-1 block text-xs font-bold text-slate-500">MMDDYY</span>
+                    {manualScheduleError && (
+                      <span className="mt-1 block text-xs font-bold text-rose-700">{manualScheduleError}</span>
+                    )}
                   </label>
 
                   <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-1">
@@ -890,7 +1195,13 @@ export function DirectorShiftStatusClient({
                   </p>
                 )}
 
-                {!schedulePreviewLoading && !schedulePreviewError && scheduleDateOptions.length > 0 && (
+                {!schedulePreviewLoading && !schedulePreviewError && scheduleDateOptions.length > 0 && !selectedScheduleDate && (
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                    No uploaded schedule found for this date.
+                  </p>
+                )}
+
+                {!schedulePreviewLoading && !schedulePreviewError && scheduleDateOptions.length > 0 && selectedScheduleDate && (
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-black text-hospital-ink">
