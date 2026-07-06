@@ -422,7 +422,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       setClearCelebrationMessage("");
       setTodoOpen(false);
       todoClearCelebrationTimerRef.current = null;
-    }, 2500);
+    }, 1000);
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {

@@ -61,7 +61,7 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 - Metadata shows the last updated date/time and display name.
 - `Close` dismisses the modal without changing saved content.
 - `Clear List` is a green completion action and requires confirmation before setting the shared note to blank.
-- After clearing, the confirmation card transforms into a same-size celebration card for about 2.5 seconds, then closes the To-Do List modal automatically.
+- After clearing, the confirmation card transforms into a same-size celebration card for about 1 second, then closes the To-Do List modal automatically.
 - The clear-list celebration cycles through: `Slaaayyyyyy`, `Productivity MAXIMIZED`, `Clean slate activated`, `We are so back.`, and `Chaos reduced by 3%`.
 - The clear-list cycle uses local device storage key `order-todo-clear-message-index` when available.
 - The celebration message is not shown as a bottom toast or as a large banner inside the To-Do List editor.
