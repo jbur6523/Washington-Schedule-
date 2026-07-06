@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, ClipboardList, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
+import { Activity, Baby, Bed, ClipboardList, Droplet, MoreHorizontal, Stethoscope, User, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
@@ -302,13 +302,13 @@ export function ShiftUpdateClient({
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <ProcedureInputTile
-                icon={<User size={18} />}
+                icon={<Bed size={18} />}
                 label="C-Sections"
                 value={form.cSectionCount}
                 onChange={(value) => setForm((current) => ({ ...current, cSectionCount: value }))}
               />
               <ProcedureInputTile
-                icon={<Users size={18} />}
+                icon={<Baby size={18} />}
                 label="Vaginal Deliveries"
                 value={form.vaginalDeliveryCount}
                 onChange={(value) => setForm((current) => ({ ...current, vaginalDeliveryCount: value }))}
@@ -326,7 +326,7 @@ export function ShiftUpdateClient({
                 onChange={(value) => setForm((current) => ({ ...current, bronchCount: value }))}
               />
               <ProcedureInputTile
-                icon={<Wind size={18} />}
+                icon={<Droplet size={18} />}
                 label="Sputum Inductions"
                 value={form.sputumInductionCount}
                 onChange={(value) => setForm((current) => ({ ...current, sputumInductionCount: value }))}
