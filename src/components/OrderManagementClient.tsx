@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ChevronDown, ClipboardList, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ClipboardList, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -94,7 +94,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [orderCount, setOrderCount] = useState<number | null>(null);
   const [historyMode, setHistoryMode] = useState<"recent" | "all">("recent");
   const [orderSearch, setOrderSearch] = useState("");
-  const [debouncedOrderSearch, setDebouncedOrderSearch] = useState("");
+  const [submittedOrderSearch, setSubmittedOrderSearch] = useState("");
   const [allHasMore, setAllHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [allLoading, setAllLoading] = useState(false);
@@ -132,7 +132,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
   const todoHasUnsavedChanges = todoContent !== savedTodoContent;
   const todoIsSaving = todoSaveStatus === "saving";
-  const activeSearchQuery = debouncedOrderSearch.trim();
+  const activeSearchQuery = submittedOrderSearch.trim();
   const searchActive = activeSearchQuery.length > 0;
   const displayedOrders = searchActive ? searchOrders : historyMode === "recent" ? recentOrders : allOrders;
   const displayedOrdersLoading = searchActive ? searchLoading : historyMode === "recent" ? loading : allLoading;
@@ -341,19 +341,11 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedOrderSearch(orderSearch.trim());
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [orderSearch]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void searchOrdersByReqNumber(debouncedOrderSearch);
+      void searchOrdersByReqNumber(submittedOrderSearch);
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [debouncedOrderSearch, searchOrdersByReqNumber]);
+  }, [submittedOrderSearch, searchOrdersByReqNumber]);
 
   useEffect(() => {
     if (historyMode !== "all" || allOrders.length > 0) {
@@ -553,6 +545,27 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     }, 1000);
   };
 
+  const runOrderSearch = () => {
+    const searchValue = orderSearch.trim();
+    if (!searchValue) {
+      return;
+    }
+
+    setSubmittedOrderSearch(searchValue);
+    setHistoryMode("recent");
+    setExpandedNotesOrderId(null);
+  };
+
+  const clearOrderSearch = () => {
+    setOrderSearch("");
+    setSubmittedOrderSearch("");
+    setSearchOrders([]);
+    setSearchError("");
+    setSearchLoading(false);
+    setHistoryMode("recent");
+    setExpandedNotesOrderId(null);
+  };
+
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -662,9 +675,19 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
           return (
             <article key={order.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-              <div className="flex items-start gap-3">
-                {order.signedImageUrl && (
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="break-words text-base font-black leading-5 text-hospital-ink">Order Req - {reqLabel}</p>
+                  <p className="mt-2 text-sm font-bold leading-5 text-slate-600">
+                    Date: {created.date}
+                    {created.time ? ` Time: ${created.time}` : ""}
+                  </p>
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                    Created by: {order.created_by_name || "User"}
+                  </p>
+                </div>
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+                  {order.signedImageUrl ? (
                     <button
                       type="button"
                       onClick={() =>
@@ -683,40 +706,36 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                         loading="lazy"
                       />
                     </button>
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-base font-black leading-5 text-hospital-ink">Order Req - {reqLabel}</p>
-                  <p className="mt-2 text-sm font-bold leading-5 text-slate-600">
-                    Date: {created.date}
-                    {created.time ? ` Time: ${created.time}` : ""}
-                  </p>
-                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
-                    Created by: {order.created_by_name || "User"}
-                  </p>
-                  {order.notes && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedNotesOrderId(notesOpen ? null : order.id)}
-                        className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-pink-100 bg-pink-50 px-3 text-sm font-extrabold text-pink-700"
-                        aria-expanded={notesOpen}
-                      >
-                        {notesOpen ? "Hide Notes" : "View Notes"}
-                        <ChevronDown
-                          size={16}
-                          className={notesOpen ? "rotate-180 transition-transform" : "transition-transform"}
-                        />
-                      </button>
-                      {notesOpen && (
-                        <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2">
-                          <p className="text-sm font-semibold leading-5 text-slate-600">{order.notes}</p>
-                        </div>
-                      )}
-                    </>
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-slate-300">
+                      <ImagePlus size={24} />
+                    </span>
                   )}
                 </div>
               </div>
+              {order.notes && (
+                <>
+                  <div className="mt-4 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedNotesOrderId(notesOpen ? null : order.id)}
+                      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-pink-100 bg-pink-50 px-5 text-sm font-extrabold text-pink-700"
+                      aria-expanded={notesOpen}
+                    >
+                      {notesOpen ? "Hide Notes" : "View Notes"}
+                      <ChevronDown
+                        size={16}
+                        className={notesOpen ? "rotate-180 transition-transform" : "transition-transform"}
+                      />
+                    </button>
+                  </div>
+                  {notesOpen && (
+                    <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-left">
+                      <p className="text-sm font-semibold leading-5 text-slate-600">{order.notes}</p>
+                    </div>
+                  )}
+                </>
+              )}
             </article>
           );
         })}
@@ -811,33 +830,52 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             </span>
           </div>
 
-          <label className="block rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <span className="text-sm font-black text-hospital-ink">Order Look Up</span>
-            <span className="mt-0.5 block text-xs font-bold text-slate-500">Req order #</span>
-            <div className="mt-2 flex gap-2">
+          <form
+            className="block rounded-3xl border border-white bg-white/95 p-4 shadow-soft"
+            onSubmit={(event) => {
+              event.preventDefault();
+              runOrderSearch();
+            }}
+          >
+            <label className="block">
+              <span className="text-sm font-black text-hospital-ink">Order Look Up</span>
+              <span className="mt-0.5 block text-xs font-bold text-slate-500">Req order #</span>
               <input
                 value={orderSearch}
-                onChange={(event) => setOrderSearch(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setOrderSearch(nextValue);
+                  if (!nextValue.trim() && searchActive) {
+                    clearOrderSearch();
+                  }
+                }}
                 placeholder="Enter Req Number"
-                className="min-h-11 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-100"
+                className="mt-2 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-100"
               />
-              {orderSearch && (
+            </label>
+            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2">
+              <button
+                type="submit"
+                disabled={!orderSearch.trim() || searchLoading}
+                className={`min-h-11 rounded-2xl px-4 text-sm font-black shadow-sm ${
+                  orderSearch.trim() && !searchLoading
+                    ? "bg-pink-600 text-white shadow-pink-900/15"
+                    : "border border-slate-200 bg-transparent text-slate-400"
+                }`}
+              >
+                {searchLoading ? "Searching..." : "Search Order"}
+              </button>
+              {(orderSearch || searchActive) && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setOrderSearch("");
-                    setDebouncedOrderSearch("");
-                    setSearchOrders([]);
-                    setSearchError("");
-                    setHistoryMode("recent");
-                  }}
+                  onClick={clearOrderSearch}
                   className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
                 >
                   Clear
                 </button>
               )}
             </div>
-          </label>
+          </form>
 
           {!searchActive && (
             <div className="grid grid-cols-2 gap-2 rounded-2xl border border-pink-100 bg-pink-50/50 p-1">
@@ -866,13 +904,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               <p className="text-sm font-black text-amber-900">Search Results</p>
               <button
                 type="button"
-                onClick={() => {
-                  setOrderSearch("");
-                  setDebouncedOrderSearch("");
-                  setSearchOrders([]);
-                  setSearchError("");
-                  setHistoryMode("recent");
-                }}
+                onClick={clearOrderSearch}
                 className="text-xs font-black text-amber-800 underline"
               >
                 Clear Search

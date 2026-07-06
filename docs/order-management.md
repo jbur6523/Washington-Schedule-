@@ -57,8 +57,9 @@ Order History is optimized for larger order volume:
 - `View All` loads order history in pages of 25 orders at a time.
 - `Load More Orders` fetches the next page when more orders exist.
 - `Order Look Up` searches the database by optional Req Number, including older orders outside the recent list.
-- Search supports partial Req Number matching and can be cleared to return to `Recent`.
-- History cards keep the printable operational format: `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, thumbnail when present, and `View Notes` when notes exist.
+- Search does not run while typing. The user enters a Req Number and taps the enabled `Search Order` button, or clears the search to return to `Recent`.
+- Search supports partial Req Number matching.
+- History cards keep the printable operational format with left-aligned text details, a right-aligned thumbnail or placeholder, and a centered `View Notes` button when notes exist.
 
 ## To-Do List
 
