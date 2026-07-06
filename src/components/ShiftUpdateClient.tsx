@@ -123,12 +123,12 @@ export function ShiftUpdateClient({
     rtsRequired: "",
     ventCount: "",
     bipapCount: "",
-    cSectionCount: "0",
-    vaginalDeliveryCount: "0",
-    cabgCount: "0",
-    bronchCount: "0",
-    sputumInductionCount: "0",
-    otherProcedureCount: "0",
+    cSectionCount: "",
+    vaginalDeliveryCount: "",
+    cabgCount: "",
+    bronchCount: "",
+    sputumInductionCount: "",
+    otherProcedureCount: "",
     otherProcedureNote: "",
     updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
     updatedByName: ""
@@ -344,7 +344,6 @@ export function ShiftUpdateClient({
                 value={form.otherProcedureNote}
                 onChange={(event) => setForm((current) => ({ ...current, otherProcedureNote: event.target.value.slice(0, 100) }))}
                 maxLength={100}
-                placeholder="Add any additional notes here..."
                 className={controlClass}
               />
               <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
