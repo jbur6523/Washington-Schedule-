@@ -54,6 +54,8 @@ const shiftStatusSelect = [
   "staff_profiles(display_name)"
 ].join(", ");
 
+const activeRentalStatuses = ["active", "delivered", "pickup_requested", "pickup_called", "called_for_pickup"];
+
 type ShiftChoice = {
   id: string;
   label: string;
@@ -297,6 +299,7 @@ export function DirectorShiftStatusClient({
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [activeRentalCount, setActiveRentalCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
 
@@ -309,14 +312,22 @@ export function DirectorShiftStatusClient({
     setCopyMessage("");
 
     const supabase = createClient();
-    const { data, error: loadError } = await supabase
-      .from("shift_status_updates")
-      .select(shiftStatusSelect)
-      .eq("department_id", authContext.departmentId)
-      .order("updated_at", { ascending: false })
-      .limit(30);
+    const [{ data, error: loadError }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
+      supabase
+        .from("shift_status_updates")
+        .select(shiftStatusSelect)
+        .eq("department_id", authContext.departmentId)
+        .order("updated_at", { ascending: false })
+        .limit(30),
+      supabase
+        .from("rental_records")
+        .select("id", { count: "exact", head: true })
+        .eq("department_id", authContext.departmentId)
+        .in("status", activeRentalStatuses)
+    ]);
 
     setLoading(false);
+    setActiveRentalCount(rentalCountError ? null : rentalCount ?? 0);
 
     if (loadError) {
       setError("Unable to load shift status.");
@@ -522,10 +533,11 @@ export function DirectorShiftStatusClient({
                 </span>
                 <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3 min-[440px]:grid-cols-3">
+              <div className="mt-4 grid grid-cols-2 gap-3">
                 <SnapshotCard icon={<Wind size={20} />} label="Vents" value={latest.vent_count} />
                 <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={latest.bipap_count} />
                 <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
+                <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "—"} />
               </div>
             </section>
 
