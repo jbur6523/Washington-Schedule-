@@ -249,14 +249,12 @@ function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; va
 
 function SnapshotCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
   return (
-    <div className="flex min-h-[5.8rem] items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 px-3 py-3 shadow-sm">
-      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+    <div className="flex min-h-[6.2rem] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
         {icon}
       </span>
-      <div className="min-w-0">
-        <p className="text-xs font-extrabold leading-tight text-slate-600">{label}</p>
-        <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{value}</p>
-      </div>
+      <p className="mt-2 text-xs font-extrabold leading-tight text-slate-600">{label}</p>
+      <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{value}</p>
     </div>
   );
 }
@@ -508,10 +506,9 @@ export function DirectorShiftStatusClient({
           )}
 
           {latest && (
-            <div className="mt-4 grid grid-cols-3 gap-2.5">
-              <MetricCard icon={<Users size={22} />} label="RTs Scheduled" value={formatShiftStatusNumber(latest.rts_on)} />
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <MetricCard icon={<Users size={22} />} label="Scheduled" value={formatShiftStatusNumber(latest.rts_on)} />
               <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
-              <MetricCard icon={<Wind size={22} />} label="Vents" value={latest.vent_count} />
             </div>
           )}
         </section>
@@ -525,7 +522,8 @@ export function DirectorShiftStatusClient({
                 </span>
                 <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
               </div>
-              <div className="mt-4 grid grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-2 gap-3 min-[440px]:grid-cols-3">
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={latest.vent_count} />
                 <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={latest.bipap_count} />
                 <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
               </div>
