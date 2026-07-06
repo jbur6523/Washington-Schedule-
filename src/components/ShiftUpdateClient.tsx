@@ -192,15 +192,16 @@ export function ShiftUpdateClient({
             <h2 className="text-lg font-black text-hospital-ink">Staffing</h2>
             <div className={twoColumnGridClass}>
               {[
-                ["rtsOn", "RTs On"],
-                ["rtsRequired", "RTs Required"]
-              ].map(([key, label]) => (
+                ["rtsOn", "RTs Scheduled", "1", "numeric"],
+                ["rtsRequired", "RTs Needed", "0.1", "decimal"]
+              ].map(([key, label, step, inputMode]) => (
                 <label key={key} className="block">
                   <span className={labelClass}>{label}</span>
                   <input
                     type="number"
                     min={0}
-                    inputMode="numeric"
+                    step={step}
+                    inputMode={inputMode as "numeric" | "decimal"}
                     value={form[key as keyof ShiftUpdateForm]}
                     onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
                     className={controlClass}

@@ -23,6 +23,16 @@ export function shiftTypeLabel(shiftType: ShiftStatusShiftType) {
   return shiftType === "day" ? "Day Shift" : "Night Shift";
 }
 
+export function formatShiftStatusNumber(value: number | null | undefined) {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "0";
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2
+  }).format(value);
+}
+
 export function formatShiftStatusTime(value: string | null | undefined, timezone = "America/Los_Angeles") {
   if (!value) {
     return "Unknown";

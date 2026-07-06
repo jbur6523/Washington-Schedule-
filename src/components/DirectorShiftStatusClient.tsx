@@ -7,6 +7,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   currentShiftType,
+  formatShiftStatusNumber,
   latestShiftStatus,
   shiftTypeLabel,
   todayInTimezone,
@@ -147,7 +148,7 @@ function statStatus(update: ShiftStatusUpdate | null) {
   }
 
   const shortBy = Math.max(0, update.rts_required - update.rts_on);
-  return shortBy > 0 ? `Short by ${shortBy}` : "Fully staffed";
+  return shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
 }
 
 function reportText(update: ShiftStatusUpdate, timezone: string) {
@@ -156,9 +157,9 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
   return [
     `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date, timezone)}`,
     "",
-    `RTs on: ${update.rts_on}`,
-    `RTs required: ${update.rts_required}`,
-    `Short by: ${shortBy}`,
+    `RTs scheduled: ${formatShiftStatusNumber(update.rts_on)}`,
+    `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
+    `Short by: ${formatShiftStatusNumber(shortBy)}`,
     "",
     `Vents: ${update.vent_count}`,
     `BiPAPs: ${update.bipap_count}`,
@@ -404,8 +405,8 @@ export function DirectorShiftStatusClient({
             <section className="grid grid-cols-1 gap-3">
               <StatCard
                 title="Staffing"
-                value={`${latest.rts_on} / ${latest.rts_required}`}
-                label="RTs On / Required"
+                value={`${formatShiftStatusNumber(latest.rts_on)} / ${formatShiftStatusNumber(latest.rts_required)}`}
+                label="RTs Scheduled / Needed"
                 status={statStatus(latest)}
                 tone={shortBy > 0 ? "amber" : "green"}
               />

@@ -38,7 +38,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `schedule_entries.is_shift_lead`: entry-level Shift Lead flag shown as a crown on Schedule cards.
 - `shift_shortages`: shift-level Short Shift alerts. This is the only table that represents Short Shift.
 - `user_schedule_overrides`: staff-owned self-managed app schedule changes layered on top of the baseline schedule.
-- `shift_status_updates`: Command Center shift-level operational updates. Rows store staffing, vent/BiPAP counts, scheduled procedure counts, and visible updated-by attribution for the Director Shift Status page and compact Schedule summary.
+- `shift_status_updates`: Command Center shift-level operational updates. Rows store RTs scheduled, RTs needed, vent/BiPAP counts, scheduled procedure counts, and visible updated-by attribution for the Director Shift Status page and compact Schedule summary. `rts_required` is displayed as `RTs Needed` and supports decimal values such as `6.9`.
 
 ### Requests and Offers
 

@@ -7,6 +7,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   currentShiftType,
+  formatShiftStatusNumber,
   formatShiftStatusTime,
   latestShiftStatus,
   shiftTypeLabel,
@@ -81,7 +82,7 @@ export function CurrentShiftStatusSummary({
 
   const latest = latestShiftStatus(updates);
   const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
-  const staffingStatus = shortBy > 0 ? `Short by ${shortBy}` : "Fully staffed";
+  const staffingStatus = shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
 
   if (error) {
     return (
@@ -115,10 +116,10 @@ export function CurrentShiftStatusSummary({
           ) : (
             <div className="grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
               <div className="rounded-2xl bg-cyan-50 px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
-                <p>
-                  {latest.rts_on} on / {latest.rts_required} needed
-                </p>
+                  <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
+                  <p>
+                    {formatShiftStatusNumber(latest.rts_on)} scheduled / {formatShiftStatusNumber(latest.rts_required)} needed
+                  </p>
                 <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
                   {staffingStatus}
                 </p>

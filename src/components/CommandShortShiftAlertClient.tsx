@@ -89,7 +89,7 @@ export function CommandShortShiftAlertClient({
     setMessage("");
 
     const times = standardTimes(form.shiftType);
-    const noteParts = [`RTs ${form.rtsOn} on / ${form.rtsRequired} required`, `Short by ${shortBy}`];
+    const noteParts = [`RTs ${form.rtsOn} scheduled / ${form.rtsRequired} needed`, `Short by ${shortBy}`];
     if (form.note.trim()) {
       noteParts.push(form.note.trim());
     }
@@ -166,7 +166,7 @@ export function CommandShortShiftAlertClient({
             <h2 className="text-lg font-black text-hospital-ink">Staffing Need</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs on</span>
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs Scheduled</span>
                 <input
                   type="number"
                   min={0}
@@ -177,11 +177,12 @@ export function CommandShortShiftAlertClient({
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs required</span>
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs Needed</span>
                 <input
                   type="number"
                   min={0}
-                  inputMode="numeric"
+                  step="0.1"
+                  inputMode="decimal"
                   value={form.rtsRequired}
                   onChange={(event) => setForm((current) => ({ ...current, rtsRequired: event.target.value }))}
                   className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"

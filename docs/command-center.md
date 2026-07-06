@@ -68,8 +68,8 @@ Fields:
 
 - Shift date
 - Shift type: Day Shift or Night Shift
-- Number of RTs on
-- Number of RTs required
+- RTs Scheduled
+- RTs Needed, which can include decimals such as `6.9`
 - Vent count
 - BiPAP count
 - C-Section count
@@ -90,7 +90,7 @@ Authenticated department users see a compact `Current Shift Status` card directl
 
 The card comes from Command Center shift updates and shows:
 
-- RTs on / needed
+- RTs scheduled / needed
 - Vent count
 - BiPAP count
 - Last updated time
@@ -109,7 +109,7 @@ The Director Shift Status page is the primary live visual reporting dashboard fo
 The Director view is read-only and shows:
 
 - Large Staffing, Vent Count, and BiPAP Count cards
-- RTs on / RTs required and Short by / Fully staffed status
+- RTs scheduled / RTs needed and Short by / Fully staffed status
 - Freshness indicator such as `Updated 18 minutes ago`, `Needs update`, or `No update submitted`
 - C-Sections
 - CABG
