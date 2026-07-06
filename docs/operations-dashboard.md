@@ -56,7 +56,7 @@ Seeded director username:
 
 - `aloha`
 
-The Director should set or choose his own password through the normal password setup/reset process. The page is the primary live visual reporting dashboard for respiratory shift status. It shows one compact read-only `Current Shift Status` card for the automatically detected active shift. The active Director shift window uses `08:00-19:59` for Day Shift and `20:00-07:59` for Night Shift, so prior-shift data is hidden after a reset boundary unless a new current-window update exists. The title displays `Staffed`, `Short`, or `No Update`. The compact card shows only RTs Scheduled, RTs Needed, and Vents, with last updated time and updated-by attribution. BiPAPs are not shown in the compact Director card. It includes visible `Refresh` and `Sign Out` controls and does not allow editing.
+The Director should set or choose his own password through the normal password setup/reset process. The page is the primary live visual reporting dashboard for respiratory shift status. It combines the dashboard header, freshness status, and compact shift selector into one top card. The Director can switch between Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift. The page shows large cards for Staffing, Vents, and BiPAPs; compact scheduled procedure counts; last updated time; and updated-by display name/initials. It includes visible `Refresh` and `Sign Out` controls and does not allow editing.
 
 Email reporting is intentionally out of scope for this phase. The Command Center updates the app, and the Director dashboard displays those latest numbers. A copyable text report is available for manual sharing.
 
@@ -100,7 +100,7 @@ Return Rental is active and opens the existing dedicated pickup request workflow
 
 ## Shift Status Updates
 
-Command Center and Lead/Admin users can save shift updates. Normal Schedule users see `Current Shift Status` directly under the Schedule page Shift View selector instead of the old Scheduled, Available, Coverage, Short Shifts, and Switch Requests summary row. The compact card shows RTs scheduled/needed, vent count, BiPAP count, last updated time, and updated-by attribution when available. RTs Needed can include decimals such as `6.9`. Day and Night views show today's matching shift update; All uses the current shift based on current time. The Director Shift Status page shows the full read-only staffing, equipment, scheduled procedure counts, and freshness indicator.
+Command Center and Lead/Admin users can save shift updates. Normal Schedule users see `Current Shift Status` directly under the Schedule page Shift View selector instead of the old Scheduled, Available, Coverage, Short Shifts, and Switch Requests summary row. The compact Schedule card shows RTs Scheduled, RTs Needed, Vents, last updated time, and updated-by attribution when available. RTs Needed can include decimals such as `6.9`. The compact Schedule card ignores the Day/Night/All schedule filter and instead uses the active current-shift window: Day Shift is `08:00-19:59`, and Night Shift is `20:00-07:59`. The Director Shift Status page remains the fuller read-only dashboard with shift browsing, staffing, equipment, scheduled procedure counts, freshness indicator, text report, Refresh, and Sign Out.
 
 ## Go-Live Note
 

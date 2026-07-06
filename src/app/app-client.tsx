@@ -865,7 +865,7 @@ function ScheduleScreen({
         }}
       >
         {!developmentFallback && (
-          <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} shiftFilter={shiftFilter} />
+          <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} />
         )}
       </ScheduleViewSummaryCard>
       <MyStatusCard

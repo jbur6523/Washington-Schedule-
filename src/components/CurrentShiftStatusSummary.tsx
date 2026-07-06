@@ -1,17 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
-  currentShiftType,
   formatShiftStatusNumber,
   formatShiftStatusTime,
   latestShiftStatus,
-  shiftTypeLabel,
-  todayInTimezone,
   updatedByName
 } from "@/lib/shift-status/utils";
 
@@ -37,33 +34,85 @@ const shiftStatusSelect = [
   "staff_profiles(display_name)"
 ].join(", ");
 
+function previousDate(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00`);
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function zonedDateParts(timezone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+
+  return {
+    dateValue: `${year}-${month}-${day}`,
+    hour
+  };
+}
+
+function currentScheduleShiftWindow(timezone: string) {
+  const { dateValue, hour } = zonedDateParts(timezone);
+
+  if (hour >= 8 && hour < 20) {
+    return {
+      shiftDate: dateValue,
+      shiftType: "day" as ShiftStatusShiftType
+    };
+  }
+
+  if (hour >= 20) {
+    return {
+      shiftDate: dateValue,
+      shiftType: "night" as ShiftStatusShiftType
+    };
+  }
+
+  return {
+    shiftDate: previousDate(dateValue),
+    shiftType: "night" as ShiftStatusShiftType
+  };
+}
+
+function titleStatus(update: ShiftStatusUpdate | null) {
+  if (!update) {
+    return "No Update";
+  }
+
+  return update.rts_on >= update.rts_required ? "Staffed" : "Short";
+}
+
 export function CurrentShiftStatusSummary({
   authContext,
-  timezone,
-  shiftFilter
+  timezone
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
-  shiftFilter: "day" | "night" | "all";
 }) {
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [error, setError] = useState("");
-  const today = useMemo(() => todayInTimezone(timezone), [timezone]);
-  const currentShift = useMemo(() => currentShiftType(), []);
-  const selectedShiftType = useMemo<ShiftStatusShiftType>(
-    () => (shiftFilter === "all" ? currentShift : shiftFilter),
-    [currentShift, shiftFilter]
-  );
 
   useEffect(() => {
-    const timer = window.setTimeout(async () => {
+    const loadStatus = async () => {
+      const currentWindow = currentScheduleShiftWindow(timezone);
       const supabase = createClient();
       const { data, error: loadError } = await supabase
         .from("shift_status_updates")
         .select(shiftStatusSelect)
         .eq("department_id", authContext.departmentId)
-        .eq("shift_date", today)
-        .eq("shift_type", selectedShiftType)
+        .eq("shift_date", currentWindow.shiftDate)
+        .eq("shift_type", currentWindow.shiftType)
         .order("updated_at", { ascending: false })
         .limit(3);
 
@@ -75,20 +124,31 @@ export function CurrentShiftStatusSummary({
 
       setUpdates((data ?? []) as unknown as ShiftStatusUpdate[]);
       setError("");
-    }, 0);
+    };
 
-    return () => window.clearTimeout(timer);
-  }, [authContext.departmentId, selectedShiftType, today]);
+    const timer = window.setTimeout(() => {
+      void loadStatus();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void loadStatus();
+    }, 60 * 1000);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+    };
+  }, [authContext.departmentId, timezone]);
 
   const latest = latestShiftStatus(updates);
   const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
   const staffingStatus = shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
+  const statusLabel = titleStatus(latest);
 
   if (error) {
     return (
       <div className="mt-4 border-t border-violet-100 pt-4">
         <p className="text-center text-sm font-black uppercase tracking-wide text-cyan-700">
-          Current Shift Status · {shiftTypeLabel(selectedShiftType)}
+          Current Shift Status {"\u00b7"} No Update
         </p>
         <p className="mt-2 text-center text-sm font-bold text-slate-500">Shift status unavailable.</p>
       </div>
@@ -99,7 +159,7 @@ export function CurrentShiftStatusSummary({
     <div className="mt-4 border-t border-violet-100 pt-4">
       <div className="text-center">
         <p className="text-sm font-black uppercase tracking-wide text-cyan-700">
-          Current Shift Status · {shiftTypeLabel(selectedShiftType)}
+          Current Shift Status {"\u00b7"} {statusLabel}
         </p>
       </div>
 
@@ -111,26 +171,24 @@ export function CurrentShiftStatusSummary({
         <div className="min-w-0 flex-1">
           {!latest ? (
             <p className="rounded-2xl border border-slate-100 bg-white/90 px-3 py-3 text-center text-sm font-bold text-slate-500 shadow-sm">
-              No update submitted for this shift yet.
+              No update has been submitted for the current shift yet.
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
               <div className="rounded-2xl bg-cyan-50 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
-                  <p>
-                    {formatShiftStatusNumber(latest.rts_on)} scheduled / {formatShiftStatusNumber(latest.rts_required)} needed
-                  </p>
+                <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs Scheduled</p>
+                <p>{formatShiftStatusNumber(latest.rts_on)}</p>
                 <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
                   {staffingStatus}
                 </p>
               </div>
               <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
-                <p>{latest.vent_count}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">RTs Needed</p>
+                <p>{formatShiftStatusNumber(latest.rts_required)}</p>
               </div>
               <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500">BiPAPs</p>
-                <p>{latest.bipap_count}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
+                <p>{latest.vent_count}</p>
               </div>
             </div>
           )}

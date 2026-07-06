@@ -90,13 +90,18 @@ Authenticated department users see a compact `Current Shift Status` card directl
 
 The card comes from Command Center shift updates and shows:
 
-- RTs scheduled / needed
+- RTs Scheduled
+- RTs Needed
 - Vent count
-- BiPAP count
 - Last updated time
 - Updated by, when available
 
-The card respects the selected Schedule shift view when possible. `Day` shows today's Day Shift update, `Night` shows today's Night Shift update, and `All` shows the current shift based on current time. If no update has been submitted for the selected shift, the card shows a single no-update empty state. The normal Schedule page intentionally omits procedure counts.
+The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule filter. Those controls continue to filter schedule cards only. Current Shift Status always uses the active department shift window:
+
+- Day Shift: `08:00-19:59`
+- Night Shift: `20:00-07:59`
+
+At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. It does not keep showing prior-shift data after the active window changes. If no update has been submitted for the current window, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts.
 
 ## Director Shift Status
 
@@ -108,27 +113,23 @@ The Director Shift Status page is the primary live visual reporting dashboard fo
 
 The Director view is read-only and shows:
 
-- One compact current-shift card
-- A title status of `Current Shift Status · Staffed`, `Current Shift Status · Short`, or `Current Shift Status · No Update`
-- RTs Scheduled
-- RTs Needed
-- Vent Count
+- Large Staffing, Vent Count, and BiPAP Count cards
+- RTs scheduled / RTs needed and Short by / Fully staffed status
 - Freshness indicator such as `Updated 18 minutes ago`, `Needs update`, or `No update submitted`
+- C-Sections
+- CABG
+- Bronch
+- Sputum Induction
+- Other count and note
 - Last updated time
 - Updated by display name or initials
+- A combined header and shift selector card with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
 - Visible `Refresh` and `Sign Out` controls
 - Optional text report with `Copy Report`
 
-The Director dashboard automatically shows only the current active shift. It does not show a Day/Night/All selector, Today/Tomorrow shift browsing, or Previous Shift browsing.
+If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 
-Director current-shift windows use department time:
-
-- Day Shift: `08:00-19:59`
-- Night Shift: `20:00-07:59`
-
-At `08:00` the Director dashboard starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. It does not keep showing prior-shift data after the active window changes. If no update exists for the current window, the card shows `Current Shift Status · No Update` and one compact no-update message.
-
-BiPAP counts and scheduled procedure counts remain available from Command Center data and the optional text report, but they are not shown in the compact Director status card. The Director page does not allow editing.
+A fuller `Next 3 Days` grid can be added later if the director needs a multi-shift board. For now, the compact selector keeps the mobile dashboard short while still allowing the director to check today, tomorrow, and the previous shift.
 
 ## Rental Attribution
 
