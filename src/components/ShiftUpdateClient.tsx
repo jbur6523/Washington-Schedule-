@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { Activity, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
@@ -39,6 +40,40 @@ const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-
 function isValidManualUpdater(value: string) {
   const normalized = value.trim().toLowerCase();
   return Boolean(normalized && normalized !== "sputum" && !normalized.includes("command center"));
+}
+
+function CountInputCard({
+  icon,
+  label,
+  value,
+  step = "1",
+  inputMode = "numeric",
+  onChange
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  step?: string;
+  inputMode?: "numeric" | "decimal";
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex min-h-[7.25rem] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+        {icon}
+      </span>
+      <span className="mt-2 text-[12px] font-extrabold leading-tight text-slate-600">{label}</span>
+      <input
+        type="number"
+        min={0}
+        step={step}
+        inputMode={inputMode}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-1 h-10 w-full rounded-xl border border-transparent bg-transparent px-1 text-center text-3xl font-black leading-none text-hospital-ink outline-none transition focus:border-cyan-200 focus:bg-white focus:ring-2 focus:ring-cyan-100"
+      />
+    </label>
+  );
 }
 
 export function ShiftUpdateClient({
@@ -189,47 +224,35 @@ export function ShiftUpdateClient({
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Staffing</h2>
-            <div className={twoColumnGridClass}>
-              {[
-                ["rtsOn", "RTs Scheduled", "1", "numeric"],
-                ["rtsRequired", "RTs Needed", "0.1", "decimal"]
-              ].map(([key, label, step, inputMode]) => (
-                <label key={key} className="block">
-                  <span className={labelClass}>{label}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={step}
-                    inputMode={inputMode as "numeric" | "decimal"}
-                    value={form[key as keyof ShiftUpdateForm]}
-                    onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className={controlClass}
-                  />
-                </label>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Equipment Counts</h2>
-            <div className={twoColumnGridClass}>
-              {[
-                ["ventCount", "Vents"],
-                ["bipapCount", "BiPAPs"]
-              ].map(([key, label]) => (
-                <label key={key} className="block">
-                  <span className={labelClass}>{label}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={form[key as keyof ShiftUpdateForm]}
-                    onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className={controlClass}
-                  />
-                </label>
-              ))}
+            <h2 className="text-lg font-black text-hospital-ink">Current Counts</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">Staffing and equipment for this shift</p>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <CountInputCard
+                icon={<Users size={18} />}
+                label="RTs Scheduled"
+                value={form.rtsOn}
+                onChange={(value) => setForm((current) => ({ ...current, rtsOn: value }))}
+              />
+              <CountInputCard
+                icon={<User size={18} />}
+                label="RTs Needed"
+                value={form.rtsRequired}
+                step="0.1"
+                inputMode="decimal"
+                onChange={(value) => setForm((current) => ({ ...current, rtsRequired: value }))}
+              />
+              <CountInputCard
+                icon={<Wind size={18} />}
+                label="Vents"
+                value={form.ventCount}
+                onChange={(value) => setForm((current) => ({ ...current, ventCount: value }))}
+              />
+              <CountInputCard
+                icon={<Activity size={18} />}
+                label="BiPAPs"
+                value={form.bipapCount}
+                onChange={(value) => setForm((current) => ({ ...current, bipapCount: value }))}
+              />
             </div>
           </section>
 
