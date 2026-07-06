@@ -79,10 +79,13 @@ Aide users see an additional `Order Management` card on the Aide Dashboard. Admi
 
 Order Management is intentionally simple in this phase:
 
+- The main page shows a single `Create Order` action and submitted order history.
+- The create form opens separately in a mobile modal instead of loading inline by default.
 - Aide takes or uploads a picture when available.
 - Picture upload is optional but strongly encouraged.
 - Aide can add optional notes, capped at 280 characters, and note-only orders are allowed when a picture is not available.
 - The app automatically stores the current Aide as the creator.
+- Submit is disabled until the user adds a picture or note.
 - Saved orders show image thumbnail when present, created date/time, creator display name, and notes.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
 

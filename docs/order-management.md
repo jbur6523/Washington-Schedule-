@@ -24,17 +24,24 @@ This is display logic only. It does not change schedule times, employment type, 
 
 ## Create Order
 
-The first version supports:
+The main Order Management page stays compact:
+
+- one primary `Create Order` button
+- an `Order History` section for submitted orders
+- `No department orders yet.` when the history is empty
+
+The Create Order form opens separately in a mobile modal. It supports:
 
 - take or upload a picture from a phone
 - picture upload is optional but strongly encouraged
 - optional notes up to 280 characters
 - note-only orders are allowed when a picture is not available
 - automatic created-by attribution from the current Aide display name/staff profile
+- `Submit Order` is disabled until a picture is selected or notes are entered
 - saved order list with thumbnail, created date/time, creator, and notes
 - tapping a thumbnail opens a larger preview
 
-Admin users see the same Create Order form as Aides and can create/upload orders for beta testing. Admin users also see total submitted order count, submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
+Admin users open the same modal form as Aides and can create/upload orders for beta testing. Admin users also see submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
 
 Notes show the helper text:
 

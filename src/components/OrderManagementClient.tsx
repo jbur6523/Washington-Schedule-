@@ -64,6 +64,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
 
   const isAdminView = authContext.role === "admin";
@@ -129,8 +130,21 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     };
   }, []);
 
+  useEffect(() => {
+    if (!isCreateOpen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isCreateOpen]);
+
   const noteLength = notes.length;
-  const createdByLabel = authContext.displayName || "Current aide";
+  const createdByLabel = authContext.displayName || "Current user";
   const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -162,6 +176,22 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const openCreateOrder = () => {
+    setError("");
+    setSuccess("");
+    setIsCreateOpen(true);
+  };
+
+  const closeCreateOrder = () => {
+    if (saving) {
+      return;
+    }
+
+    resetForm();
+    setError("");
+    setIsCreateOpen(false);
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -226,7 +256,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     }
 
     resetForm();
-    setSuccess("Order created.");
+    setSuccess("Order submitted.");
+    setIsCreateOpen(false);
     setSaving(false);
     await loadOrders();
   };
@@ -309,9 +340,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           </p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Order Management</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            {isAdminView
-              ? "Create and monitor department supply orders."
-              : "Create department supply orders."}
+            Create and monitor department supply orders.
           </p>
           <Link
             href="/operations"
@@ -323,88 +352,37 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         </section>
 
         {canCreateOrders ? (
-          <form onSubmit={createOrder} className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
-            <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
-            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-              Take or upload a picture, or add notes if a picture is not available.
-            </p>
-
-            <div className="mt-4 rounded-3xl border border-pink-100 bg-pink-50/70 p-3">
-              <input
-                ref={fileInputRef}
-                id="order-picture"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                className="sr-only"
-              />
-              <label
-                htmlFor="order-picture"
-                className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-sm shadow-pink-900/20"
-              >
-                <Camera size={18} />
-                Take / Upload Picture
-              </label>
-              <p className="mt-2 text-center text-xs font-bold text-pink-900/70">
-                Picture optional, strongly encouraged.
-              </p>
-
-              {previewUrl && (
-                <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-2xl border border-white bg-white">
-                  <img
-                    src={previewUrl}
-                    alt="Selected order item preview"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-              )}
+          <section className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-pink-50 text-pink-700">
+                <ImagePlus size={22} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  Take or upload a picture, or add notes if a picture is not available.
+                </p>
+              </div>
             </div>
-
-            <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-              Notes (optional)
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value.slice(0, maxNoteLength))}
-                maxLength={maxNoteLength}
-                placeholder="Add order details..."
-                className="min-h-28 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-pink-300"
-              />
-            </label>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <p className="text-xs font-bold text-slate-500">No patient information.</p>
-              <span className="text-xs font-bold text-slate-400">{noteLength}/{maxNoteLength}</span>
-            </div>
-
-            <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Created by</p>
-              <p className="text-sm font-extrabold text-hospital-ink">{createdByLabel}</p>
-            </div>
-
-            {error && (
-              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-                {error}
-              </p>
-            )}
+            <button
+              type="button"
+              onClick={openCreateOrder}
+              className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20"
+            >
+              <Camera size={18} />
+              Create Order
+            </button>
             {success && (
               <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
                 {success}
               </p>
             )}
-
-            <button
-              type="submit"
-              disabled={!canCreate}
-              className="mt-4 min-h-12 w-full rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-            >
-              {saving ? "Creating..." : "Create Order"}
-            </button>
-            {!hasOrderContent && (
-              <p className="mt-2 text-center text-xs font-bold text-slate-500">
-                Add a picture or note to create an order.
+            {error && !isCreateOpen && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                {error}
               </p>
             )}
-          </form>
+          </section>
         ) : (
           <section className="rounded-3xl border border-cyan-100 bg-cyan-50/70 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Order access unavailable</h2>
@@ -425,15 +403,124 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-black text-hospital-ink">
-              {isAdminView ? "Submitted Orders" : "Recent Orders"}
-            </h2>
+            <h2 className="text-xl font-black text-hospital-ink">Order History</h2>
             <span className="rounded-full bg-pink-50 px-2.5 py-1 text-xs font-extrabold text-pink-700">
-              {orders.length}
+              {orders.length} submitted
             </span>
           </div>
           {ordersMarkup}
         </section>
+
+        {isCreateOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 px-4 py-4 sm:items-center">
+            <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:rounded-3xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-pink-700">
+                    <PackageCheck size={14} />
+                    {isAdminView ? "Admin View" : "Aide View"}
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black text-hospital-ink">Create Order</h2>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                    Picture optional, notes optional, at least one is required.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeCreateOrder}
+                  disabled={saving}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-50"
+                  aria-label="Cancel create order"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={createOrder} className="mt-4">
+                <div className="rounded-3xl border border-pink-100 bg-pink-50/70 p-3">
+                  <input
+                    ref={fileInputRef}
+                    id="order-picture"
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={handleFileChange}
+                    className="sr-only"
+                  />
+                  <label
+                    htmlFor="order-picture"
+                    className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-sm shadow-pink-900/20"
+                  >
+                    <Camera size={18} />
+                    Take / Upload Picture
+                  </label>
+                  <p className="mt-2 text-center text-xs font-bold text-pink-900/70">
+                    Picture optional, strongly encouraged.
+                  </p>
+
+                  {previewUrl && (
+                    <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-2xl border border-white bg-white">
+                      <img
+                        src={previewUrl}
+                        alt="Selected order item preview"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  Notes (optional)
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value.slice(0, maxNoteLength))}
+                    maxLength={maxNoteLength}
+                    placeholder="Add order details..."
+                    className="min-h-28 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-pink-300"
+                  />
+                </label>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-slate-500">No patient information.</p>
+                  <span className="text-xs font-bold text-slate-400">{noteLength}/{maxNoteLength}</span>
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Created by</p>
+                  <p className="text-sm font-extrabold text-hospital-ink">{createdByLabel}</p>
+                </div>
+
+                {error && (
+                  <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                    {error}
+                  </p>
+                )}
+
+                <div className="mt-4 grid gap-2">
+                  <button
+                    type="submit"
+                    disabled={!canCreate}
+                    className="min-h-12 w-full rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+                  >
+                    {saving ? "Submitting..." : "Submit Order"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeCreateOrder}
+                    disabled={saving}
+                    className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {!hasOrderContent && (
+                  <p className="mt-2 text-center text-xs font-bold text-slate-500">
+                    Add a picture or note to create an order.
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+        )}
 
         {expandedImage && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6">
