@@ -100,6 +100,7 @@ Aide schedule/staff cards use a soft pink treatment and an `Aide` badge based on
 Rental Management currently supports:
 
 - Rental company selection
+- Quantity ordered, with one pending delivery record created per BiPAP V60 ordered
 - Equipment Type: BiPAP
 - Model: V60
 - Called In / Pending Delivery logging

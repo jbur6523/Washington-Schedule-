@@ -86,6 +86,7 @@ type RentalEventRecord = {
 
 type RentalCheckInForm = {
   vendorId: string;
+  orderQuantity: string;
   equipmentType: EquipmentType | "";
   deliveredDate: string;
   deliveredTime: string;
@@ -538,6 +539,7 @@ function shortMonthDay(value: string, timezone: string) {
 function defaultForm(vendorId = ""): RentalCheckInForm {
   return {
     vendorId,
+    orderQuantity: "1",
     equipmentType: "bipap",
     deliveredDate: todayValue(),
     deliveredTime: timeValue(),
@@ -935,6 +937,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return;
     }
 
+    const orderQuantity = Number.parseInt(form.orderQuantity, 10);
+
+    if (!Number.isInteger(orderQuantity) || orderQuantity < 1) {
+      setError("Quantity must be at least 1.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setDuplicateRental(null);
@@ -942,50 +951,55 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     const supabase = createClient();
     const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
     const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
-    const { data: pendingRecord, error: pendingError } = await supabase
+    const pendingRecordsToCreate = Array.from({ length: orderQuantity }, () => ({
+      department_id: authContext.departmentId,
+      equipment_id: null,
+      vendor_id: form.vendorId,
+      equipment_type: form.equipmentType,
+      barcode_number: null,
+      serial_number: null,
+      status: "pending_delivery",
+      called_in_at: pendingAt,
+      called_in_by_staff_profile_id: actor.staffProfileId,
+      called_in_by_name: actor.displayName,
+      checked_in_at: null,
+      checked_in_by_staff_profile_id: null,
+      current_location: null,
+      notes: form.notes.trim() || null
+    }));
+
+    const { data: pendingRecords, error: pendingError } = await supabase
       .from("rental_records")
-      .insert({
-        department_id: authContext.departmentId,
-        equipment_id: null,
-        vendor_id: form.vendorId,
-        equipment_type: form.equipmentType,
-        barcode_number: null,
-        serial_number: null,
-        status: "pending_delivery",
-        called_in_at: pendingAt,
-        called_in_by_staff_profile_id: actor.staffProfileId,
-        called_in_by_name: actor.displayName,
-        checked_in_at: null,
-        checked_in_by_staff_profile_id: null,
-        current_location: null,
-        notes: form.notes.trim() || null
-      })
-      .select(rentalRecordSelect)
-      .single();
+      .insert(pendingRecordsToCreate)
+      .select(rentalRecordSelect);
 
-    const savedPendingRecord = pendingRecord as unknown as ActiveRentalRecord | null;
+    const savedPendingRecords = (pendingRecords ?? []) as unknown as ActiveRentalRecord[];
 
-    if (pendingError || !savedPendingRecord?.id) {
+    if (pendingError || savedPendingRecords.length !== orderQuantity) {
       setSaving(false);
       setError("Unable to save pending delivery.");
       return;
     }
 
-    await supabase.from("rental_events").insert({
-      department_id: authContext.departmentId,
-      rental_record_id: savedPendingRecord.id,
-      equipment_id: null,
-      event_type: "called_in",
-      event_at: pendingAt,
-      actor_staff_profile_id: actor.staffProfileId,
-      event_data: {
-        equipment_type: form.equipmentType,
-        vendor_id: form.vendorId,
-        vendor_name: vendor?.name ?? null,
-        called_in_by: actor.displayName,
-        timestamp: pendingAt
-      }
-    });
+    await supabase.from("rental_events").insert(
+      savedPendingRecords.map((savedPendingRecord, index) => ({
+        department_id: authContext.departmentId,
+        rental_record_id: savedPendingRecord.id,
+        equipment_id: null,
+        event_type: "called_in",
+        event_at: pendingAt,
+        actor_staff_profile_id: actor.staffProfileId,
+        event_data: {
+          equipment_type: form.equipmentType,
+          vendor_id: form.vendorId,
+          vendor_name: vendor?.name ?? null,
+          called_in_by: actor.displayName,
+          order_quantity: orderQuantity,
+          order_item: index + 1,
+          timestamp: pendingAt
+        }
+      }))
+    );
 
     setSaving(false);
     setForm(defaultForm(vendors[0]?.id ?? ""));
@@ -1464,6 +1478,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const missingOrderFields = [
     !form.vendorId ? "Rental Company required" : "",
+    !Number.isInteger(Number.parseInt(form.orderQuantity, 10)) || Number.parseInt(form.orderQuantity, 10) < 1 ? "Quantity required" : "",
     !form.equipmentType ? "Equipment details required" : ""
   ].filter(Boolean);
   const missingAutoFilledFields = [
@@ -1473,6 +1488,8 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const missingCheckInFields = [...missingOrderFields, ...missingAutoFilledFields];
   const hasActionAttribution = !commandCenterMode || Boolean(actionStaffProfileId);
   const canLogOrder = missingCheckInFields.length === 0 && hasActionAttribution;
+  const orderQuantity = Number.parseInt(form.orderQuantity, 10);
+  const displayOrderQuantity = Number.isInteger(orderQuantity) && orderQuantity > 0 ? orderQuantity : 0;
   const canConfirmDelivery = Boolean(deliveryPendingRental && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation && hasActionAttribution);
   const canConfirmPendingDelivery = Boolean(
     pendingDeliveryConfirmation && form.barcodeNumber.trim() && form.deliveredDate && form.deliveredTime && currentLocation && hasActionAttribution
@@ -3570,6 +3587,29 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 </select>
               </label>
 
+              <label className="block">
+                <span className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  Quantity
+                  <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] text-rose-700">Required</span>
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={form.orderQuantity}
+                  onChange={(event) => {
+                    const digitsOnly = event.target.value.replace(/[^\d]/g, "");
+                    setForm((current) => ({ ...current, orderQuantity: digitsOnly }));
+                  }}
+                  placeholder="1"
+                  className="mt-1 min-h-12 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink shadow-sm outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                />
+                <span className="mt-1 block text-xs font-bold text-slate-500">
+                  Creates one pending delivery card per BiPAP V60 ordered.
+                </span>
+              </label>
+
               {selectedVendor && (
                 <div className="rounded-2xl border border-cyan-100 bg-cyan-50/90 px-3 py-3 text-sm font-bold text-cyan-950">
                   <p className="font-black">{selectedVendor.name}</p>
@@ -3697,6 +3737,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                   <dd>{equipmentLabels[form.equipmentType as EquipmentType]}</dd>
                 </div>
                 <div>
+                  <dt className="text-xs uppercase tracking-wide text-slate-400">Quantity</dt>
+                  <dd>{displayOrderQuantity}</dd>
+                </div>
+                <div>
                   <dt className="text-xs uppercase tracking-wide text-slate-400">Called In</dt>
                   <dd>{formatDateInput(form.calledInDate)} {form.calledInTime} by {actionDisplayName || authContext.displayName}</dd>
                 </div>
@@ -3766,7 +3810,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
                 disabled={saving || !canLogOrder}
                 className="min-h-12 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20 transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
               >
-                {saving ? "Saving..." : "Save Pending Delivery"}
+                {saving
+                  ? "Saving..."
+                  : displayOrderQuantity > 1
+                    ? `Save ${displayOrderQuantity} Pending Deliveries`
+                    : "Save Pending Delivery"}
               </button>
               <button
                 type="button"

@@ -31,18 +31,20 @@ Order Rental opens as a dedicated workflow at `/operations/rental-management/che
 It logs the called-in rental order only:
 
 1. Select the rental company.
-2. Review the prefilled equipment details: Equipment Type `BiPAP`, Model `V60`.
-3. Review the compact called-in metadata: date, time, and staff member.
-4. Add an optional note only if needed.
-5. Save the pending delivery.
+2. Enter the quantity ordered.
+3. Review the prefilled equipment details: Equipment Type `BiPAP`, Model `V60`.
+4. Review the compact called-in metadata: date, time, and staff member.
+5. Add an optional note only if needed.
+6. Save the pending delivery.
 
 When the workflow is used from the shared Command Center login, the form requires an ordered-by staff selection before saving.
 
-Saving creates a blue `Pending Delivery` record. It does not require a serial number because the equipment has not arrived yet.
+Saving creates one blue `Pending Delivery` record per ordered BiPAP V60. It does not require a barcode or serial number because the equipment has not arrived yet. Each pending record is confirmed separately when the matching device is delivered and scanned.
 
 The Order Rental screen is intentionally compact:
 
-- `Order Details` contains the rental company, vendor info, BiPAP V60 equipment display, and compact called-in metadata.
+- `Order Details` contains the rental company, quantity, vendor info, BiPAP V60 equipment display, and compact called-in metadata.
+- Quantity defaults to `1`. If staff order multiple BiPAP V60 rentals at once, saving creates one separate `Pending Delivery` record per unit so each delivered device can later be scanned in with its own `Barcode #` and optional `Serial Number`.
 - Called-in date/time/by are auto-captured from the current user/session and shown as small metadata.
 - `Edit called-in details` is available if the date or time needs correction.
 - Notes are optional and hidden behind `Add Note`.
