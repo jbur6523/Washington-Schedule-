@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, User, Users, Wind } from "lucide-react";
+import { Activity, ClipboardList, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
@@ -77,6 +77,37 @@ function CountInputCard({
   );
 }
 
+function ProcedureInputTile({
+  icon,
+  label,
+  value,
+  onChange
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex min-h-[8.5rem] flex-col items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+      <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+        {icon}
+      </span>
+      <span className="mt-2 flex min-h-8 items-center justify-center text-[12px] font-extrabold leading-tight text-slate-600">
+        {label}
+      </span>
+      <input
+        type="number"
+        min={0}
+        inputMode="numeric"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-3 h-10 w-full rounded-2xl border border-slate-200 bg-white px-2 text-center text-2xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+      />
+    </label>
+  );
+}
+
 export function ShiftUpdateClient({
   authContext,
   timezone
@@ -92,12 +123,12 @@ export function ShiftUpdateClient({
     rtsRequired: "",
     ventCount: "",
     bipapCount: "",
-    cSectionCount: "",
-    vaginalDeliveryCount: "",
-    cabgCount: "",
-    bronchCount: "",
-    sputumInductionCount: "",
-    otherProcedureCount: "",
+    cSectionCount: "0",
+    vaginalDeliveryCount: "0",
+    cabgCount: "0",
+    bronchCount: "0",
+    sputumInductionCount: "0",
+    otherProcedureCount: "0",
     otherProcedureNote: "",
     updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
     updatedByName: ""
@@ -260,35 +291,60 @@ export function ShiftUpdateClient({
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Scheduled Procedures</h2>
-            <div className={twoColumnGridClass}>
-              {[
-                ["cSectionCount", "C-Sections"],
-                ["vaginalDeliveryCount", "Vaginal Delivery"],
-                ["cabgCount", "CABG"],
-                ["bronchCount", "Bronch"],
-                ["sputumInductionCount", "Sputum Inductions"],
-                ["otherProcedureCount", "Other"]
-              ].map(([key, label]) => (
-                <label key={key} className="block">
-                  <span className={labelClass}>{label}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    value={form[key as keyof ShiftUpdateForm]}
-                    onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className={controlClass}
-                  />
-                </label>
-              ))}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-black text-hospital-ink">Scheduled Procedures</h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">Counts for this shift</p>
+              </div>
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <ClipboardList size={18} />
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <ProcedureInputTile
+                icon={<User size={18} />}
+                label="C-Sections"
+                value={form.cSectionCount}
+                onChange={(value) => setForm((current) => ({ ...current, cSectionCount: value }))}
+              />
+              <ProcedureInputTile
+                icon={<Users size={18} />}
+                label="Vaginal Deliveries"
+                value={form.vaginalDeliveryCount}
+                onChange={(value) => setForm((current) => ({ ...current, vaginalDeliveryCount: value }))}
+              />
+              <ProcedureInputTile
+                icon={<Activity size={18} />}
+                label="CABG"
+                value={form.cabgCount}
+                onChange={(value) => setForm((current) => ({ ...current, cabgCount: value }))}
+              />
+              <ProcedureInputTile
+                icon={<Stethoscope size={18} />}
+                label="Bronchs"
+                value={form.bronchCount}
+                onChange={(value) => setForm((current) => ({ ...current, bronchCount: value }))}
+              />
+              <ProcedureInputTile
+                icon={<Wind size={18} />}
+                label="Sputum Inductions"
+                value={form.sputumInductionCount}
+                onChange={(value) => setForm((current) => ({ ...current, sputumInductionCount: value }))}
+              />
+              <ProcedureInputTile
+                icon={<MoreHorizontal size={18} />}
+                label="Other"
+                value={form.otherProcedureCount}
+                onChange={(value) => setForm((current) => ({ ...current, otherProcedureCount: value }))}
+              />
             </div>
             <label className="mt-3 block">
-              <span className={labelClass}>Other Note</span>
+              <span className={labelClass}>Other Note (Optional)</span>
               <input
                 value={form.otherProcedureNote}
                 onChange={(event) => setForm((current) => ({ ...current, otherProcedureNote: event.target.value.slice(0, 100) }))}
                 maxLength={100}
+                placeholder="Add any additional notes here..."
                 className={controlClass}
               />
               <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
