@@ -67,7 +67,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
 
   const isAdminView = authContext.role === "admin";
-  const canCreateOrders = authContext.operationsRole === "aide";
+  const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
   const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim());
   const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && !saving;
 
@@ -310,7 +310,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Order Management</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
             {isAdminView
-              ? "Monitor department supply orders."
+              ? "Create and monitor department supply orders."
               : "Create department supply orders."}
           </p>
           <Link
@@ -407,9 +407,9 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           </form>
         ) : (
           <section className="rounded-3xl border border-cyan-100 bg-cyan-50/70 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Admin monitoring view</h2>
+            <h2 className="text-lg font-black text-hospital-ink">Order access unavailable</h2>
             <p className="mt-1 text-sm font-bold leading-6 text-cyan-900">
-              Aides create orders. Admin can review submitted orders and thumbnails during beta testing.
+              This account can view Order Management, but create access is not enabled for this role.
             </p>
             <div className="mt-4 rounded-2xl bg-white px-3 py-3">
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Submitted orders</p>

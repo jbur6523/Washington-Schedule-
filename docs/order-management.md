@@ -1,14 +1,14 @@
 # Order Management
 
-Order Management is a simple department supply order tool for WHHS RT Schedule. Aides create orders; Admin can monitor submitted orders during beta testing.
+Order Management is a simple department supply order tool for WHHS RT Schedule. Aides are the primary users, and Admin has full access for beta testing and oversight.
 
 ## Access
 
 - Visible to users with `staff_profiles.operations_role = aide`.
-- Admin users can also open Order Management as a beta monitoring view.
+- Admin users can also open Order Management with the same create/view permissions as Aides.
 - The route is `/operations/order-management`.
 - Staff, Lead, Director, Command Center, and unauthenticated users cannot use the workflow.
-- Supabase RLS and storage policies enforce Aide create/upload access and Admin read-only monitoring access; the UI is not the only protection.
+- Supabase RLS and storage policies enforce Aide/Admin create, upload, and read access; the UI is not the only protection.
 
 Junette and Michaela display as Aides when their existing staff profile role data has `operations_role = aide`. The app does not create duplicate staff profiles or change employment data for this display.
 
@@ -34,7 +34,7 @@ The first version supports:
 - saved order list with thumbnail, created date/time, creator, and notes
 - tapping a thumbnail opens a larger preview
 
-Admin users see total submitted order count, submitted orders, thumbnails, created date/time, creator display names, and notes for beta testing and monitoring. Admin users do not see the create-order form and cannot upload order images through this workflow.
+Admin users see the same Create Order form as Aides and can create/upload orders for beta testing. Admin users also see total submitted order count, submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
 
 Notes show the helper text:
 
