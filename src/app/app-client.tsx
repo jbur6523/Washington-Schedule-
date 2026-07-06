@@ -13,7 +13,6 @@ import {
   Plus,
   Settings,
   ShieldCheck,
-  Trash2,
   Undo2,
   UserMinus,
   Users
@@ -39,7 +38,6 @@ import {
   firstRelatedRow,
   formatShiftTime,
   isAideStaff,
-  staffDisplayName,
   standardTimesForShiftType,
   shiftTypeLabels,
   type ActiveSchedule,
@@ -62,7 +60,6 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
   { id: "all", label: "All" }
 ];
 const emptyShiftPosts: ShiftPost[] = [];
-const deletedShiftOverrideNote = "Deleted from Manage Schedule";
 
 type AppClientProps = {
   authContext: AuthenticatedUserContext;
@@ -87,7 +84,7 @@ type AddShiftForm = {
   note: string;
 };
 
-type DeleteShiftTarget = {
+type RemoveSelfTarget = {
   entry: ScheduleEntryRow;
 };
 
@@ -1089,7 +1086,7 @@ function ManageScheduleScreen({
   const [success, setSuccess] = useState("");
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddShiftForm>(emptyAddShiftForm);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteShiftTarget | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<RemoveSelfTarget | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const nowValue = useMemo(() => zonedNowValue(timezone, new Date(nowTick)), [nowTick, timezone]);
 
@@ -1137,7 +1134,6 @@ function ManageScheduleScreen({
           override.is_active &&
           override.override_type === "remove_self" &&
           override.staff_profile_id === authContext.staffProfileId &&
-          override.note !== deletedShiftOverrideNote &&
           isShiftStillActionable(override, timezone, nowValue)
       )
       .map((override) => ({
@@ -1300,6 +1296,7 @@ function ManageScheduleScreen({
     setSuccess("");
 
     const supabase = createClient();
+    const target = getShiftTarget(entry);
     const { error: insertError } = await supabase.from("user_schedule_overrides").insert({
       department_id: authContext.departmentId,
       staff_profile_id: authContext.staffProfileId,
@@ -1318,6 +1315,23 @@ function ManageScheduleScreen({
     if (insertError) {
       setActionError("Unable to remove this shift from your app schedule.");
       return;
+    }
+
+    let wantsOffClear = supabase
+      .from("shift_requests")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("staff_profile_id", authContext.staffProfileId)
+      .eq("request_type", "wants_off")
+      .eq("status", "active");
+
+    wantsOffClear = target.schedule_entry_id
+      ? wantsOffClear.eq("schedule_entry_id", target.schedule_entry_id)
+      : wantsOffClear.eq("user_schedule_override_id", target.user_schedule_override_id);
+
+    const { error: wantsOffClearError } = await wantsOffClear;
+
+    if (wantsOffClearError) {
+      setActionError("Shift removed, but the Wants Off request could not be cleared.");
     }
 
     setSuccess(successMessage);
@@ -1346,22 +1360,43 @@ function ManageScheduleScreen({
     await onChanged();
   };
 
-  const confirmDeleteShift = async () => {
-    if (!deleteTarget) {
+  const confirmRemoveSelf = async () => {
+    if (!removeTarget) {
       return;
     }
 
-    const entry = deleteTarget.entry;
+    const entry = removeTarget.entry;
     const selfAdded = entry.id.startsWith("override-");
 
-    setDeleteTarget(null);
+    setRemoveTarget(null);
 
     if (selfAdded) {
-      await undoOverride(entry.id.replace("override-", ""), "Shift deleted.");
+      const wantsOffRequest = schedule ? findActiveRequest(schedule, entry, "wants_off") : null;
+
+      if (wantsOffRequest) {
+        setSaving(true);
+        setActionError("");
+        setSuccess("");
+
+        const supabase = createClient();
+        const { error: wantsOffClearError } = await supabase
+          .from("shift_requests")
+          .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+          .eq("id", wantsOffRequest.id);
+
+        setSaving(false);
+
+        if (wantsOffClearError) {
+          setActionError("Unable to clear the Wants Off request for this shift.");
+          return;
+        }
+      }
+
+      await undoOverride(entry.id.replace("override-", ""), "Removed from shift.");
       return;
     }
 
-    await removeSelf(entry, "Shift deleted.", deletedShiftOverrideNote);
+    await removeSelf(entry, "Removed from shift.");
   };
 
   const saveAddedShift = async (event: FormEvent<HTMLFormElement>) => {
@@ -1878,82 +1913,55 @@ function ManageScheduleScreen({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setDeleteTarget({ entry })}
+                  onClick={() => setRemoveTarget({ entry })}
                   disabled={saving}
                   className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
                 >
-                  <Trash2 size={16} aria-hidden="true" />
-                  Delete Shift
+                  <UserMinus size={16} aria-hidden="true" />
+                  Remove Myself
                 </button>
-                {selfAdded ? (
-                  <button
-                    type="button"
-                    onClick={() => void undoOverride(entry.id.replace("override-", ""), "Self-added shift removed.")}
-                    disabled={saving}
-                    className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 shadow-sm disabled:opacity-60"
-                  >
-                    <Undo2 size={16} aria-hidden="true" />
-                    Remove Self-added Shift
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => void removeSelf(entry)}
-                      disabled={saving}
-                      className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
-                    >
-                      <UserMinus size={16} aria-hidden="true" />
-                      Remove Myself
-                    </button>
-                  </>
-                )}
               </div>
             </article>
           );
         })}
       </div>
 
-      {deleteTarget && (
+      {removeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
           <div className="w-full max-w-sm rounded-3xl border border-white bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.28)]">
-            <h3 className="text-2xl font-black text-hospital-ink">Delete Shift?</h3>
+            <h3 className="text-2xl font-black text-hospital-ink">Remove Yourself?</h3>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              Do you want to delete this shift? This action cannot be undone.
+              Do you want to remove yourself from this shift?
             </p>
             <dl className="mt-4 space-y-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-600">
               <div>
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</dt>
-                <dd className="text-hospital-ink">{formatManageShiftDate(deleteTarget.entry.shift_date)}</dd>
+                <dd className="text-hospital-ink">{formatManageShiftDate(removeTarget.entry.shift_date)}</dd>
               </div>
               <div>
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift</dt>
-                <dd className="text-hospital-ink">{shiftTypeLabels[deleteTarget.entry.shift_type]}</dd>
+                <dd className="text-hospital-ink">{shiftTypeLabels[removeTarget.entry.shift_type]}</dd>
               </div>
               <div>
                 <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Time</dt>
-                <dd className="text-hospital-ink">{formatShiftTime(deleteTarget.entry.shift_start, deleteTarget.entry.shift_end)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff</dt>
-                <dd className="text-hospital-ink">{staffDisplayName(deleteTarget.entry.staff_profiles)}</dd>
+                <dd className="text-hospital-ink">{formatShiftTime(removeTarget.entry.shift_start, removeTarget.entry.shift_end)}</dd>
               </div>
             </dl>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setDeleteTarget(null)}
+                onClick={() => setRemoveTarget(null)}
                 className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => void confirmDeleteShift()}
+                onClick={() => void confirmRemoveSelf()}
                 disabled={saving}
                 className="min-h-11 rounded-2xl bg-rose-600 px-3 text-sm font-extrabold text-white shadow-md shadow-rose-900/20 disabled:opacity-60"
               >
-                {saving ? "Deleting..." : "Delete Shift"}
+                {saving ? "Removing..." : "Remove Myself"}
               </button>
             </div>
           </div>
