@@ -86,7 +86,9 @@ export function CurrentShiftStatusSummary({
   if (error) {
     return (
       <div className="mt-4 border-t border-violet-100 pt-4">
-        <p className="text-center text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
+        <p className="text-center text-sm font-black uppercase tracking-wide text-cyan-700">
+          Current Shift Status · {shiftTypeLabel(selectedShiftType)}
+        </p>
         <p className="mt-2 text-center text-sm font-bold text-slate-500">Shift status unavailable.</p>
       </div>
     );
@@ -95,8 +97,9 @@ export function CurrentShiftStatusSummary({
   return (
     <div className="mt-4 border-t border-violet-100 pt-4">
       <div className="text-center">
-        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
-        <p className="mt-1 text-xs font-bold text-slate-500">{shiftTypeLabel(selectedShiftType)}</p>
+        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">
+          Current Shift Status · {shiftTypeLabel(selectedShiftType)}
+        </p>
       </div>
 
       <div className="mt-3 flex items-center gap-3">
