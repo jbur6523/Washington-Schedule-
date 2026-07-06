@@ -37,15 +37,15 @@ Do not store passwords in:
 
 Password inputs are never prefilled from app storage.
 
-## Remember Username
+## Remembered Username
 
-The login screen can remember the assigned username only.
+When `Keep me signed in on this device` is enabled, the login screen can also remember the assigned username.
 
 Local key:
 
 `whhs-remembered-username`
 
-This stores the username on the device so the username field can be prefilled later. It does not store the password or any auth token. Users can clear the remembered username from the login screen.
+This stores the username on the device so the username field can be prefilled later. It does not store the password or any auth token. Users can clear the remembered username from the login screen. The app does not show a separate `Remember username only` option because keeping the device signed in already covers the username convenience.
 
 ## Supabase Session Settings
 

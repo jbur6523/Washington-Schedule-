@@ -90,50 +90,22 @@ async function getServiceWorkerRegistration() {
 
 function TrustedDeviceOptions({
   keepSignedIn,
-  setKeepSignedIn,
-  rememberUsername,
-  setRememberUsername
+  setKeepSignedIn
 }: {
   keepSignedIn: boolean;
   setKeepSignedIn: (value: boolean) => void;
-  rememberUsername: boolean;
-  setRememberUsername: (value: boolean) => void;
 }) {
   return (
-    <div className="space-y-2 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
-      <label className="flex items-start gap-3 text-sm font-extrabold text-hospital-ink">
+    <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
+      <label className="flex items-center gap-3 text-sm font-extrabold text-hospital-ink">
         <input
           type="checkbox"
           checked={keepSignedIn}
-          onChange={(event) => {
-            const checked = event.target.checked;
-            setKeepSignedIn(checked);
-            if (!checked) {
-              setRememberUsername(false);
-            }
-          }}
-          className="mt-1 h-5 w-5 shrink-0 accent-cyan-700"
+          onChange={(event) => setKeepSignedIn(event.target.checked)}
+          className="h-5 w-5 shrink-0 accent-cyan-700"
         />
-        <span>
-          Keep me signed in on this device
-          <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-            Recommended for personal phones and the department command phone. Do not use on shared public devices.
-          </span>
-        </span>
+        <span>Keep me signed in on this device</span>
       </label>
-      <label className="flex items-center gap-3 text-xs font-bold text-slate-600">
-        <input
-          type="checkbox"
-          checked={rememberUsername}
-          disabled={!keepSignedIn}
-          onChange={(event) => setRememberUsername(event.target.checked)}
-          className="h-4 w-4 shrink-0 accent-cyan-700 disabled:opacity-50"
-        />
-        Remember username only
-      </label>
-      <p className="text-[11px] font-bold leading-4 text-slate-500">
-        Passwords are never saved by WHHS RT Schedule.
-      </p>
     </div>
   );
 }
@@ -156,7 +128,6 @@ export function LoginForm() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [onboardingContext, setOnboardingContext] = useState<OnboardingContext | null>(null);
   const [keepSignedIn, setKeepSignedIn] = useState(true);
-  const [rememberUsername, setRememberUsername] = useState(true);
   const [hasRememberedUsername, setHasRememberedUsername] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -176,7 +147,7 @@ export function LoginForm() {
   }, []);
 
   const saveRememberedUsername = (nextUsername: string) => {
-    if (!keepSignedIn || !rememberUsername) {
+    if (!keepSignedIn) {
       window.localStorage.removeItem(rememberedUsernameKey);
       setHasRememberedUsername(false);
       return;
@@ -192,7 +163,6 @@ export function LoginForm() {
   const clearRememberedUsername = () => {
     window.localStorage.removeItem(rememberedUsernameKey);
     setHasRememberedUsername(false);
-    setRememberUsername(false);
     setUsername("");
   };
 
@@ -593,8 +563,6 @@ export function LoginForm() {
           <TrustedDeviceOptions
             keepSignedIn={keepSignedIn}
             setKeepSignedIn={setKeepSignedIn}
-            rememberUsername={rememberUsername}
-            setRememberUsername={setRememberUsername}
           />
           <button
             type="submit"
@@ -649,8 +617,6 @@ export function LoginForm() {
           <TrustedDeviceOptions
             keepSignedIn={keepSignedIn}
             setKeepSignedIn={setKeepSignedIn}
-            rememberUsername={rememberUsername}
-            setRememberUsername={setRememberUsername}
           />
           <button
             type="submit"
