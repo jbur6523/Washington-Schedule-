@@ -113,21 +113,16 @@ Route:
 
 The Director Shift Status page is the primary live visual reporting dashboard for current respiratory department numbers. Email is secondary/future; the app dashboard is the source of truth for this phase.
 
-The Director view is read-only and shows:
+The Director view is read-only and uses a polished mobile dashboard layout:
 
-- Large Staffing, Vent Count, and BiPAP Count cards
-- RTs scheduled / RTs needed and Short by / Fully staffed status
-- Freshness indicator such as `Updated 18 minutes ago`, `Needs update`, or `No update submitted`
-- C-Sections
-- CABG
-- Bronch
-- Sputum Induction
-- Other count and note
-- Last updated time
-- Updated by display name or initials
-- A combined header and shift selector card with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
-- Visible `Refresh` and `Sign Out` controls
-- Optional text report with `Copy Report`
+- Compact header with visible `Refresh` and `Sign Out` controls
+- `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
+- Main stat cards for RTs Scheduled, RTs Needed, and Vents
+- `Department Snapshot` card with BiPAP count and scheduled procedure total
+- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other
+- Last updated freshness text and updated-by initials/display name
+- Compact shift selector with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
+- `View Text Report` and `Copy Summary` actions
 
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 

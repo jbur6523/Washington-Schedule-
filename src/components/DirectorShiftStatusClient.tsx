@@ -1,7 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Activity, ClipboardCopy, LogOut, RefreshCw } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Activity,
+  Building2,
+  CalendarCheck,
+  CheckCircle2,
+  ClipboardCopy,
+  ClipboardList,
+  Clock3,
+  FileText,
+  LogOut,
+  Moon,
+  MoreHorizontal,
+  RefreshCw,
+  Stethoscope,
+  Sun,
+  User,
+  Users,
+  Wind
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
@@ -142,15 +160,6 @@ function freshnessLabel(update: ShiftStatusUpdate | null, isSelectedCurrentShift
   };
 }
 
-function statStatus(update: ShiftStatusUpdate | null) {
-  if (!update) {
-    return "No update submitted";
-  }
-
-  const shortBy = Math.max(0, update.rts_required - update.rts_on);
-  return shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
-}
-
 function reportText(update: ShiftStatusUpdate, timezone: string) {
   const shortBy = Math.max(0, update.rts_required - update.rts_on);
 
@@ -159,7 +168,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
     "",
     `RTs scheduled: ${formatShiftStatusNumber(update.rts_on)}`,
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
-    `Short by: ${formatShiftStatusNumber(shortBy)}`,
+    `Staffing status: ${shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Staffed"}`,
     "",
     `Vents: ${update.vent_count}`,
     `BiPAPs: ${update.bipap_count}`,
@@ -176,34 +185,83 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
   ].join("\n");
 }
 
-function StatCard({
-  title,
-  value,
-  label,
-  status,
-  tone
-}: {
-  title: string;
-  value: string | number;
-  label: string;
-  status?: string;
-  tone: "cyan" | "green" | "amber" | "slate";
-}) {
-  const toneClass =
-    tone === "amber"
-      ? "border-amber-100 bg-amber-50 text-amber-800"
-      : tone === "green"
-        ? "border-emerald-100 bg-emerald-50 text-emerald-800"
-        : tone === "slate"
-          ? "border-slate-100 bg-slate-50 text-slate-700"
-          : "border-cyan-100 bg-cyan-50 text-cyan-800";
+function displayInitials(name: string) {
+  if (!name || name === "Unknown") {
+    return name || "Unknown";
+  }
 
+  const parts = name
+    .replace(/[^a-zA-Z\s-]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return name;
+  }
+
+  return parts.map((part) => part[0]?.toUpperCase()).join("");
+}
+
+function directorStatus(update: ShiftStatusUpdate | null) {
+  if (!update) {
+    return {
+      label: "No Update",
+      className: "border-slate-200 bg-slate-100 text-slate-600",
+      icon: null
+    };
+  }
+
+  if (update.rts_on >= update.rts_required) {
+    return {
+      label: "Staffed",
+      className: "border-emerald-100 bg-emerald-50 text-emerald-700",
+      icon: <CheckCircle2 size={15} />
+    };
+  }
+
+  return {
+    label: "Short",
+    className: "border-rose-100 bg-rose-50 text-rose-700",
+    icon: <Activity size={15} />
+  };
+}
+
+function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
   return (
-    <div className={`flex min-h-[9rem] flex-col items-center justify-center rounded-3xl border px-4 py-4 text-center shadow-sm ${toneClass}`}>
-      <p className="text-xs font-extrabold uppercase leading-4 tracking-normal opacity-80">{title}</p>
+    <div className="flex min-h-[7.6rem] flex-col items-center justify-center rounded-3xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+        {icon}
+      </span>
+      <p className="mt-3 text-[12px] font-extrabold leading-tight text-slate-600">{label}</p>
       <p className="mt-2 text-4xl font-black leading-none text-hospital-ink">{value}</p>
-      <p className="mt-2 text-xs font-extrabold uppercase leading-4 tracking-normal">{label}</p>
-      {status && <p className="mt-2 text-sm font-black">{status}</p>}
+    </div>
+  );
+}
+
+function SnapshotCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
+  return (
+    <div className="flex min-h-[5.8rem] items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/80 px-3 py-3 shadow-sm">
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-extrabold leading-tight text-slate-600">{label}</p>
+        <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function ProcedureCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
+  return (
+    <div className="flex min-h-[4.8rem] items-center gap-2.5 rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 shadow-sm">
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-extrabold leading-tight text-slate-600">{label}</p>
+        <p className="mt-0.5 text-2xl font-black leading-none text-hospital-ink">{value}</p>
+      </div>
     </div>
   );
 }
@@ -283,9 +341,20 @@ export function DirectorShiftStatusClient({
   const fallbackLatest = useMemo(() => latestShiftStatus(updates), [updates]);
   const latest = selectedLatest ?? (isSelectedCurrentShift ? fallbackLatest : null);
   const showingFallback = !selectedLatest && Boolean(latest);
-  const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
+  const status = directorStatus(latest);
   const freshness = freshnessLabel(latest, isSelectedCurrentShift && !showingFallback);
   const textReport = latest ? reportText(latest, timezone) : "";
+  const procedureTotal = latest
+    ? latest.c_section_count +
+      latest.cabg_count +
+      latest.bronch_count +
+      latest.sputum_induction_count +
+      latest.other_procedure_count
+    : 0;
+  const updatedBy = latest ? displayInitials(updatedByName(latest)) : "";
+  const selectedShiftLabel = shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType);
+  const selectedShiftDate = formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone);
+  const ShiftIcon = (latest?.shift_type ?? selectedChoice.shiftType) === "night" ? Moon : Sun;
 
   const copyReport = async () => {
     if (!textReport) {
@@ -293,7 +362,7 @@ export function DirectorShiftStatusClient({
     }
 
     await navigator.clipboard.writeText(textReport);
-    setCopyMessage("Report copied.");
+    setCopyMessage("Summary copied.");
   };
 
   const signOut = async () => {
@@ -303,134 +372,153 @@ export function DirectorShiftStatusClient({
   };
 
   return (
-    <main className="min-h-screen px-4 py-8">
+    <main className="min-h-screen px-4 py-6">
       <div className="mx-auto max-w-xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
-              <h1 className="mt-2 text-3xl font-black leading-tight text-hospital-ink">Respiratory Shift Status</h1>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                Live department numbers from the Command Center
-              </p>
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink">
+                  Respiratory Shift Status
+                </h1>
+                <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold leading-5 text-slate-500">
+                  <span>Live department numbers from the Command Center</span>
+                  {latest && (
+                    <>
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                      <span className="font-black text-slate-600">Live</span>
+                    </>
+                  )}
+                </p>
+              </div>
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => void loadShiftStatus()}
                 disabled={loading}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-xs font-black text-cyan-700 disabled:opacity-50"
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-xs font-black text-cyan-700 shadow-sm disabled:opacity-50"
                 aria-label="Refresh shift status"
               >
-                <RefreshCw size={16} />
+                <RefreshCw size={15} />
                 Refresh
               </button>
               <button
                 type="button"
                 onClick={() => void signOut()}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm"
+                className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
               >
-                <LogOut size={16} />
+                <LogOut size={15} />
                 Sign Out
               </button>
             </div>
-          </div>
 
-          <div className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-sm font-black text-hospital-ink">
-                  {shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType)} -{" "}
-                  {formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone)}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-600">
-                  {latest
-                    ? `Last updated ${formatReportTime(latest.updated_at, timezone)} by ${updatedByName(latest)}`
-                    : "Select another shift or refresh after Command Center update."}
-                </p>
-                <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black ${freshness.className}`}>
-                  {freshness.label}
-                </p>
-              </div>
-              <label className="block sm:min-w-48">
-                <span className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">View Shift</span>
-                <select
-                  value={selectedChoiceId}
-                  onChange={(event) => {
-                    setSelectedChoiceId(event.target.value);
-                    setReportOpen(false);
-                    setCopyMessage("");
-                  }}
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
-                >
-                  {shiftChoices.map((choice) => (
-                    <option key={choice.id} value={choice.id}>
-                      {choice.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {showingFallback && (
-              <p className="mt-2 text-xs font-bold text-amber-700">
-                No update was submitted for the selected shift. Showing the most recent Command Center update.
-              </p>
-            )}
+            <label className="block">
+              <span className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">View Shift</span>
+              <select
+                value={selectedChoiceId}
+                onChange={(event) => {
+                  setSelectedChoiceId(event.target.value);
+                  setReportOpen(false);
+                  setCopyMessage("");
+                }}
+                className="mt-1 min-h-10 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+              >
+                {shiftChoices.map((choice) => (
+                  <option key={choice.id} value={choice.id}>
+                    {choice.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </section>
 
-        {loading && (
-          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <p className="text-sm font-bold text-slate-500">Loading shift status...</p>
-          </section>
-        )}
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-2xl font-black leading-tight text-hospital-ink">Current Shift Status</h2>
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${status.className}`}>
+              {status.icon}
+              {status.label}
+            </span>
+          </div>
 
-        {error && (
-          <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-            {error}
-          </p>
-        )}
-
-        {!loading && !latest && !error && (
-          <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-            <h2 className="text-xl font-black text-hospital-ink">No update submitted</h2>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-              The Command Center has not saved numbers for this shift yet.
+          <div className="mt-3 space-y-2">
+            <p className="flex items-center gap-2 text-sm font-black text-cyan-700">
+              <ShiftIcon size={18} />
+              {selectedShiftLabel} <span className="text-slate-300">·</span> {selectedShiftDate}
             </p>
-          </section>
-        )}
+            {latest && (
+              <p className="flex items-center gap-2 text-sm font-bold text-slate-500">
+                <Clock3 size={17} />
+                {freshness.label} by {updatedBy}
+              </p>
+            )}
+          </div>
+
+          {showingFallback && (
+            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+              No update was submitted for the selected shift. Showing the most recent Command Center update.
+            </p>
+          )}
+
+          {loading && (
+            <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
+              Loading shift status...
+            </p>
+          )}
+
+          {error && (
+            <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+              {error}
+            </p>
+          )}
+
+          {!loading && !latest && !error && (
+            <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+              No update has been submitted for this shift yet.
+            </p>
+          )}
+
+          {latest && (
+            <div className="mt-4 grid grid-cols-3 gap-2.5">
+              <MetricCard icon={<Users size={22} />} label="RTs Scheduled" value={formatShiftStatusNumber(latest.rts_on)} />
+              <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
+              <MetricCard icon={<Wind size={22} />} label="Vents" value={latest.vent_count} />
+            </div>
+          )}
+        </section>
 
         {latest && (
           <>
-            <section className="grid grid-cols-1 gap-3">
-              <StatCard
-                title="Staffing"
-                value={`${formatShiftStatusNumber(latest.rts_on)} / ${formatShiftStatusNumber(latest.rts_required)}`}
-                label="RTs Scheduled / Needed"
-                status={statStatus(latest)}
-                tone={shortBy > 0 ? "amber" : "green"}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <StatCard title="Vents" value={latest.vent_count} label="Vent Count" tone="cyan" />
-                <StatCard title="BiPAPs" value={latest.bipap_count} label="BiPAP Count" tone="slate" />
+            <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                  <Building2 size={22} />
+                </span>
+                <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={latest.bipap_count} />
+                <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
               </div>
             </section>
 
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <h2 className="text-xl font-black text-hospital-ink">Scheduled Procedures</h2>
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {[
-                  ["C-Sections", latest.c_section_count],
-                  ["CABG", latest.cabg_count],
-                  ["Bronchs", latest.bronch_count],
-                  ["Sputum Inductions", latest.sputum_induction_count],
-                  ["Other", latest.other_procedure_count]
-                ].map(([label, count]) => (
-                  <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3">
-                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</p>
-                    <p className="mt-1 text-2xl font-black text-hospital-ink">{count}</p>
-                  </div>
-                ))}
+            <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                  <ClipboardList size={22} />
+                </span>
+                <h2 className="text-xl font-black text-hospital-ink">Scheduled Procedures</h2>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
+                <ProcedureCard icon={<User size={18} />} label="C-Sections" value={latest.c_section_count} />
+                <ProcedureCard icon={<Activity size={18} />} label="CABG" value={latest.cabg_count} />
+                <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={latest.bronch_count} />
+                <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={latest.sputum_induction_count} />
+                <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={latest.other_procedure_count} />
               </div>
               {latest.other_procedure_note && (
                 <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
@@ -439,37 +527,37 @@ export function DirectorShiftStatusClient({
               )}
             </section>
 
-            <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <section className="space-y-3">
               <button
                 type="button"
                 onClick={() => {
                   setReportOpen((current) => !current);
                   setCopyMessage("");
                 }}
-                className="min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-4 text-sm font-black text-cyan-700"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20"
               >
+                <FileText size={18} />
                 {reportOpen ? "Hide Text Report" : "View Text Report"}
               </button>
+              <button
+                type="button"
+                onClick={() => void copyReport()}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
+              >
+                <ClipboardCopy size={18} />
+                Copy Summary
+              </button>
+
+              {copyMessage && (
+                <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+                  {copyMessage}
+                </p>
+              )}
 
               {reportOpen && (
-                <div className="mt-3 space-y-3">
-                  <pre className="whitespace-pre-wrap rounded-2xl border border-slate-100 bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-700">
-                    {textReport}
-                  </pre>
-                  <button
-                    type="button"
-                    onClick={() => void copyReport()}
-                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20"
-                  >
-                    <ClipboardCopy size={16} />
-                    Copy Report
-                  </button>
-                  {copyMessage && (
-                    <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
-                      {copyMessage}
-                    </p>
-                  )}
-                </div>
+                <pre className="whitespace-pre-wrap rounded-3xl border border-slate-100 bg-white/95 p-4 text-xs font-bold leading-5 text-slate-700 shadow-soft">
+                  {textReport}
+                </pre>
               )}
             </section>
           </>

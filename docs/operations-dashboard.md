@@ -56,9 +56,9 @@ Seeded director username:
 
 - `aloha`
 
-The Director should set or choose his own password through the normal password setup/reset process. The page is the primary live visual reporting dashboard for respiratory shift status. It combines the dashboard header, freshness status, and compact shift selector into one top card. The Director can switch between Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift. The page shows large cards for Staffing, Vents, and BiPAPs; compact scheduled procedure counts; last updated time; and updated-by display name/initials. It includes visible `Refresh` and `Sign Out` controls and does not allow editing.
+The Director should set or choose his own password through the normal password setup/reset process. The page is the primary live visual reporting dashboard for respiratory shift status. It uses a compact executive layout with visible `Refresh` and `Sign Out` controls, a `Current Shift Status` card for RTs Scheduled, RTs Needed, and Vents, a `Department Snapshot` card for BiPAPs and scheduled procedure total, scheduled procedure detail cards, last updated freshness text, and updated-by display name/initials. The Director can switch between Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift from a compact selector. The page remains read-only and does not allow editing.
 
-Email reporting is intentionally out of scope for this phase. The Command Center updates the app, and the Director dashboard displays those latest numbers. A copyable text report is available for manual sharing.
+Email reporting is intentionally out of scope for this phase. The Command Center updates the app, and the Director dashboard displays those latest numbers. `View Text Report` and `Copy Summary` are available for manual sharing.
 
 ## Rental Management
 
