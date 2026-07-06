@@ -8,13 +8,12 @@ import {
   CalendarDays,
   ChevronDown,
   Clock3,
-  FileText,
   LogOut,
-  MoveRight,
   Pencil,
   Plus,
   Settings,
   ShieldCheck,
+  Trash2,
   Undo2,
   UserMinus,
   Users
@@ -40,6 +39,7 @@ import {
   firstRelatedRow,
   formatShiftTime,
   isAideStaff,
+  staffDisplayName,
   standardTimesForShiftType,
   shiftTypeLabels,
   type ActiveSchedule,
@@ -62,6 +62,7 @@ const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> =
   { id: "all", label: "All" }
 ];
 const emptyShiftPosts: ShiftPost[] = [];
+const deletedShiftOverrideNote = "Deleted from Manage Schedule";
 
 type AppClientProps = {
   authContext: AuthenticatedUserContext;
@@ -86,9 +87,8 @@ type AddShiftForm = {
   note: string;
 };
 
-type NoteEditorState = {
-  targetKey: string;
-  note: string;
+type DeleteShiftTarget = {
+  entry: ScheduleEntryRow;
 };
 
 type ShortShiftForm = {
@@ -189,6 +189,58 @@ function todayInTimezone(timezone = "America/Los_Angeles") {
   const day = parts.find((part) => part.type === "day")?.value ?? "01";
 
   return `${year}-${month}-${day}`;
+}
+
+function zonedNowValue(timezone = "America/Los_Angeles", date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  const hour = parts.find((part) => part.type === "hour")?.value ?? "00";
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+
+  return dateTimeSortValue(`${year}-${month}-${day}`, `${hour}:${minute}`);
+}
+
+function timeToMinutes(timeValue: string) {
+  const [hour = "0", minute = "0"] = timeValue.slice(0, 5).split(":");
+  return Number(hour) * 60 + Number(minute);
+}
+
+function addDaysToIsoDate(dateValue: string, days: number) {
+  const date = dateOnly(dateValue);
+  date.setDate(date.getDate() + days);
+  return isoDate(date);
+}
+
+function dateTimeSortValue(dateValue: string, timeValue: string) {
+  const [year = "1970", month = "01", day = "01"] = dateValue.split("-");
+  const [hour = "0", minute = "0"] = timeValue.slice(0, 5).split(":");
+  return Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+}
+
+function shiftEndSortValue(shift: Pick<ScheduleEntryRow, "shift_date" | "shift_start" | "shift_end">) {
+  const start = timeToMinutes(shift.shift_start);
+  const end = timeToMinutes(shift.shift_end);
+  const endDate = end <= start ? addDaysToIsoDate(shift.shift_date, 1) : shift.shift_date;
+
+  return dateTimeSortValue(endDate, shift.shift_end);
+}
+
+function isShiftStillActionable(
+  shift: Pick<ScheduleEntryRow, "shift_date" | "shift_start" | "shift_end">,
+  timezone = "America/Los_Angeles",
+  nowValue = zonedNowValue(timezone)
+) {
+  return shiftEndSortValue(shift) > nowValue;
 }
 
 function getWeekRange(dateValue: string) {
@@ -1020,6 +1072,7 @@ function ManageScheduleScreen({
   loading,
   error,
   schedule,
+  timezone,
   developmentFallback,
   onChanged
 }: {
@@ -1027,6 +1080,7 @@ function ManageScheduleScreen({
   loading: boolean;
   error: string;
   schedule: ActiveSchedule | null;
+  timezone: string;
   developmentFallback?: boolean;
   onChanged: () => Promise<void>;
 }) {
@@ -1035,7 +1089,15 @@ function ManageScheduleScreen({
   const [success, setSuccess] = useState("");
   const [addFormOpen, setAddFormOpen] = useState(false);
   const [addForm, setAddForm] = useState<AddShiftForm>(emptyAddShiftForm);
-  const [noteEditor, setNoteEditor] = useState<NoteEditorState | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteShiftTarget | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const nowValue = useMemo(() => zonedNowValue(timezone, new Date(nowTick)), [nowTick, timezone]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 60_000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   const scheduledEntries = useMemo(() => {
     if (!schedule || !authContext.staffProfileId) {
@@ -1043,9 +1105,12 @@ function ManageScheduleScreen({
     }
 
     return schedule.effectiveEntries.filter(
-      (entry) => entry.staff_profile_id === authContext.staffProfileId && entry.entry_status === "scheduled"
+      (entry) =>
+        entry.staff_profile_id === authContext.staffProfileId &&
+        entry.entry_status === "scheduled" &&
+        isShiftStillActionable(entry, timezone, nowValue)
     );
-  }, [authContext.staffProfileId, schedule]);
+  }, [authContext.staffProfileId, nowValue, schedule, timezone]);
 
   const availabilityOverrides = useMemo(() => {
     if (!schedule || !authContext.staffProfileId) {
@@ -1056,9 +1121,10 @@ function ManageScheduleScreen({
       (override) =>
         override.is_active &&
         override.override_type === "add_available" &&
-        override.staff_profile_id === authContext.staffProfileId
+        override.staff_profile_id === authContext.staffProfileId &&
+        isShiftStillActionable(override, timezone, nowValue)
     );
-  }, [authContext.staffProfileId, schedule]);
+  }, [authContext.staffProfileId, nowValue, schedule, timezone]);
 
   const removedShifts = useMemo(() => {
     if (!schedule || !authContext.staffProfileId) {
@@ -1070,13 +1136,15 @@ function ManageScheduleScreen({
         (override) =>
           override.is_active &&
           override.override_type === "remove_self" &&
-          override.staff_profile_id === authContext.staffProfileId
+          override.staff_profile_id === authContext.staffProfileId &&
+          override.note !== deletedShiftOverrideNote &&
+          isShiftStillActionable(override, timezone, nowValue)
       )
       .map((override) => ({
         override,
         entry: schedule.entries.find((entry) => entry.id === override.base_schedule_entry_id) ?? null
       }));
-  }, [authContext.staffProfileId, schedule]);
+  }, [authContext.staffProfileId, nowValue, schedule, timezone]);
 
   const receivedOffers = useMemo(() => {
     if (!schedule || !authContext.staffProfileId) {
@@ -1135,7 +1203,7 @@ function ManageScheduleScreen({
         return;
       }
 
-      setSuccess(`${requestLabel(requestType)} cancelled.`);
+      setSuccess(requestType === "wants_off" ? "Wants Off cleared." : `${requestLabel(requestType)} cancelled.`);
       await onChanged();
       return;
     }
@@ -1157,7 +1225,7 @@ function ManageScheduleScreen({
       return;
     }
 
-    setSuccess(`${requestLabel(requestType)} saved.`);
+    setSuccess(requestType === "wants_off" ? "Wants Off requested." : `${requestLabel(requestType)} saved.`);
     await onChanged();
   };
 
@@ -1218,53 +1286,11 @@ function ManageScheduleScreen({
     await onChanged();
   };
 
-  const saveNote = async (shift: ScheduleEntryRow) => {
-    if (!schedule || !noteEditor) {
-      return;
-    }
-
-    const activeRequests = schedule.requests.filter((request) => {
-      const target = getShiftTarget(shift);
-      return (
-        request.status === "active" &&
-        request.staff_profile_id === shift.staff_profile_id &&
-        (target.schedule_entry_id
-          ? request.schedule_entry_id === target.schedule_entry_id
-          : request.user_schedule_override_id === target.user_schedule_override_id)
-      );
-    });
-
-    if (activeRequests.length === 0) {
-      setActionError("Create a Switch Requested, Coverage Requested, or Wants Off first, then add a note.");
-      return;
-    }
-
-    setSaving(true);
-    setActionError("");
-    setSuccess("");
-
-    const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("shift_requests")
-      .update({ note: noteEditor.note.trim() || null })
-      .in(
-        "id",
-        activeRequests.map((request) => request.id)
-      );
-
-    setSaving(false);
-
-    if (updateError) {
-      setActionError("Unable to save request note.");
-      return;
-    }
-
-    setNoteEditor(null);
-    setSuccess("Request note saved.");
-    await onChanged();
-  };
-
-  const removeSelf = async (entry: ScheduleEntryRow) => {
+  const removeSelf = async (
+    entry: ScheduleEntryRow,
+    successMessage = "Shift removed from your app schedule.",
+    overrideNote: string | null = null
+  ) => {
     if (!authContext.staffProfileId) {
       return;
     }
@@ -1283,6 +1309,7 @@ function ManageScheduleScreen({
       shift_type: entry.shift_type,
       shift_start: entry.shift_start,
       shift_end: entry.shift_end,
+      note: overrideNote,
       is_active: true
     });
 
@@ -1293,7 +1320,7 @@ function ManageScheduleScreen({
       return;
     }
 
-    setSuccess("Shift removed from your app schedule.");
+    setSuccess(successMessage);
     await onChanged();
   };
 
@@ -1317,6 +1344,24 @@ function ManageScheduleScreen({
 
     setSuccess(successMessage);
     await onChanged();
+  };
+
+  const confirmDeleteShift = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    const entry = deleteTarget.entry;
+    const selfAdded = entry.id.startsWith("override-");
+
+    setDeleteTarget(null);
+
+    if (selfAdded) {
+      await undoOverride(entry.id.replace("override-", ""), "Shift deleted.");
+      return;
+    }
+
+    await removeSelf(entry, "Shift deleted.", deletedShiftOverrideNote);
   };
 
   const saveAddedShift = async (event: FormEvent<HTMLFormElement>) => {
@@ -1743,7 +1788,6 @@ function ManageScheduleScreen({
           const switchRequest = findActiveRequest(schedule, entry, "switch_requested");
           const coverageRequest = findActiveRequest(schedule, entry, "coverage_requested");
           const wantsOffRequest = findActiveRequest(schedule, entry, "wants_off");
-          const targetKey = `${entry.id}-${entry.shift_date}-${entry.shift_start}`;
           const activeNote = wantsOffRequest?.note ?? switchRequest?.note ?? coverageRequest?.note ?? "";
           const selfAdded = entry.id.startsWith("override-");
           const isAide = isAideStaff(entry.staff_profiles);
@@ -1792,30 +1836,6 @@ function ManageScheduleScreen({
                 </p>
               )}
 
-              {noteEditor?.targetKey === targetKey && (
-                <div className="mt-3">
-                  <textarea
-                    value={noteEditor.note}
-                    onChange={(event) =>
-                      setNoteEditor({ ...noteEditor, note: event.target.value.slice(0, 140) })
-                    }
-                    maxLength={140}
-                    className="min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-cyan-300"
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-400">{noteEditor.note.length}/140</span>
-                    <button
-                      type="button"
-                      onClick={() => void saveNote(entry)}
-                      disabled={saving}
-                      className="rounded-xl bg-cyan-700 px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
-                    >
-                      Save Note
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
                 <button
                   type="button"
@@ -1849,20 +1869,21 @@ function ManageScheduleScreen({
                   disabled={saving}
                   className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-extrabold shadow-sm ${
                     wantsOffRequest
-                      ? "border-rose-200 bg-white text-rose-700"
+                      ? "border-rose-600 bg-rose-600 text-white shadow-rose-900/20"
                       : "border-rose-100 bg-rose-50 text-rose-700"
                   } disabled:opacity-60`}
                 >
                   <Ban size={16} aria-hidden="true" />
-                  {wantsOffRequest ? "Cancel Wants Off" : "Wants Off"}
+                  {wantsOffRequest ? "Wants Off Requested" : "Wants Off"}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setNoteEditor({ targetKey, note: activeNote })}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-extrabold text-slate-700 shadow-sm"
+                  onClick={() => setDeleteTarget({ entry })}
+                  disabled={saving}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-white px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
                 >
-                  <FileText size={16} aria-hidden="true" />
-                  Add/Edit Note
+                  <Trash2 size={16} aria-hidden="true" />
+                  Delete Shift
                 </button>
                 {selfAdded ? (
                   <button
@@ -1880,29 +1901,10 @@ function ManageScheduleScreen({
                       type="button"
                       onClick={() => void removeSelf(entry)}
                       disabled={saving}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
+                      className="col-span-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-extrabold text-rose-700 shadow-sm disabled:opacity-60"
                     >
                       <UserMinus size={16} aria-hidden="true" />
                       Remove Myself
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddForm({
-                          ...emptyAddShiftForm,
-                          mode: "move",
-                          baseEntryId: entry.id,
-                          shift_date: entry.shift_date,
-                          shift_type: entry.shift_type,
-                          shift_start: entry.shift_start.slice(0, 5),
-                          shift_end: entry.shift_end.slice(0, 5)
-                        });
-                        setAddFormOpen(true);
-                      }}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-sm font-extrabold text-cyan-700 shadow-sm"
-                    >
-                      <MoveRight size={16} aria-hidden="true" />
-                      Move Myself
                     </button>
                   </>
                 )}
@@ -1911,6 +1913,52 @@ function ManageScheduleScreen({
           );
         })}
       </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+          <div className="w-full max-w-sm rounded-3xl border border-white bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.28)]">
+            <h3 className="text-2xl font-black text-hospital-ink">Delete Shift?</h3>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+              Do you want to delete this shift? This action cannot be undone.
+            </p>
+            <dl className="mt-4 space-y-2 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-600">
+              <div>
+                <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Date</dt>
+                <dd className="text-hospital-ink">{formatManageShiftDate(deleteTarget.entry.shift_date)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Shift</dt>
+                <dd className="text-hospital-ink">{shiftTypeLabels[deleteTarget.entry.shift_type]}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Time</dt>
+                <dd className="text-hospital-ink">{formatShiftTime(deleteTarget.entry.shift_start, deleteTarget.entry.shift_end)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Staff</dt>
+                <dd className="text-hospital-ink">{staffDisplayName(deleteTarget.entry.staff_profiles)}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirmDeleteShift()}
+                disabled={saving}
+                className="min-h-11 rounded-2xl bg-rose-600 px-3 text-sm font-extrabold text-white shadow-md shadow-rose-900/20 disabled:opacity-60"
+              >
+                {saving ? "Deleting..." : "Delete Shift"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {removedShifts.length > 0 && (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -3480,6 +3528,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               loading={scheduleState.loading}
               error={scheduleState.error}
               schedule={scheduleState.activeSchedule}
+              timezone={scheduleState.timezone}
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
             />

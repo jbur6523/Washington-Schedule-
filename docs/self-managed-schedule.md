@@ -25,21 +25,25 @@ Self-reported availability does not update the published baseline schedule.
 
 ## Manage Schedule
 
-The Manage Schedule tab shows the signed-in user's active shifts.
+The Manage Schedule tab shows the signed-in user's active shifts that can still be acted on. Past shifts are hidden after their shift end time. Day shifts use the `06:30` to `19:00` window, and night shifts use the `18:30` to `07:00` next-day window so a night shift remains visible after midnight until it ends.
 
 For each shift, staff can:
 
 - Request Switch
 - Request Coverage
-- Add/Edit Note
+- Toggle Wants Off on or off
+- Delete Shift with confirmation
 - Remove Myself
-- Move Myself
 - Add Myself Available
 - Remove their own active availability
 - Remove a self-added shift
 - Undo a removed shift
 
-Notes are capped at 140 characters.
+`Wants Off` is a persisted toggle. Turning it on creates one active wants-off request for the shift. Turning it off cancels that active request and removes the Wants Off indicator from the main Schedule page after refresh/reload of schedule state. Duplicate active wants-off requests are prevented by the existing unique request indexes.
+
+The Manage Schedule card no longer exposes Add/Edit Note or Move Myself actions. Existing request notes remain stored, but notes are not edited from this card UI.
+
+`Delete Shift` opens a confirmation modal before changing the user's app schedule. For published baseline shifts, the app uses the existing staff-owned `remove_self` override so the baseline schedule is not deleted, and delete-created removals are not shown in the undo list. For self-added shifts, the app deactivates the user's active self-added override.
 
 The Add Myself Available form asks for date, shift type, start time, end time, and an optional note. It creates an active `add_available` override for the signed-in staff member only.
 
