@@ -199,10 +199,10 @@ function StatCard({
           : "border-cyan-100 bg-cyan-50 text-cyan-800";
 
   return (
-    <div className={`rounded-3xl border px-4 py-4 shadow-sm ${toneClass}`}>
-      <p className="text-xs font-extrabold uppercase tracking-wide opacity-80">{title}</p>
+    <div className={`flex min-h-[9rem] flex-col items-center justify-center rounded-3xl border px-4 py-4 text-center shadow-sm ${toneClass}`}>
+      <p className="text-xs font-extrabold uppercase leading-4 tracking-normal opacity-80">{title}</p>
       <p className="mt-2 text-4xl font-black leading-none text-hospital-ink">{value}</p>
-      <p className="mt-2 text-xs font-extrabold uppercase tracking-wide">{label}</p>
+      <p className="mt-2 text-xs font-extrabold uppercase leading-4 tracking-normal">{label}</p>
       {status && <p className="mt-2 text-sm font-black">{status}</p>}
     </div>
   );

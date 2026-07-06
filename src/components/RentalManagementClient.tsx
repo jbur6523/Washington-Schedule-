@@ -2191,15 +2191,15 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               BiPAP V60 rental tracking
             </p>
             <div ref={activeRentalsRef} className="mt-4 grid grid-cols-2 gap-2">
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                <p className="text-2xl font-black text-hospital-ink">{activeRentals.length}</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+              <div className="flex min-h-[5.25rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-center">
+                <p className="text-2xl font-black leading-none text-hospital-ink">{activeRentals.length}</p>
+                <p className="mt-1.5 text-[11px] font-extrabold uppercase leading-3 tracking-normal text-slate-500">
                   {activeRentals.length === 1 ? "Active Rental" : "Active Rentals"}
                 </p>
               </div>
-              <div className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                <p className="text-2xl font-black text-hospital-ink">{oldestRentalDateLabel}</p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">Oldest Rental</p>
+              <div className="flex min-h-[5.25rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-center">
+                <p className="text-2xl font-black leading-none text-hospital-ink">{oldestRentalDateLabel}</p>
+                <p className="mt-1.5 text-[11px] font-extrabold uppercase leading-3 tracking-normal text-slate-500">Oldest Rental</p>
               </div>
             </div>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
@@ -2253,17 +2253,17 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <h2 className="text-base font-black text-hospital-ink">Rental Actions</h2>
             <p className="mt-1 text-sm font-bold leading-5 text-slate-500">Order or return a BiPAP V60 rental.</p>
-            <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
+            <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
               <Link
                 href="/operations/rental-management/check-in"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
               >
                 <ScanLine size={18} aria-hidden="true" />
                 Order Rental
               </Link>
               <Link
                 href="/operations/rental-management/return"
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-extrabold text-white shadow-md shadow-amber-900/20"
               >
                 <RotateCcw size={18} aria-hidden="true" />
                 Return Rental

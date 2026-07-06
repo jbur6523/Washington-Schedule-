@@ -54,6 +54,28 @@ function titleStatusClass(status: string) {
   return "border-slate-100 bg-slate-50 text-slate-500";
 }
 
+function MiniStatCard({
+  label,
+  value,
+  tone = "neutral"
+}: {
+  label: string;
+  value: string | number;
+  tone?: "cyan" | "neutral";
+}) {
+  const toneClass =
+    tone === "cyan"
+      ? "border-cyan-100 bg-cyan-50 text-cyan-700"
+      : "border-slate-100 bg-white/95 text-slate-500 shadow-sm";
+
+  return (
+    <div className={`flex min-h-[4.75rem] flex-col items-center justify-center rounded-2xl border px-2.5 py-2 text-center ${toneClass}`}>
+      <p className="text-[10px] font-extrabold uppercase leading-3 tracking-normal">{label}</p>
+      <p className="mt-1 text-xl font-black leading-none text-hospital-ink">{value}</p>
+    </div>
+  );
+}
+
 export function CurrentShiftStatusSummary({
   authContext,
   timezone
@@ -103,8 +125,8 @@ export function CurrentShiftStatusSummary({
 
   if (error) {
     return (
-      <div className="mt-4 border-t border-violet-100 pt-4">
-        <p className="text-center text-sm font-black uppercase tracking-wide text-cyan-700">
+      <div className="mt-3 border-t border-violet-100 pt-3">
+        <p className="text-center text-sm font-black uppercase tracking-normal text-cyan-700">
           Current Shift Status {"\u00b7"} No Update
         </p>
         <p className="mt-2 text-center text-sm font-bold text-slate-500">Shift status unavailable.</p>
@@ -113,17 +135,17 @@ export function CurrentShiftStatusSummary({
   }
 
   return (
-    <div className="mt-4 border-t border-violet-100 pt-4">
+    <div className="mt-3 border-t border-violet-100 pt-3">
       <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
-        <span className="text-sm font-black uppercase tracking-wide text-cyan-700">{"\u00b7"}</span>
-        <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${statusClass}`}>
+        <p className="text-sm font-black uppercase tracking-normal text-cyan-700">Current Shift Status</p>
+        <span className="text-sm font-black uppercase tracking-normal text-cyan-700">{"\u00b7"}</span>
+        <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-normal ${statusClass}`}>
           {statusLabel}
         </span>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
-        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+      <div className="mt-3 flex items-stretch gap-2.5">
+        <span className="grid w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
           <Activity size={20} />
         </span>
 
@@ -133,28 +155,19 @@ export function CurrentShiftStatusSummary({
               No update has been submitted for the current shift yet.
             </p>
           ) : (
-            <div className="grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
-              <div className="rounded-2xl bg-cyan-50 px-3 py-2">
-                <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs Scheduled</p>
-                <p>{formatShiftStatusNumber(latest.rts_on)}</p>
-              </div>
-              <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500">RTs Needed</p>
-                <p>{formatShiftStatusNumber(latest.rts_required)}</p>
-              </div>
-              <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
-                <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
-                <p>{latest.vent_count}</p>
-              </div>
+            <div className="grid grid-cols-3 gap-2">
+              <MiniStatCard label="RTs Scheduled" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
+              <MiniStatCard label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
+              <MiniStatCard label="Vents" value={latest.vent_count} />
             </div>
           )}
         </div>
       </div>
 
       {latest && (
-        <div className="mt-3 text-center text-xs font-bold text-slate-500">
+        <div className="mt-2.5 text-center text-xs font-bold leading-5 text-slate-500">
           <p>Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}</p>
-          <p className="mt-1">Updated by: {updatedByName(latest)}</p>
+          <p>Updated by: {updatedByName(latest)}</p>
         </div>
       )}
     </div>

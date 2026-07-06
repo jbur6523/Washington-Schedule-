@@ -29,12 +29,12 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-const labelClass = "block min-h-5 text-[11px] font-extrabold uppercase leading-5 tracking-wide text-slate-500";
+const labelClass = "block min-h-4 text-[11px] font-extrabold uppercase leading-4 tracking-normal text-slate-500";
 const controlClass =
-  "mt-1 h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+  "mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
 const cyanControlClass =
-  "mt-1 h-12 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
-const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2";
+  "mt-1 h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2";
 
 function isValidManualUpdater(value: string) {
   const normalized = value.trim().toLowerCase();

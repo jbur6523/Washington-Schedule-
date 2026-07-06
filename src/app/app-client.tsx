@@ -349,10 +349,10 @@ function ScheduleViewSummaryCard({
   return (
     <section className="rounded-3xl border border-slate-100 bg-white p-3 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_0_22px_rgba(139,92,246,0.28),0_18px_40px_rgba(15,23,42,0.18)] ring-1 ring-white">
       <div className="rounded-[1.35rem] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-2 shadow-[0_0_18px_rgba(139,92,246,0.2)]">
-        <p className="px-1 pb-2 text-sm font-black uppercase tracking-wide text-violet-800">
+        <p className="px-1 pb-2 text-sm font-black uppercase tracking-normal text-violet-800">
           Shift View
         </p>
-        <div className="grid grid-cols-3 rounded-full border-2 border-violet-300 bg-white/90 p-1.5 shadow-[0_0_16px_rgba(139,92,246,0.25)]">
+        <div className="grid grid-cols-3 rounded-full border-2 border-violet-300 bg-white/90 p-1 shadow-[0_0_16px_rgba(139,92,246,0.25)]">
           {scheduleFilterOptions.map((option) => {
             const active = option.id === shiftFilter;
 
@@ -361,7 +361,7 @@ function ScheduleViewSummaryCard({
                 key={option.id}
                 type="button"
                 onClick={() => onChange(option.id)}
-                className={`min-h-11 rounded-full border px-3 text-base font-black transition active:scale-[0.98] ${
+                className={`min-h-11 rounded-full border px-3 text-base font-black leading-none transition active:scale-[0.98] ${
                   active
                     ? "border-violet-900 bg-violet-700 text-white shadow-lg shadow-violet-900/35 ring-2 ring-violet-200"
                     : "border-transparent bg-white text-slate-700 shadow-sm hover:border-violet-200 hover:bg-violet-50 hover:text-violet-800"
