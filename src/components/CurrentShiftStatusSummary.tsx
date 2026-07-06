@@ -42,6 +42,18 @@ function titleStatus(update: ShiftStatusUpdate | null) {
   return update.rts_on >= update.rts_required ? "Staffed" : "Short";
 }
 
+function titleStatusClass(status: string) {
+  if (status === "Staffed") {
+    return "border-emerald-100 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "Short") {
+    return "border-rose-100 bg-rose-50 text-rose-700";
+  }
+
+  return "border-slate-100 bg-slate-50 text-slate-500";
+}
+
 export function CurrentShiftStatusSummary({
   authContext,
   timezone
@@ -86,9 +98,8 @@ export function CurrentShiftStatusSummary({
   }, [authContext.departmentId, timezone]);
 
   const { latest } = resolveCurrentShiftStatus(updates, timezone);
-  const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
-  const staffingStatus = shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Fully staffed";
   const statusLabel = titleStatus(latest);
+  const statusClass = titleStatusClass(statusLabel);
 
   if (error) {
     return (
@@ -103,10 +114,12 @@ export function CurrentShiftStatusSummary({
 
   return (
     <div className="mt-4 border-t border-violet-100 pt-4">
-      <div className="text-center">
-        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">
-          Current Shift Status {"\u00b7"} {statusLabel}
-        </p>
+      <div className="flex flex-wrap items-center justify-center gap-2 text-center">
+        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
+        <span className="text-sm font-black uppercase tracking-wide text-cyan-700">{"\u00b7"}</span>
+        <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-wide ${statusClass}`}>
+          {statusLabel}
+        </span>
       </div>
 
       <div className="mt-3 flex items-center gap-3">
@@ -124,9 +137,6 @@ export function CurrentShiftStatusSummary({
               <div className="rounded-2xl bg-cyan-50 px-3 py-2">
                 <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs Scheduled</p>
                 <p>{formatShiftStatusNumber(latest.rts_on)}</p>
-                <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
-                  {staffingStatus}
-                </p>
               </div>
               <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
                 <p className="text-[10px] uppercase tracking-wide text-slate-500">RTs Needed</p>

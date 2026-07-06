@@ -44,7 +44,7 @@ function zonedDateHour(timezone = "America/Los_Angeles") {
 
 export function currentShiftType() {
   const hour = new Date().getHours();
-  return hour >= 6 && hour < 18 ? "day" : "night";
+  return hour >= 8 && hour < 20 ? "day" : "night";
 }
 
 export function currentShiftStatusWindow(timezone = "America/Los_Angeles") {
@@ -110,8 +110,13 @@ export function resolveCurrentShiftStatus(updates: ShiftStatusUpdate[], timezone
   const currentWindowUpdates = updates.filter(
     (update) => update.shift_date === currentWindow.shiftDate && update.shift_type === currentWindow.shiftType
   );
+  const fallbackWindowUpdates = updates.filter(
+    (update) =>
+      update.shift_date === currentWindow.shiftDate &&
+      (currentWindow.shiftType === "day" || update.shift_type === currentWindow.shiftType)
+  );
   const currentLatest = latestShiftStatus(currentWindowUpdates);
-  const fallbackLatest = latestShiftStatus(updates);
+  const fallbackLatest = latestShiftStatus(fallbackWindowUpdates);
 
   return {
     currentWindow,

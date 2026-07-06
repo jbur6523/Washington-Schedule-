@@ -96,12 +96,14 @@ The card comes from Command Center shift updates and shows:
 - Last updated time
 - Updated by, when available
 
+The compact card shows only those three number tiles. `Staffed`, `Short`, or `No Update` appears only in the title line. `Staffed` uses green, `Short` uses red, and `No Update` uses neutral gray.
+
 The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule filter. Those controls continue to filter schedule cards only. Current Shift Status uses the same Command Center update source as the Director dashboard. It first looks for the active department shift window:
 
 - Day Shift: `08:00-19:59`
 - Night Shift: `20:00-07:59`
 
-At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. If the current window has not been submitted yet, the card falls back to the most recent Command Center update so Staff and Director do not disagree about whether data exists. If no Command Center update exists at all, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts.
+At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. During the day window, if the day update has not been submitted yet but a same-day night update exists, the card can show that latest same-day Command Center update so Staff and Director do not disagree about whether data exists. After the night reset, it does not fall back to stale day-shift data. If no eligible Command Center update exists, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts.
 
 ## Director Shift Status
 
