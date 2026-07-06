@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ChevronDown, ClipboardList, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ClipboardList, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -663,8 +663,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           return (
             <article key={order.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
               <div className="flex items-start gap-3">
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
-                  {order.signedImageUrl ? (
+                {order.signedImageUrl && (
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
                     <button
                       type="button"
                       onClick={() =>
@@ -683,12 +683,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                         loading="lazy"
                       />
                     </button>
-                  ) : (
-                    <span className="grid h-full w-full place-items-center text-slate-300">
-                      <ImagePlus size={24} />
-                    </span>
-                  )}
-                </div>
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="text-base font-black leading-5 text-hospital-ink">Order Req - {reqLabel}</p>
                   <p className="mt-2 text-sm font-bold leading-5 text-slate-600">
