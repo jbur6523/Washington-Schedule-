@@ -56,8 +56,11 @@ function StaffScheduleRow({
   posts?: ShiftPost[];
   note?: string;
 }) {
+  const isAide = entry.operationsRole === "aide";
   const background =
-    variant === "scheduled"
+    isAide
+      ? "border-pink-100 bg-pink-50/90"
+      : variant === "scheduled"
       ? "border-sky-100 bg-sky-50/90"
       : "border-emerald-100 bg-emerald-50/90";
   const showChips = coverageRequested || Boolean(posts?.length) || variant === "available" || entry.selfAdded;
@@ -102,7 +105,7 @@ function StaffScheduleRow({
           )}
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
         </div>
-        <StaffTypeBadge staffType={entry.staffType} compact />
+        <StaffTypeBadge staffType={entry.staffType} compact isAide={isAide} />
       </div>
 
       {showChips && (

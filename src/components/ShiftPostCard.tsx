@@ -43,6 +43,7 @@ export function ShiftPostCard({
   onCancelShortShift
 }: ShiftPostCardProps) {
   const Icon = typeIcon[post.type];
+  const isAide = post.operationsRole === "aide";
   const statuses = Array.from(new Set(relatedStatuses?.length ? relatedStatuses : [post.status]));
   const hasCoverageRequest = statuses.includes("Coverage Requested");
   const hasSwitchRequest = statuses.includes("Switch Requested");
@@ -93,7 +94,7 @@ export function ShiftPostCard({
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Posted by</p>
           <p className="text-sm font-extrabold leading-5 text-slate-800">{post.postedBy}</p>
         </div>
-        <StaffTypeBadge staffType={post.staffType} />
+        <StaffTypeBadge staffType={post.staffType} isAide={isAide} />
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-3">

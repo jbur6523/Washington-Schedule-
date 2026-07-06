@@ -1,4 +1,5 @@
 export type StaffType = "Full-time" | "Per diem";
+export type StaffOperationsRole = "none" | "aide" | "command_center" | "director";
 export type UsualShift =
   | "Dayshift"
   | "Nightshift"
@@ -22,6 +23,7 @@ export type StaffMember = {
   name: string;
   staffType: StaffType;
   usualShift: UsualShift;
+  operationsRole?: StaffOperationsRole;
 };
 
 export type ScheduleEntry = {
@@ -38,6 +40,7 @@ export type ScheduleEntry = {
   shiftCategory?: "day" | "night";
   shiftTypeLabel?: string;
   staffType: StaffType;
+  operationsRole?: StaffOperationsRole | null;
   status: Extract<ScheduleStatus, "Scheduled" | "Available">;
   selfAdded?: boolean;
   isShiftLead?: boolean;
@@ -53,6 +56,7 @@ export type ShiftPost = {
   shiftTypeLabel?: string;
   postedBy: string;
   staffType: StaffType;
+  operationsRole?: StaffOperationsRole | null;
   type: ShiftPostType;
   coverageIntensity: CoverageIntensity;
   status: Extract<ScheduleStatus, "Short Shift" | EmployeeRequestStatus>;

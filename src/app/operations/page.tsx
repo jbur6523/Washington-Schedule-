@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList, ShieldCheck } from "lucide-react";
-import { hasOperationsDashboardAccess } from "@/lib/auth/access";
+import { ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
+import { hasOperationsDashboardAccess, hasOrderManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
@@ -86,6 +86,31 @@ export default async function OperationsDashboardPage() {
             Open Rental Management
           </Link>
         </section>
+
+        {hasOrderManagementAccess(auth.context) && (
+          <section className="rounded-3xl border border-pink-100 bg-pink-50/80 p-4 shadow-soft">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">
+                <PackageCheck size={22} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-hospital-ink">Order Management</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  Create and track department supply orders.
+                </p>
+                <span className="mt-2 inline-flex rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-pink-700">
+                  Aide
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/operations/order-management"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20"
+            >
+              Open Order Management
+            </Link>
+          </section>
+        )}
 
         {auth.context.role === "admin" && (
           <Link

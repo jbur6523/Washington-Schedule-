@@ -10,6 +10,7 @@ import {
   displayStaffType,
   firstStaffProfile,
   formatShiftTime,
+  isAideStaff,
   standardTimesForShiftType,
   shiftTypeLabels,
   type ScheduleEntryRow,
@@ -245,7 +246,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
       supabase
         .from("schedule_entries")
         .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, is_active)"
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("schedule_version_id", selectedVersionId)
         .order("shift_date", { ascending: true })
@@ -1202,7 +1203,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                               </p>
                             </div>
                             <div className="flex shrink-0 flex-wrap gap-2">
-                              <StaffTypeBadge staffType={displayStaffType(staff)} />
+                              <StaffTypeBadge staffType={displayStaffType(staff)} isAide={isAideStaff(staff)} />
                               <button
                                 type="button"
                                 onClick={() => setEntryForm(entryToForm(entry))}

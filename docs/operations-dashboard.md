@@ -73,6 +73,21 @@ Purpose:
 
 The dashboard starts with `Rental Actions`, which contains `Order Rental` and `Return Rental`.
 
+## Aide Order Management
+
+Aide users see an additional Aide-only `Order Management` card on the Aide Dashboard. The tool opens `/operations/order-management` and is not shown to Staff, Lead, Director, Command Center, or unauthenticated users.
+
+Order Management is intentionally simple in this phase:
+
+- Aide takes or uploads a picture.
+- Aide can add optional notes, capped at 280 characters.
+- The app automatically stores the current Aide as the creator.
+- Saved orders show image thumbnail, created date/time, creator display name, and notes.
+
+Order Management is protected by route checks and Supabase RLS/storage policies. It is not an Admin, Lead, Director, or Command Center workflow.
+
+Aide schedule/staff cards use a soft pink treatment and an `Aide` badge based on `staff_profiles.operations_role = aide`. This changes only user-facing display; it does not mutate employment type or schedule data.
+
 ## Current Rental Scope
 
 Rental Management currently supports:

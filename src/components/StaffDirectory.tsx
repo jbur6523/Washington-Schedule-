@@ -20,6 +20,7 @@ import {
 
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
+type OperationsRole = "none" | "aide" | "command_center" | "director";
 type PreferredContactMethod = "phone" | "email" | "app";
 type DirectoryFilter =
   | "all"
@@ -40,6 +41,7 @@ type StaffProfile = {
   display_name: string;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
+  operations_role: OperationsRole;
   phone_number: string | null;
   email: string | null;
   preferred_contact_method: PreferredContactMethod | null;
@@ -118,14 +120,19 @@ function DirectoryCard({
 }) {
   const phoneHref = profile.phone_number ? formatPhoneHref(profile.phone_number) : undefined;
   const assignedTitleLabels = assignedTitles.map((title) => title.label).join(", ");
+  const isAide = profile.operations_role === "aide";
 
   return (
-    <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+    <article
+      className={`rounded-3xl border p-4 shadow-soft ${
+        isAide ? "border-pink-100 bg-pink-50/90" : "border-white bg-white/95"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-lg font-black leading-6 text-hospital-ink">{profile.display_name}</h3>
           <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-400">
-            {employmentLabels[profile.employment_type]} - {assignmentLabels[profile.home_assignment]}
+            {isAide ? "Aide" : employmentLabels[profile.employment_type]} - {assignmentLabels[profile.home_assignment]}
           </p>
         </div>
         <span
@@ -162,6 +169,11 @@ function DirectoryCard({
         {profile.preferred_contact_method && (
           <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-extrabold text-violet-700">
             Prefers {contactLabels[profile.preferred_contact_method]}
+          </span>
+        )}
+        {isAide && (
+          <span className="rounded-full bg-pink-100 px-2.5 py-1 text-xs font-extrabold text-pink-700">
+            Aide
           </span>
         )}
         {assignedTitles.map((title) => (
@@ -479,7 +491,7 @@ export function StaffDirectory({ authContext, developmentFallback }: StaffDirect
     const supabase = createClient();
     const { data, error: loadError } = await supabase
       .from("staff_profiles")
-      .select("id, department_id, display_name, employment_type, home_assignment, phone_number, email, preferred_contact_method, is_active, account_claimed_at")
+      .select("id, department_id, display_name, employment_type, home_assignment, operations_role, phone_number, email, preferred_contact_method, is_active, account_claimed_at")
       .eq("department_id", authContext.departmentId)
       .order("display_name", { ascending: true });
 

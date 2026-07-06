@@ -14,15 +14,20 @@ type StaffCardProps = {
 
 export function StaffCard({ staff, currentStatus, summary }: StaffCardProps) {
   const showStatus = currentStatus !== "Scheduled";
+  const isAide = staff.operationsRole === "aide";
 
   return (
-    <article className="rounded-2xl border border-white bg-white/95 p-4 shadow-soft">
+    <article
+      className={`rounded-2xl border p-4 shadow-soft ${
+        isAide ? "border-pink-100 bg-pink-50/90" : "border-white bg-white/95"
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-base font-bold leading-6 text-hospital-ink">{staff.name}</h3>
           <p className="mt-1 text-sm font-medium text-hospital-muted">{staff.usualShift}</p>
         </div>
-        <StaffTypeBadge staffType={staff.staffType} />
+        <StaffTypeBadge staffType={staff.staffType} isAide={isAide} />
       </div>
       <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-3">
         {showStatus && <StatusChip status={currentStatus} compact />}

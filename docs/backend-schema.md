@@ -30,6 +30,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.
 - Staff contact data is separate from schedule entries, requests, offers, import rows, and Cover/Switch data.
+- Aide display styling is derived from `staff_profiles.operations_role = aide`. Schedule and staff cards can show `Aide` instead of FT/PD without changing `employment_type`.
 
 ### Schedules
 
@@ -62,6 +63,13 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - Text is capped at 140 characters.
 - Optional compressed images are stored by private path in the `gossip-images` Supabase Storage bucket.
 - Soft-deleted posts are hidden with `is_deleted = true`.
+
+### Order Management
+
+- `department_orders`: Aide-created department supply order records. Each row stores department, creator staff profile, creator display name fallback, optional private image storage path, optional image URL fallback, notes capped at 280 characters, and created/updated timestamps.
+- `department-order-images`: private Supabase Storage bucket for Order Management photos. Images are stored under department-scoped paths and displayed through signed URLs.
+- Order Management is Aide-only. RLS and storage policies use `staff_profiles.operations_role = aide` and active staff profiles to allow Aides to create and read orders and upload/read order images.
+- Order Management notes must not contain patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, or staff emails.
 
 ### Rental Management
 
@@ -124,7 +132,7 @@ The app determines role and membership from `profiles` and `department_membershi
 Operational access beyond the normal app role is stored in `staff_profiles.operations_role`:
 
 - `none`: no special operations experience.
-- `aide`: access to the Aide Dashboard and Rental Management without granting Lead/Admin schedule permissions.
+- `aide`: access to the Aide Dashboard, Rental Management, and Aide-only Order Management without granting Lead/Admin schedule permissions.
 - `command_center`: shared department phone access. Routes to `/command-center`, can use Shift Update, Rental Management, and Short Shift Alert, and must provide staff attribution for visible actions.
 - `director`: read-only Director Shift Status access. Routes to `/director/shift-status` and cannot edit shift updates or rental workflows.
 
@@ -143,6 +151,7 @@ Helper functions:
 - `user_is_department_member(department_id)`: checks department membership.
 - `user_is_department_admin(department_id)`: checks department admin role.
 - `user_is_command_center(department_id)`: checks whether the current account is the shared Command Center account for that department.
+- `user_is_department_aide(department_id)`: checks whether the current account is an active Aide in that department.
 - `current_staff_profile_id(department_id)`: returns the staff profile linked to the current profile in a department.
 
 General policy rules:

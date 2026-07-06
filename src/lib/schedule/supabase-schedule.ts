@@ -1,4 +1,4 @@
-import type { ScheduleDay, ScheduleEntry, ShiftPost, StaffType } from "@/data/mockSchedule";
+import type { ScheduleDay, ScheduleEntry, ShiftPost, StaffOperationsRole, StaffType } from "@/data/mockSchedule";
 import {
   coworkerTitleDisplayFromRecord,
   type CoworkerTitle,
@@ -23,6 +23,7 @@ export type StaffProfileSummary = {
   display_name: string;
   employment_type: EmploymentType;
   home_assignment: HomeAssignment;
+  operations_role?: StaffOperationsRole | null;
   is_active?: boolean;
   status_message?: string | null;
   status_updated_at?: string | null;
@@ -259,6 +260,10 @@ export function displayStaffType(staffProfile?: StaffProfileSummary | StaffProfi
   return profile?.employment_type ? employmentLabels[profile.employment_type] : "Full-time";
 }
 
+export function isAideStaff(staffProfile?: StaffProfileSummary | StaffProfileSummary[] | null) {
+  return firstStaffProfile(staffProfile)?.operations_role === "aide";
+}
+
 export function staffDisplayName(staffProfile?: StaffProfileSummary | StaffProfileSummary[] | null) {
   return firstStaffProfile(staffProfile)?.display_name ?? "Unassigned staff";
 }
@@ -302,6 +307,7 @@ function entryToScheduleEntry(
     shiftCategory: shiftCategoryForType(entry.shift_type),
     shiftTypeLabel: shiftTypeLabels[entry.shift_type],
     staffType: displayStaffType(entry.staff_profiles),
+    operationsRole: firstStaffProfile(entry.staff_profiles)?.operations_role ?? "none",
     status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
     selfAdded: entry.id.startsWith("override-"),
     isShiftLead: Boolean(entry.is_shift_lead),
@@ -489,6 +495,7 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
     shiftTypeLabel: shiftTypeLabels[shift.shift_type],
     postedBy: staffDisplayName(request.staff_profiles),
     staffType: displayStaffType(request.staff_profiles),
+    operationsRole: firstStaffProfile(request.staff_profiles)?.operations_role ?? "none",
     type: requestStatus,
     coverageIntensity: "low",
     status: requestStatus,
