@@ -2206,12 +2206,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             {!loading && activeRentals.length === 0 && (
               <p className="mt-2 text-xs font-bold text-slate-500">Delivered rentals will appear here.</p>
             )}
-            <Link
-              href="/operations/rental-management/active"
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
-            >
-              View Active Rentals
-            </Link>
           </section>
 
           {checkedIn && (
@@ -2267,6 +2261,13 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
               >
                 <RotateCcw size={18} aria-hidden="true" />
                 Return Rental
+              </Link>
+              <Link
+                href="/operations/rental-management/active"
+                className="col-span-full inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-sm"
+              >
+                <Building2 size={18} aria-hidden="true" />
+                View Active Rentals
               </Link>
             </div>
           </section>
