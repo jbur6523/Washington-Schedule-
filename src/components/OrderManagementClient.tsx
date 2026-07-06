@@ -10,6 +10,10 @@ import { createClient } from "@/lib/supabase/client";
 
 const orderImageBucket = "department-order-images";
 const maxNoteLength = 280;
+const recentOrderLimit = 7;
+const orderPageSize = 25;
+const orderSelectColumns =
+  "id, department_id, created_by_staff_profile_id, created_by_name, req_number, image_url, image_storage_path, notes, created_at, updated_at";
 const todoClearMessageStorageKey = "order-todo-clear-message-index";
 const todoClearMessages = [
   "Slaaayyyyyy 👏🏻",
@@ -84,8 +88,19 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const previewUrlRef = useRef<string | null>(null);
   const todoClearFallbackIndexRef = useRef(-1);
   const todoClearCelebrationTimerRef = useRef<number | null>(null);
-  const [orders, setOrders] = useState<OrderWithPreview[]>([]);
+  const [recentOrders, setRecentOrders] = useState<OrderWithPreview[]>([]);
+  const [allOrders, setAllOrders] = useState<OrderWithPreview[]>([]);
+  const [searchOrders, setSearchOrders] = useState<OrderWithPreview[]>([]);
+  const [orderCount, setOrderCount] = useState<number | null>(null);
+  const [historyMode, setHistoryMode] = useState<"recent" | "all">("recent");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [debouncedOrderSearch, setDebouncedOrderSearch] = useState("");
+  const [allHasMore, setAllHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allLoadingMore, setAllLoadingMore] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -117,28 +132,14 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
   const todoHasUnsavedChanges = todoContent !== savedTodoContent;
   const todoIsSaving = todoSaveStatus === "saving";
+  const activeSearchQuery = debouncedOrderSearch.trim();
+  const searchActive = activeSearchQuery.length > 0;
+  const displayedOrders = searchActive ? searchOrders : historyMode === "recent" ? recentOrders : allOrders;
+  const displayedOrdersLoading = searchActive ? searchLoading : historyMode === "recent" ? loading : allLoading;
+  const submittedCountLabel = orderCount ?? recentOrders.length;
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
+  const signOrderPreviews = useCallback(async (rows: DepartmentOrderRow[]) => {
     const supabase = createClient();
-    const { data, error: loadError } = await supabase
-      .from("department_orders")
-      .select(
-        "id, department_id, created_by_staff_profile_id, created_by_name, req_number, image_url, image_storage_path, notes, created_at, updated_at"
-      )
-      .eq("department_id", authContext.departmentId)
-      .order("created_at", { ascending: false });
-
-    if (loadError) {
-      setError("Unable to load orders.");
-      setOrders([]);
-      setLoading(false);
-      return;
-    }
-
-    const rows = (data ?? []) as DepartmentOrderRow[];
     const ordersWithPreviews = await Promise.all(
       rows.map(async (order) => {
         if (!order.image_storage_path) {
@@ -156,9 +157,108 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       })
     );
 
-    setOrders(ordersWithPreviews);
+    return ordersWithPreviews;
+  }, []);
+
+  const loadRecentOrders = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const supabase = createClient();
+    const { data, error: loadError, count } = await supabase
+      .from("department_orders")
+      .select(orderSelectColumns, { count: "exact" })
+      .eq("department_id", authContext.departmentId)
+      .order("created_at", { ascending: false })
+      .range(0, recentOrderLimit - 1);
+
+    if (loadError) {
+      setError("Unable to load orders.");
+      setRecentOrders([]);
+      setOrderCount(null);
+      setLoading(false);
+      return;
+    }
+
+    setRecentOrders(await signOrderPreviews((data ?? []) as DepartmentOrderRow[]));
+    setOrderCount(count ?? 0);
     setLoading(false);
-  }, [authContext.departmentId]);
+  }, [authContext.departmentId, signOrderPreviews]);
+
+  const loadAllOrdersPage = useCallback(
+    async (reset = false) => {
+      const start = reset ? 0 : allOrders.length;
+
+      if (reset) {
+        setAllLoading(true);
+        setAllOrders([]);
+      } else {
+        setAllLoadingMore(true);
+      }
+
+      setError("");
+
+      const supabase = createClient();
+      const { data, error: loadError, count } = await supabase
+        .from("department_orders")
+        .select(orderSelectColumns, { count: "exact" })
+        .eq("department_id", authContext.departmentId)
+        .order("created_at", { ascending: false })
+        .range(start, start + orderPageSize - 1);
+
+      if (loadError) {
+        setError("Unable to load orders.");
+        setAllLoading(false);
+        setAllLoadingMore(false);
+        return;
+      }
+
+      const nextOrders = await signOrderPreviews((data ?? []) as DepartmentOrderRow[]);
+      const nextTotal = count ?? orderCount ?? start + nextOrders.length;
+
+      setOrderCount(nextTotal);
+      setAllOrders((current) => (reset ? nextOrders : [...current, ...nextOrders]));
+      setAllHasMore(start + nextOrders.length < nextTotal);
+      setAllLoading(false);
+      setAllLoadingMore(false);
+    },
+    [allOrders.length, authContext.departmentId, orderCount, signOrderPreviews]
+  );
+
+  const searchOrdersByReqNumber = useCallback(
+    async (query: string) => {
+      const searchValue = query.trim();
+      if (!searchValue) {
+        setSearchOrders([]);
+        setSearchError("");
+        setSearchLoading(false);
+        return;
+      }
+
+      setSearchLoading(true);
+      setSearchError("");
+
+      const supabase = createClient();
+      const { data, error: searchLoadError } = await supabase
+        .from("department_orders")
+        .select(orderSelectColumns)
+        .eq("department_id", authContext.departmentId)
+        .ilike("req_number", `%${searchValue}%`)
+        .order("created_at", { ascending: false })
+        .limit(orderPageSize);
+
+      if (searchLoadError) {
+        setSearchOrders([]);
+        setSearchError("Unable to search orders.");
+        setSearchLoading(false);
+        return;
+      }
+
+      setSearchOrders(await signOrderPreviews((data ?? []) as DepartmentOrderRow[]));
+      setSearchLoading(false);
+    },
+    [authContext.departmentId, signOrderPreviews]
+  );
 
   const loadTodo = useCallback(async () => {
     setTodoLoading(true);
@@ -233,11 +333,39 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadOrders();
+      void loadRecentOrders();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadOrders]);
+  }, [loadRecentOrders]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedOrderSearch(orderSearch.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [orderSearch]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void searchOrdersByReqNumber(debouncedOrderSearch);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [debouncedOrderSearch, searchOrdersByReqNumber]);
+
+  useEffect(() => {
+    if (historyMode !== "all" || allOrders.length > 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadAllOrdersPage(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [allOrders.length, historyMode, loadAllOrdersPage]);
 
   useEffect(() => {
     return () => {
@@ -491,29 +619,43 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setSuccess("Order submitted.");
     setIsCreateOpen(false);
     setSaving(false);
-    await loadOrders();
+    setAllOrders([]);
+    setAllHasMore(false);
+    await loadRecentOrders();
   };
 
   const ordersMarkup = useMemo(() => {
-    if (loading) {
+    if (displayedOrdersLoading) {
       return (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <p className="text-sm font-bold text-slate-500">Loading orders...</p>
+          <p className="text-sm font-bold text-slate-500">
+            {searchActive ? "Searching orders..." : "Loading orders..."}
+          </p>
         </section>
       );
     }
 
-    if (orders.length === 0) {
+    if (searchError) {
+      return (
+        <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
+          <p className="text-sm font-bold text-rose-700">{searchError}</p>
+        </section>
+      );
+    }
+
+    if (displayedOrders.length === 0) {
       return (
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <p className="text-sm font-bold text-slate-500">No department orders yet.</p>
+          <p className="text-sm font-bold text-slate-500">
+            {searchActive ? "No orders found for that Req Number." : "No department orders yet."}
+          </p>
         </section>
       );
     }
 
     return (
       <div className="grid gap-3">
-        {orders.map((order) => {
+        {displayedOrders.map((order) => {
           const created = formatCreatedAt(order.created_at);
           const reqLabel = order.req_number?.trim() || "Not entered";
           const notesOpen = expandedNotesOrderId === order.id;
@@ -584,7 +726,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         })}
       </div>
     );
-  }, [expandedNotesOrderId, loading, orders]);
+  }, [displayedOrders, displayedOrdersLoading, expandedNotesOrderId, searchActive, searchError]);
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -655,7 +797,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             </p>
             <div className="mt-4 rounded-2xl bg-white px-3 py-3">
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Submitted orders</p>
-              <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{orders.length}</p>
+              <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{submittedCountLabel}</p>
             </div>
             {error && (
               <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
@@ -669,10 +811,91 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-xl font-black text-hospital-ink">Order History</h2>
             <span className="rounded-full bg-pink-50 px-2.5 py-1 text-xs font-extrabold text-pink-700">
-              {orders.length} submitted
+              {submittedCountLabel} submitted
             </span>
           </div>
+
+          <label className="block rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <span className="text-sm font-black text-hospital-ink">Order Look Up</span>
+            <span className="mt-0.5 block text-xs font-bold text-slate-500">Req order #</span>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={orderSearch}
+                onChange={(event) => setOrderSearch(event.target.value)}
+                placeholder="Enter Req Number"
+                className="min-h-11 min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-pink-300 focus:ring-2 focus:ring-pink-100"
+              />
+              {orderSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderSearch("");
+                    setDebouncedOrderSearch("");
+                    setSearchOrders([]);
+                    setSearchError("");
+                    setHistoryMode("recent");
+                  }}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </label>
+
+          {!searchActive && (
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-pink-100 bg-pink-50/50 p-1">
+              {(["recent", "all"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setHistoryMode(mode);
+                    if (mode === "all" && allOrders.length === 0) {
+                      setAllLoading(true);
+                    }
+                  }}
+                  className={`min-h-10 rounded-xl px-3 text-sm font-black ${
+                    historyMode === mode ? "bg-pink-600 text-white shadow-sm" : "bg-white text-slate-600"
+                  }`}
+                >
+                  {mode === "recent" ? "Recent" : "View All"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {searchActive && (
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
+              <p className="text-sm font-black text-amber-900">Search Results</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setOrderSearch("");
+                  setDebouncedOrderSearch("");
+                  setSearchOrders([]);
+                  setSearchError("");
+                  setHistoryMode("recent");
+                }}
+                className="text-xs font-black text-amber-800 underline"
+              >
+                Clear Search
+              </button>
+            </div>
+          )}
+
           {ordersMarkup}
+
+          {!searchActive && historyMode === "all" && allHasMore && (
+            <button
+              type="button"
+              onClick={() => void loadAllOrdersPage(false)}
+              disabled={allLoadingMore}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-pink-200 bg-white px-4 text-sm font-black text-pink-700 shadow-sm disabled:opacity-60"
+            >
+              {allLoadingMore ? "Loading..." : "Load More Orders"}
+            </button>
+          )}
         </section>
 
         {isCreateOpen && (

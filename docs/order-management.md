@@ -49,6 +49,17 @@ Notes show the helper text:
 
 `No patient information.`
 
+## Order History
+
+Order History is optimized for larger order volume:
+
+- `Recent` is selected by default and loads only the 7 most recent submitted orders.
+- `View All` loads order history in pages of 25 orders at a time.
+- `Load More Orders` fetches the next page when more orders exist.
+- `Order Look Up` searches the database by optional Req Number, including older orders outside the recent list.
+- Search supports partial Req Number matching and can be cleared to return to `Recent`.
+- History cards keep the printable operational format: `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, thumbnail when present, and `View Notes` when notes exist.
+
 ## To-Do List
 
 The `To-Do List` button opens a modal shared by all Order Management users in the department.
@@ -71,7 +82,12 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 
 Orders are stored in `department_orders`.
 
-Images are stored in the private `department-order-images` Supabase Storage bucket. The app stores the storage path and displays thumbnails/previews with signed URLs.
+Images are stored in the private `department-order-images` Supabase Storage bucket, not directly as base64 in the database. The app stores the storage path and displays thumbnails/previews with signed URLs. Full-size signed image previews load only when the user taps a thumbnail.
+
+Order history uses indexes for newest-first history and Req Number lookup:
+
+- `department_orders_department_created_idx` and `department_orders_created_at_idx` support newest-first order history.
+- `department_orders_req_number_idx` supports Req Number search.
 
 The shared To-Do List is stored in `order_management_todo` as one department-scoped row. RLS allows Admin and Aide users to read and update the shared note.
 
