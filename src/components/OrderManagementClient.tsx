@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ChevronDown, ClipboardList, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ClipboardList, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -686,8 +686,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     Created by: {order.created_by_name || "User"}
                   </p>
                 </div>
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
-                  {order.signedImageUrl ? (
+                {order.signedImageUrl && (
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
                     <button
                       type="button"
                       onClick={() =>
@@ -706,12 +706,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                         loading="lazy"
                       />
                     </button>
-                  ) : (
-                    <span className="grid h-full w-full place-items-center text-slate-300">
-                      <ImagePlus size={24} />
-                    </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               {order.notes && (
                 <>
@@ -877,28 +873,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             </div>
           </form>
 
-          {!searchActive && (
-            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-pink-100 bg-pink-50/50 p-1">
-              {(["recent", "all"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => {
-                    setHistoryMode(mode);
-                    if (mode === "all" && allOrders.length === 0) {
-                      setAllLoading(true);
-                    }
-                  }}
-                  className={`min-h-10 rounded-xl px-3 text-sm font-black ${
-                    historyMode === mode ? "bg-pink-600 text-white shadow-sm" : "bg-white text-slate-600"
-                  }`}
-                >
-                  {mode === "recent" ? "Recent" : "View All"}
-                </button>
-              ))}
-            </div>
-          )}
-
           {searchActive && (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2">
               <p className="text-sm font-black text-amber-900">Search Results</p>
@@ -914,15 +888,33 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
           {ordersMarkup}
 
-          {!searchActive && historyMode === "all" && allHasMore && (
-            <button
-              type="button"
-              onClick={() => void loadAllOrdersPage(false)}
-              disabled={allLoadingMore}
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-pink-200 bg-white px-4 text-sm font-black text-pink-700 shadow-sm disabled:opacity-60"
-            >
-              {allLoadingMore ? "Loading..." : "Load More Orders"}
-            </button>
+          {!searchActive && (
+            <div className="flex justify-center">
+              {historyMode === "recent" && (orderCount ?? recentOrders.length) > recentOrderLimit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHistoryMode("all");
+                    if (allOrders.length === 0) {
+                      setAllLoading(true);
+                    }
+                  }}
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-pink-200 bg-white px-6 text-sm font-black text-pink-700 shadow-sm"
+                >
+                  View All
+                </button>
+              )}
+              {historyMode === "all" && allHasMore && (
+                <button
+                  type="button"
+                  onClick={() => void loadAllOrdersPage(false)}
+                  disabled={allLoadingMore}
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-pink-200 bg-white px-6 text-sm font-black text-pink-700 shadow-sm disabled:opacity-60"
+                >
+                  {allLoadingMore ? "Loading..." : "Load More Orders"}
+                </button>
+              )}
+            </div>
           )}
         </section>
 

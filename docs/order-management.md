@@ -40,7 +40,7 @@ The Create Order form opens separately in a mobile modal. It supports:
 - note-only or Req-number-only orders are allowed when a picture is not available
 - automatic created-by attribution from the current Aide display name/staff profile
 - `Submit Order` is disabled until a picture, note, or Req Number is entered
-- saved order history cards with `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, thumbnail, and notes
+- saved order history cards with `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, an image thumbnail when attached, and notes
 - tapping a thumbnail opens a full-size preview modal so photographed order sheets can be read
 
 Admin users open the same modal form as Aides and can create/upload orders for beta testing. Admin users also see submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
@@ -53,13 +53,13 @@ Notes show the helper text:
 
 Order History is optimized for larger order volume:
 
-- `Recent` is selected by default and loads only the 7 most recent submitted orders.
-- `View All` loads order history in pages of 25 orders at a time.
-- `Load More Orders` fetches the next page when more orders exist.
+- The default view automatically loads only the 7 most recent submitted orders.
+- If more orders exist, a centered `View All` button appears below the current list.
+- After `View All`, order history loads in pages of 25 orders at a time and a centered `Load More Orders` button fetches the next page while more orders exist.
 - `Order Look Up` searches the database by optional Req Number, including older orders outside the recent list.
-- Search does not run while typing. The user enters a Req Number and taps the enabled `Search Order` button, or clears the search to return to `Recent`.
+- Search does not run while typing. The user enters a Req Number and taps the enabled `Search Order` button, or clears the search to return to the default recent list.
 - Search supports partial Req Number matching.
-- History cards keep the printable operational format with left-aligned text details, a right-aligned thumbnail or placeholder, and a centered `View Notes` button when notes exist.
+- History cards keep the printable operational format with left-aligned text details, a right-aligned thumbnail only when an image exists, and a centered `View Notes` button when notes exist.
 
 ## To-Do List
 
