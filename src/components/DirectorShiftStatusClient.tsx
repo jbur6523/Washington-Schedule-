@@ -839,13 +839,10 @@ export function DirectorShiftStatusClient({
                   )}
                 </p>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => void signOut()}
-                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
               >
                 <LogOut size={15} />
                 Sign Out
@@ -933,13 +930,13 @@ export function DirectorShiftStatusClient({
 
         {snapshotLatest && (
           <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
                 <Building2 size={22} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-black text-hospital-ink">Department Snapshot</h2>
-                <p className="mt-1 text-center text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
+                <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
+                <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
@@ -957,13 +954,13 @@ export function DirectorShiftStatusClient({
 
         {snapshotLatest && (
           <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-            <div className="flex items-center gap-3">
-              <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
                 <ClipboardList size={22} />
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-black text-hospital-ink">Scheduled Procedures</h2>
-                <p className="mt-1 text-center text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
+                <h2 className="text-xl font-black leading-tight text-hospital-ink">Scheduled Procedures</h2>
+                <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
               </div>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">

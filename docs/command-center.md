@@ -115,12 +115,12 @@ The Director Shift Status page is the primary live visual reporting dashboard fo
 
 The Director view is read-only and uses a polished mobile dashboard layout:
 
-- Compact header with visible `Sign Out` control
+- Compact header with visible top-right `Sign Out` control
 - `Respiratory Directory` action for a read-only staff contact modal
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
-- `Department Snapshot` card with centered shift/date context, Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, and last-updated metadata
-- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other with centered shift/date context
+- `Department Snapshot` card with left-aligned shift/date context, Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, and last-updated metadata
+- Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.
 - `View Text Report` and `Copy Summary` actions
