@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ImagePlus, PackageCheck, X } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -16,6 +16,7 @@ type DepartmentOrderRow = {
   department_id: string;
   created_by_staff_profile_id: string | null;
   created_by_name: string | null;
+  req_number: string | null;
   image_url: string | null;
   image_storage_path: string | null;
   notes: string | null;
@@ -35,17 +36,24 @@ function formatCreatedAt(value: string) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return value;
+    return { date: value, time: "" };
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     month: "2-digit",
     day: "2-digit",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false
-  }).format(date);
+  }).formatToParts(date);
+
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+
+  return {
+    date: `${part("month")}/${part("day")}/${part("year")}`,
+    time: `${part("hour")}:${part("minute")}`
+  };
 }
 
 function safeFileName(fileName: string) {
@@ -63,13 +71,14 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [success, setSuccess] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [reqNumber, setReqNumber] = useState("");
   const [notes, setNotes] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
-  const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim());
+  const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim()) || Boolean(reqNumber.trim());
   const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && !saving;
 
   const loadOrders = useCallback(async () => {
@@ -80,7 +89,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     const { data, error: loadError } = await supabase
       .from("department_orders")
       .select(
-        "id, department_id, created_by_staff_profile_id, created_by_name, image_url, image_storage_path, notes, created_at, updated_at"
+        "id, department_id, created_by_staff_profile_id, created_by_name, req_number, image_url, image_storage_path, notes, created_at, updated_at"
       )
       .eq("department_id", authContext.departmentId)
       .order("created_at", { ascending: false });
@@ -171,6 +180,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
     setSelectedFile(null);
     setPreviewUrl(null);
+    setReqNumber("");
     setNotes("");
 
     if (fileInputRef.current) {
@@ -198,7 +208,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     event.preventDefault();
 
     if (!canCreateOrders) {
-      setError("Only aides can create orders.");
+      setError("Only aides and admins can create orders.");
       return;
     }
 
@@ -207,8 +217,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       return;
     }
 
-    if (!selectedFile && !notes.trim()) {
-      setError("Add a picture or note before creating the order.");
+    if (!selectedFile && !notes.trim() && !reqNumber.trim()) {
+      setError("Add a picture, note, or Req Number before creating the order.");
       return;
     }
 
@@ -241,6 +251,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       department_id: authContext.departmentId,
       created_by_staff_profile_id: authContext.staffProfileId,
       created_by_name: createdByLabel,
+      req_number: reqNumber.trim() || null,
       image_storage_path: imagePath,
       image_url: null,
       notes: notes.trim() || null
@@ -281,51 +292,59 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
     return (
       <div className="grid gap-3">
-        {orders.map((order) => (
-          <article key={order.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-            <div className="flex items-start gap-3">
-              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
-                {order.signedImageUrl ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedImage({
-                        url: order.signedImageUrl as string,
-                        label: `Order created ${formatCreatedAt(order.created_at)}`
-                      })
-                    }
-                    className="h-full w-full"
-                    aria-label="Open order image preview"
-                  >
-                    <img
-                      src={order.signedImageUrl}
-                      alt="Order item preview"
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  </button>
-                ) : (
-                  <span className="grid h-full w-full place-items-center text-slate-300">
-                    <ImagePlus size={24} />
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-hospital-ink">
-                  Order created {formatCreatedAt(order.created_at)}
-                </p>
-                <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  Created by: {order.created_by_name || "Aide"}
-                </p>
-                {order.notes && (
-                  <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold leading-5 text-slate-600">
-                    {order.notes}
+        {orders.map((order) => {
+          const created = formatCreatedAt(order.created_at);
+          const reqLabel = order.req_number?.trim() || "Not entered";
+
+          return (
+            <article key={order.id} className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+              <div className="flex items-start gap-3">
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+                  {order.signedImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedImage({
+                          url: order.signedImageUrl as string,
+                          label: `Order Req - ${reqLabel}`
+                        })
+                      }
+                      className="h-full w-full"
+                      aria-label="Open full-size order image"
+                    >
+                      <img
+                        src={order.signedImageUrl}
+                        alt="Order item preview"
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </button>
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-slate-300">
+                      <ImagePlus size={24} />
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-black leading-5 text-hospital-ink">Order Req - {reqLabel}</p>
+                  <p className="mt-2 text-sm font-bold leading-5 text-slate-600">
+                    Date: {created.date}
+                    {created.time ? ` Time: ${created.time}` : ""}
                   </p>
-                )}
+                  <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
+                    Created by: {order.created_by_name || "User"}
+                  </p>
+                  {order.notes && (
+                    <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2">
+                      <p className="text-xs font-extrabold text-slate-400">Notes:</p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-600">{order.notes}</p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
     );
   }, [loading, orders]);
@@ -355,12 +374,12 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           <section className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
             <div className="flex items-start gap-3">
               <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-pink-50 text-pink-700">
-                <ImagePlus size={22} />
+                <PackagePlus size={22} />
               </span>
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Take or upload a picture, or add notes if a picture is not available.
+                  Add a Req Number, picture, or notes for a department supply order.
                 </p>
               </div>
             </div>
@@ -369,7 +388,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               onClick={openCreateOrder}
               className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20"
             >
-              <Camera size={18} />
+              <PackagePlus size={18} />
               Create Order
             </button>
             {success && (
@@ -422,7 +441,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                   </p>
                   <h2 className="mt-1 text-2xl font-black text-hospital-ink">Create Order</h2>
                   <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                    Picture optional, notes optional, at least one is required.
+                    Picture, notes, and Req Number are optional, but at least one is required.
                   </p>
                 </div>
                 <button
@@ -455,7 +474,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     Take / Upload Picture
                   </label>
                   <p className="mt-2 text-center text-xs font-bold text-pink-900/70">
-                    Picture optional, strongly encouraged.
+                    Take a picture of your order 📸
                   </p>
 
                   {previewUrl && (
@@ -468,6 +487,16 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     </div>
                   )}
                 </div>
+
+                <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                  Req Number
+                  <input
+                    value={reqNumber}
+                    onChange={(event) => setReqNumber(event.target.value.slice(0, 80))}
+                    placeholder="Optional"
+                    className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-pink-300"
+                  />
+                </label>
 
                 <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                   Notes (optional)
@@ -514,7 +543,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 </div>
                 {!hasOrderContent && (
                   <p className="mt-2 text-center text-xs font-bold text-slate-500">
-                    Add a picture or note to create an order.
+                    Add a picture, note, or Req Number to create an order.
                   </p>
                 )}
               </form>
@@ -523,8 +552,14 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         )}
 
         {expandedImage && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-3 shadow-2xl">
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-slate-950/70 px-3 py-5"
+            onClick={() => setExpandedImage(null)}
+          >
+            <div
+              className="w-full max-w-3xl rounded-3xl bg-white p-3 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="mb-2 flex items-center justify-between gap-3 px-1">
                 <p className="text-sm font-black text-hospital-ink">{expandedImage.label}</p>
                 <button
@@ -539,7 +574,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               <img
                 src={expandedImage.url}
                 alt="Large order item preview"
-                className="max-h-[72vh] w-full rounded-2xl object-contain"
+                className="max-h-[82vh] w-full rounded-2xl object-contain"
               />
             </div>
           </div>

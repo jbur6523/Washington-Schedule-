@@ -83,10 +83,12 @@ Order Management is intentionally simple in this phase:
 - The create form opens separately in a mobile modal instead of loading inline by default.
 - Aide takes or uploads a picture when available.
 - Picture upload is optional but strongly encouraged.
+- Aide can enter an optional Req Number.
 - Aide can add optional notes, capped at 280 characters, and note-only orders are allowed when a picture is not available.
 - The app automatically stores the current Aide as the creator.
-- Submit is disabled until the user adds a picture or note.
-- Saved orders show image thumbnail when present, created date/time, creator display name, and notes.
+- Submit is disabled until the user adds a picture, note, or Req Number.
+- Saved orders show `Order Req - XXXXXX`, created date/time, creator display name, notes, and an image thumbnail when present.
+- Tapping an order thumbnail opens a full-size preview modal.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.

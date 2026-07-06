@@ -34,12 +34,13 @@ The Create Order form opens separately in a mobile modal. It supports:
 
 - take or upload a picture from a phone
 - picture upload is optional but strongly encouraged
+- optional `Req Number`
 - optional notes up to 280 characters
-- note-only orders are allowed when a picture is not available
+- note-only or Req-number-only orders are allowed when a picture is not available
 - automatic created-by attribution from the current Aide display name/staff profile
-- `Submit Order` is disabled until a picture is selected or notes are entered
-- saved order list with thumbnail, created date/time, creator, and notes
-- tapping a thumbnail opens a larger preview
+- `Submit Order` is disabled until a picture, note, or Req Number is entered
+- saved order history cards with `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, thumbnail, and notes
+- tapping a thumbnail opens a full-size preview modal so photographed order sheets can be read
 
 Admin users open the same modal form as Aides and can create/upload orders for beta testing. Admin users also see submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
 

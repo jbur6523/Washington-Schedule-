@@ -66,7 +66,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 ### Order Management
 
-- `department_orders`: Aide-created department supply order records. Each row stores department, creator staff profile, creator display name fallback, optional private image storage path, optional image URL fallback, notes capped at 280 characters, and created/updated timestamps. The table requires at least a photo path/URL or a note so blank orders are not saved.
+- `department_orders`: Aide/Admin-created department supply order records. Each row stores department, creator staff profile, creator display name fallback, optional Req Number, optional private image storage path, optional image URL fallback, notes capped at 280 characters, and created/updated timestamps. The table requires at least a Req Number, photo path/URL, or note so blank orders are not saved.
 - `department-order-images`: private Supabase Storage bucket for Order Management photos. Images are stored under department-scoped paths and displayed through signed URLs for thumbnails and larger previews.
 - Order Management creation is available to Aides and Admin users. RLS and storage policies use `staff_profiles.operations_role = aide`, active staff profiles, and department Admin checks to allow Aides/Admins to create/read orders and upload/read order images. Staff, Lead, Director, and Command Center users are not granted Order Management access unless explicitly added later.
 - Order Management notes must not contain patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, or staff emails.
