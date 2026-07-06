@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarCheck,
   CheckCircle2,
+  Crown,
   ClipboardCopy,
   ClipboardList,
   Clock3,
@@ -20,8 +21,17 @@ import {
   Users,
   Wind
 } from "lucide-react";
+import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import type { ScheduleEntry } from "@/data/mockSchedule";
+import {
+  adaptActiveSchedule,
+  type ActiveSchedule,
+  type ScheduleEntryRow,
+  type ScheduleVersionRow,
+  type UserScheduleOverrideRow
+} from "@/lib/schedule/supabase-schedule";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   currentShiftType,
@@ -55,6 +65,10 @@ const shiftStatusSelect = [
 ].join(", ");
 
 const activeRentalStatuses = ["active", "delivered"];
+const scheduleEntrySelect =
+  "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
+const scheduleOverrideSelect =
+  "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
 
 type ShiftChoice = {
   id: string;
@@ -275,6 +289,53 @@ function ProcedureCard({ icon, label, value }: { icon: ReactNode; label: string;
   );
 }
 
+function shortScheduleDateLabel(dateValue: string, timezone: string) {
+  const date = new Date(`${dateValue}T12:00:00`);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
+function directorScheduleShiftFromStatus(shiftType: ShiftStatusShiftType): "day" | "night" {
+  return shiftType === "night" ? "night" : "day";
+}
+
+function DirectorScheduleRow({ entry }: { entry: ScheduleEntry }) {
+  const isAide = entry.operationsRole === "aide";
+
+  return (
+    <div className={`rounded-2xl border px-3 py-2.5 ${isAide ? "border-pink-100 bg-pink-50/90" : "border-slate-100 bg-slate-50/90"}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex flex-wrap items-center gap-1.5 text-sm font-black leading-5 text-hospital-ink">
+            {entry.isShiftLead && (
+              <span
+                title="Shift Lead"
+                aria-label="Shift Lead"
+                className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-50 text-amber-700 shadow-sm"
+              >
+                <Crown size={12} />
+              </span>
+            )}
+            <span>{entry.staffName}</span>
+          </p>
+          <p className="mt-0.5 text-xs font-bold text-slate-500">{entry.shiftTime}</p>
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {entry.isShiftLead && (
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800">
+              Lead
+            </span>
+          )}
+          <StaffTypeBadge staffType={entry.staffType} compact isAide={isAide} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DirectorShiftStatusClient({
   authContext,
   timezone
@@ -302,6 +363,12 @@ export function DirectorShiftStatusClient({
   const [activeRentalCount, setActiveRentalCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const [shiftPreviewOpen, setShiftPreviewOpen] = useState(false);
+  const [schedulePreview, setSchedulePreview] = useState<ActiveSchedule | null>(null);
+  const [schedulePreviewLoading, setSchedulePreviewLoading] = useState(false);
+  const [schedulePreviewError, setSchedulePreviewError] = useState("");
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState("");
+  const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorScheduleShiftFromStatus(currentShift));
 
   const selectedChoice = shiftChoices.find((choice) => choice.id === selectedChoiceId) ?? shiftChoices[0];
   const isSelectedCurrentShift = selectedChoice.shiftDate === today && selectedChoice.shiftType === currentShift;
@@ -338,6 +405,85 @@ export function DirectorShiftStatusClient({
     setUpdates((data ?? []) as unknown as ShiftStatusUpdate[]);
   };
 
+  const loadSchedulePreview = async () => {
+    setSchedulePreviewLoading(true);
+    setSchedulePreviewError("");
+
+    const supabase = createClient();
+    const { data: department, error: departmentError } = await supabase
+      .from("departments")
+      .select("active_schedule_version_id")
+      .eq("id", authContext.departmentId)
+      .maybeSingle();
+
+    if (departmentError) {
+      setSchedulePreviewLoading(false);
+      setSchedulePreview(null);
+      setSchedulePreviewError("Could not load shift schedule. Please try again.");
+      return;
+    }
+
+    const activeVersionId = department?.active_schedule_version_id as string | null | undefined;
+
+    if (!activeVersionId) {
+      setSchedulePreviewLoading(false);
+      setSchedulePreview(null);
+      return;
+    }
+
+    const { data: version, error: versionError } = await supabase
+      .from("schedule_versions")
+      .select("*")
+      .eq("id", activeVersionId)
+      .eq("status", "published")
+      .maybeSingle();
+
+    if (versionError || !version) {
+      setSchedulePreviewLoading(false);
+      setSchedulePreview(null);
+      setSchedulePreviewError("Could not load shift schedule. Please try again.");
+      return;
+    }
+
+    const [{ data: entries, error: entriesError }, { data: overrides, error: overridesError }] = await Promise.all([
+      supabase
+        .from("schedule_entries")
+        .select(scheduleEntrySelect)
+        .eq("schedule_version_id", activeVersionId)
+        .order("shift_date", { ascending: true })
+        .order("shift_start", { ascending: true }),
+      supabase
+        .from("user_schedule_overrides")
+        .select(scheduleOverrideSelect)
+        .eq("department_id", authContext.departmentId)
+        .eq("is_active", true)
+        .order("shift_date", { ascending: true })
+    ]);
+
+    if (entriesError || overridesError) {
+      setSchedulePreviewLoading(false);
+      setSchedulePreview(null);
+      setSchedulePreviewError("Could not load shift schedule. Please try again.");
+      return;
+    }
+
+    const nextSchedule = adaptActiveSchedule(
+      version as ScheduleVersionRow,
+      (entries ?? []) as ScheduleEntryRow[],
+      [],
+      (overrides ?? []) as UserScheduleOverrideRow[]
+    );
+
+    setSchedulePreview(nextSchedule);
+    setSchedulePreviewLoading(false);
+
+    const uploadedDates = Array.from(new Set(((entries ?? []) as ScheduleEntryRow[]).map((entry) => entry.shift_date))).sort();
+    const preferredDate = latest?.shift_date ?? selectedChoice.shiftDate ?? today;
+    const nextSelectedDate = uploadedDates.includes(preferredDate) ? preferredDate : uploadedDates[0] ?? "";
+
+    setSelectedScheduleDate((current) => (current && uploadedDates.includes(current) ? current : nextSelectedDate));
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadShiftStatus();
@@ -347,6 +493,19 @@ export function DirectorShiftStatusClient({
     // loadShiftStatus intentionally reads current auth context only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authContext.departmentId]);
+
+  useEffect(() => {
+    if (!shiftPreviewOpen) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [shiftPreviewOpen]);
 
   const selectedUpdates = useMemo(
     () =>
@@ -373,6 +532,30 @@ export function DirectorShiftStatusClient({
   const selectedShiftLabel = shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType);
   const selectedShiftDate = formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone);
   const ShiftIcon = (latest?.shift_type ?? selectedChoice.shiftType) === "night" ? Moon : Sun;
+  const scheduleDateOptions = useMemo(
+    () => Array.from(new Set((schedulePreview?.entries ?? []).map((entry) => entry.shift_date))).sort(),
+    [schedulePreview?.entries]
+  );
+  const selectedScheduleDay = useMemo(
+    () => schedulePreview?.days.find((day) => day.dateValue === selectedScheduleDate) ?? null,
+    [schedulePreview?.days, selectedScheduleDate]
+  );
+  const selectedScheduleEntries = useMemo(
+    () =>
+      (selectedScheduleDay?.scheduled ?? [])
+        .filter((entry) => entry.shiftCategory === selectedScheduleShift)
+        .sort((left, right) => (left.shiftStart ?? "").localeCompare(right.shiftStart ?? "")),
+    [selectedScheduleDay?.scheduled, selectedScheduleShift]
+  );
+
+  const openShiftPreview = () => {
+    setSelectedScheduleShift(directorScheduleShiftFromStatus(latest?.shift_type ?? selectedChoice.shiftType));
+    setSelectedScheduleDate((current) => current || latest?.shift_date || selectedChoice.shiftDate || today);
+    setShiftPreviewOpen(true);
+    if (!schedulePreview) {
+      void loadSchedulePreview();
+    }
+  };
 
   const copyReport = async () => {
     if (!textReport) {
@@ -522,6 +705,15 @@ export function DirectorShiftStatusClient({
               <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
             </div>
           )}
+
+          <button
+            type="button"
+            onClick={openShiftPreview}
+            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
+          >
+            <CalendarCheck size={17} />
+            View Shift
+          </button>
         </section>
 
         {latest && (
@@ -596,6 +788,135 @@ export function DirectorShiftStatusClient({
               )}
             </section>
           </>
+        )}
+
+        {shiftPreviewOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="director-view-shift-title"
+              className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
+            >
+              <div className="border-b border-slate-100 px-4 py-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="director-view-shift-title" className="text-2xl font-black text-hospital-ink">
+                      View Shift
+                    </h2>
+                    <p className="mt-1 text-sm font-bold text-slate-500">Read-only schedule preview</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShiftPreviewOpen(false)}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  <label className="block">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Date</span>
+                    <select
+                      value={selectedScheduleDate}
+                      onChange={(event) => setSelectedScheduleDate(event.target.value)}
+                      disabled={scheduleDateOptions.length === 0}
+                      className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {scheduleDateOptions.map((dateValue) => (
+                        <option key={dateValue} value={dateValue}>
+                          {shortScheduleDateLabel(dateValue, timezone)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-100 bg-slate-50 p-1">
+                    {(["day", "night"] as const).map((shift) => (
+                      <button
+                        key={shift}
+                        type="button"
+                        onClick={() => setSelectedScheduleShift(shift)}
+                        className={`min-h-10 rounded-xl px-3 text-xs font-black ${
+                          selectedScheduleShift === shift
+                            ? "bg-cyan-700 text-white shadow-sm"
+                            : "bg-white text-slate-600"
+                        }`}
+                      >
+                        {shift === "day" ? "Day Shift" : "Night Shift"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="max-h-[48vh] overflow-y-auto px-4 py-4">
+                {schedulePreviewLoading && (
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                    Loading shift schedule...
+                  </p>
+                )}
+
+                {schedulePreviewError && (
+                  <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-4 text-center text-sm font-bold text-rose-700">
+                    {schedulePreviewError}
+                  </p>
+                )}
+
+                {!schedulePreviewLoading && !schedulePreviewError && scheduleDateOptions.length === 0 && (
+                  <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                    No uploaded schedule dates found.
+                  </p>
+                )}
+
+                {!schedulePreviewLoading && !schedulePreviewError && scheduleDateOptions.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-black text-hospital-ink">
+                        Scheduled: {selectedScheduleEntries.length}
+                      </p>
+                      <p className="text-xs font-bold text-slate-500">
+                        {selectedScheduleDate ? formatDateLabel(selectedScheduleDate, timezone) : ""}
+                      </p>
+                    </div>
+
+                    {selectedScheduleEntries.length === 0 ? (
+                      <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                        No scheduled staff found for this date and shift.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedScheduleEntries.map((entry) => (
+                          <DirectorScheduleRow key={entry.id ?? `${entry.staffName}-${entry.shiftTime}`} entry={entry} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => void loadSchedulePreview()}
+                  disabled={schedulePreviewLoading}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-black text-cyan-700 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShiftPreviewOpen(false)}
+                  className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-black text-white"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
+          </div>
         )}
 
         <p className="flex items-center justify-center gap-2 text-center text-xs font-bold text-slate-500">

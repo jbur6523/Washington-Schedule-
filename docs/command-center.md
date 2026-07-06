@@ -122,9 +122,12 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - Scheduled procedure detail cards for C-Sections, CABG, Bronchs, Sputum Inductions, and Other
 - Last updated freshness text and updated-by initials/display name
 - Compact shift selector with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
+- `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.
 - `View Text Report` and `Copy Summary` actions
 
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
+
+The `View Shift` modal uses the active uploaded schedule data. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions.
 
 A fuller `Next 3 Days` grid can be added later if the director needs a multi-shift board. For now, the compact selector keeps the mobile dashboard short while still allowing the director to check today, tomorrow, and the previous shift.
 
