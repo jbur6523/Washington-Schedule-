@@ -50,7 +50,7 @@ The Order Rental screen is intentionally compact:
 
 `Save Pending Delivery` remains disabled until required details are complete. Notes are optional, hidden by default, limited to 140 characters, and continue to show the `No patient information` reminder.
 
-The Rental Management dashboard combines the department operations title and Active Rentals summary stats into one overview card. It shows Active Rentals count, the oldest active rental delivered date in `MM/DD` format, and a `View Active Rentals` button. A compact `Rental Actions` card sits below the overview card with `Order Rental` and `Return Rental` buttons. The old separate Order Rental and Return Rental dashboard cards were removed to reduce scrolling. The `Pending` section only appears when there is at least one pending delivery or pending pickup. It does not show an empty 0-count pending box.
+The Rental Management dashboard combines the department operations title and rental summary stats into one overview card. It shows Active Rentals count, Pending count, and the oldest active rental delivered date in `MM/DD` format. Pending counts include both pending deliveries and pending pickups until the equipment is scanned in or scanned out. A compact `Rental Actions` card sits below the overview card with `Order Rental`, `Return Rental`, and `View Active Rentals` buttons. The old separate Order Rental and Return Rental dashboard cards were removed to reduce scrolling. The `Pending` section only appears when there is at least one pending delivery or pending pickup.
 
 ## Delivery Confirmation
 
@@ -180,9 +180,10 @@ The list is sorted by `checked_in_at` ascending so the equipment that has been i
 The Rental Management dashboard shows a compact summary only:
 
 - Active Rentals count
+- Pending count for pending deliveries and pending pickups
 - Oldest Rental `MM/DD` date
 
-The full Active Rentals details live on `/operations/rental-management/active`, opened by the `View Active Rentals` button.
+The full Active Rentals details live on `/operations/rental-management/active`, opened by the `View Active Rentals` button in `Rental Actions`.
 
 Each detail card shows:
 

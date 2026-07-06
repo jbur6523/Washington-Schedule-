@@ -878,6 +878,7 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const pendingPickups = activeRentals
     .filter((record) => isPickupCalledStatus(record.status))
     .sort((left, right) => new Date(left.pickup_requested_at ?? left.checked_in_at ?? 0).getTime() - new Date(right.pickup_requested_at ?? right.checked_in_at ?? 0).getTime());
+  const pendingRentalCount = pendingDeliveries.length + pendingPickups.length;
   const deliveryPendingRental = pendingRentalId
     ? pendingDeliveries.find((record) => record.id === pendingRentalId) ?? null
     : null;
@@ -2190,16 +2191,20 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
             <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
               BiPAP V60 rental tracking
             </p>
-            <div ref={activeRentalsRef} className="mt-4 grid grid-cols-2 gap-2">
-              <div className="flex min-h-[5.25rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-center">
-                <p className="text-2xl font-black leading-none text-hospital-ink">{activeRentals.length}</p>
-                <p className="mt-1.5 text-[11px] font-extrabold uppercase leading-3 tracking-normal text-slate-500">
-                  {activeRentals.length === 1 ? "Active Rental" : "Active Rentals"}
+            <div ref={activeRentalsRef} className="mt-4 grid grid-cols-3 gap-2">
+              <div className="flex min-h-[5rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-2 py-3 text-center">
+                <p className="text-xl font-black leading-none text-hospital-ink min-[390px]:text-2xl">{activeRentals.length}</p>
+                <p className="mt-1.5 text-[10px] font-extrabold uppercase leading-3 tracking-normal text-slate-500 min-[390px]:text-[11px]">
+                  Active Rentals
                 </p>
               </div>
-              <div className="flex min-h-[5.25rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3 text-center">
-                <p className="text-2xl font-black leading-none text-hospital-ink">{oldestRentalDateLabel}</p>
-                <p className="mt-1.5 text-[11px] font-extrabold uppercase leading-3 tracking-normal text-slate-500">Oldest Rental</p>
+              <div className="flex min-h-[5rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-2 py-3 text-center">
+                <p className="text-xl font-black leading-none text-hospital-ink min-[390px]:text-2xl">{pendingRentalCount}</p>
+                <p className="mt-1.5 text-[10px] font-extrabold uppercase leading-3 tracking-normal text-slate-500 min-[390px]:text-[11px]">Pending</p>
+              </div>
+              <div className="flex min-h-[5rem] flex-col items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 px-2 py-3 text-center">
+                <p className="text-xl font-black leading-none text-hospital-ink min-[390px]:text-2xl">{oldestRentalDateLabel}</p>
+                <p className="mt-1.5 text-[10px] font-extrabold uppercase leading-3 tracking-normal text-slate-500 min-[390px]:text-[11px]">Oldest Rental</p>
               </div>
             </div>
             {loading && <p className="mt-2 text-sm font-bold text-slate-500">Loading rentals...</p>}
