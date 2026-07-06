@@ -95,6 +95,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [todoSaveStatus, setTodoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [todoError, setTodoError] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  const [showClearCelebration, setShowClearCelebration] = useState(false);
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
@@ -103,6 +105,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const noteLength = notes.length;
   const createdByLabel = authContext.displayName || "Current user";
   const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
+  const todoHasUnsavedChanges = todoContent !== savedTodoContent;
+  const todoIsSaving = todoSaveStatus === "saving";
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -171,6 +175,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setSavedTodoContent(content);
     setTodoUpdatedAt(todo?.updated_at ?? null);
     setTodoUpdatedBy(todo?.updated_by_name ?? null);
+    setShowClearCelebration(false);
     setTodoLoading(false);
   }, [authContext.departmentId]);
 
@@ -258,19 +263,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     return () => window.clearTimeout(timer);
   }, [loadTodo, todoOpen]);
 
-  useEffect(() => {
-    if (!todoOpen || todoLoading || todoContent === savedTodoContent) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setTodoSaveStatus("saving");
-      void saveTodo(todoContent);
-    }, 700);
-
-    return () => window.clearTimeout(timer);
-  }, [saveTodo, savedTodoContent, todoContent, todoLoading, todoOpen]);
-
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
 
@@ -313,6 +305,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setTodoError("");
     setTodoSaveStatus("idle");
     setClearConfirmOpen(false);
+    setDiscardConfirmOpen(false);
+    setShowClearCelebration(false);
     setTodoOpen(true);
   };
 
@@ -326,20 +320,49 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setIsCreateOpen(false);
   };
 
-  const closeTodo = async () => {
-    if (todoSaveStatus === "saving") {
+  const closeTodo = () => {
+    if (todoIsSaving) {
       return;
-    }
-
-    if (todoContent !== savedTodoContent) {
-      const saved = await saveTodo(todoContent);
-      if (!saved) {
-        return;
-      }
     }
 
     setTodoOpen(false);
     setClearConfirmOpen(false);
+    setDiscardConfirmOpen(false);
+    setTodoError("");
+    setShowClearCelebration(false);
+  };
+
+  const requestCloseTodo = () => {
+    if (todoIsSaving) {
+      return;
+    }
+
+    if (todoHasUnsavedChanges) {
+      setDiscardConfirmOpen(true);
+      return;
+    }
+
+    closeTodo();
+  };
+
+  const discardTodoChanges = () => {
+    setTodoContent(savedTodoContent);
+    setDiscardConfirmOpen(false);
+    closeTodo();
+  };
+
+  const saveAndCloseTodo = async () => {
+    if (todoIsSaving) {
+      return;
+    }
+
+    const saved = await saveTodo(todoContent);
+    if (!saved) {
+      return;
+    }
+
+    setSuccess("To-do list saved.");
+    closeTodo();
   };
 
   const clearTodo = async () => {
@@ -352,7 +375,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setTodoContent("");
     setSavedTodoContent("");
     setClearConfirmOpen(false);
-    setSuccess("To-do list cleared.");
+    setShowClearCelebration(true);
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -561,7 +584,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             <button
               type="button"
               onClick={openTodo}
-              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-pink-200 bg-white px-4 text-sm font-extrabold text-pink-700 shadow-sm"
+              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-300 px-4 text-sm font-extrabold text-amber-950 shadow-md shadow-amber-900/10"
             >
               <ClipboardList size={18} />
               To-Do List
@@ -749,8 +772,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 </div>
                 <button
                   type="button"
-                  onClick={() => void closeTodo()}
-                  disabled={todoSaveStatus === "saving"}
+                  onClick={requestCloseTodo}
+                  disabled={todoIsSaving}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-50"
                   aria-label="Close to-do list"
                 >
@@ -770,9 +793,11 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     onChange={(event) => {
                       setTodoContent(event.target.value.slice(0, 5000));
                       setTodoError("");
+                      setTodoSaveStatus("idle");
+                      setShowClearCelebration(false);
                     }}
                     placeholder="Add supply/order tasks here..."
-                    className="mt-1 min-h-64 w-full rounded-2xl border border-pink-100 bg-pink-50/40 px-3 py-3 text-base font-bold leading-6 text-hospital-ink outline-none focus:border-pink-300 focus:bg-white"
+                    className="mt-1 min-h-64 w-full rounded-2xl border border-amber-100 bg-amber-50/40 px-3 py-3 text-base font-bold leading-6 text-hospital-ink outline-none focus:border-amber-300 focus:bg-white"
                   />
                   <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
                     <span>No patient information.</span>
@@ -790,16 +815,20 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 ) : (
                   <p>No updates yet.</p>
                 )}
-                <p className="mt-1 font-black text-slate-600">
-                  {todoSaveStatus === "saving"
-                    ? "Saving..."
-                    : todoSaveStatus === "saved"
-                      ? "Saved"
-                      : todoSaveStatus === "error"
-                        ? "Could not save"
-                        : ""}
-                </p>
+                {todoSaveStatus === "error" && (
+                  <p className="mt-1 font-black text-rose-600">Could not save</p>
+                )}
               </div>
+
+              {showClearCelebration && (
+                <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-black leading-6 text-emerald-800 shadow-sm">
+                  <p>Slaaayyyyyy 👏🏻</p>
+                  <p>Productivity MAXIMIZED ✨</p>
+                  <p>Clean slate activated ✨</p>
+                  <p>We are so back. 💅🏻</p>
+                  <p>Chaos reduced by 3% 💃🏻</p>
+                </div>
+              )}
 
               {todoError && (
                 <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
@@ -811,18 +840,22 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 <button
                   type="button"
                   onClick={() => setClearConfirmOpen(true)}
-                  disabled={todoLoading || todoSaveStatus === "saving" || !todoContent.trim()}
-                  className="min-h-12 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-sm font-extrabold text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={todoLoading || todoIsSaving || (!todoContent.trim() && !savedTodoContent.trim())}
+                  className="min-h-12 rounded-2xl bg-emerald-600 px-4 text-sm font-extrabold text-white shadow-md shadow-emerald-900/15 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Clear List
                 </button>
                 <button
                   type="button"
-                  onClick={() => void closeTodo()}
-                  disabled={todoSaveStatus === "saving"}
-                  className="min-h-12 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:opacity-50"
+                  onClick={() => (todoHasUnsavedChanges ? void saveAndCloseTodo() : closeTodo())}
+                  disabled={todoIsSaving}
+                  className={`min-h-12 rounded-2xl px-4 text-sm font-extrabold shadow-md disabled:opacity-50 ${
+                    todoHasUnsavedChanges
+                      ? "bg-pink-600 text-white shadow-pink-900/20"
+                      : "border border-slate-200 bg-white text-slate-700 shadow-slate-900/5"
+                  }`}
                 >
-                  Close
+                  {todoIsSaving ? "Saving..." : todoHasUnsavedChanges ? "Save" : "Close"}
                 </button>
               </div>
             </section>
@@ -832,7 +865,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 <section className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl">
                   <h3 className="text-xl font-black text-hospital-ink">Clear to-do list?</h3>
                   <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                    This will permanently clear the shared to-do list.
+                    This will clear the shared order to-do list.
                   </p>
                   <div className="mt-4 grid grid-cols-2 gap-2">
                     <button
@@ -845,10 +878,37 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     <button
                       type="button"
                       onClick={() => void clearTodo()}
-                      disabled={todoSaveStatus === "saving"}
-                      className="min-h-11 rounded-2xl bg-rose-600 px-3 text-sm font-extrabold text-white disabled:opacity-50"
+                      disabled={todoIsSaving}
+                      className="min-h-11 rounded-2xl bg-emerald-600 px-3 text-sm font-extrabold text-white disabled:opacity-50"
                     >
                       Yes, Clear List
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {discardConfirmOpen && (
+              <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4">
+                <section className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl">
+                  <h3 className="text-xl font-black text-hospital-ink">Discard unsaved changes?</h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                    Your changes have not been saved.
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDiscardConfirmOpen(false)}
+                      className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
+                    >
+                      Keep Editing
+                    </button>
+                    <button
+                      type="button"
+                      onClick={discardTodoChanges}
+                      className="min-h-11 rounded-2xl bg-slate-800 px-3 text-sm font-extrabold text-white"
+                    >
+                      Discard
                     </button>
                   </div>
                 </section>

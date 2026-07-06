@@ -27,7 +27,7 @@ This is display logic only. It does not change schedule times, employment type, 
 The main Order Management page stays compact:
 
 - one primary `Create Order` button
-- one secondary `To-Do List` button
+- one yellow `To-Do List` button
 - an `Order History` section for submitted orders
 - `No department orders yet.` when the history is empty
 
@@ -55,10 +55,13 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 
 - Admin and Aide users can view and edit the same shared note.
 - The modal contains one large text area for supply/order tasks.
-- Changes auto-save after typing pauses.
+- Changes save only when the user taps `Save`.
+- The bottom action says `Close` when there are no edits and changes to `Save` when the note has unsaved changes.
+- Using the top close button with unsaved changes shows a `Discard unsaved changes?` confirmation.
 - Metadata shows the last updated date/time and display name.
-- `Close` dismisses the modal without clearing the saved content.
-- `Clear List` requires confirmation before setting the shared note to blank.
+- `Close` dismisses the modal without changing saved content.
+- `Clear List` is a green completion action and requires confirmation before setting the shared note to blank.
+- After clearing, the modal shows the celebration message: `Slaaayyyyyy`, `Productivity MAXIMIZED`, `Clean slate activated`, `We are so back.`, and `Chaos reduced by 3%`.
 - The helper text says `No patient information.`
 
 ## Data Model
