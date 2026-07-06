@@ -156,9 +156,9 @@ export function CurrentShiftStatusSummary({
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              <MiniStatCard label="RTs Scheduled" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
-              <MiniStatCard label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
-              <MiniStatCard label="Vents" value={latest.vent_count} />
+              <MiniStatCard label="SCHEDULED" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
+              <MiniStatCard label="NEEDED" value={formatShiftStatusNumber(latest.rts_required)} />
+              <MiniStatCard label="VENTS" value={latest.vent_count} />
             </div>
           )}
         </div>
