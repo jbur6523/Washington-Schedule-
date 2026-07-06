@@ -114,10 +114,13 @@ The Director view is read-only and shows:
 - Other count and note
 - Last updated time
 - Updated by display name or initials
-- Today Day Shift, Today Night Shift, and Previous Shift selector
+- A combined header and shift selector card with Today Day Shift, Today Night Shift, Tomorrow Day Shift, Tomorrow Night Shift, and Previous Shift options
+- Visible `Refresh` and `Sign Out` controls
 - Optional text report with `Copy Report`
 
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
+
+A fuller `Next 3 Days` grid can be added later if the director needs a multi-shift board. For now, the compact selector keeps the mobile dashboard short while still allowing the director to check today, tomorrow, and the previous shift.
 
 ## Rental Attribution
 

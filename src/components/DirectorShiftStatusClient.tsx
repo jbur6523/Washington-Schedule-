@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ClipboardCopy, RefreshCw } from "lucide-react";
+import { Activity, ClipboardCopy, LogOut, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
@@ -45,6 +45,12 @@ type ShiftChoice = {
 function previousDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00`);
   date.setDate(date.getDate() - 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function nextDate(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00`);
+  date.setDate(date.getDate() + 1);
   return date.toISOString().slice(0, 10);
 }
 
@@ -101,7 +107,7 @@ function minutesSince(value: string) {
 function freshnessLabel(update: ShiftStatusUpdate | null, isSelectedCurrentShift: boolean) {
   if (!update) {
     return {
-      label: "No update submitted",
+      label: "Waiting for update",
       className: "border-slate-200 bg-slate-50 text-slate-600"
     };
   }
@@ -209,14 +215,17 @@ export function DirectorShiftStatusClient({
   timezone: string;
 }) {
   const today = useMemo(() => todayInTimezone(timezone), [timezone]);
+  const tomorrow = useMemo(() => nextDate(today), [today]);
   const currentShift = useMemo(() => currentShiftType(), []);
   const shiftChoices = useMemo<ShiftChoice[]>(
     () => [
       { id: "today-day", label: "Today Day Shift", shiftDate: today, shiftType: "day" },
       { id: "today-night", label: "Today Night Shift", shiftDate: today, shiftType: "night" },
+      { id: "tomorrow-day", label: "Tomorrow Day Shift", shiftDate: tomorrow, shiftType: "day" },
+      { id: "tomorrow-night", label: "Tomorrow Night Shift", shiftDate: tomorrow, shiftType: "night" },
       previousShiftChoice(today, currentShift)
     ],
-    [currentShift, today]
+    [currentShift, today, tomorrow]
   );
   const [selectedChoiceId, setSelectedChoiceId] = useState(() => (currentShift === "day" ? "today-day" : "today-night"));
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
@@ -286,6 +295,12 @@ export function DirectorShiftStatusClient({
     setCopyMessage("Report copied.");
   };
 
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
+
   return (
     <main className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-xl space-y-4">
@@ -298,59 +313,68 @@ export function DirectorShiftStatusClient({
                 Live department numbers from the Command Center
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => void loadShiftStatus()}
-              disabled={loading}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700 disabled:opacity-50"
-              aria-label="Refresh shift status"
-            >
-              <RefreshCw size={18} />
-            </button>
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => void loadShiftStatus()}
+                disabled={loading}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 text-xs font-black text-cyan-700 disabled:opacity-50"
+                aria-label="Refresh shift status"
+              >
+                <RefreshCw size={16} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 shadow-sm"
+              >
+                <LogOut size={16} />
+                Sign Out
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3">
-            <p className="text-sm font-black text-hospital-ink">
-              {shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType)} -{" "}
-              {formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone)}
-            </p>
-            <p className="mt-1 text-xs font-bold text-slate-600">
-              {latest
-                ? `Last updated ${formatReportTime(latest.updated_at, timezone)} by ${updatedByName(latest)}`
-                : "No update submitted for this shift yet."}
-            </p>
-            <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black ${freshness.className}`}>
-              {freshness.label}
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-black text-hospital-ink">
+                  {shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType)} -{" "}
+                  {formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone)}
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-600">
+                  {latest
+                    ? `Last updated ${formatReportTime(latest.updated_at, timezone)} by ${updatedByName(latest)}`
+                    : "Select another shift or refresh after Command Center update."}
+                </p>
+                <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black ${freshness.className}`}>
+                  {freshness.label}
+                </p>
+              </div>
+              <label className="block sm:min-w-48">
+                <span className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">View Shift</span>
+                <select
+                  value={selectedChoiceId}
+                  onChange={(event) => {
+                    setSelectedChoiceId(event.target.value);
+                    setReportOpen(false);
+                    setCopyMessage("");
+                  }}
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-black text-hospital-ink shadow-sm focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-100"
+                >
+                  {shiftChoices.map((choice) => (
+                    <option key={choice.id} value={choice.id}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             {showingFallback && (
               <p className="mt-2 text-xs font-bold text-amber-700">
                 No update was submitted for the selected shift. Showing the most recent Command Center update.
               </p>
             )}
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <h2 className="text-lg font-black text-hospital-ink">Current Shift</h2>
-          <div className="mt-3 grid gap-2">
-            {shiftChoices.map((choice) => (
-              <button
-                key={choice.id}
-                type="button"
-                onClick={() => {
-                  setSelectedChoiceId(choice.id);
-                  setReportOpen(false);
-                  setCopyMessage("");
-                }}
-                className={`min-h-11 rounded-2xl border px-3 text-sm font-black transition ${
-                  selectedChoiceId === choice.id
-                    ? "border-cyan-200 bg-cyan-700 text-white shadow-md shadow-cyan-900/20"
-                    : "border-slate-200 bg-white text-slate-600"
-                }`}
-              >
-                {choice.label}
-              </button>
-            ))}
           </div>
         </section>
 
