@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeftRight,
@@ -339,10 +339,12 @@ function AuthNotice({
 
 function ScheduleViewSummaryCard({
   shiftFilter,
-  onChange
+  onChange,
+  children
 }: {
   shiftFilter: ScheduleShiftFilter;
   onChange: (filter: ScheduleShiftFilter) => void;
+  children?: ReactNode;
 }) {
   return (
     <section className="rounded-3xl border border-slate-100 bg-white p-3 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_0_22px_rgba(139,92,246,0.28),0_18px_40px_rgba(15,23,42,0.18)] ring-1 ring-white">
@@ -371,6 +373,7 @@ function ScheduleViewSummaryCard({
             );
           })}
         </div>
+        {children}
       </div>
     </section>
   );
@@ -860,10 +863,11 @@ function ScheduleScreen({
           setShiftFilter(filter);
           setExpandedDay("");
         }}
-      />
-      {!developmentFallback && (
-        <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} shiftFilter={shiftFilter} />
-      )}
+      >
+        {!developmentFallback && (
+          <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} shiftFilter={shiftFilter} />
+        )}
+      </ScheduleViewSummaryCard>
       <MyStatusCard
         authContext={authContext}
         developmentFallback={developmentFallback}

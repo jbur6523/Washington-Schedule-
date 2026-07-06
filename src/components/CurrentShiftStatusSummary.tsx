@@ -85,56 +85,60 @@ export function CurrentShiftStatusSummary({
 
   if (error) {
     return (
-      <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Current Shift Status</p>
-        <p className="mt-2 text-sm font-bold text-slate-500">Shift status unavailable.</p>
-      </section>
+      <div className="mt-4 border-t border-violet-100 pt-4">
+        <p className="text-center text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
+        <p className="mt-2 text-center text-sm font-bold text-slate-500">Shift status unavailable.</p>
+      </div>
     );
   }
 
   return (
-    <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+    <div className="mt-4 border-t border-violet-100 pt-4">
+      <div className="text-center">
+        <p className="text-sm font-black uppercase tracking-wide text-cyan-700">Current Shift Status</p>
+        <p className="mt-1 text-xs font-bold text-slate-500">{shiftTypeLabel(selectedShiftType)}</p>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
           <Activity size={20} />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Current Shift Status</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{shiftTypeLabel(selectedShiftType)}</p>
 
+        <div className="min-w-0 flex-1">
           {!latest ? (
-            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
+            <p className="rounded-2xl border border-slate-100 bg-white/90 px-3 py-3 text-center text-sm font-bold text-slate-500 shadow-sm">
               No update submitted for this shift yet.
             </p>
           ) : (
-            <>
-              <div className="mt-2 grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
-                <div className="rounded-2xl bg-cyan-50 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
-                  <p>
-                    {latest.rts_on} on / {latest.rts_required} needed
-                  </p>
-                  <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
-                    {staffingStatus}
-                  </p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
-                  <p>{latest.vent_count}</p>
-                </div>
-                <div className="rounded-2xl bg-slate-50 px-3 py-2">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-500">BiPAPs</p>
-                  <p>{latest.bipap_count}</p>
-                </div>
+            <div className="grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
+              <div className="rounded-2xl bg-cyan-50 px-3 py-2">
+                <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
+                <p>
+                  {latest.rts_on} on / {latest.rts_required} needed
+                </p>
+                <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                  {staffingStatus}
+                </p>
               </div>
-              <p className="mt-2 text-xs font-bold text-slate-500">
-                Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}
-              </p>
-              <p className="mt-1 text-xs font-bold text-slate-500">Updated by: {updatedByName(latest)}</p>
-            </>
+              <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
+                <p>{latest.vent_count}</p>
+              </div>
+              <div className="rounded-2xl bg-white/90 px-3 py-2 shadow-sm">
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">BiPAPs</p>
+                <p>{latest.bipap_count}</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
-    </section>
+
+      {latest && (
+        <div className="mt-3 text-center text-xs font-bold text-slate-500">
+          <p>Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}</p>
+          <p className="mt-1">Updated by: {updatedByName(latest)}</p>
+        </div>
+      )}
+    </div>
   );
 }
