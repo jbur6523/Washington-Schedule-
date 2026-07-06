@@ -27,6 +27,7 @@ This is display logic only. It does not change schedule times, employment type, 
 The main Order Management page stays compact:
 
 - one primary `Create Order` button
+- one secondary `To-Do List` button
 - an `Order History` section for submitted orders
 - `No department orders yet.` when the history is empty
 
@@ -48,11 +49,25 @@ Notes show the helper text:
 
 `No patient information.`
 
+## To-Do List
+
+The `To-Do List` button opens a modal shared by all Order Management users in the department.
+
+- Admin and Aide users can view and edit the same shared note.
+- The modal contains one large text area for supply/order tasks.
+- Changes auto-save after typing pauses.
+- Metadata shows the last updated date/time and display name.
+- `Close` dismisses the modal without clearing the saved content.
+- `Clear List` requires confirmation before setting the shared note to blank.
+- The helper text says `No patient information.`
+
 ## Data Model
 
 Orders are stored in `department_orders`.
 
 Images are stored in the private `department-order-images` Supabase Storage bucket. The app stores the storage path and displays thumbnails/previews with signed URLs.
+
+The shared To-Do List is stored in `order_management_todo` as one department-scoped row. RLS allows Admin and Aide users to read and update the shared note.
 
 The workflow must not store or display:
 

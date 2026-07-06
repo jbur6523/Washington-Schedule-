@@ -80,6 +80,7 @@ Aide users see an additional `Order Management` card on the Aide Dashboard. Admi
 Order Management is intentionally simple in this phase:
 
 - The main page shows a single `Create Order` action and submitted order history.
+- The `To-Do List` action opens a shared department order-notes modal for Admin and Aide users.
 - The create form opens separately in a mobile modal instead of loading inline by default.
 - Aide takes or uploads a picture when available.
 - Picture upload is optional but strongly encouraged.
@@ -89,6 +90,7 @@ Order Management is intentionally simple in this phase:
 - Submit is disabled until the user adds a picture, note, or Req Number.
 - Saved orders show `Order Req - XXXXXX`, created date/time, creator display name, notes, and an image thumbnail when present.
 - Tapping an order thumbnail opens a full-size preview modal.
+- The shared To-Do List auto-saves edits, shows last updated metadata, and requires confirmation before clearing.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.

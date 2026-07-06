@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ChevronDown, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ClipboardList, ImagePlus, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,6 +26,16 @@ type DepartmentOrderRow = {
 
 type OrderWithPreview = DepartmentOrderRow & {
   signedImageUrl: string | null;
+};
+
+type OrderTodoRow = {
+  id: string;
+  department_id: string;
+  content: string;
+  updated_by_staff_profile_id: string | null;
+  updated_by_name: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type OrderManagementClientProps = {
@@ -76,11 +86,23 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
   const [expandedNotesOrderId, setExpandedNotesOrderId] = useState<string | null>(null);
+  const [todoOpen, setTodoOpen] = useState(false);
+  const [todoContent, setTodoContent] = useState("");
+  const [savedTodoContent, setSavedTodoContent] = useState("");
+  const [todoUpdatedAt, setTodoUpdatedAt] = useState<string | null>(null);
+  const [todoUpdatedBy, setTodoUpdatedBy] = useState<string | null>(null);
+  const [todoLoading, setTodoLoading] = useState(false);
+  const [todoSaveStatus, setTodoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [todoError, setTodoError] = useState("");
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
   const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim()) || Boolean(reqNumber.trim());
   const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && !saving;
+  const noteLength = notes.length;
+  const createdByLabel = authContext.displayName || "Current user";
+  const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -124,6 +146,77 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setLoading(false);
   }, [authContext.departmentId]);
 
+  const loadTodo = useCallback(async () => {
+    setTodoLoading(true);
+    setTodoError("");
+    setTodoSaveStatus("idle");
+
+    const supabase = createClient();
+    const { data, error: loadError } = await supabase
+      .from("order_management_todo")
+      .select("id, department_id, content, updated_by_staff_profile_id, updated_by_name, created_at, updated_at")
+      .eq("department_id", authContext.departmentId)
+      .maybeSingle();
+
+    if (loadError) {
+      setTodoLoading(false);
+      setTodoError("Could not load the to-do list.");
+      return;
+    }
+
+    const todo = data as OrderTodoRow | null;
+    const content = todo?.content ?? "";
+
+    setTodoContent(content);
+    setSavedTodoContent(content);
+    setTodoUpdatedAt(todo?.updated_at ?? null);
+    setTodoUpdatedBy(todo?.updated_by_name ?? null);
+    setTodoLoading(false);
+  }, [authContext.departmentId]);
+
+  const saveTodo = useCallback(
+    async (content: string) => {
+      if (!authContext.staffProfileId) {
+        setTodoSaveStatus("error");
+        setTodoError("Your account is not linked to a staff profile.");
+        return false;
+      }
+
+      setTodoSaveStatus("saving");
+      setTodoError("");
+
+      const supabase = createClient();
+      const { data, error: saveError } = await supabase
+        .from("order_management_todo")
+        .upsert(
+          {
+            department_id: authContext.departmentId,
+            content,
+            updated_by_staff_profile_id: authContext.staffProfileId,
+            updated_by_name: createdByLabel
+          },
+          { onConflict: "department_id" }
+        )
+        .select("id, department_id, content, updated_by_staff_profile_id, updated_by_name, created_at, updated_at")
+        .single();
+
+      if (saveError) {
+        setTodoSaveStatus("error");
+        setTodoError("Could not save the to-do list.");
+        return false;
+      }
+
+      const todo = data as OrderTodoRow;
+
+      setSavedTodoContent(todo.content);
+      setTodoUpdatedAt(todo.updated_at);
+      setTodoUpdatedBy(todo.updated_by_name);
+      setTodoSaveStatus("saved");
+      return true;
+    },
+    [authContext.departmentId, authContext.staffProfileId, createdByLabel]
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadOrders();
@@ -141,7 +234,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   }, []);
 
   useEffect(() => {
-    if (!isCreateOpen) {
+    if (!isCreateOpen && !todoOpen && !expandedImage) {
       return;
     }
 
@@ -151,11 +244,32 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [isCreateOpen]);
+  }, [expandedImage, isCreateOpen, todoOpen]);
 
-  const noteLength = notes.length;
-  const createdByLabel = authContext.displayName || "Current user";
-  const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
+  useEffect(() => {
+    if (!todoOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadTodo();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadTodo, todoOpen]);
+
+  useEffect(() => {
+    if (!todoOpen || todoLoading || todoContent === savedTodoContent) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setTodoSaveStatus("saving");
+      void saveTodo(todoContent);
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [saveTodo, savedTodoContent, todoContent, todoLoading, todoOpen]);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -195,6 +309,13 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setIsCreateOpen(true);
   };
 
+  const openTodo = () => {
+    setTodoError("");
+    setTodoSaveStatus("idle");
+    setClearConfirmOpen(false);
+    setTodoOpen(true);
+  };
+
   const closeCreateOrder = () => {
     if (saving) {
       return;
@@ -203,6 +324,35 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     resetForm();
     setError("");
     setIsCreateOpen(false);
+  };
+
+  const closeTodo = async () => {
+    if (todoSaveStatus === "saving") {
+      return;
+    }
+
+    if (todoContent !== savedTodoContent) {
+      const saved = await saveTodo(todoContent);
+      if (!saved) {
+        return;
+      }
+    }
+
+    setTodoOpen(false);
+    setClearConfirmOpen(false);
+  };
+
+  const clearTodo = async () => {
+    const saved = await saveTodo("");
+
+    if (!saved) {
+      return;
+    }
+
+    setTodoContent("");
+    setSavedTodoContent("");
+    setClearConfirmOpen(false);
+    setSuccess("To-do list cleared.");
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -408,6 +558,14 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               <PackagePlus size={18} />
               Create Order
             </button>
+            <button
+              type="button"
+              onClick={openTodo}
+              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-pink-200 bg-white px-4 text-sm font-extrabold text-pink-700 shadow-sm"
+            >
+              <ClipboardList size={18} />
+              To-Do List
+            </button>
             {success && (
               <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
                 {success}
@@ -565,6 +723,137 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 )}
               </form>
             </div>
+          </div>
+        )}
+
+        {todoOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/60 px-4 py-4 sm:items-center">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="order-todo-title"
+              className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-4 shadow-2xl sm:rounded-3xl"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-pink-700">
+                    <ClipboardList size={14} />
+                    Shared Notes
+                  </p>
+                  <h2 id="order-todo-title" className="mt-1 text-2xl font-black text-hospital-ink">
+                    To-Do List
+                  </h2>
+                  <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                    Shared department order notes.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void closeTodo()}
+                  disabled={todoSaveStatus === "saving"}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 disabled:opacity-50"
+                  aria-label="Close to-do list"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {todoLoading ? (
+                <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  Loading to-do list...
+                </p>
+              ) : (
+                <label className="mt-4 block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">To-Do List</span>
+                  <textarea
+                    value={todoContent}
+                    onChange={(event) => {
+                      setTodoContent(event.target.value.slice(0, 5000));
+                      setTodoError("");
+                    }}
+                    placeholder="Add supply/order tasks here..."
+                    className="mt-1 min-h-64 w-full rounded-2xl border border-pink-100 bg-pink-50/40 px-3 py-3 text-base font-bold leading-6 text-hospital-ink outline-none focus:border-pink-300 focus:bg-white"
+                  />
+                  <span className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
+                    <span>No patient information.</span>
+                    <span>{todoContent.length}/5000</span>
+                  </span>
+                </label>
+              )}
+
+              <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold text-slate-500">
+                {todoUpdatedAt ? (
+                  <>
+                    <p>Last updated: {formatCreatedAt(todoUpdatedAt).date} {formatCreatedAt(todoUpdatedAt).time}</p>
+                    <p className="mt-1">Updated by: {todoUpdatedBy || "User"}</p>
+                  </>
+                ) : (
+                  <p>No updates yet.</p>
+                )}
+                <p className="mt-1 font-black text-slate-600">
+                  {todoSaveStatus === "saving"
+                    ? "Saving..."
+                    : todoSaveStatus === "saved"
+                      ? "Saved"
+                      : todoSaveStatus === "error"
+                        ? "Could not save"
+                        : ""}
+                </p>
+              </div>
+
+              {todoError && (
+                <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                  {todoError}
+                </p>
+              )}
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setClearConfirmOpen(true)}
+                  disabled={todoLoading || todoSaveStatus === "saving" || !todoContent.trim()}
+                  className="min-h-12 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-sm font-extrabold text-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Clear List
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void closeTodo()}
+                  disabled={todoSaveStatus === "saving"}
+                  className="min-h-12 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:opacity-50"
+                >
+                  Close
+                </button>
+              </div>
+            </section>
+
+            {clearConfirmOpen && (
+              <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4">
+                <section className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl">
+                  <h3 className="text-xl font-black text-hospital-ink">Clear to-do list?</h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                    This will permanently clear the shared to-do list.
+                  </p>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClearConfirmOpen(false)}
+                      className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void clearTodo()}
+                      disabled={todoSaveStatus === "saving"}
+                      className="min-h-11 rounded-2xl bg-rose-600 px-3 text-sm font-extrabold text-white disabled:opacity-50"
+                    >
+                      Yes, Clear List
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </div>
         )}
 
