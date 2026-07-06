@@ -83,6 +83,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
   const todoClearFallbackIndexRef = useRef(-1);
+  const todoClearCelebrationTimerRef = useRef<number | null>(null);
   const [orders, setOrders] = useState<OrderWithPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -105,7 +106,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [todoError, setTodoError] = useState("");
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
-  const [todoClearToast, setTodoClearToast] = useState("");
+  const [clearCelebrationMessage, setClearCelebrationMessage] = useState("");
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
@@ -272,16 +273,12 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   }, [loadTodo, todoOpen]);
 
   useEffect(() => {
-    if (!todoClearToast) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setTodoClearToast("");
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
-  }, [todoClearToast]);
+    return () => {
+      if (todoClearCelebrationTimerRef.current !== null) {
+        window.clearTimeout(todoClearCelebrationTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -326,6 +323,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setTodoSaveStatus("idle");
     setClearConfirmOpen(false);
     setDiscardConfirmOpen(false);
+    setClearCelebrationMessage("");
     setTodoOpen(true);
   };
 
@@ -348,6 +346,12 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setClearConfirmOpen(false);
     setDiscardConfirmOpen(false);
     setTodoError("");
+    setClearCelebrationMessage("");
+
+    if (todoClearCelebrationTimerRef.current !== null) {
+      window.clearTimeout(todoClearCelebrationTimerRef.current);
+      todoClearCelebrationTimerRef.current = null;
+    }
   };
 
   const requestCloseTodo = () => {
@@ -387,14 +391,13 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     const saved = await saveTodo("");
 
     if (!saved) {
+      setTodoError("Could not clear to-do list. Please try again.");
       return;
     }
 
     setTodoContent("");
     setSavedTodoContent("");
-    setClearConfirmOpen(false);
     setDiscardConfirmOpen(false);
-    setTodoOpen(false);
 
     let nextMessageIndex = 0;
 
@@ -408,7 +411,18 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       todoClearFallbackIndexRef.current = nextMessageIndex;
     }
 
-    setTodoClearToast(todoClearMessages[nextMessageIndex]);
+    setClearCelebrationMessage(todoClearMessages[nextMessageIndex]);
+
+    if (todoClearCelebrationTimerRef.current !== null) {
+      window.clearTimeout(todoClearCelebrationTimerRef.current);
+    }
+
+    todoClearCelebrationTimerRef.current = window.setTimeout(() => {
+      setClearConfirmOpen(false);
+      setClearCelebrationMessage("");
+      setTodoOpen(false);
+      todoClearCelebrationTimerRef.current = null;
+    }, 2500);
   };
 
   const createOrder = async (event: FormEvent<HTMLFormElement>) => {
@@ -884,28 +898,47 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
             {clearConfirmOpen && (
               <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-950/45 px-4">
-                <section className="w-full max-w-sm rounded-3xl bg-white p-4 shadow-2xl">
-                  <h3 className="text-xl font-black text-hospital-ink">Clear to-do list?</h3>
-                  <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                    This will clear the shared order to-do list.
-                  </p>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setClearConfirmOpen(false)}
-                      className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void clearTodo()}
-                      disabled={todoIsSaving}
-                      className="min-h-11 rounded-2xl bg-emerald-600 px-3 text-sm font-extrabold text-white disabled:opacity-50"
-                    >
-                      Yes, Clear List
-                    </button>
-                  </div>
+                <section
+                  className={`w-full max-w-sm rounded-3xl p-5 text-center shadow-2xl ${
+                    clearCelebrationMessage
+                      ? "border border-emerald-100 bg-emerald-50"
+                      : "bg-white"
+                  }`}
+                >
+                  {clearCelebrationMessage ? (
+                    <div className="flex min-h-32 flex-col items-center justify-center gap-3">
+                      <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                        <PackageCheck size={24} />
+                      </div>
+                      <p className="text-3xl font-black leading-tight text-emerald-800">
+                        {clearCelebrationMessage}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-black text-hospital-ink">Clear to-do list?</h3>
+                      <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                        This will clear the shared order to-do list.
+                      </p>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setClearConfirmOpen(false)}
+                          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void clearTodo()}
+                          disabled={todoIsSaving}
+                          className="min-h-11 rounded-2xl bg-emerald-600 px-3 text-sm font-extrabold text-white disabled:opacity-50"
+                        >
+                          Yes, Clear List
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </section>
               </div>
             )}
@@ -936,18 +969,6 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 </section>
               </div>
             )}
-          </div>
-        )}
-
-        {todoClearToast && (
-          <div
-            role="status"
-            aria-live="polite"
-            className="fixed inset-x-0 bottom-5 z-[80] flex justify-center px-4"
-          >
-            <div className="max-w-sm rounded-3xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-center text-sm font-black text-emerald-800 shadow-2xl shadow-emerald-900/15">
-              {todoClearToast}
-            </div>
           </div>
         )}
 
