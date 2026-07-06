@@ -84,15 +84,19 @@ The `Updated By` selector shows active Lead users only. It excludes Staff, Aide,
 
 The manual initials/name fallback is secondary and should be used only when the appropriate Lead cannot be selected from the dropdown. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
-## Normal Schedule Summary
+## Normal Schedule Current Shift Status
 
-Authenticated department users can see a compact Schedule summary when a shift update exists:
+Authenticated department users see a compact `Current Shift Status` card directly under the Schedule page `Shift View` selector. This replaces the older main-header summary row for Scheduled, Available, Coverage, Short Shifts, and Switch Requests.
+
+The card comes from Command Center shift updates and shows:
 
 - RTs on / needed
 - Vent count
+- BiPAP count
 - Last updated time
+- Updated by, when available
 
-The normal Schedule summary intentionally omits procedure counts.
+The card respects the selected Schedule shift view when possible. `Day` shows today's Day Shift update, `Night` shows today's Night Shift update, and `All` shows the current shift based on current time. If no update has been submitted for the selected shift, the card shows a single no-update empty state. The normal Schedule page intentionally omits procedure counts.
 
 ## Director Shift Status
 

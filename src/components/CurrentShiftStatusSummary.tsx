@@ -4,8 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { currentShiftType, formatShiftStatusTime, latestShiftStatus, todayInTimezone } from "@/lib/shift-status/utils";
+import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import {
+  currentShiftType,
+  formatShiftStatusTime,
+  latestShiftStatus,
+  shiftTypeLabel,
+  todayInTimezone,
+  updatedByName
+} from "@/lib/shift-status/utils";
 
 const shiftStatusSelect = [
   "id",
@@ -25,20 +32,27 @@ const shiftStatusSelect = [
   "updated_by_staff_profile_id",
   "updated_by_name",
   "created_at",
-  "updated_at"
+  "updated_at",
+  "staff_profiles(display_name)"
 ].join(", ");
 
 export function CurrentShiftStatusSummary({
   authContext,
-  timezone
+  timezone,
+  shiftFilter
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
+  shiftFilter: "day" | "night" | "all";
 }) {
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [error, setError] = useState("");
   const today = useMemo(() => todayInTimezone(timezone), [timezone]);
-  const shiftType = useMemo(() => currentShiftType(), []);
+  const currentShift = useMemo(() => currentShiftType(), []);
+  const selectedShiftType = useMemo<ShiftStatusShiftType>(
+    () => (shiftFilter === "all" ? currentShift : shiftFilter),
+    [currentShift, shiftFilter]
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -48,7 +62,7 @@ export function CurrentShiftStatusSummary({
         .select(shiftStatusSelect)
         .eq("department_id", authContext.departmentId)
         .eq("shift_date", today)
-        .eq("shift_type", shiftType)
+        .eq("shift_type", selectedShiftType)
         .order("updated_at", { ascending: false })
         .limit(3);
 
@@ -63,12 +77,19 @@ export function CurrentShiftStatusSummary({
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [authContext.departmentId, shiftType, today]);
+  }, [authContext.departmentId, selectedShiftType, today]);
 
   const latest = latestShiftStatus(updates);
+  const shortBy = latest ? Math.max(0, latest.rts_required - latest.rts_on) : 0;
+  const staffingStatus = shortBy > 0 ? `Short by ${shortBy}` : "Fully staffed";
 
-  if (error || !latest) {
-    return null;
+  if (error) {
+    return (
+      <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Current Shift Status</p>
+        <p className="mt-2 text-sm font-bold text-slate-500">Shift status unavailable.</p>
+      </section>
+    );
   }
 
   return (
@@ -79,19 +100,39 @@ export function CurrentShiftStatusSummary({
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Current Shift Status</p>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm font-black text-hospital-ink">
-            <div className="rounded-2xl bg-cyan-50 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
-              <p>{latest.rts_on} on / {latest.rts_required} needed</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-3 py-2">
-              <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
-              <p>{latest.vent_count}</p>
-            </div>
-          </div>
-          <p className="mt-2 text-xs font-bold text-slate-500">
-            Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}
-          </p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{shiftTypeLabel(selectedShiftType)}</p>
+
+          {!latest ? (
+            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
+              No update submitted for this shift yet.
+            </p>
+          ) : (
+            <>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-sm font-black text-hospital-ink">
+                <div className="rounded-2xl bg-cyan-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-cyan-700">RTs</p>
+                  <p>
+                    {latest.rts_on} on / {latest.rts_required} needed
+                  </p>
+                  <p className={`mt-1 text-[11px] ${shortBy > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                    {staffingStatus}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500">Vents</p>
+                  <p>{latest.vent_count}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wide text-slate-500">BiPAPs</p>
+                  <p>{latest.bipap_count}</p>
+                </div>
+              </div>
+              <p className="mt-2 text-xs font-bold text-slate-500">
+                Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}
+              </p>
+              <p className="mt-1 text-xs font-bold text-slate-500">Updated by: {updatedByName(latest)}</p>
+            </>
+          )}
         </div>
       </div>
     </section>

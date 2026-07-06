@@ -53,7 +53,7 @@ import {
   type ShiftType,
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
-import { allShiftPosts, fallbackSchedule, type ScheduleDay, type ShiftPost } from "@/data/mockSchedule";
+import { allShiftPosts, fallbackSchedule, type ShiftPost } from "@/data/mockSchedule";
 
 const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
   { id: "day", label: "Day" },
@@ -337,51 +337,13 @@ function AuthNotice({
   );
 }
 
-function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "night" }) {
-  if (item.shiftCategory) {
-    return item.shiftCategory;
-  }
-
-  return item.shiftTime.startsWith("18:") || item.shiftTime.startsWith("19:") ? "night" : "day";
-}
-
-function getShiftMatches(filter: ScheduleShiftFilter) {
-  return (item: { shiftTime: string; shiftCategory?: "day" | "night" }) => {
-    if (filter === "all") {
-      return true;
-    }
-
-    return getShiftCategory(item) === filter;
-  };
-}
-
 function ScheduleViewSummaryCard({
-  schedule,
-  selectedDay,
   shiftFilter,
   onChange
 }: {
-  schedule: ScheduleDay[];
-  selectedDay: string;
   shiftFilter: ScheduleShiftFilter;
   onChange: (filter: ScheduleShiftFilter) => void;
 }) {
-  const day = schedule.find((scheduleDay) => scheduleDay.day === selectedDay) ?? schedule[0];
-  const matchesShift = getShiftMatches(shiftFilter);
-  const scheduled = day.scheduled.filter(matchesShift).length;
-  const available = day.available.filter(matchesShift).length;
-  const coverageRequests = day.shiftPosts.filter(
-    (post) => matchesShift(post) && post.status === "Coverage Requested"
-  ).length;
-  const shortShiftPosts = day.shiftPosts.filter(
-    (post) => matchesShift(post) && post.status === "Short Shift"
-  ).length;
-  const switchRequests = day.shiftPosts.filter(
-    (post) => matchesShift(post) && post.status === "Switch Requested"
-  ).length;
-  const shiftLabel =
-    shiftFilter === "all" ? "All Shifts" : shiftFilter === "day" ? "Day Shift" : "Night Shift";
-
   return (
     <section className="rounded-3xl border border-slate-100 bg-white p-3 shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_0_22px_rgba(139,92,246,0.28),0_18px_40px_rgba(15,23,42,0.18)] ring-1 ring-white">
       <div className="rounded-[1.35rem] border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-2 shadow-[0_0_18px_rgba(139,92,246,0.2)]">
@@ -409,29 +371,6 @@ function ScheduleViewSummaryCard({
             );
           })}
         </div>
-      </div>
-
-      <div className="mt-3 border-t border-slate-100 pt-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="min-w-0 text-lg font-black leading-6 text-hospital-ink">
-            {day.day} {shiftLabel} Summary
-          </h2>
-          {shortShiftPosts > 0 && <StatusChip status="Short Shift" compact />}
-        </div>
-      </div>
-      <div className="mt-2 grid grid-cols-5 gap-1.5 text-center">
-        {[
-          ["Scheduled", scheduled],
-          ["Available", available],
-          ["Coverage", coverageRequests],
-          ["Short shifts", shortShiftPosts],
-          ["Switch requests", switchRequests]
-        ].map(([labelText, value]) => (
-          <div key={labelText} className="rounded-xl bg-slate-50 px-1.5 py-2">
-            <p className="text-base font-black leading-none text-hospital-ink">{value}</p>
-            <p className="mt-1 text-[9px] font-extrabold uppercase leading-3 text-slate-400">{labelText}</p>
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -798,9 +737,6 @@ function ScheduleScreen({
 
     return () => window.clearTimeout(timer);
   }, [days, defaultDay, selectedDay, showPastDays, todayValue, visibleDays]);
-  const effectiveSelectedDay =
-    visibleDays.some((day) => day.day === selectedDay) ? selectedDay : defaultDay;
-
   if (loading) {
     return (
       <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
@@ -919,8 +855,6 @@ function ScheduleScreen({
   return (
     <div className="space-y-3">
       <ScheduleViewSummaryCard
-        schedule={days}
-        selectedDay={effectiveSelectedDay}
         shiftFilter={shiftFilter}
         onChange={(filter) => {
           setShiftFilter(filter);
@@ -928,7 +862,7 @@ function ScheduleScreen({
         }}
       />
       {!developmentFallback && (
-        <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} />
+        <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} shiftFilter={shiftFilter} />
       )}
       <MyStatusCard
         authContext={authContext}

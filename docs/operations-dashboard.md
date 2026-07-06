@@ -100,7 +100,7 @@ Return Rental is active and opens the existing dedicated pickup request workflow
 
 ## Shift Status Updates
 
-Command Center and Lead/Admin users can save shift updates. Normal Schedule users see only the compact current shift summary: RTs on/needed, vent count, and last updated time. The Director Shift Status page shows the full read-only staffing, equipment, scheduled procedure counts, and freshness indicator.
+Command Center and Lead/Admin users can save shift updates. Normal Schedule users see `Current Shift Status` directly under the Schedule page Shift View selector instead of the old Scheduled, Available, Coverage, Short Shifts, and Switch Requests summary row. The compact card shows RTs on/needed, vent count, BiPAP count, last updated time, and updated-by attribution when available. Day and Night views show today's matching shift update; All uses the current shift based on current time. The Director Shift Status page shows the full read-only staffing, equipment, scheduled procedure counts, and freshness indicator.
 
 ## Go-Live Note
 
