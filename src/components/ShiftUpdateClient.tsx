@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, Baby, Bed, ClipboardList, Droplet, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
+import { Activity, Baby, Bed, ClipboardList, Droplet, Heart, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
@@ -314,7 +314,7 @@ export function ShiftUpdateClient({
                 onChange={(value) => setForm((current) => ({ ...current, vaginalDeliveryCount: value }))}
               />
               <ProcedureInputTile
-                icon={<Activity size={18} />}
+                icon={<Heart size={18} />}
                 label="CABG"
                 value={form.cabgCount}
                 onChange={(value) => setForm((current) => ({ ...current, cabgCount: value }))}
