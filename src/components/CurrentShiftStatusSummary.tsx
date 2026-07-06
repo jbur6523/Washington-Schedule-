@@ -69,9 +69,9 @@ function MiniStatCard({
       : "border-slate-100 bg-white/95 text-slate-500 shadow-sm";
 
   return (
-    <div className={`flex min-h-[4.75rem] flex-col items-center justify-center rounded-2xl border px-2.5 py-2 text-center ${toneClass}`}>
-      <p className="text-[10px] font-extrabold uppercase leading-3 tracking-normal">{label}</p>
-      <p className="mt-1 text-xl font-black leading-none text-hospital-ink">{value}</p>
+    <div className={`flex min-h-[3.8rem] flex-col items-center justify-center rounded-2xl border px-2 py-1.5 text-center ${toneClass}`}>
+      <p className="text-[9px] font-extrabold uppercase leading-[0.7rem] tracking-normal">{label}</p>
+      <p className="mt-0.5 text-lg font-black leading-none text-hospital-ink">{value}</p>
     </div>
   );
 }
@@ -125,8 +125,8 @@ export function CurrentShiftStatusSummary({
 
   if (error) {
     return (
-      <div className="mt-3 border-t border-violet-100 pt-3">
-        <p className="text-center text-sm font-black uppercase tracking-normal text-cyan-700">
+      <div className="mt-2.5 border-t border-violet-100 pt-2.5">
+        <p className="text-center text-xs font-black uppercase tracking-normal text-cyan-700">
           Current Shift Status {"\u00b7"} No Update
         </p>
         <p className="mt-2 text-center text-sm font-bold text-slate-500">Shift status unavailable.</p>
@@ -135,23 +135,23 @@ export function CurrentShiftStatusSummary({
   }
 
   return (
-    <div className="mt-3 border-t border-violet-100 pt-3">
-      <div className="flex flex-wrap items-center justify-center gap-2 text-center">
-        <p className="text-sm font-black uppercase tracking-normal text-cyan-700">Current Shift Status</p>
-        <span className="text-sm font-black uppercase tracking-normal text-cyan-700">{"\u00b7"}</span>
-        <span className={`rounded-full border px-3 py-1 text-xs font-black uppercase tracking-normal ${statusClass}`}>
+    <div className="mt-2.5 border-t border-violet-100 pt-2.5">
+      <div className="flex flex-wrap items-center justify-center gap-1.5 text-center">
+        <p className="text-xs font-black uppercase tracking-normal text-cyan-700">Current Shift Status</p>
+        <span className="text-xs font-black uppercase tracking-normal text-cyan-700">{"\u00b7"}</span>
+        <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-black uppercase tracking-normal ${statusClass}`}>
           {statusLabel}
         </span>
       </div>
 
-      <div className="mt-3 flex items-stretch gap-2.5">
-        <span className="grid w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
-          <Activity size={20} />
+      <div className="mt-2 flex items-stretch gap-2">
+        <span className="grid w-10 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+          <Activity size={18} />
         </span>
 
         <div className="min-w-0 flex-1">
           {!latest ? (
-            <p className="rounded-2xl border border-slate-100 bg-white/90 px-3 py-3 text-center text-sm font-bold text-slate-500 shadow-sm">
+            <p className="rounded-2xl border border-slate-100 bg-white/90 px-3 py-2.5 text-center text-sm font-bold text-slate-500 shadow-sm">
               No update has been submitted for the current shift yet.
             </p>
           ) : (
@@ -165,8 +165,9 @@ export function CurrentShiftStatusSummary({
       </div>
 
       {latest && (
-        <div className="mt-2.5 text-center text-xs font-bold leading-5 text-slate-500">
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[11px] font-bold leading-4 text-slate-500">
           <p>Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}</p>
+          <span className="hidden text-slate-300 min-[390px]:inline">{"\u00b7"}</span>
           <p>Updated by: {updatedByName(latest)}</p>
         </div>
       )}
