@@ -29,6 +29,18 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+const labelClass = "block min-h-5 text-[11px] font-extrabold uppercase leading-5 tracking-wide text-slate-500";
+const controlClass =
+  "mt-1 h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+const cyanControlClass =
+  "mt-1 h-12 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2";
+
+function isValidManualUpdater(value: string) {
+  const normalized = value.trim().toLowerCase();
+  return Boolean(normalized && normalized !== "sputum" && !normalized.includes("command center"));
+}
+
 export function ShiftUpdateClient({
   authContext,
   timezone
@@ -50,8 +62,8 @@ export function ShiftUpdateClient({
     sputumInductionCount: "0",
     otherProcedureCount: "0",
     otherProcedureNote: "",
-    updatedByStaffProfileId: authContext.staffProfileId ?? "",
-    updatedByName: authContext.staffProfileId ? "" : authContext.displayName
+    updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
+    updatedByName: ""
   }));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -65,6 +77,8 @@ export function ShiftUpdateClient({
         .select("id, display_name")
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)
+        .eq("assigned_role", "lead")
+        .eq("operations_role", "none")
         .order("display_name", { ascending: true });
 
       setStaffOptions((data ?? []) as ShiftStatusStaffOption[]);
@@ -77,14 +91,23 @@ export function ShiftUpdateClient({
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
     [form.updatedByStaffProfileId, staffOptions]
   );
-  const updatedByName = selectedStaff?.display_name ?? form.updatedByName.trim();
-  const canSave = Boolean(form.shiftDate && form.shiftType && form.rtsOn !== "" && form.rtsRequired !== "" && updatedByName);
+  const manualUpdatedByName = isValidManualUpdater(form.updatedByName) ? form.updatedByName.trim() : "";
+  const updatedByName = selectedStaff?.display_name ?? manualUpdatedByName;
+  const canSave = Boolean(
+    form.shiftDate &&
+      form.shiftType &&
+      form.rtsOn !== "" &&
+      form.rtsRequired !== "" &&
+      form.ventCount !== "" &&
+      form.bipapCount !== "" &&
+      updatedByName
+  );
 
   const saveShiftUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!canSave) {
-      setError("Shift date, shift, RT counts, and updated-by attribution are required.");
+      setError("Select lead and enter shift numbers to continue.");
       return;
     }
 
@@ -141,22 +164,22 @@ export function ShiftUpdateClient({
         <form onSubmit={saveShiftUpdate} className="space-y-4">
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Shift</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className={twoColumnGridClass}>
               <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date</span>
+                <span className={labelClass}>Date</span>
                 <input
                   type="date"
                   value={form.shiftDate}
                   onChange={(event) => setForm((current) => ({ ...current, shiftDate: event.target.value }))}
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  className={controlClass}
                 />
               </label>
               <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Shift</span>
+                <span className={labelClass}>Shift</span>
                 <select
                   value={form.shiftType}
                   onChange={(event) => setForm((current) => ({ ...current, shiftType: event.target.value as ShiftStatusShiftType }))}
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  className={controlClass}
                 >
                   <option value="day">{shiftTypeLabel("day")}</option>
                   <option value="night">{shiftTypeLabel("night")}</option>
@@ -167,20 +190,20 @@ export function ShiftUpdateClient({
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Staffing</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className={twoColumnGridClass}>
               {[
-                ["rtsOn", "Number of RTs on"],
-                ["rtsRequired", "Number of RTs required"]
+                ["rtsOn", "RTs On"],
+                ["rtsRequired", "RTs Required"]
               ].map(([key, label]) => (
                 <label key={key} className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
+                  <span className={labelClass}>{label}</span>
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
                     value={form[key as keyof ShiftUpdateForm]}
                     onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className={controlClass}
                   />
                 </label>
               ))}
@@ -189,20 +212,20 @@ export function ShiftUpdateClient({
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Equipment Counts</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className={twoColumnGridClass}>
               {[
-                ["ventCount", "Vent count"],
-                ["bipapCount", "BiPAP count"]
+                ["ventCount", "Vents"],
+                ["bipapCount", "BiPAPs"]
               ].map(([key, label]) => (
                 <label key={key} className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
+                  <span className={labelClass}>{label}</span>
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
                     value={form[key as keyof ShiftUpdateForm]}
                     onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className={controlClass}
                   />
                 </label>
               ))}
@@ -211,35 +234,35 @@ export function ShiftUpdateClient({
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Scheduled Procedures</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className={twoColumnGridClass}>
               {[
-                ["cSectionCount", "C-Section count"],
-                ["cabgCount", "CABG count"],
-                ["bronchCount", "Bronch count"],
-                ["sputumInductionCount", "Sputum Induction count"],
-                ["otherProcedureCount", "Other count"]
+                ["cSectionCount", "C-Sections"],
+                ["cabgCount", "CABG"],
+                ["bronchCount", "Bronch"],
+                ["sputumInductionCount", "Sputum Inductions"],
+                ["otherProcedureCount", "Other"]
               ].map(([key, label]) => (
                 <label key={key} className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
+                  <span className={labelClass}>{label}</span>
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
                     value={form[key as keyof ShiftUpdateForm]}
                     onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className={controlClass}
                   />
                 </label>
               ))}
             </div>
             <label className="mt-3 block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Other procedure note</span>
+              <span className={labelClass}>Other Note</span>
               <input
                 value={form.otherProcedureNote}
                 onChange={(event) => setForm((current) => ({ ...current, otherProcedureNote: event.target.value.slice(0, 100) }))}
                 maxLength={100}
                 placeholder="Optional"
-                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                className={controlClass}
               />
               <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
             </label>
@@ -248,13 +271,13 @@ export function ShiftUpdateClient({
           <section className="rounded-3xl border border-cyan-100 bg-cyan-50/80 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Updated By</h2>
             <label className="mt-3 block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Select staff member</span>
+              <span className={labelClass}>Select Lead</span>
               <select
                 value={form.updatedByStaffProfileId}
                 onChange={(event) => setForm((current) => ({ ...current, updatedByStaffProfileId: event.target.value, updatedByName: "" }))}
-                className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                className={cyanControlClass}
               >
-                <option value="">Select staff</option>
+                <option value="">Select lead updating shift</option>
                 {staffOptions.map((staff) => (
                   <option key={staff.id} value={staff.id}>
                     {staff.display_name}
@@ -262,14 +285,24 @@ export function ShiftUpdateClient({
                 ))}
               </select>
             </label>
-            <label className="mt-3 block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Or enter name/initials</span>
+            {staffOptions.length === 0 && (
+              <p className="mt-2 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                No lead users found. Please update lead access first.
+              </p>
+            )}
+            <label className="mt-3 block border-t border-cyan-100 pt-3">
+              <span className={labelClass}>Or enter initials/name</span>
               <input
                 value={form.updatedByName}
                 onChange={(event) => setForm((current) => ({ ...current, updatedByStaffProfileId: "", updatedByName: event.target.value.slice(0, 120) }))}
                 placeholder="Initials or name"
-                className="mt-1 min-h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                className={cyanControlClass}
               />
+              {form.updatedByName && !manualUpdatedByName && (
+                <span className="mt-1 block text-xs font-bold text-amber-700">
+                  Enter a lead name or initials, not the shared Command Center account.
+                </span>
+              )}
             </label>
           </section>
 
@@ -283,6 +316,11 @@ export function ShiftUpdateClient({
           >
             {saving ? "Saving..." : "Save Shift Update"}
           </button>
+          {!canSave && (
+            <p className="text-center text-xs font-bold text-slate-500">
+              Select lead and enter shift numbers to continue.
+            </p>
+          )}
         </form>
       </div>
     </main>

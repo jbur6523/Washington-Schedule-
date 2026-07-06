@@ -74,9 +74,11 @@ Fields:
 - Sputum Induction count
 - Other count
 - Optional other procedure note, max 100 characters
-- Updated by staff selector or entered name/initials
+- Updated by lead selector, with a secondary manual initials/name fallback
 
-The command phone must not use the shared account as the visible updated-by person.
+The `Updated By` selector shows active Lead users only. It excludes Staff, Aide, Director, Command Center, inactive users, and the shared `Respiratory Command Center` account. The command phone must not use the shared account as the visible updated-by person.
+
+The manual initials/name fallback is secondary and should be used only when the appropriate Lead cannot be selected from the dropdown. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
 ## Normal Schedule Summary
 
