@@ -190,6 +190,15 @@ function displayInitials(name: string) {
     return name || "Unknown";
   }
 
+  const trimmed = name.trim();
+  if (/^[A-Z]{2,5}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (!trimmed.includes(" ") && trimmed.length <= 4) {
+    return trimmed.toUpperCase();
+  }
+
   const parts = name
     .replace(/[^a-zA-Z\s-]/g, "")
     .split(/\s+/)
