@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, Baby, Bed, ClipboardList, Droplet, MoreHorizontal, Stethoscope, User, Wind } from "lucide-react";
+import { Activity, Baby, Bed, ClipboardList, Droplet, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
@@ -33,9 +33,9 @@ function numberValue(value: string) {
 
 const labelClass = "block min-h-4 text-[11px] font-extrabold uppercase leading-4 tracking-normal text-slate-500";
 const controlClass =
-  "mt-1 h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+  "mt-1 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100";
 const cyanControlClass =
-  "mt-1 h-11 w-full rounded-2xl border border-cyan-100 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100";
+  "mt-1 h-11 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100";
 const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2";
 
 function isValidManualUpdater(value: string) {
@@ -71,7 +71,7 @@ function CountInputCard({
         inputMode={inputMode}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-2 h-11 w-full rounded-2xl border border-cyan-100 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+        className="mt-2 h-11 w-full rounded-2xl border border-cyan-200 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
       />
     </label>
   );
@@ -102,7 +102,7 @@ function ProcedureInputTile({
         inputMode="numeric"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-10 w-full rounded-2xl border border-slate-200 bg-white px-2 text-center text-2xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-cyan-300 focus:ring-2 focus:ring-cyan-100"
+        className="mt-3 h-10 w-full rounded-2xl border border-slate-300 bg-white px-2 text-center text-2xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
       />
     </label>
   );
