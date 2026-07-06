@@ -79,11 +79,12 @@ Aide users see an additional `Order Management` card on the Aide Dashboard. Admi
 
 Order Management is intentionally simple in this phase:
 
-- Aide takes or uploads a picture.
-- Aide can add optional notes, capped at 280 characters.
+- Aide takes or uploads a picture when available.
+- Picture upload is optional but strongly encouraged.
+- Aide can add optional notes, capped at 280 characters, and note-only orders are allowed when a picture is not available.
 - The app automatically stores the current Aide as the creator.
-- Saved orders show image thumbnail, created date/time, creator display name, and notes.
-- Admin can view submitted orders and thumbnails for monitoring, but Aides remain the users who create orders.
+- Saved orders show image thumbnail when present, created date/time, creator display name, and notes.
+- Admin can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring, but Aides remain the users who create orders.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.
 

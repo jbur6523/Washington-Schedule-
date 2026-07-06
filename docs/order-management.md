@@ -1,6 +1,6 @@
 # Order Management
 
-Order Management is a simple Aide-only supply order tool for WHHS RT Schedule.
+Order Management is a simple department supply order tool for WHHS RT Schedule. Aides create orders; Admin can monitor submitted orders during beta testing.
 
 ## Access
 
@@ -27,11 +27,14 @@ This is display logic only. It does not change schedule times, employment type, 
 The first version supports:
 
 - take or upload a picture from a phone
+- picture upload is optional but strongly encouraged
 - optional notes up to 280 characters
+- note-only orders are allowed when a picture is not available
 - automatic created-by attribution from the current Aide display name/staff profile
 - saved order list with thumbnail, created date/time, creator, and notes
+- tapping a thumbnail opens a larger preview
 
-Admin users see submitted orders and thumbnails for beta testing and monitoring. Admin users do not see the create-order form and cannot upload order images through this workflow.
+Admin users see total submitted order count, submitted orders, thumbnails, created date/time, creator display names, and notes for beta testing and monitoring. Admin users do not see the create-order form and cannot upload order images through this workflow.
 
 Notes show the helper text:
 
@@ -41,7 +44,7 @@ Notes show the helper text:
 
 Orders are stored in `department_orders`.
 
-Images are stored in the private `department-order-images` Supabase Storage bucket. The app stores the storage path and displays thumbnails with signed URLs.
+Images are stored in the private `department-order-images` Supabase Storage bucket. The app stores the storage path and displays thumbnails/previews with signed URLs.
 
 The workflow must not store or display:
 

@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ImagePlus, PackageCheck } from "lucide-react";
+import { ArrowLeft, Camera, ImagePlus, PackageCheck, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -64,9 +64,12 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
 
+  const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.operationsRole === "aide";
-  const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && Boolean(selectedFile) && !saving;
+  const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim());
+  const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && !saving;
 
   const loadOrders = useCallback(async () => {
     setLoading(true);
@@ -128,7 +131,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   const noteLength = notes.length;
   const createdByLabel = authContext.displayName || "Current aide";
-  const backLabel = authContext.role === "admin" ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
+  const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
@@ -174,8 +177,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       return;
     }
 
-    if (!selectedFile) {
-      setError("Add a picture before creating the order.");
+    if (!selectedFile && !notes.trim()) {
+      setError("Add a picture or note before creating the order.");
       return;
     }
 
@@ -185,18 +188,22 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
     const supabase = createClient();
     const orderId = crypto.randomUUID();
-    const imagePath = `${authContext.departmentId}/${orderId}/${Date.now()}-${safeFileName(selectedFile.name)}`;
-    const { error: uploadError } = await supabase.storage
-      .from(orderImageBucket)
-      .upload(imagePath, selectedFile, {
-        contentType: selectedFile.type || "image/jpeg",
-        upsert: false
-      });
+    let imagePath: string | null = null;
 
-    if (uploadError) {
-      setSaving(false);
-      setError("Image upload failed. Please try again.");
-      return;
+    if (selectedFile) {
+      imagePath = `${authContext.departmentId}/${orderId}/${Date.now()}-${safeFileName(selectedFile.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from(orderImageBucket)
+        .upload(imagePath, selectedFile, {
+          contentType: selectedFile.type || "image/jpeg",
+          upsert: false
+        });
+
+      if (uploadError) {
+        setSaving(false);
+        setError("Image upload failed. Please try again.");
+        return;
+      }
     }
 
     const { error: insertError } = await supabase.from("department_orders").insert({
@@ -210,7 +217,9 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     });
 
     if (insertError) {
-      await supabase.storage.from(orderImageBucket).remove([imagePath]);
+      if (imagePath) {
+        await supabase.storage.from(orderImageBucket).remove([imagePath]);
+      }
       setSaving(false);
       setError("Unable to create order.");
       return;
@@ -246,12 +255,24 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             <div className="flex items-start gap-3">
               <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
                 {order.signedImageUrl ? (
-                  <img
-                    src={order.signedImageUrl}
-                    alt="Order item preview"
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedImage({
+                        url: order.signedImageUrl as string,
+                        label: `Order created ${formatCreatedAt(order.created_at)}`
+                      })
+                    }
+                    className="h-full w-full"
+                    aria-label="Open order image preview"
+                  >
+                    <img
+                      src={order.signedImageUrl}
+                      alt="Order item preview"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </button>
                 ) : (
                   <span className="grid h-full w-full place-items-center text-slate-300">
                     <ImagePlus size={24} />
@@ -284,13 +305,13 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-wide text-pink-700">
             <PackageCheck size={15} />
-            {authContext.role === "admin" ? "Admin View" : "Aide Tool"}
+            {isAdminView ? "Admin View" : "Aide View"}
           </p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Order Management</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            {authContext.role === "admin"
+            {isAdminView
               ? "Monitor department supply orders."
-              : "Create and track department supply orders."}
+              : "Create department supply orders."}
           </p>
           <Link
             href="/operations"
@@ -302,91 +323,98 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
         </section>
 
         {canCreateOrders ? (
-        <form onSubmit={createOrder} className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
-          <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
-          <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-            Take or upload a picture, then add optional order notes.
-          </p>
+          <form onSubmit={createOrder} className="rounded-3xl border border-pink-100 bg-white/95 p-4 shadow-soft">
+            <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+              Take or upload a picture, or add notes if a picture is not available.
+            </p>
 
-          <div className="mt-4 rounded-3xl border border-pink-100 bg-pink-50/70 p-3">
-            <input
-              ref={fileInputRef}
-              id="order-picture"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileChange}
-              className="sr-only"
-            />
-            <label
-              htmlFor="order-picture"
-              className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-sm shadow-pink-900/20"
-            >
-              <Camera size={18} />
-              Take / Upload Picture
+            <div className="mt-4 rounded-3xl border border-pink-100 bg-pink-50/70 p-3">
+              <input
+                ref={fileInputRef}
+                id="order-picture"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="sr-only"
+              />
+              <label
+                htmlFor="order-picture"
+                className="inline-flex min-h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-sm shadow-pink-900/20"
+              >
+                <Camera size={18} />
+                Take / Upload Picture
+              </label>
+              <p className="mt-2 text-center text-xs font-bold text-pink-900/70">
+                Picture optional, strongly encouraged.
+              </p>
+
+              {previewUrl && (
+                <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-2xl border border-white bg-white">
+                  <img
+                    src={previewUrl}
+                    alt="Selected order item preview"
+                    className="h-full w-full object-cover"
+                  />
+                </div>
+              )}
+            </div>
+
+            <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+              Notes (optional)
+              <textarea
+                value={notes}
+                onChange={(event) => setNotes(event.target.value.slice(0, maxNoteLength))}
+                maxLength={maxNoteLength}
+                placeholder="Add order details..."
+                className="min-h-28 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-pink-300"
+              />
             </label>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className="text-xs font-bold text-slate-500">No patient information.</p>
+              <span className="text-xs font-bold text-slate-400">{noteLength}/{maxNoteLength}</span>
+            </div>
 
-            {previewUrl && (
-              <div className="relative mt-3 aspect-[4/3] overflow-hidden rounded-2xl border border-white bg-white">
-                <img
-                  src={previewUrl}
-                  alt="Selected order item preview"
-                  className="h-full w-full object-cover"
-                />
-              </div>
+            <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Created by</p>
+              <p className="text-sm font-extrabold text-hospital-ink">{createdByLabel}</p>
+            </div>
+
+            {error && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+                {error}
+              </p>
             )}
-          </div>
+            {success && (
+              <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+                {success}
+              </p>
+            )}
 
-          <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-            Notes (optional)
-            <textarea
-              value={notes}
-              onChange={(event) => setNotes(event.target.value.slice(0, maxNoteLength))}
-              maxLength={maxNoteLength}
-              placeholder="Add order details..."
-              className="min-h-28 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold normal-case tracking-normal text-hospital-ink outline-none focus:border-pink-300"
-            />
-          </label>
-          <div className="mt-2 flex items-center justify-between gap-3">
-            <p className="text-xs font-bold text-slate-500">No patient information.</p>
-            <span className="text-xs font-bold text-slate-400">{noteLength}/{maxNoteLength}</span>
-          </div>
-
-          <div className="mt-4 rounded-2xl bg-slate-50 px-3 py-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Created by</p>
-            <p className="text-sm font-extrabold text-hospital-ink">{createdByLabel}</p>
-          </div>
-
-          {error && (
-            <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-              {success}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={!canCreate}
-            className="mt-4 min-h-12 w-full rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-          >
-            {saving ? "Creating..." : "Create Order"}
-          </button>
-          {!selectedFile && (
-            <p className="mt-2 text-center text-xs font-bold text-slate-500">
-              Add a picture to create an order.
-            </p>
-          )}
-        </form>
+            <button
+              type="submit"
+              disabled={!canCreate}
+              className="mt-4 min-h-12 w-full rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+            >
+              {saving ? "Creating..." : "Create Order"}
+            </button>
+            {!hasOrderContent && (
+              <p className="mt-2 text-center text-xs font-bold text-slate-500">
+                Add a picture or note to create an order.
+              </p>
+            )}
+          </form>
         ) : (
           <section className="rounded-3xl border border-cyan-100 bg-cyan-50/70 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Admin monitoring view</h2>
             <p className="mt-1 text-sm font-bold leading-6 text-cyan-900">
               Aides create orders. Admin can review submitted orders and thumbnails during beta testing.
             </p>
+            <div className="mt-4 rounded-2xl bg-white px-3 py-3">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Submitted orders</p>
+              <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{orders.length}</p>
+            </div>
             {error && (
               <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
                 {error}
@@ -397,13 +425,38 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
         <section className="space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-xl font-black text-hospital-ink">Orders</h2>
+            <h2 className="text-xl font-black text-hospital-ink">
+              {isAdminView ? "Submitted Orders" : "Recent Orders"}
+            </h2>
             <span className="rounded-full bg-pink-50 px-2.5 py-1 text-xs font-extrabold text-pink-700">
               {orders.length}
             </span>
           </div>
           {ordersMarkup}
         </section>
+
+        {expandedImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6">
+            <div className="w-full max-w-lg rounded-3xl bg-white p-3 shadow-2xl">
+              <div className="mb-2 flex items-center justify-between gap-3 px-1">
+                <p className="text-sm font-black text-hospital-ink">{expandedImage.label}</p>
+                <button
+                  type="button"
+                  onClick={() => setExpandedImage(null)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600"
+                  aria-label="Close image preview"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <img
+                src={expandedImage.url}
+                alt="Large order item preview"
+                className="max-h-[72vh] w-full rounded-2xl object-contain"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
