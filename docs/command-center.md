@@ -24,6 +24,7 @@ Command Center can access only:
 
 - Shift Update
 - Rental Management
+- ICU Snapshot
 - Short Shift Alert
 
 Because this is a shared login, actions must ask who completed the work. Visible history and exports should show the selected staff member or initials, not `sputum`.
@@ -42,6 +43,18 @@ Director sessions can also use `Keep me signed in on this device`; restored sess
 
 Director access is read-only. It can view Shift Status numbers but cannot edit shift updates, use Command Center workflows, manage rentals, access Admin tools, use personal staff tools, open Staff Directory, or access Gossip by default.
 
+### ICU Command Center
+
+`staff_profiles.operations_role = icu_command_center`
+
+Seeded username:
+
+- `ventilator`
+
+The ICU Command Center account routes directly to `/icu-command-center` after login. It can add, update, and discontinue active ICU respiratory device entries. It does not use the normal Schedule tab, bottom navigation, Gossip, Staff Directory, or personal staff tools.
+
+ICU Command Center entries are operational bed/device snapshots only. Do not enter patient names, MRNs, DOBs, diagnoses, or patient-identifying notes.
+
 ## Command Center Menu
 
 Route:
@@ -52,6 +65,7 @@ Menu cards:
 
 - `Shift Update`: update current shift staffing and equipment numbers.
 - `Rental Management`: order rentals, confirm delivery, and manage pickups.
+- `ICU Snapshot`: view ICU respiratory devices and settings in read-only mode.
 - `Short Shift Alert`: post a staffing need for the current shift.
 
 The Command Center route is mobile-first and does not render the normal app bottom nav.
@@ -129,6 +143,8 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 If the selected current shift has no submitted update, the page can show the most recent Command Center update with a clear fallback label. It does not allow editing.
 
 The `Respiratory Directory` modal reads `staff_profiles` and includes active and inactive staff sorted by display name. It shows display names and phone numbers only, with phone numbers linked by `tel:` when present. It does not show usernames, auth IDs, email addresses, edit buttons, or admin controls.
+
+The Director page includes an `ICU Snapshot` section with Vents, HFNC, BiPAP, and Critical Vents. `View All` opens a read-only ICU detail report with bed, device, airway when relevant, settings, Critical Vent flag, and last updated time. Director users cannot edit ICU entries.
 
 The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule, then the closest future uploaded date, then the previous shift date if no future date exists. The date dropdown shows the previous shift date when uploaded, the current date when uploaded, and all future uploaded dates. Older past uploaded dates stay out of the dropdown and can be entered manually as `MMDDYY`; if no uploaded schedule exists for that date, the modal shows `No uploaded schedule found for this date.` The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only, and the staff list has extra bottom padding so the final card remains fully visible when scrolled.
 

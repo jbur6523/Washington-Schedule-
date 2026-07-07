@@ -8,6 +8,10 @@ export function isDirector(context: Pick<AuthenticatedUserContext, "operationsRo
   return context.operationsRole === "director";
 }
 
+export function isIcuCommandCenter(context: Pick<AuthenticatedUserContext, "operationsRole">) {
+  return context.operationsRole === "icu_command_center";
+}
+
 export function hasOperationsDashboardAccess(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
   return context.role === "admin" || context.role === "lead" || context.operationsRole === "aide";
 }
@@ -26,4 +30,12 @@ export function canManageShiftStatus(context: Pick<AuthenticatedUserContext, "ro
 
 export function canViewDirectorShiftStatus(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
   return context.role === "admin" || context.role === "lead" || isDirector(context);
+}
+
+export function canEditIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
+  return context.role === "admin" || isIcuCommandCenter(context);
+}
+
+export function canViewIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
+  return canEditIcuCommandCenter(context) || isDirector(context) || isCommandCenter(context);
 }

@@ -65,6 +65,7 @@ When a persisted session is restored, the app still runs role/access routing:
 
 - `command_center` routes to `/command-center`
 - `director` routes to `/director/shift-status`
+- `icu_command_center` routes to `/icu-command-center`
 - Admin, Lead, Aide, and Staff use the normal app landing behavior
 
 Persistent login does not weaken authorization. Staff still cannot access Command Center, Rental Management, or Director routes unless their role allows it.
@@ -78,6 +79,10 @@ Do not use the command-center account on shared public devices outside the depar
 ## Director Access
 
 The Director login, `aloha`, can remain signed in on the director's trusted device. It restores to the read-only Shift Status page and does not gain Command Center, Rental Management, Admin, Staff Directory, or Gossip access.
+
+## ICU Command Center
+
+The shared ICU Command Center login, `ventilator`, can remain signed in on the ICU command device. It restores to `/icu-command-center` and is limited to operational ICU respiratory device/settings tracking.
 
 ## Account Reset Impact
 

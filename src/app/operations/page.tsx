@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
+import { Activity, ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
 import { hasOperationsDashboardAccess, hasOrderManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -115,6 +115,31 @@ export default async function OperationsDashboardPage() {
               className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-pink-600 px-4 text-sm font-extrabold text-white shadow-md shadow-pink-900/20"
             >
               Open Order Management
+            </Link>
+          </section>
+        )}
+
+        {auth.context.role === "admin" && (
+          <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <Activity size={22} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-hospital-ink">ICU Command Center</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  Track ICU respiratory devices and settings.
+                </p>
+                <span className="mt-2 inline-flex rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
+                  Admin
+                </span>
+              </div>
+            </div>
+            <Link
+              href="/icu-command-center"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white shadow-md shadow-cyan-900/20"
+            >
+              Open ICU Command Center
             </Link>
           </section>
         )}

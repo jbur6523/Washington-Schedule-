@@ -11,10 +11,11 @@ Dashboard access is role based:
 - Staff with `staff_profiles.operations_role = aide` see `Aide Dashboard`.
 - Staff with `staff_profiles.operations_role = command_center` route to the separate Respiratory Command Center instead of the normal Operations Dashboard.
 - Staff with `staff_profiles.operations_role = director` route to the read-only Shift Status page instead of the normal Operations Dashboard.
+- Staff with `staff_profiles.operations_role = icu_command_center` route to the separate ICU Command Center instead of the normal Operations Dashboard.
 - Regular staff do not see the dashboard button.
 
 Admins and leads use their existing app role. Aide access is a separate operations capability so it does not grant lead/admin schedule permissions.
-Command Center and Director access are separate experiences for shared department operations and director read-only status viewing.
+Command Center, ICU Command Center, and Director access are separate experiences for shared department operations and director read-only status viewing.
 
 Unauthenticated users are redirected to login. Regular staff who open dashboard routes directly see a friendly access-denied state.
 
@@ -27,7 +28,7 @@ The top header shows one dashboard button for users with operations access:
 - Aide
 
 The dashboard page title uses the full label.
-Command Center and Director accounts do not use this header entry point because they route directly to their simplified pages after login.
+Command Center, ICU Command Center, and Director accounts do not use this header entry point because they route directly to their simplified pages after login.
 
 ## Respiratory Command Center
 
@@ -42,9 +43,24 @@ The command phone menu contains:
 
 - Shift Update
 - Rental Management
+- ICU Snapshot
 - Short Shift Alert
 
-It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login.
+It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login.
+
+## ICU Command Center
+
+The ICU Command Center is available at `/icu-command-center` for Admin users and `operations_role = icu_command_center`.
+
+Seeded shared-device login:
+
+- Username: `ventilator`
+
+The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, a Critical Vent flag, active-device snapshot counts, edit, and discontinue. Discontinue does not hard-delete records.
+
+Director and Respiratory Command Center users can view ICU details read-only. Regular Staff, Aides, unauthenticated users, and Director users cannot edit ICU entries.
+
+The ICU Command Center must not store patient names, MRNs, DOBs, diagnoses, clinical free-text notes, or patient-identifying information.
 
 Trusted-device sign-in persistence is documented in `docs/auth.md`. It keeps the Supabase session on the department phone without storing the command-center password.
 
@@ -143,3 +159,4 @@ This phase does not implement:
 - Payroll integration
 - EMR integration
 - Patient information
+- ICU patient charting

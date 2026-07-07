@@ -53,7 +53,13 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     .eq("department_id", membership.department_id)
     .eq("profile_id", profile.id)
     .maybeSingle();
-  const operationsRoleValues = new Set<OperationsRole>(["none", "aide", "command_center", "director"]);
+  const operationsRoleValues = new Set<OperationsRole>([
+    "none",
+    "aide",
+    "command_center",
+    "director",
+    "icu_command_center"
+  ]);
   const operationsRole = operationsRoleValues.has(staffProfile?.operations_role as OperationsRole)
     ? (staffProfile?.operations_role as OperationsRole)
     : "none";

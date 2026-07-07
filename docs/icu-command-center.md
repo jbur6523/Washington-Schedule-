@@ -1,0 +1,137 @@
+# ICU Command Center
+
+The ICU Command Center is an operational respiratory snapshot tool for ICU beds. It replaces the paper ICU respiratory tracking sheet with a department-scoped app workflow.
+
+This is not patient charting. The app must not collect patient names, MRNs, DOBs, diagnoses, or patient-identifying notes. ICU entries use bed/room plus respiratory device/settings only.
+
+## Route
+
+Primary edit route:
+
+`/icu-command-center`
+
+Respiratory Command Center read-only route:
+
+`/command-center/icu-snapshot`
+
+Director read-only access is embedded in:
+
+`/director/shift-status`
+
+## Access
+
+Edit access:
+
+- Admin
+- `staff_profiles.operations_role = icu_command_center`
+
+Read-only access:
+
+- `staff_profiles.operations_role = director`
+- `staff_profiles.operations_role = command_center`
+
+Denied:
+
+- Regular Staff
+- Lead users unless separately granted Admin or ICU Command Center access
+- Aide users
+- Unauthenticated users
+
+The dedicated ICU shared-device username is:
+
+- `ventilator`
+
+The `ventilator` account routes directly to `/icu-command-center` after login.
+
+## Bed Options
+
+Phase 1 supports these ICU beds:
+
+- C220-C227
+- D230-D239
+- E240-E249
+
+The options live in code so they can be updated without changing patient records.
+
+## Devices and Settings
+
+Supported devices:
+
+- Vent
+- BiPAP
+- CPAP
+- HFNC
+
+Vent entries can include:
+
+- Airway size
+- Airway at
+- Airway location
+- Vent mode
+- Mode-specific settings
+- Critical Vent flag
+
+Vent modes:
+
+- APVCMV
+- SCMV
+- SPONT
+- ASV
+- PCMV
+- APRV
+
+BiPAP settings:
+
+- Rate
+- IPAP
+- EPAP
+- FiO2
+
+CPAP settings:
+
+- CPAP
+
+HFNC settings:
+
+- FiO2
+- Flow
+
+## Snapshot Counts
+
+ICU Snapshot shows:
+
+- Vents
+- HFNC
+- BiPAP
+- Critical Vents
+
+The Critical Vents count includes only active Vent entries where Critical Vent is checked.
+
+## Data Model
+
+The `icu_patients` table stores active and discontinued ICU operational entries. Discontinue actions set `is_active = false`; records are not hard-deleted.
+
+The table includes department scope, bed, device type, device settings, Critical Vent, active state, created/updated staff profile IDs, and timestamps.
+
+## Privacy Guardrails
+
+Do not enter:
+
+- Patient names
+- MRNs
+- DOBs
+- Diagnoses
+- Patient-identifying notes
+- Clinical free-text notes
+
+No notes field exists in Phase 1 to reduce accidental PHI entry.
+
+## Out of Scope
+
+- Patient charting
+- EMR integration
+- Patient diagnosis tracking
+- Clinical notes
+- Automatic ventilator device import
+- Alerts/escalations
+- Historical analytics beyond inactive records

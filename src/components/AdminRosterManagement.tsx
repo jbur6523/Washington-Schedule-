@@ -11,8 +11,8 @@ type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
-type OperationsRole = "none" | "aide" | "command_center" | "director";
-type VisibleRole = StaffRole | "aide" | "command_center" | "director";
+type OperationsRole = "none" | "aide" | "command_center" | "director" | "icu_command_center";
+type VisibleRole = StaffRole | "aide" | "command_center" | "director" | "icu_command_center";
 type RosterFilter =
   | "all"
   | "admin"
@@ -132,7 +132,8 @@ const rosterFilters: Array<{ id: RosterFilter; label: string }> = [
 const operationsRoleLabels: Record<Exclude<OperationsRole, "none">, string> = {
   aide: "Aide",
   command_center: "Command Center",
-  director: "Director"
+  director: "Director",
+  icu_command_center: "ICU Command Center"
 };
 
 const employmentLabels: Record<EmploymentType, string> = {
@@ -207,9 +208,16 @@ function visibleRoleForForm(form: StaffProfileForm): VisibleRole {
 function roleLabelForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">) {
   const visibleRole = visibleRoleForProfile(profile);
 
-  return visibleRole === "aide" || visibleRole === "command_center" || visibleRole === "director"
-    ? operationsRoleLabels[visibleRole]
-    : roleLabels[visibleRole];
+  if (
+    visibleRole === "aide" ||
+    visibleRole === "command_center" ||
+    visibleRole === "director" ||
+    visibleRole === "icu_command_center"
+  ) {
+    return operationsRoleLabels[visibleRole];
+  }
+
+  return roleLabels[visibleRole];
 }
 
 function nextAvailableUsername(displayName: string, profiles: StaffProfile[], excludeProfileId?: string) {
@@ -436,7 +444,12 @@ function StaffProfileEditor({
                 onChange={(event) => {
                   const nextRole = event.target.value as Exclude<VisibleRole, "admin">;
 
-                  if (nextRole === "aide" || nextRole === "command_center" || nextRole === "director") {
+                  if (
+                    nextRole === "aide" ||
+                    nextRole === "command_center" ||
+                    nextRole === "director" ||
+                    nextRole === "icu_command_center"
+                  ) {
                     onChange({ ...form, assigned_role: "staff", operations_role: nextRole });
                     return;
                   }
@@ -450,10 +463,11 @@ function StaffProfileEditor({
                 <option value="aide">Aide</option>
                 <option value="command_center">Command Center</option>
                 <option value="director">Director</option>
+                <option value="icu_command_center">ICU Command Center</option>
               </select>
             )}
             <span className="mt-1 block text-xs font-bold text-slate-400">
-              Aide gives dashboard access. Command Center and Director route to simplified operational views.
+              Aide gives dashboard access. Command Center, ICU Command Center, and Director route to simplified operational views.
             </span>
           </label>
 

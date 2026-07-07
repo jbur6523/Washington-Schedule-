@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardList, LogOut, Megaphone, RefreshCcw } from "lucide-react";
+import { Activity, ClipboardList, LogOut, Megaphone, RefreshCcw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export function CommandCenterClient() {
@@ -50,6 +50,23 @@ export function CommandCenterClient() {
                 <h2 className="text-xl font-black text-hospital-ink">Rental Management</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
                   Order rentals, confirm delivery, and manage pickups.
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/command-center/icu-snapshot"
+            className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+                <Activity size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  View ICU respiratory devices and settings.
                 </p>
               </div>
             </div>

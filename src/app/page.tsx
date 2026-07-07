@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import AppClient from "@/app/app-client";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
-import { isCommandCenter, isDirector } from "@/lib/auth/access";
+import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 
@@ -78,6 +78,10 @@ export default async function Home() {
 
   if (isCommandCenter(auth.context)) {
     redirect("/command-center");
+  }
+
+  if (isIcuCommandCenter(auth.context)) {
+    redirect("/icu-command-center");
   }
 
   if (isDirector(auth.context)) {

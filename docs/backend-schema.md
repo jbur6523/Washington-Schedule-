@@ -73,6 +73,13 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - Order Management creation is available to Aides and Admin users. RLS and storage policies use `staff_profiles.operations_role = aide`, active staff profiles, and department Admin checks to allow Aides/Admins to create/read orders and upload/read order images. Staff, Lead, Director, and Command Center users are not granted Order Management access unless explicitly added later.
 - Order Management notes must not contain patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, or staff emails.
 
+### ICU Command Center
+
+- `icu_patients`: department-scoped operational ICU respiratory snapshot records. Each row stores bed, device type, device-specific respiratory settings, optional Vent airway fields, Critical Vent flag, active/discontinued state, created/updated staff profile references, and timestamps.
+- Active ICU entries are unique by department and bed. Discontinue sets `is_active = false`; records are not hard-deleted.
+- The table intentionally does not include patient name, MRN, DOB, diagnosis, or notes fields.
+- RLS allows Admin and `operations_role = icu_command_center` to create/update/read ICU entries. Director and Respiratory Command Center users can read active ICU entries through read-only views. Regular Staff, Aide users, Lead users without Admin rights, and anonymous users cannot read or edit ICU entries by default.
+
 ### Rental Management
 
 - `rental_vendors`: department rental companies, including US Med Equipment, Med One Capital, Agiliti Health Inc, SRC, and Other.
@@ -137,11 +144,13 @@ Operational access beyond the normal app role is stored in `staff_profiles.opera
 - `aide`: access to the Aide Dashboard, Rental Management, and Aide-only Order Management without granting Lead/Admin schedule permissions.
 - `command_center`: shared department phone access. Routes to `/command-center`, can use Shift Update, Rental Management, and Short Shift Alert, and must provide staff attribution for visible actions.
 - `director`: read-only Director Shift Status access. Routes to `/director/shift-status` and cannot edit shift updates or rental workflows.
+- `icu_command_center`: shared ICU Command Center access. Routes to `/icu-command-center` and can edit ICU respiratory device/settings entries.
 
 Seeded special usernames:
 
 - `sputum`: Command Center shared-device login. Temporary password target is `2000`.
 - `aloha`: Director read-only login. Password should be set through the normal password setup/reset process.
+- `ventilator`: ICU Command Center shared-device login.
 
 ## RLS Strategy
 
@@ -153,6 +162,9 @@ Helper functions:
 - `user_is_department_member(department_id)`: checks department membership.
 - `user_is_department_admin(department_id)`: checks department admin role.
 - `user_is_command_center(department_id)`: checks whether the current account is the shared Command Center account for that department.
+- `user_is_icu_command_center(department_id)`: checks whether the current account is the shared ICU Command Center account for that department.
+- `user_can_manage_icu_patients(department_id)`: allows department Admin and ICU Command Center users to manage ICU entries.
+- `user_can_view_icu_patients(department_id)`: allows ICU managers plus Director and Command Center users to read ICU entries.
 - `user_is_department_aide(department_id)`: checks whether the current account is an active Aide in that department.
 - `current_staff_profile_id(department_id)`: returns the staff profile linked to the current profile in a department.
 
@@ -163,6 +175,8 @@ General policy rules:
 - Staff can read active published schedule data and staff directory data for their department.
 - Staff can create/cancel only records tied to their own linked `staff_profiles` row.
 - Command Center can insert department-scoped shift status, Short Shift, and rental workflow rows where policy explicitly allows it.
+- ICU Command Center can create and update department-scoped ICU respiratory snapshot rows where policy explicitly allows it.
+- Director and Command Center can read ICU snapshot rows, but cannot edit them.
 - Import tables are admin-only.
 - Audit events are admin-readable only.
 

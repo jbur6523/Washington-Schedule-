@@ -27,6 +27,7 @@ import {
   Wind
 } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
+import { DirectorIcuSnapshotSection } from "@/components/IcuReadOnlyViews";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
@@ -1008,6 +1009,8 @@ export function DirectorShiftStatusClient({
             </div>
           )}
         </section>
+
+        <DirectorIcuSnapshotSection departmentId={authContext.departmentId} />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex items-start gap-3">

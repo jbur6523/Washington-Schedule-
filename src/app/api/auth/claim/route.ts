@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const confirmPassword = body.confirmPassword ?? "";
 
-  const minimumPasswordLength = username === "sputum" ? 4 : 8;
+  const minimumPasswordLength = username === "sputum" || username === "ventilator" ? 4 : 8;
 
   if (!username || password.length < minimumPasswordLength || password !== confirmPassword) {
     return NextResponse.json({ message: "Unable to create account." }, { status: 400 });

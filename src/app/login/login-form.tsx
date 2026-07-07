@@ -21,7 +21,7 @@ type ClaimResponse = {
   staffProfileId?: string;
   departmentId?: string;
   role?: AppRole;
-  operationsRole?: "none" | "aide" | "command_center" | "director";
+  operationsRole?: "none" | "aide" | "command_center" | "director" | "icu_command_center";
   displayName?: string;
   phoneNumber?: string;
 };
@@ -236,8 +236,8 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    const isCommandCenterSetup = assignedUsername === "sputum";
-    const minimumPasswordLength = isCommandCenterSetup ? 4 : 8;
+    const isSharedOperationsSetup = assignedUsername === "sputum" || assignedUsername === "ventilator";
+    const minimumPasswordLength = isSharedOperationsSetup ? 4 : 8;
 
     if (password.length < minimumPasswordLength) {
       setError(`Use a password with at least ${minimumPasswordLength} characters.`);
@@ -287,7 +287,11 @@ export function LoginForm() {
       return;
     }
 
-    if (result.operationsRole === "command_center" || result.operationsRole === "director") {
+    if (
+      result.operationsRole === "command_center" ||
+      result.operationsRole === "director" ||
+      result.operationsRole === "icu_command_center"
+    ) {
       enterApp();
       return;
     }

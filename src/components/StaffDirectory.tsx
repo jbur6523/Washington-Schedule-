@@ -20,7 +20,7 @@ import {
 
 type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
-type OperationsRole = "none" | "aide" | "command_center" | "director";
+type OperationsRole = "none" | "aide" | "command_center" | "director" | "icu_command_center";
 type PreferredContactMethod = "phone" | "email" | "app";
 type DirectoryFilter =
   | "all"
