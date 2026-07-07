@@ -34,7 +34,7 @@ export function CommandShortShiftAlertClient({
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShortShiftForm>(() => ({
     shiftDate: todayInTimezone(timezone),
-    shiftType: currentShiftType() === "day" ? "day_shift" : "night_shift",
+    shiftType: currentShiftType(timezone) === "day" ? "day_shift" : "night_shift",
     rtsOn: "",
     rtsRequired: "",
     note: "",

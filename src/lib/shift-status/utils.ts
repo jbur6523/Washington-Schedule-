@@ -14,13 +14,7 @@ export function todayInTimezone(timezone = "America/Los_Angeles") {
   return `${year}-${month}-${day}`;
 }
 
-function previousDate(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  date.setDate(date.getDate() - 1);
-  return date.toISOString().slice(0, 10);
-}
-
-function zonedDateHour(timezone = "America/Los_Angeles") {
+function zonedDateHour(timezone = "America/Los_Angeles", date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     year: "numeric",
@@ -29,7 +23,7 @@ function zonedDateHour(timezone = "America/Los_Angeles") {
     hour: "2-digit",
     hour12: false,
     hourCycle: "h23"
-  }).formatToParts(new Date());
+  }).formatToParts(date);
 
   const year = parts.find((part) => part.type === "year")?.value ?? "1970";
   const month = parts.find((part) => part.type === "month")?.value ?? "01";
@@ -42,13 +36,13 @@ function zonedDateHour(timezone = "America/Los_Angeles") {
   };
 }
 
-export function currentShiftType() {
-  const hour = new Date().getHours();
+export function currentShiftType(timezone = "America/Los_Angeles", date = new Date()) {
+  const { hour } = zonedDateHour(timezone, date);
   return hour >= 8 && hour < 20 ? "day" : "night";
 }
 
-export function currentShiftStatusWindow(timezone = "America/Los_Angeles") {
-  const { dateValue, hour } = zonedDateHour(timezone);
+export function currentShiftStatusWindow(timezone = "America/Los_Angeles", date = new Date()) {
+  const { dateValue, hour } = zonedDateHour(timezone, date);
 
   if (hour >= 8 && hour < 20) {
     return {
@@ -65,7 +59,7 @@ export function currentShiftStatusWindow(timezone = "America/Los_Angeles") {
   }
 
   return {
-    shiftDate: previousDate(dateValue),
+    shiftDate: dateValue,
     shiftType: "night" as ShiftStatusShiftType
   };
 }

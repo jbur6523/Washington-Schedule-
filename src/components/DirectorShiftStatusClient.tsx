@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Baby,
@@ -490,7 +490,8 @@ export function DirectorShiftStatusClient({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
-  const currentWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  const currentWindow = useMemo(() => currentShiftStatusWindow(timezone, new Date(nowTick)), [nowTick, timezone]);
   const selectedChoice = useMemo(
     () => ({
       shiftDate: currentWindow.shiftDate,
@@ -519,8 +520,10 @@ export function DirectorShiftStatusClient({
   const [manualScheduleError, setManualScheduleError] = useState("");
   const isSelectedCurrentShift = true;
 
-  const loadShiftStatus = async () => {
-    setLoading(true);
+  const loadShiftStatus = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError("");
     setCopyMessage("");
 
@@ -549,7 +552,7 @@ export function DirectorShiftStatusClient({
     }
 
     setUpdates(data);
-  };
+  }, [authContext.departmentId]);
 
   const loadSchedulePreview = async () => {
     setSchedulePreviewLoading(true);
@@ -658,13 +661,36 @@ export function DirectorShiftStatusClient({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadShiftStatus();
+      void loadShiftStatus(true);
     }, 0);
+    const interval = window.setInterval(() => {
+      setNowTick(Date.now());
+      void loadShiftStatus(false);
+    }, 60_000);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`director-shift-status-${authContext.departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "shift_status_updates",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        () => {
+          setNowTick(Date.now());
+          void loadShiftStatus(false);
+        }
+      )
+      .subscribe();
 
-    return () => window.clearTimeout(timer);
-    // loadShiftStatus intentionally reads current auth context only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authContext.departmentId]);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [authContext.departmentId, loadShiftStatus]);
 
   useEffect(() => {
     if (!shiftPreviewOpen && !directoryOpen) {

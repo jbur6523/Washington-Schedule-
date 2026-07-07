@@ -119,7 +119,7 @@ export function ShiftUpdateClient({
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShiftUpdateForm>(() => ({
     shiftDate: todayInTimezone(timezone),
-    shiftType: currentShiftType(),
+    shiftType: currentShiftType(timezone),
     rtsOn: "",
     rtsRequired: "",
     ventCount: "",
