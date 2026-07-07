@@ -36,6 +36,8 @@ export type IcuPatientRecord = {
   flow: number | null;
   is_critical_vent: boolean;
   ventilator_outcome: VentilatorOutcome | null;
+  discontinued_at: string | null;
+  discontinued_by_staff_profile_id: string | null;
   is_active: boolean;
   created_by_staff_profile_id: string | null;
   updated_by_staff_profile_id: string | null;
@@ -48,6 +50,7 @@ export type IcuPatientEventRecord = {
   department_id: string;
   icu_patient_id: string;
   event_type: IcuPatientEventType;
+  event_time: string;
   event_summary: string | null;
   event_data: Record<string, unknown> | null;
   created_by_staff_profile_id: string | null;

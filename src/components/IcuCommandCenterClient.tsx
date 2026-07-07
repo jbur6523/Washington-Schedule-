@@ -105,6 +105,8 @@ const icuPatientSelect = [
   "flow",
   "is_critical_vent",
   "ventilator_outcome",
+  "discontinued_at",
+  "discontinued_by_staff_profile_id",
   "is_active",
   "created_by_staff_profile_id",
   "updated_by_staff_profile_id",
@@ -117,12 +119,15 @@ const icuPatientEventSelect = [
   "department_id",
   "icu_patient_id",
   "event_type",
+  "event_time",
   "event_summary",
   "event_data",
   "created_by_staff_profile_id",
   "created_by_name",
   "created_at"
 ].join(", ");
+
+const icuTimezone = "America/Los_Angeles";
 
 function numericOrNull(value: string) {
   const trimmed = value.trim();
@@ -197,18 +202,104 @@ function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unk
   };
 }
 
+function timeZoneParts(date: Date, timeZone = icuTimezone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(date);
+
+  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+
+  return {
+    year: Number(value("year")),
+    month: Number(value("month")),
+    day: Number(value("day")),
+    hour: Number(value("hour")),
+    minute: Number(value("minute")),
+    second: Number(value("second"))
+  };
+}
+
+function timezoneOffsetMs(date: Date, timeZone = icuTimezone) {
+  const parts = timeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return asUtc - date.getTime();
+}
+
+function wallTimeToIso(dateValue: string, timeValue: string, timeZone = icuTimezone) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const [hour, minute] = timeValue.split(":").map(Number);
+
+  if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) {
+    return "";
+  }
+
+  const initial = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const firstPass = new Date(initial.getTime() - timezoneOffsetMs(initial, timeZone));
+  const secondPass = new Date(initial.getTime() - timezoneOffsetMs(firstPass, timeZone));
+
+  return secondPass.toISOString();
+}
+
+function defaultIcuDateTime() {
+  const parts = timeZoneParts(new Date(), icuTimezone);
+
+  return {
+    date: `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`,
+    time: `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`
+  };
+}
+
+function formatIcuActivityTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value));
+}
+
+function formatIcuActivityDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function todayIcuDateRange() {
+  const { date } = defaultIcuDateTime();
+
+  return {
+    startIso: wallTimeToIso(date, "00:00"),
+    endIso: wallTimeToIso(date, "23:59"),
+    label: formatIcuActivityDate(wallTimeToIso(date, "12:00"))
+  };
+}
+
 async function createIcuPatientEvent(
   supabase: ReturnType<typeof createClient>,
   authContext: AuthenticatedUserContext,
   record: IcuPatientRecord,
   eventType: IcuPatientEventRecord["event_type"],
   eventSummary: string,
-  eventData: Record<string, unknown> = {}
+  eventData: Record<string, unknown> = {},
+  eventTime?: string
 ) {
   return supabase.from("icu_patient_events").insert({
     department_id: authContext.departmentId,
     icu_patient_id: record.id,
     event_type: eventType,
+    event_time: eventTime ?? new Date().toISOString(),
     event_summary: eventSummary,
     event_data: eventDataFromRecord(record, eventData),
     created_by_staff_profile_id: authContext.staffProfileId,
@@ -283,8 +374,7 @@ function parsePreviousDateInput(value: string) {
     return null;
   }
 
-  const start = new Date(year, month - 1, day, 0, 0, 0, 0);
-  const end = new Date(year, month - 1, day, 23, 59, 59, 999);
+  const dateValue = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const label = new Intl.DateTimeFormat("en-US", {
     month: "2-digit",
     day: "2-digit",
@@ -292,8 +382,8 @@ function parsePreviousDateInput(value: string) {
   }).format(date);
 
   return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
+    startIso: wallTimeToIso(dateValue, "00:00"),
+    endIso: wallTimeToIso(dateValue, "23:59"),
     label
   };
 }
@@ -402,6 +492,35 @@ function IcuPatientCard({
   );
 }
 
+function IcuActivityCard({ eventRecord }: { eventRecord: IcuPatientEventRecord }) {
+  const bed = eventDataText(eventRecord, "bed") || "ICU";
+  const device = eventDataText(eventRecord, "device") || "Device";
+  const settings = eventDataText(eventRecord, "settings");
+  const outcome = eventDataText(eventRecord, "ventilatorOutcome");
+  const action = historyEventLabel(eventRecord.event_type);
+
+  return (
+    <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+          <ClipboardList size={18} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-black leading-5 text-hospital-ink">
+            {formatIcuActivityTime(eventRecord.event_time)} - {bed} {device} {action.toLowerCase()} by{" "}
+            {eventRecord.created_by_name || "Unknown"}
+          </p>
+          {eventRecord.event_summary && (
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
+          )}
+          {outcome && <p className="mt-1 text-xs font-black leading-5 text-rose-700">Outcome: {outcome}</p>}
+          {settings && <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{settings}</p>}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientProps) {
   const [records, setRecords] = useState<IcuPatientRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -416,6 +535,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [discontinueTarget, setDiscontinueTarget] = useState<IcuPatientRecord | null>(null);
   const [discontinueError, setDiscontinueError] = useState("");
   const [ventilatorOutcome, setVentilatorOutcome] = useState<VentilatorOutcome | "">("");
+  const [discontinuedDate, setDiscontinuedDate] = useState("");
+  const [discontinuedTime, setDiscontinuedTime] = useState("");
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
   const [historyEvents, setHistoryEvents] = useState<IcuPatientEventRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -423,9 +544,12 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [previousDateOpen, setPreviousDateOpen] = useState(false);
   const [previousDateInput, setPreviousDateInput] = useState("");
   const [previousDateLabel, setPreviousDateLabel] = useState("");
-  const [previousDateResults, setPreviousDateResults] = useState<IcuPatientRecord[]>([]);
+  const [previousDateResults, setPreviousDateResults] = useState<IcuPatientEventRecord[]>([]);
   const [previousDateLoading, setPreviousDateLoading] = useState(false);
   const [previousDateError, setPreviousDateError] = useState("");
+  const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
+  const [todayActivityLoading, setTodayActivityLoading] = useState(true);
+  const [todayActivityError, setTodayActivityError] = useState("");
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
 
@@ -458,11 +582,38 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setRecords((data ?? []) as unknown as IcuPatientRecord[]);
   }, [authContext.departmentId]);
 
+  const loadTodayActivity = useCallback(async () => {
+    setTodayActivityLoading(true);
+    setTodayActivityError("");
+    const range = todayIcuDateRange();
+
+    const supabase = createClient();
+    const { data, error: activityLoadError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .gte("event_time", range.startIso)
+      .lte("event_time", range.endIso)
+      .in("event_type", ["added", "updated", "critical_status_updated", "discontinued"])
+      .order("event_time", { ascending: false });
+
+    setTodayActivityLoading(false);
+
+    if (activityLoadError) {
+      setTodayActivity([]);
+      setTodayActivityError("Could not load today's ICU activity.");
+      return;
+    }
+
+    setTodayActivity((data ?? []) as unknown as IcuPatientEventRecord[]);
+  }, [authContext.departmentId]);
+
   useEffect(() => {
     queueMicrotask(() => {
       void loadRecords();
+      void loadTodayActivity();
     });
-  }, [loadRecords]);
+  }, [loadRecords, loadTodayActivity]);
 
   const openAdd = () => {
     setEditingRecord(null);
@@ -553,11 +704,15 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setEditingRecord(null);
     setForm(emptyForm);
     await loadRecords();
+    await loadTodayActivity();
   };
 
   const openDiscontinue = (record: IcuPatientRecord) => {
+    const defaults = defaultIcuDateTime();
     setDiscontinueTarget(record);
     setVentilatorOutcome("");
+    setDiscontinuedDate(defaults.date);
+    setDiscontinuedTime(defaults.time);
     setDiscontinueError("");
     setMessage("");
     setError("");
@@ -573,6 +728,17 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       return;
     }
 
+    if (!discontinuedDate || !discontinuedTime) {
+      setDiscontinueError("Discontinued Date and Discontinued Time are required.");
+      return;
+    }
+
+    const discontinuedAt = wallTimeToIso(discontinuedDate, discontinuedTime);
+    if (!discontinuedAt) {
+      setDiscontinueError("Enter a valid discontinued date and time.");
+      return;
+    }
+
     setActionSaving(true);
     setMessage("");
     setError("");
@@ -584,6 +750,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       .from("icu_patients")
       .update({
         is_active: false,
+        discontinued_at: discontinuedAt,
+        discontinued_by_staff_profile_id: authContext.staffProfileId,
         ventilator_outcome: outcome,
         updated_by_staff_profile_id: authContext.staffProfileId
       })
@@ -602,6 +770,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     const discontinuedRecord = (data as unknown as IcuPatientRecord | null) ?? {
       ...discontinueTarget,
       is_active: false,
+      discontinued_at: discontinuedAt,
+      discontinued_by_staff_profile_id: authContext.staffProfileId,
       ventilator_outcome: outcome
     };
     const eventResult = await createIcuPatientEvent(
@@ -611,18 +781,23 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       "discontinued",
       outcome ? `Discontinued. Outcome: ${ventilatorOutcomeLabels[outcome]}.` : "Device discontinued.",
       {
-        ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null
-      }
+        ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
+        discontinuedAt
+      },
+      discontinuedAt
     );
 
     setDiscontinueTarget(null);
     setVentilatorOutcome("");
+    setDiscontinuedDate("");
+    setDiscontinuedTime("");
     setMessage(
       eventResult.error
         ? `${discontinuedRecord.bed} discontinued, but history could not be recorded.`
-        : `${discontinuedRecord.bed} discontinued.`
+        : "Device discontinued."
     );
     await loadRecords();
+    await loadTodayActivity();
   };
 
   const toggleCriticalStatus = async (record: IcuPatientRecord) => {
@@ -670,6 +845,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
     setMessage(eventResult.error ? "Critical status updated, but history could not be recorded." : "Critical status updated.");
     await loadRecords();
+    await loadTodayActivity();
   };
 
   const openHistory = async (record: IcuPatientRecord) => {
@@ -684,7 +860,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       .select(icuPatientEventSelect)
       .eq("department_id", authContext.departmentId)
       .eq("icu_patient_id", record.id)
-      .order("created_at", { ascending: false });
+      .order("event_time", { ascending: false });
 
     setHistoryLoading(false);
 
@@ -712,12 +888,13 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setPreviousDateLoading(true);
     const supabase = createClient();
     const { data, error: searchError } = await supabase
-      .from("icu_patients")
-      .select(icuPatientSelect)
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
       .eq("department_id", authContext.departmentId)
-      .lte("created_at", parsed.endIso)
-      .or(`is_active.eq.true,updated_at.gte.${parsed.startIso}`)
-      .order("bed", { ascending: true });
+      .gte("event_time", parsed.startIso)
+      .lte("event_time", parsed.endIso)
+      .in("event_type", ["added", "updated", "critical_status_updated", "discontinued"])
+      .order("event_time", { ascending: false });
 
     setPreviousDateLoading(false);
 
@@ -727,7 +904,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     }
 
     setPreviousDateLabel(parsed.label);
-    setPreviousDateResults((data ?? []) as unknown as IcuPatientRecord[]);
+    setPreviousDateResults((data ?? []) as unknown as IcuPatientEventRecord[]);
   };
 
   return (
@@ -774,18 +951,6 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           Add Patient
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            setPreviousDateOpen(true);
-            setPreviousDateError("");
-          }}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
-        >
-          <Search size={16} />
-          Search Previous Date
-        </button>
-
         {message && (
           <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
             {message}
@@ -823,6 +988,54 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 onToggleCritical={() => void toggleCriticalStatus(record)}
               />
             ))}
+        </section>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPreviousDateOpen(true);
+            setPreviousDateError("");
+          }}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
+        >
+          <Search size={16} />
+          Search Previous Date
+        </button>
+
+        <section className="space-y-3 rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-hospital-ink">Today&apos;s ICU Activity</h2>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Updates and discontinued devices for today.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadTodayActivity()}
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </div>
+
+          {todayActivityLoading && (
+            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+              Loading ICU activity...
+            </p>
+          )}
+          {todayActivityError && (
+            <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+              {todayActivityError}
+            </p>
+          )}
+          {!todayActivityLoading && !todayActivityError && todayActivity.length === 0 && (
+            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+              No ICU updates or discontinued devices recorded today.
+            </p>
+          )}
+          {!todayActivityLoading &&
+            !todayActivityError &&
+            todayActivity.map((eventRecord) => <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />)}
         </section>
 
         <button
@@ -1101,6 +1314,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 onClick={() => {
                   setDiscontinueTarget(null);
                   setDiscontinueError("");
+                  setDiscontinuedDate("");
+                  setDiscontinuedTime("");
                 }}
                 className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
               >
@@ -1122,6 +1337,35 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 <p className="mt-1 text-sm font-black text-slate-700">{formatIcuAirway(discontinueTarget)}</p>
               )}
               <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(discontinueTarget)}</p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Date</span>
+                <input
+                  type="date"
+                  value={discontinuedDate}
+                  onChange={(event) => {
+                    setDiscontinuedDate(event.target.value);
+                    setDiscontinueError("");
+                  }}
+                  required
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Time</span>
+                <input
+                  type="time"
+                  value={discontinuedTime}
+                  onChange={(event) => {
+                    setDiscontinuedTime(event.target.value);
+                    setDiscontinueError("");
+                  }}
+                  required
+                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                />
+              </label>
             </div>
 
             {discontinueTarget.device_type === "vent" && (
@@ -1154,6 +1398,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 onClick={() => {
                   setDiscontinueTarget(null);
                   setDiscontinueError("");
+                  setDiscontinuedDate("");
+                  setDiscontinuedTime("");
                 }}
                 className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600"
               >
@@ -1224,7 +1470,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-hospital-ink">
-                          {formatIcuLastUpdated(eventRecord.created_at)} - {historyEventLabel(eventRecord.event_type)}
+                          {formatIcuLastUpdated(eventRecord.event_time)} - {historyEventLabel(eventRecord.event_type)}
                         </p>
                         <p className="mt-1 text-xs font-bold text-slate-500">
                           By {eventRecord.created_by_name || "Unknown"}
@@ -1258,7 +1504,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Search Previous Date</p>
                 <h2 id="icu-date-search-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  ICU Records
+                  ICU Activity
                 </h2>
                 <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Enter a date as MMDDYY.</p>
               </div>
@@ -1301,38 +1547,15 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
             <div className="mt-4 space-y-3">
               {previousDateLabel && (
-                <p className="text-sm font-black text-hospital-ink">Results for {previousDateLabel}</p>
+                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
               )}
               {previousDateLabel && previousDateResults.length === 0 && (
                 <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No ICU records found for that date.
+                  No ICU activity found for this date.
                 </p>
               )}
-              {previousDateResults.map((record) => (
-                <article key={record.id} className="rounded-3xl border border-white bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{record.bed}</p>
-                      <h3 className="mt-1 text-xl font-black text-hospital-ink">{formatIcuDeviceSummary(record)}</h3>
-                      {formatIcuAirway(record) && <p className="mt-1 text-sm font-black text-slate-700">{formatIcuAirway(record)}</p>}
-                      <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
-                      {record.ventilator_outcome && (
-                        <p className="mt-2 text-sm font-black text-rose-700">
-                          Outcome: {ventilatorOutcomeLabels[record.ventilator_outcome]}
-                        </p>
-                      )}
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-black ${
-                        record.is_active
-                          ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      {record.is_active ? "Active" : "Discontinued"}
-                    </span>
-                  </div>
-                </article>
+              {previousDateResults.map((eventRecord) => (
+                <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />
               ))}
             </div>
           </section>

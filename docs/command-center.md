@@ -51,9 +51,11 @@ Seeded username:
 
 - `ventilator`
 
-The ICU Command Center account routes directly to `/icu-command-center` after login. It can add, update, discontinue, toggle Critical Vent status, view history, and search previous ICU operational dates for respiratory device entries. It does not use the normal Schedule tab, bottom navigation, Gossip, Staff Directory, or personal staff tools.
+The ICU Command Center account routes directly to `/icu-command-center` after login. It can add, update, discontinue, toggle Critical Vent status, view per-record history, review Today's ICU Activity, and search previous ICU operational dates for respiratory device entries. It does not use the normal Schedule tab, bottom navigation, Gossip, Staff Directory, or personal staff tools.
 
 ICU Command Center entries are operational bed/device snapshots only. Do not enter patient names, MRNs, DOBs, diagnoses, or patient-identifying notes.
+
+Discontinue actions require Discontinued Date and Discontinued Time for all device types. Vent discontinue actions also require Ventilator Outcome. Daily activity and previous-date searches use America/Los_Angeles date boundaries.
 
 ## Command Center Menu
 

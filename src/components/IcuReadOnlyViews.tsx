@@ -38,6 +38,8 @@ const icuPatientSelect = [
   "flow",
   "is_critical_vent",
   "ventilator_outcome",
+  "discontinued_at",
+  "discontinued_by_staff_profile_id",
   "is_active",
   "created_by_staff_profile_id",
   "updated_by_staff_profile_id",
