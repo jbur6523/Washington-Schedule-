@@ -397,6 +397,17 @@ Exports intentionally exclude rental record IDs, user-facing status, notes, crea
 
 Command Center rental actions export the initials of the selected staff attribution.
 
+### Rental History Excel Sync Feed
+
+Rental History also has a secure CSV feed for desktop Excel Power Query / Data From Web:
+
+- `/api/rental-history/excel-feed?token=...`
+- protected by the server-only `RENTAL_EXCEL_SYNC_TOKEN` environment variable
+- returns the same printable rental equipment log columns as the manual paper-trail export
+- intended for refreshable Excel reporting on the department desktop
+
+The app does not write directly to a local Excel file. Excel pulls the feed when the workbook opens or refreshes. See `docs/rental-excel-sync.md` for setup steps.
+
 ## Go-Live Note
 
 Before official department use, run the deployed smoke test for Order Rental, Pending Delivery, Confirm Delivery, Return Rental, Pending Pickup, Confirm Picked Up, Rental History, and export. After that smoke test passes, run the one-time rental test-data wipe so production starts with a clean rental history.
