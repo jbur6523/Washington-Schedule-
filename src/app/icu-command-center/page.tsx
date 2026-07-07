@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
 import { canEditIcuCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
@@ -31,6 +32,10 @@ export default async function IcuCommandCenterPage() {
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (auth.status !== "authenticated" || !canEditIcuCommandCenter(auth.context)) {

@@ -80,7 +80,7 @@ Recommended fix:
 - Document whether inactive staff should retain directory visibility only.
 
 Fixed in this pass:
-- No. This needs a role/RLS policy decision.
+- Yes, as a Phase 1 app-level hardening fix. The authenticated user context now requires a linked active `staff_profiles` row, inactive login/session restoration shows a friendly inactive-account message and signs out the browser session, protected server routes that use the shared auth helper deny inactive users, and RLS helper functions were updated to require active linked staff. Historical records remain preserved. Tokenized invite/reset flow and global Supabase refresh-token revocation remain separate future security phases.
 
 ### P1 - ICU migration repair does not fully restore ICU invariants
 
@@ -350,27 +350,42 @@ Needs work:
 
 Files changed in this audit:
 - `src/app/login/login-form.tsx`
+- `src/app/login/page.tsx`
+- `src/app/page.tsx`
+- `src/app/api/auth/session-status/route.ts`
+- `src/app/api/onboarding/contact/route.ts`
+- `src/app/api/admin/staff-profiles/[id]/route.ts`
+- `src/components/AdminRosterManagement.tsx`
+- `src/components/InactiveAccountNotice.tsx`
 - `src/components/BottomNavigation.tsx`
+- `src/lib/auth/current-user.ts`
+- `src/lib/auth/types.ts`
 - `docs/command-center.md`
+- `docs/auth.md`
+- `docs/backend-schema.md`
 - `docs/operations-dashboard.md`
 - `docs/go-live-audit.md`
+- `supabase/migrations/202607070006_enforce_active_staff_access.sql`
 
 Fixes:
 - Removed the visible shared command-center setup password from the login screen.
 - Updated Command Center/Operations docs so the shared setup password is provided out of band instead of published.
 - Added `aria-current="page"` and a focus-visible ring to the bottom navigation active tab.
 - Added this production-readiness audit report.
+- Added Phase 1 staff deactivation enforcement: inactive linked staff are blocked at login/session validation, protected route auth context, onboarding contact save, and database RLS helper checks.
+- Added admin roster guardrails for access deactivation/reactivation, including self-deactivation blocking and clear success messages.
 
 Why these fixes were safe:
 - They do not change auth flow, routing, database schema, role permissions, or operational workflows.
 - They reduce credential exposure and improve navigation accessibility.
+- The deactivation work uses the existing `staff_profiles.is_active` field and preserves historical data instead of deleting profiles, memberships, or records.
 
 ## 11. Deferred Fixes
 
 Separate prompt/phase recommended:
 - Replace public username claim with one-time invite/reset tokens.
 - Reconcile Supabase migration history with production.
-- Harden staff deactivation/session revocation.
+- Add optional global Supabase refresh-token revocation for deactivated users if management wants immediate token invalidation beyond app-level denial on refresh/route check.
 - Add guarded/RPC workflow transitions for rental and schedule actions.
 - Add rental history pagination and scoped export/feed behavior.
 - Add database uniqueness constraints after checking for existing duplicate rows.

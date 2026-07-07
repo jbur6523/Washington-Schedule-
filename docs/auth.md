@@ -70,6 +70,16 @@ When a persisted session is restored, the app still runs role/access routing:
 
 Persistent login does not weaken authorization. Staff still cannot access Command Center, Rental Management, or Director routes unless their role allows it.
 
+## Inactive Staff Access
+
+Staff profile active status is enforced during login/session restoration and protected route checks. If a linked `staff_profiles` row is inactive, the user is signed out or denied protected app access and sees:
+
+`This account is inactive. Please contact an administrator.`
+
+Existing browser sessions are blocked on the next refresh or protected route check. Phase 1 does not implement tokenized invite/reset flows or global Supabase refresh-token revocation; it enforces app-level access denial and RLS helper checks for inactive linked staff.
+
+Deactivation preserves historical records such as schedules, rental history, orders, ICU events, shift updates, and visible staff attribution. Admins can reactivate access from roster management.
+
 ## Command Center Phone
 
 The shared department phone login, `sputum`, can remain signed in on the department phone. Rental, shift update, and short-shift actions still require staff attribution where applicable.

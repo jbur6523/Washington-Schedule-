@@ -995,6 +995,30 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
       return;
     }
 
+    const existingProfile = form.id ? profiles.find((profile) => profile.id === form.id) ?? null : null;
+    const activeStateChanged = Boolean(existingProfile && existingProfile.is_active !== form.is_active);
+
+    if (
+      existingProfile?.is_active &&
+      !form.is_active &&
+      (existingProfile.id === authContext.staffProfileId || existingProfile.profile_id === authContext.profileId)
+    ) {
+      setError("You cannot deactivate your own access.");
+      return;
+    }
+
+    if (activeStateChanged && existingProfile) {
+      const confirmed = window.confirm(
+        form.is_active
+          ? `Reactivate Access?\n\nThis will allow ${existingProfile.display_name} to use the app again.`
+          : `Deactivate Access?\n\nThis will prevent ${existingProfile.display_name} from using the app. Their schedule history and records will remain saved.`
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -1046,7 +1070,15 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     }
 
     setForm(null);
-    setSuccess(form.id ? "Staff profile updated." : "Staff profile created.");
+    setSuccess(
+      activeStateChanged
+        ? form.is_active
+          ? "Staff access reactivated."
+          : "Staff access deactivated."
+        : form.id
+          ? "Staff profile updated."
+          : "Staff profile created."
+    );
     await loadProfiles();
   };
 

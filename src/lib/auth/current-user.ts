@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
+import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import type { AppRole, AuthContextResult, OperationsRole } from "@/lib/auth/types";
 
 type MembershipRow = {
@@ -36,7 +37,8 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     return { status: "unassigned", displayName: user.email ?? undefined };
   }
 
-  const { data: membership } = await supabase
+  const privilegedLookupClient = hasSupabaseAdminConfig() ? createAdminClient() : supabase;
+  const { data: membership } = await privilegedLookupClient
     .from("department_memberships")
     .select("role, department_id, departments(id, name)")
     .eq("profile_id", profile.id)
@@ -47,12 +49,21 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     return { status: "unassigned", displayName: profile.display_name };
   }
 
-  const { data: staffProfile } = await supabase
+  const { data: staffProfile } = await privilegedLookupClient
     .from("staff_profiles")
-    .select("id, operations_role")
+    .select("id, operations_role, is_active")
     .eq("department_id", membership.department_id)
     .eq("profile_id", profile.id)
     .maybeSingle();
+
+  if (!staffProfile) {
+    return { status: "unassigned", displayName: profile.display_name };
+  }
+
+  if (!staffProfile.is_active) {
+    return { status: "inactive", displayName: profile.display_name };
+  }
+
   const operationsRoleValues = new Set<OperationsRole>([
     "none",
     "aide",
@@ -69,13 +80,13 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     context: {
       authUserId: user.id,
       profileId: profile.id,
-      staffProfileId: staffProfile?.id ?? null,
+      staffProfileId: staffProfile.id,
       departmentId: membership.department_id,
       departmentName: membership.departments.name,
       role: membership.role,
       operationsRole: operationsRole as OperationsRole,
       displayName: profile.display_name,
-      hasLinkedStaffProfile: Boolean(staffProfile?.id)
+      hasLinkedStaffProfile: true
     }
   };
 }

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AdminRosterManagement } from "@/components/AdminRosterManagement";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,10 @@ export default async function AdminRosterPage() {
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (auth.status !== "authenticated" || auth.context.role !== "admin") {

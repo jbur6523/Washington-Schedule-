@@ -26,6 +26,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `staff_profiles`: department staff directory records. Staff can exist before they create an account, so `profile_id` is nullable.
 - `staff_profiles.username` and `staff_profiles.username_normalized`: permanent department-assigned username.
 - `staff_profiles.account_claimed_at` and `staff_profiles.auth_user_id`: account claim/link state.
+- `staff_profiles.is_active`: app access status. Inactive staff keep historical records and directory context, but login/session restoration and protected app access are blocked.
 - `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.
@@ -140,7 +141,7 @@ Roles are stored in `department_memberships.role`.
   - Create and cancel their own shift requests.
   - Create and cancel their own coverage offers.
 
-The app determines role and membership from `profiles` and `department_memberships`. It must not trust role values sent from browser state. `burj` is the only admin username. Other lead users use the `lead` role.
+The app determines role and membership from `profiles`, `department_memberships`, and the linked active `staff_profiles` row. It must not trust role values sent from browser state. `burj` is the only admin username. Other lead users use the `lead` role.
 
 Operational access beyond the normal app role is stored in `staff_profiles.operations_role`:
 
@@ -163,14 +164,14 @@ All production tables have Row Level Security enabled.
 Helper functions:
 
 - `current_profile_id()`: returns the profile linked to `auth.uid()`.
-- `user_is_department_member(department_id)`: checks department membership.
-- `user_is_department_admin(department_id)`: checks department admin role.
-- `user_is_command_center(department_id)`: checks whether the current account is the shared Command Center account for that department.
-- `user_is_icu_command_center(department_id)`: checks whether the current account is the shared ICU Command Center account for that department.
+- `user_is_department_member(department_id)`: checks department membership and active linked staff status.
+- `user_is_department_admin(department_id)`: checks department admin role and active linked staff status.
+- `user_is_command_center(department_id)`: checks whether the current active account is the shared Command Center account for that department.
+- `user_is_icu_command_center(department_id)`: checks whether the current active account is the shared ICU Command Center account for that department.
 - `user_can_manage_icu_patients(department_id)`: allows department Admin and ICU Command Center users to manage ICU entries.
 - `user_can_view_icu_patients(department_id)`: allows ICU managers plus Director and Command Center users to read ICU entries.
 - `user_is_department_aide(department_id)`: checks whether the current account is an active Aide in that department.
-- `current_staff_profile_id(department_id)`: returns the staff profile linked to the current profile in a department.
+- `current_staff_profile_id(department_id)`: returns the active staff profile linked to the current profile in a department.
 
 General policy rules:
 

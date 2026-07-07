@@ -19,6 +19,12 @@ Command Center, ICU Command Center, and Director access are separate experiences
 
 Unauthenticated users are redirected to login. Regular staff who open dashboard routes directly see a friendly access-denied state.
 
+Inactive staff profiles cannot use dashboard routes, even if their Supabase Auth session still exists. Roster deactivation preserves history but blocks app access on the next login, refresh, or protected route check.
+
+## Admin Staff Access Control
+
+Admin roster management includes an `Active` status for staff profiles. Deactivating access requires confirmation, keeps the staff profile and historical records intact, and prevents that linked user from using protected app routes. Reactivating access allows the user to sign in again. Admins cannot deactivate their own active account from the roster editor.
+
 ## Header Entry Point
 
 The top header shows one dashboard button for users with operations access:

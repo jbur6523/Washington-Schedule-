@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Activity, ClipboardList, PackageCheck, ShieldCheck } from "lucide-react";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { hasOperationsDashboardAccess, hasOrderManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -48,6 +49,10 @@ export default async function OperationsDashboardPage() {
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (auth.status !== "authenticated" || !hasOperationsDashboardAccess(auth.context)) {

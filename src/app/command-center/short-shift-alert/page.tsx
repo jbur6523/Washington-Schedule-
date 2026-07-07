@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CommandShortShiftAlertClient } from "@/components/CommandShortShiftAlertClient";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { isCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
@@ -29,6 +30,10 @@ export default async function CommandCenterShortShiftAlertPage() {
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (auth.status !== "authenticated" || !isCommandCenter(auth.context)) {

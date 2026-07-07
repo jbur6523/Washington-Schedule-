@@ -118,7 +118,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const supabase = createAdminClient();
   const { data: currentProfile, error: readError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, profile_id, username_normalized")
+    .select("id, department_id, profile_id, username_normalized, is_active")
     .eq("id", id)
     .eq("department_id", auth.context.departmentId)
     .maybeSingle();
@@ -132,6 +132,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   if (validation.error || !validation.data) {
     return NextResponse.json({ message: validation.error ?? "Invalid staff profile." }, { status: 400 });
+  }
+
+  if (
+    currentProfile.is_active &&
+    validation.data.is_active === false &&
+    (currentProfile.id === auth.context.staffProfileId || currentProfile.profile_id === auth.context.profileId)
+  ) {
+    return NextResponse.json({ message: "You cannot deactivate your own access." }, { status: 400 });
   }
 
   const { data: duplicate, error: duplicateError } = await supabase

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { ShiftUpdateClient } from "@/components/ShiftUpdateClient";
 import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
@@ -29,6 +30,10 @@ export default async function CommandCenterShiftUpdatePage() {
 
   if (auth.status === "unauthenticated") {
     redirect("/login");
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (auth.status !== "authenticated" || !canManageShiftStatus(auth.context)) {

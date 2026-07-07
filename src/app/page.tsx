@@ -4,6 +4,7 @@ import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
+import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,10 @@ export default async function Home() {
 
   if (auth.status === "unassigned") {
     return <UnassignedAccount displayName={auth.displayName} />;
+  }
+
+  if (auth.status === "inactive") {
+    return <InactiveAccountNotice displayName={auth.displayName} />;
   }
 
   if (isCommandCenter(auth.context)) {

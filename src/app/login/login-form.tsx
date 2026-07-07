@@ -48,6 +48,7 @@ const defaultNotificationPreferences: NotificationPreferences = {
 };
 
 const rememberedUsernameKey = "whhs-remembered-username";
+const inactiveAccountMessage = "This account is inactive. Please contact an administrator.";
 
 function isValidEmail(value: string) {
   return !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -171,6 +172,22 @@ export function LoginForm() {
     router.refresh();
   };
 
+  const verifyActiveSession = async (): Promise<"active" | "inactive" | "unavailable"> => {
+    try {
+      const response = await fetch("/api/auth/session-status", {
+        cache: "no-store"
+      });
+
+      if (response.status === 403) {
+        return "inactive";
+      }
+
+      return response.ok ? "active" : "unavailable";
+    } catch {
+      return "unavailable";
+    }
+  };
+
   const prepareNotificationStep = async () => {
     const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
     setNotificationSupported(supported);
@@ -227,6 +244,18 @@ export function LoginForm() {
       return;
     }
 
+    const sessionStatus = await verifyActiveSession();
+
+    if (sessionStatus !== "active") {
+      await supabase.auth.signOut();
+      setError(
+        sessionStatus === "inactive"
+          ? inactiveAccountMessage
+          : "Unable to verify account access. Please try again."
+      );
+      return;
+    }
+
     saveRememberedUsername(assignedUsername);
     enterApp();
   };
@@ -277,6 +306,18 @@ export function LoginForm() {
     if (signInError) {
       setMessage("Account created. Please sign in with your assigned username and password.");
       setMode("claimed");
+      return;
+    }
+
+    const sessionStatus = await verifyActiveSession();
+
+    if (sessionStatus !== "active") {
+      await supabase.auth.signOut();
+      setError(
+        sessionStatus === "inactive"
+          ? inactiveAccountMessage
+          : "Unable to verify account access. Please try again."
+      );
       return;
     }
 
