@@ -3,6 +3,8 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import {
   Activity,
+  Baby,
+  Bed,
   Building2,
   CalendarCheck,
   CheckCircle2,
@@ -10,7 +12,9 @@ import {
   ClipboardCopy,
   ClipboardList,
   Clock3,
+  Droplet,
   FileText,
+  Heart,
   LogOut,
   Moon,
   MoreHorizontal,
@@ -990,11 +994,11 @@ export function DirectorShiftStatusClient({
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
-            <ProcedureCard icon={<User size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
-            <ProcedureCard icon={<Users size={18} />} label="Vaginal Delivery" value={currentProcedureCounts.vaginalDelivery} />
-            <ProcedureCard icon={<Activity size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
+            <ProcedureCard icon={<Bed size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
+            <ProcedureCard icon={<Baby size={18} />} label="Vaginal Delivery" value={currentProcedureCounts.vaginalDelivery} />
+            <ProcedureCard icon={<Heart size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
             <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
-            <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
+            <ProcedureCard icon={<Droplet size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
             <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={currentProcedureCounts.other} />
           </div>
           {currentProcedureCounts.note && (
