@@ -45,6 +45,7 @@ import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
   latestShiftStatus,
+  resolveCurrentShiftStatus,
   shiftTypeLabel,
   todayInTimezone,
   updatedByName
@@ -729,8 +730,12 @@ export function DirectorShiftStatusClient({
   );
   const selectedLatest = useMemo(() => latestShiftStatus(selectedUpdates), [selectedUpdates]);
   const fallbackLatest = useMemo(() => latestShiftStatus(updates), [updates]);
-  const latest = selectedLatest;
-  const showingFallback = false;
+  const currentStatusDisplay = useMemo(
+    () => resolveCurrentShiftStatus(updates, timezone, new Date(nowTick)),
+    [nowTick, timezone, updates]
+  );
+  const latest = isSelectedCurrentShift ? currentStatusDisplay.latest : selectedLatest;
+  const showingFallback = isSelectedCurrentShift ? currentStatusDisplay.showingFallback : false;
   const snapshotLatest = fallbackLatest;
   const procedureWindow = useMemo(() => currentProcedureWindow(timezone), [timezone]);
   const procedureLatest = useMemo(
