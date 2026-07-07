@@ -99,8 +99,12 @@ export function latestShiftStatus(updates: ShiftStatusUpdate[]) {
   return [...updates].sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0] ?? null;
 }
 
-export function resolveCurrentShiftStatus(updates: ShiftStatusUpdate[], timezone = "America/Los_Angeles") {
-  const currentWindow = currentShiftStatusWindow(timezone);
+export function resolveCurrentShiftStatus(
+  updates: ShiftStatusUpdate[],
+  timezone = "America/Los_Angeles",
+  date = new Date()
+) {
+  const currentWindow = currentShiftStatusWindow(timezone, date);
   const currentWindowUpdates = updates.filter(
     (update) => update.shift_date === currentWindow.shiftDate && update.shift_type === currentWindow.shiftType
   );

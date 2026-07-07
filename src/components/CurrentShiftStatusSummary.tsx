@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -62,39 +62,62 @@ export function CurrentShiftStatusSummary({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [error, setError] = useState("");
 
+  const loadStatus = useCallback(async () => {
+    const supabase = createClient();
+    const { data, error: loadError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 30);
+
+    if (loadError) {
+      console.error("Staff current shift status load failed", loadError);
+      setError("Shift status unavailable.");
+      setUpdates([]);
+      return;
+    }
+
+    setUpdates(data);
+    setError("");
+  }, [authContext.departmentId]);
+
   useEffect(() => {
-    const loadStatus = async () => {
-      const supabase = createClient();
-      const { data, error: loadError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 30);
-
-      if (loadError) {
-        console.error("Staff current shift status load failed", loadError);
-        setError("Shift status unavailable.");
-        setUpdates([]);
-        return;
-      }
-
-      setUpdates(data);
-      setError("");
-    };
-
     const timer = window.setTimeout(() => {
       void loadStatus();
     }, 0);
     const interval = window.setInterval(() => {
+      setNowTick(Date.now());
       void loadStatus();
     }, 60 * 1000);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`staff-shift-status-${authContext.departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "shift_status_updates",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        () => {
+          setNowTick(Date.now());
+          void loadStatus();
+        }
+      )
+      .subscribe();
 
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
+      void supabase.removeChannel(channel);
     };
-  }, [authContext.departmentId, timezone]);
+  }, [authContext.departmentId, loadStatus]);
 
-  const { latest } = resolveCurrentShiftStatus(updates, timezone);
+  const { latest } = useMemo(
+    () => resolveCurrentShiftStatus(updates, timezone, new Date(nowTick)),
+    [nowTick, timezone, updates]
+  );
   const statusLabel = titleStatus(latest);
   const statusClass = titleStatusClass(statusLabel);
 
