@@ -37,7 +37,7 @@ The Respiratory Command Center is available at `/command-center` for `operations
 Seeded shared-device login:
 
 - Username: `sputum`
-- Temporary password: `2000`
+- Setup password: provided out of band by the department administrator. Do not publish the shared-device password in app UI or documentation.
 
 The command phone menu contains:
 

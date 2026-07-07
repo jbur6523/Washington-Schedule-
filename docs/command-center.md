@@ -12,9 +12,9 @@ Seeded username:
 
 - `sputum`
 
-Shared-device temporary password:
+Shared-device setup password:
 
-- `2000`
+- Provided out of band by the department administrator. Do not publish the shared-device password in app UI or documentation.
 
 The `sputum` account routes directly to `/command-center` after login. It does not show the normal Schedule tab, bottom navigation, Gossip, Staff Directory, Admin settings, staff management, or personal staff tools.
 

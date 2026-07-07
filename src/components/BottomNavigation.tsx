@@ -27,8 +27,9 @@ export function BottomNavigation({ activeTab, onTabChange }: BottomNavigationPro
             <button
               key={tab.id}
               type="button"
+              aria-current={active ? "page" : undefined}
               onClick={() => onTabChange(tab.id)}
-              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-0.5 text-[8px] font-extrabold leading-tight transition ${
+              className={`flex min-h-12 flex-col items-center justify-center rounded-xl px-0.5 text-[8px] font-extrabold leading-tight transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-600 ${
                 active ? "bg-cyan-50 text-cyan-700" : "text-slate-500 hover:bg-slate-50"
               }`}
             >

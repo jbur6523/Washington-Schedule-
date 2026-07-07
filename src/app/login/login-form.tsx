@@ -600,7 +600,7 @@ export function LoginForm() {
             />
             {assignedUsername === "sputum" && (
               <span className="mt-1 block text-xs font-bold text-slate-400">
-                Temporary command-center password: 2000.
+                Use the department command-center setup password provided by the administrator.
               </span>
             )}
           </label>
