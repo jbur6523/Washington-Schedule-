@@ -77,6 +77,9 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 - `icu_patients`: department-scoped operational ICU respiratory snapshot records. Each row stores bed, device type, device-specific respiratory settings, optional Vent airway fields, Critical Vent flag, active/discontinued state, created/updated staff profile references, and timestamps.
 - Active ICU entries are unique by department and bed. Discontinue sets `is_active = false`; records are not hard-deleted.
+- Vent discontinuation stores optional `ventilator_outcome` with one of the approved operational outcomes: Extubation, Trached Aerosol, Unplanned, Expired (on ventilator), Transferred to another facility, Donor network, or Discontinue Vent Support (Palliative).
+- `icu_patient_events`: department-scoped ICU lifecycle history. Rows reference an ICU patient record and store `added`, `updated`, `critical_status_updated`, or `discontinued` events with a safe event summary, optional safe JSON device/settings data, visible staff attribution, and timestamps.
+- ICU history supports each card's `History` action and the `Search Previous Date` workflow. It is an operational paper-trail substitute only and must not include patient identifiers.
 - The table intentionally does not include patient name, MRN, DOB, diagnosis, or notes fields.
 - RLS allows Admin and `operations_role = icu_command_center` to create/update/read ICU entries. Director and Respiratory Command Center users can read active ICU entries through read-only views. Regular Staff, Aide users, Lead users without Admin rights, and anonymous users cannot read or edit ICU entries by default.
 

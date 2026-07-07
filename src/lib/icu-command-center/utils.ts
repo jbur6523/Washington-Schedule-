@@ -3,7 +3,8 @@ import type {
   IcuDeviceType,
   IcuPatientRecord,
   IcuSnapshotCounts,
-  IcuVentMode
+  IcuVentMode,
+  VentilatorOutcome
 } from "@/lib/icu-command-center/types";
 
 export const icuBedOptions = [
@@ -59,9 +60,28 @@ export const icuAirwayLocationLabels: Record<IcuAirwayLocation, string> = {
   nare: "Nare"
 };
 
+export const ventilatorOutcomeLabels: Record<VentilatorOutcome, string> = {
+  extubation: "Extubation",
+  trached_aerosol: "Trached Aerosol",
+  unplanned: "Unplanned",
+  expired_on_ventilator: "Expired (on ventilator)",
+  transferred_to_another_facility: "Transferred to another facility",
+  donor_network: "Donor network",
+  discontinue_vent_support_palliative: "Discontinue Vent Support (Palliative)"
+};
+
 export const airwaySizeOptions = ["6", "6.5", "7", "7.5", "8"] as const;
 export const airwayLocationOptions: IcuAirwayLocation[] = ["teeth", "gum", "nare"];
 export const ventModeOptions: IcuVentMode[] = ["apvcmv", "scmv", "spont", "asv", "pcmv", "aprv"];
+export const ventilatorOutcomeOptions: VentilatorOutcome[] = [
+  "extubation",
+  "trached_aerosol",
+  "unplanned",
+  "expired_on_ventilator",
+  "transferred_to_another_facility",
+  "donor_network",
+  "discontinue_vent_support_palliative"
+];
 
 function hasValue(value: number | string | null | undefined) {
   return value !== null && value !== undefined && String(value).trim() !== "";
@@ -174,6 +194,7 @@ export function formatIcuLastUpdated(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "2-digit",
     day: "2-digit",
+    year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,

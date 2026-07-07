@@ -37,6 +37,7 @@ const icuPatientSelect = [
   "cpap",
   "flow",
   "is_critical_vent",
+  "ventilator_outcome",
   "is_active",
   "created_by_staff_profile_id",
   "updated_by_staff_profile_id",

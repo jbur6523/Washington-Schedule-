@@ -107,11 +107,60 @@ ICU Snapshot shows:
 
 The Critical Vents count includes only active Vent entries where Critical Vent is checked.
 
+## Active Card Actions
+
+Active ICU cards use these actions:
+
+- `Update`: opens the device/settings form with current values.
+- `Discontinue`: opens a confirmation flow and removes the device from the active ICU list without hard-deleting the record.
+- `History`: opens a read-only change history for that ICU record.
+
+Vent cards also show a small top-right Critical toggle. Tapping it switches the active Vent between Critical and Not Critical, updates ICU Snapshot counts, and writes a history event.
+
+The separate Recently Updated section is intentionally not shown. Each card still shows its own last-updated time.
+
+## Discontinue Workflow
+
+Non-vent devices show a confirmation modal before discontinuing:
+
+- Bed
+- Device
+- Current settings summary
+
+Vent devices require a Ventilator Outcome before discontinuing. Supported outcomes:
+
+- Extubation
+- Trached Aerosol
+- Unplanned
+- Expired (on ventilator)
+- Transferred to another facility
+- Donor network
+- Discontinue Vent Support (Palliative)
+
+Discontinued records stay available in history/search.
+
+## History and Previous Date Search
+
+Each ICU card includes a `History` button. History records show added, updated, critical status updated, and discontinued events with the display name/initials of the staff member who made the change.
+
+`Search Previous Date` accepts `MMDDYY` input and opens a read-only list of ICU records active on or updated during that date. It is for operational review only and does not expose patient identifiers.
+
 ## Data Model
 
 The `icu_patients` table stores active and discontinued ICU operational entries. Discontinue actions set `is_active = false`; records are not hard-deleted.
 
-The table includes department scope, bed, device type, device settings, Critical Vent, active state, created/updated staff profile IDs, and timestamps.
+The table includes department scope, bed, device type, device settings, Critical Vent, Ventilator Outcome when a Vent is discontinued, active state, created/updated staff profile IDs, and timestamps.
+
+The `icu_patient_events` table stores ICU lifecycle history:
+
+- `added`
+- `updated`
+- `critical_status_updated`
+- `discontinued`
+
+History rows store event summaries, safe device/settings details, visible staff attribution, and timestamps. They must not store patient names, MRNs, DOBs, diagnoses, or patient-identifying notes.
+
+Add/Update Patient errors appear as an inline red banner at the top of the modal so the user can see and correct the issue without closing the modal.
 
 ## Privacy Guardrails
 

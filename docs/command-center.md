@@ -51,7 +51,7 @@ Seeded username:
 
 - `ventilator`
 
-The ICU Command Center account routes directly to `/icu-command-center` after login. It can add, update, and discontinue active ICU respiratory device entries. It does not use the normal Schedule tab, bottom navigation, Gossip, Staff Directory, or personal staff tools.
+The ICU Command Center account routes directly to `/icu-command-center` after login. It can add, update, discontinue, toggle Critical Vent status, view history, and search previous ICU operational dates for respiratory device entries. It does not use the normal Schedule tab, bottom navigation, Gossip, Staff Directory, or personal staff tools.
 
 ICU Command Center entries are operational bed/device snapshots only. Do not enter patient names, MRNs, DOBs, diagnoses, or patient-identifying notes.
 
@@ -144,7 +144,7 @@ If the selected current shift has no submitted update, the page can show the mos
 
 The `Respiratory Directory` modal reads `staff_profiles` and includes active and inactive staff sorted by display name. It shows display names and phone numbers only, with phone numbers linked by `tel:` when present. It does not show usernames, auth IDs, email addresses, edit buttons, or admin controls.
 
-The Director page includes an `ICU Snapshot` section with Vents, HFNC, BiPAP, and Critical Vents. `View All` opens a read-only ICU detail report with bed, device, airway when relevant, settings, Critical Vent flag, and last updated time. Director users cannot edit ICU entries.
+The Director page includes an `ICU Snapshot` section with Vents, HFNC, BiPAP, and Critical Vents. `View All` opens a read-only ICU detail report with bed, device, airway when relevant, settings, Critical Vent flag, and last updated time. Director users cannot edit, discontinue, toggle Critical Vent status, or view internal ICU lifecycle controls.
 
 The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule, then the closest future uploaded date, then the previous shift date if no future date exists. The date dropdown shows the previous shift date when uploaded, the current date when uploaded, and all future uploaded dates. Older past uploaded dates stay out of the dropdown and can be entered manually as `MMDDYY`; if no uploaded schedule exists for that date, the modal shows `No uploaded schedule found for this date.` The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only, and the staff list has extra bottom padding so the final card remains fully visible when scrolled.
 

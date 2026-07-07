@@ -56,7 +56,7 @@ Seeded shared-device login:
 
 - Username: `ventilator`
 
-The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, a Critical Vent flag, active-device snapshot counts, edit, and discontinue. Discontinue does not hard-delete records.
+The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, active-device snapshot counts, Update, Discontinue, History, Search Previous Date, and a Vent-only Critical toggle. Vent discontinuation requires a Ventilator Outcome. Discontinue does not hard-delete records.
 
 Director and Respiratory Command Center users can view ICU details read-only. Regular Staff, Aides, unauthenticated users, and Director users cannot edit ICU entries.
 
