@@ -46,6 +46,37 @@ const icuPatientSelect = [
   "created_at",
   "updated_at"
 ].join(", ");
+const baseIcuPatientSelect = [
+  "id",
+  "department_id",
+  "bed",
+  "device_type",
+  "airway_size",
+  "airway_at",
+  "airway_location",
+  "vent_mode",
+  "rate",
+  "tidal_volume",
+  "peep",
+  "fio2",
+  "ps",
+  "t_high",
+  "t_low",
+  "p_high",
+  "p_low",
+  "percent_min_vol",
+  "ipap",
+  "epap",
+  "cpap",
+  "flow",
+  "is_critical_vent",
+  "is_active",
+  "created_by_staff_profile_id",
+  "updated_by_staff_profile_id",
+  "created_at",
+  "updated_at"
+].join(", ");
+const optionalIcuColumns = ["ventilator_outcome", "discontinued_at", "discontinued_by_staff_profile_id"];
 
 type IcuReadOnlyProps = {
   departmentId: string;
@@ -88,6 +119,66 @@ function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
   );
 }
 
+type IcuLoadError = {
+  code?: string;
+  message?: string;
+  details?: string;
+  hint?: string;
+};
+
+function isMissingOptionalIcuColumn(error: IcuLoadError | null) {
+  const message = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
+
+  return error?.code === "42703" || optionalIcuColumns.some((column) => message.includes(column));
+}
+
+function logIcuLoadError(context: string, departmentId: string, error: IcuLoadError) {
+  console.error("ICU snapshot load failed", {
+    context,
+    departmentId,
+    code: error.code,
+    message: error.message,
+    details: error.details,
+    hint: error.hint
+  });
+}
+
+function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuPatientRecord {
+  return {
+    id: record.id ?? "",
+    department_id: record.department_id ?? "",
+    bed: record.bed ?? "",
+    device_type: record.device_type ?? "vent",
+    airway_size: record.airway_size ?? null,
+    airway_at: record.airway_at ?? null,
+    airway_location: record.airway_location ?? null,
+    vent_mode: record.vent_mode ?? null,
+    rate: record.rate ?? null,
+    tidal_volume: record.tidal_volume ?? null,
+    peep: record.peep ?? null,
+    fio2: record.fio2 ?? null,
+    ps: record.ps ?? null,
+    t_high: record.t_high ?? null,
+    t_low: record.t_low ?? null,
+    p_high: record.p_high ?? null,
+    p_low: record.p_low ?? null,
+    percent_min_vol: record.percent_min_vol ?? null,
+    ipap: record.ipap ?? null,
+    epap: record.epap ?? null,
+    cpap: record.cpap ?? null,
+    flow: record.flow ?? null,
+    is_critical_vent: Boolean(record.is_critical_vent),
+    ventilator_outcome: record.ventilator_outcome ?? null,
+    discontinued_at: record.discontinued_at ?? null,
+    discontinued_by_staff_profile_id: record.discontinued_by_staff_profile_id ?? null,
+    is_active: record.is_active ?? true,
+    created_by_staff_profile_id: record.created_by_staff_profile_id ?? null,
+    updated_by_staff_profile_id: record.updated_by_staff_profile_id ?? null,
+    created_at: record.created_at ?? "",
+    updated_at: record.updated_at ?? record.created_at ?? ""
+  };
+}
+
 function useIcuPatients(departmentId: string) {
   const [records, setRecords] = useState<IcuPatientRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,15 +196,39 @@ function useIcuPatients(departmentId: string) {
       .eq("is_active", true)
       .order("bed", { ascending: true });
 
-    setLoading(false);
-
     if (loadError) {
+      logIcuLoadError("icu_patients.active_read", departmentId, loadError);
+
+      if (isMissingOptionalIcuColumn(loadError)) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("icu_patients")
+          .select(baseIcuPatientSelect)
+          .eq("department_id", departmentId)
+          .eq("is_active", true)
+          .order("bed", { ascending: true });
+
+        setLoading(false);
+
+        if (!fallbackError) {
+          console.warn("ICU snapshot loaded with legacy column fallback. Apply the latest ICU migrations to restore full lifecycle fields.", {
+            departmentId
+          });
+          setRecords(((fallbackData ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord));
+          return;
+        }
+
+        logIcuLoadError("icu_patients.active_read_fallback", departmentId, fallbackError);
+      } else {
+        setLoading(false);
+      }
+
       setRecords([]);
       setError("Could not load ICU snapshot.");
       return;
     }
 
-    setRecords((data ?? []) as unknown as IcuPatientRecord[]);
+    setLoading(false);
+    setRecords(((data ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord));
   }, [departmentId]);
 
   useEffect(() => {

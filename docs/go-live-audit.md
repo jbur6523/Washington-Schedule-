@@ -62,7 +62,7 @@ Recommended fix:
 - Create a controlled migration reconciliation plan with unique versions for unapplied files.
 
 Fixed in this pass:
-- No. This is risky without live migration history.
+- Partially, as Phase 3 documentation/reconciliation. `docs/migration-reconciliation.md` now inventories every migration, identifies duplicate timestamp groups, documents the forward-only repair strategy, and includes production SQL checks to compare against `supabase_migrations.schema_migrations`. No already-applied migration filenames were renamed because production migration history was not directly verified.
 
 ### P1 - Staff deactivation does not reliably revoke app access
 
@@ -97,7 +97,7 @@ Recommended fix:
 - After backfill/validation, enforce not-null constraints for required ICU fields.
 
 Fixed in this pass:
-- No. The ICU repair migration was already untracked when this audit started. I did not modify or commit it without production migration context.
+- Partially, as Phase 3 reconciliation. The pre-existing ICU read-only compatibility change and the forward-only ICU schema repair migration were reviewed, documented, and kept because they are referenced/needed by Director and Command Center ICU snapshot views. The active-bed uniqueness invariant remains deferred until production can be checked for duplicate active bed rows before enforcing the partial unique index.
 
 ### P1 - Rental lifecycle updates are not guarded against stale state
 
@@ -286,16 +286,23 @@ ICU Command Center:
 - Active/discontinued model exists.
 - No PHI fields were found in the schema.
 - Read-only director/command center detail views exist.
-- Current dirty worktree includes ICU read-only compatibility changes and an untracked ICU schema repair migration that should be reviewed before commit/deploy.
+- Phase 3 reviewed and kept the ICU read-only compatibility changes and the ICU schema repair migration as a forward-only safety repair for environments where ICU migrations were manually applied or partially applied.
 
 ## 7. Database/Migration Review
 
 Must resolve:
 - Duplicate migration version prefixes.
-- Confirm whether the untracked ICU repair migration is intended for production.
+- Use `docs/migration-reconciliation.md` to compare local migrations to the production migration table before the next Supabase deploy.
 - Add/recreate ICU active-bed unique index if the repair migration is used.
 - Confirm production has `vaginal_delivery_count`.
 - Confirm `pg_trgm` exists before relying on the order Req Number trigram index.
+
+Phase 3 status:
+- `docs/migration-reconciliation.md` was added with a migration-by-migration inventory, duplicate timestamp groups, forward-only repair strategy, and Supabase SQL verification checks.
+- No local migration filenames were renamed because duplicate versions may already be applied in production.
+- `src/components/IcuReadOnlyViews.tsx` was kept as a read-only fallback for production environments missing optional ICU columns during rollout.
+- `supabase/migrations/202607070005_icu_snapshot_schema_repair.sql` was kept as a forward-only repair migration. If it was already manually applied in production, mark/verify it in migration history rather than reworking old applied files.
+- Production Supabase state was not directly verified in this audit pass.
 
 Recommended indexes/constraints:
 - Rental event index by `(department_id, rental_record_id, event_at)`.
@@ -365,7 +372,10 @@ Files changed in this audit:
 - `docs/backend-schema.md`
 - `docs/operations-dashboard.md`
 - `docs/go-live-audit.md`
+- `docs/migration-reconciliation.md`
 - `supabase/migrations/202607070006_enforce_active_staff_access.sql`
+- `supabase/migrations/202607070005_icu_snapshot_schema_repair.sql`
+- `src/components/IcuReadOnlyViews.tsx`
 
 Fixes:
 - Removed the visible shared command-center setup password from the login screen.
@@ -375,21 +385,25 @@ Fixes:
 - Added Phase 1 staff deactivation enforcement: inactive linked staff are blocked at login/session validation, protected route auth context, onboarding contact save, and database RLS helper checks.
 - Added admin roster guardrails for access deactivation/reactivation, including self-deactivation blocking and clear success messages.
 - Added Phase 2 rental lifecycle hardening: rental status transitions now use guarded database functions with expected-status checks, active staff attribution validation, duplicate active barcode/serial rejection on delivery, and event insertion only after successful transitions.
+- Added Phase 3 migration reconciliation documentation, including duplicate timestamp inventory, production verification SQL, and a forward-only strategy for manually applied/out-of-order migrations.
+- Kept and documented the ICU read-only compatibility fallback and ICU schema repair migration so those pre-existing dirty files are no longer unexplained.
 
 Why these fixes were safe:
 - They do not change auth flow, routing, role permissions, or user-facing operational workflows.
 - They reduce credential exposure and improve navigation accessibility.
 - The deactivation work uses the existing `staff_profiles.is_active` field and preserves historical data instead of deleting profiles, memberships, or records.
+- The migration reconciliation work is documentation-first and forward-only. It does not rename applied migrations, drop data, or assume production SQL results that were not collected.
 
 ## 11. Deferred Fixes
 
 Separate prompt/phase recommended:
 - Replace public username claim with one-time invite/reset tokens.
-- Reconcile Supabase migration history with production.
+- Run the `docs/migration-reconciliation.md` SQL checks against production Supabase and decide whether any unapplied duplicate-version migrations need replacement forward migrations.
 - Add optional global Supabase refresh-token revocation for deactivated users if management wants immediate token invalidation beyond app-level denial on refresh/route check.
 - Add guarded/RPC workflow transitions for remaining schedule and Cover/Switch actions.
 - Add rental history pagination and scoped export/feed behavior.
 - Add database uniqueness constraints after checking for existing duplicate rows.
+- Check for duplicate active ICU bed rows, then add/recreate the partial unique active-bed index if production data is clean.
 - Extract shared accessible modal shell.
 - Run full live smoke tests for each role.
 
@@ -405,4 +419,4 @@ Manual/browser testing:
 - Not performed in this pass. Local Supabase env is missing, and live browser testing should be done with fresh credentials provided for that session only.
 
 Worktree note:
-- Before this audit, the worktree already had `src/components/IcuReadOnlyViews.tsx` modified and `supabase/migrations/202607070005_icu_snapshot_schema_repair.sql` untracked. Those pre-existing changes were not reverted.
+- Before Phase 3, the worktree already had `src/components/IcuReadOnlyViews.tsx` modified and `supabase/migrations/202607070005_icu_snapshot_schema_repair.sql` untracked. Phase 3 reviewed and kept both files because the component is imported by Director/Command Center ICU read-only views and the migration is a forward-only ICU schema/policy repair. Production SQL verification is still required before claiming production schema reconciliation complete.

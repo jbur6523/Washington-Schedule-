@@ -84,6 +84,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `get_current_icu_snapshot_counts(department_id)`: aggregate-only ICU snapshot helper for authenticated department members. It returns active device counts for schedule/director display without exposing individual ICU patient rows to regular Staff.
 - The table intentionally does not include patient name, MRN, DOB, diagnosis, or notes fields.
 - RLS allows Admin and `operations_role = icu_command_center` to create/update/read ICU entries. Director and Respiratory Command Center users can read active ICU entries through read-only views. Regular Staff, Aide users, Lead users without Admin rights, and anonymous users cannot read or edit ICU entries by default.
+- `202607070005_icu_snapshot_schema_repair.sql` is a forward-only ICU repair migration for environments where ICU tables, helper functions, policies, or optional discontinued/outcome columns were manually applied or partially applied. It should be reconciled against production migration history before deploy; it does not delete ICU data.
 
 ### Rental Management
 
