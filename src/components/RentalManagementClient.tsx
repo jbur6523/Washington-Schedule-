@@ -923,8 +923,42 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     );
   };
 
+  const handleRentalTransitionFailure = async (
+    action:
+      | "confirmDelivery"
+      | "cancelDelivery"
+      | "callPickup"
+      | "cancelPickup"
+      | "confirmPickedUp",
+    fallbackMessage: string,
+    onStale?: () => void
+  ) => {
+    const staleMessages = {
+      confirmDelivery: "This rental was already updated by someone else. Refreshing rental status.",
+      cancelDelivery: "This rental is no longer pending delivery.",
+      callPickup: "This rental is no longer active.",
+      cancelPickup: "This rental is no longer pending pickup.",
+      confirmPickedUp: "This rental is no longer pending pickup."
+    };
+
+    setSaving(false);
+    setError(staleMessages[action] ?? fallbackMessage);
+    onStale?.();
+    await loadRentalData();
+    return false;
+  };
+
+  const isStaleRentalTransitionError = (message: string) =>
+    message.includes("STALE_RENTAL_STATE") || message.includes("RENTAL_NOT_FOUND");
+
+  const isDuplicateActiveRentalError = (message: string) => message.includes("DUPLICATE_ACTIVE_RENTAL");
+
   const submitCheckIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (saving) {
+      return;
+    }
 
     const actor = requireActionAttribution("Select who ordered this rental before saving.");
 
@@ -949,29 +983,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     setDuplicateRental(null);
 
     const supabase = createClient();
-    const vendor = vendors.find((candidate) => candidate.id === form.vendorId);
     const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
-    const pendingRecordsToCreate = Array.from({ length: orderQuantity }, () => ({
-      department_id: authContext.departmentId,
-      equipment_id: null,
-      vendor_id: form.vendorId,
-      equipment_type: form.equipmentType,
-      barcode_number: null,
-      serial_number: null,
-      status: "pending_delivery",
-      called_in_at: pendingAt,
-      called_in_by_staff_profile_id: actor.staffProfileId,
-      called_in_by_name: actor.displayName,
-      checked_in_at: null,
-      checked_in_by_staff_profile_id: null,
-      current_location: null,
-      notes: form.notes.trim() || null
-    }));
-
-    const { data: pendingRecords, error: pendingError } = await supabase
-      .from("rental_records")
-      .insert(pendingRecordsToCreate)
-      .select(rentalRecordSelect);
+    const { data: pendingRecords, error: pendingError } = await supabase.rpc("create_pending_rental_delivery", {
+      target_department_id: authContext.departmentId,
+      target_vendor_id: form.vendorId,
+      target_equipment_type: form.equipmentType,
+      order_quantity: orderQuantity,
+      p_called_in_at: pendingAt,
+      actor_staff_profile_id: actor.staffProfileId,
+      p_order_note: form.notes.trim() || null
+    });
 
     const savedPendingRecords = (pendingRecords ?? []) as unknown as ActiveRentalRecord[];
 
@@ -980,26 +1001,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       setError("Unable to save pending delivery.");
       return;
     }
-
-    await supabase.from("rental_events").insert(
-      savedPendingRecords.map((savedPendingRecord, index) => ({
-        department_id: authContext.departmentId,
-        rental_record_id: savedPendingRecord.id,
-        equipment_id: null,
-        event_type: "called_in",
-        event_at: pendingAt,
-        actor_staff_profile_id: actor.staffProfileId,
-        event_data: {
-          equipment_type: form.equipmentType,
-          vendor_id: form.vendorId,
-          vendor_name: vendor?.name ?? null,
-          called_in_by: actor.displayName,
-          order_quantity: orderQuantity,
-          order_item: index + 1,
-          timestamp: pendingAt
-        }
-      }))
-    );
 
     setSaving(false);
     setForm(defaultForm(vendors[0]?.id ?? ""));
@@ -1013,6 +1014,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   };
 
   const confirmDeliveryForRental = async (pendingRental: ActiveRentalRecord) => {
+    if (saving) {
+      return false;
+    }
+
     const actor = requireActionAttribution("Select who confirmed this delivery before saving.");
 
     if (!actor) {
@@ -1029,7 +1034,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     setDuplicateRental(null);
 
     const supabase = createClient();
-    const vendor = vendors.find((candidate) => candidate.id === pendingRental.vendor_id);
     const barcodeNumber = form.barcodeNumber.trim();
     const serialNumber = form.serialNumber.trim() || null;
     const location = currentLocation || "RT Equipment Room";
@@ -1063,106 +1067,37 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return false;
     }
 
-    const { data: knownEquipment } = await supabase
-      .from("rental_equipment")
-      .select("id, barcode_number, serial_number")
-      .eq("department_id", authContext.departmentId);
-    const existingEquipment = ((knownEquipment ?? []) as Array<{ id: string; barcode_number: string | null; serial_number: string | null }>).find(
-      (equipmentRecord) =>
-        (equipmentRecord.barcode_number ?? "").toLowerCase() === barcodeNumber.toLowerCase() ||
-        Boolean(serialNumber && (equipmentRecord.serial_number ?? "").toLowerCase() === serialNumber.toLowerCase())
-    );
-    const equipmentPayload = {
-      department_id: authContext.departmentId,
-      vendor_id: pendingRental.vendor_id,
-      equipment_type: pendingRental.equipment_type,
-      barcode_number: barcodeNumber,
-      serial_number: serialNumber,
-      last_known_company: vendor?.name ?? null,
-      is_active: true
-    };
-    const { data: equipment, error: equipmentError } = existingEquipment
-      ? await supabase
-          .from("rental_equipment")
-          .update(equipmentPayload)
-          .eq("id", existingEquipment.id)
-          .select("id")
-          .single()
-      : await supabase
-          .from("rental_equipment")
-          .insert(equipmentPayload)
-          .select("id")
-          .single();
+    const eventType = scannedByCamera ? "barcode_scanned" : "manual_check_in";
+    const { error: transitionError } = await supabase.rpc("confirm_rental_delivery", {
+      target_record_id: pendingRental.id,
+      actor_staff_profile_id: actor.staffProfileId,
+      p_delivered_at: deliveredAt,
+      p_barcode_number: barcodeNumber,
+      p_serial_number: serialNumber,
+      p_current_location: location,
+      p_delivery_note: form.notes.trim() || pendingRental.notes || null,
+      p_scan_event_type: eventType
+    });
 
-    if (equipmentError || !equipment?.id) {
-      setSaving(false);
-      setError("Unable to save rental equipment.");
-      return false;
-    }
+    if (transitionError) {
+      if (isDuplicateActiveRentalError(transitionError.message)) {
+        setSaving(false);
+        setError("This barcode or serial number is already active on another rental. Refreshing rental status.");
+        await loadRentalData();
+        return false;
+      }
 
-    const { data: record, error: recordError } = await supabase
-      .from("rental_records")
-      .update({
-        equipment_id: equipment.id,
-        barcode_number: barcodeNumber,
-        serial_number: serialNumber,
-        status: "active",
-        checked_in_at: deliveredAt,
-        checked_in_by_staff_profile_id: actor.staffProfileId,
-        current_location: location,
-        notes: form.notes.trim() || pendingRental.notes || null
-      })
-      .eq("id", pendingRental.id)
-      .select(rentalRecordSelect)
-      .single();
+      if (isStaleRentalTransitionError(transitionError.message)) {
+        return handleRentalTransitionFailure("confirmDelivery", "Unable to confirm rental delivery.", () => {
+          setPendingDeliveryConfirmation(null);
+          setDeliveryDetailsOpen(false);
+        });
+      }
 
-    const savedRecord = record as unknown as ActiveRentalRecord | null;
-
-    if (recordError || !savedRecord?.id) {
       setSaving(false);
       setError("Unable to confirm rental delivery.");
       return false;
     }
-
-    const eventType = scannedByCamera ? "barcode_scanned" : "manual_check_in";
-    await supabase.from("rental_events").insert([
-      {
-        department_id: authContext.departmentId,
-        rental_record_id: savedRecord.id,
-        equipment_id: equipment.id,
-        event_type: eventType,
-        event_at: deliveredAt,
-        actor_staff_profile_id: actor.staffProfileId,
-        event_data: {
-          barcode_number: barcodeNumber,
-          serial_number: serialNumber,
-          equipment_type: pendingRental.equipment_type,
-          vendor_id: pendingRental.vendor_id,
-          vendor_name: vendor?.name ?? null,
-          current_location: location,
-          timestamp: deliveredAt
-        }
-      },
-      {
-        department_id: authContext.departmentId,
-        rental_record_id: savedRecord.id,
-        equipment_id: equipment.id,
-        event_type: "delivered",
-        event_at: deliveredAt,
-        actor_staff_profile_id: actor.staffProfileId,
-        event_data: {
-          source: scannedByCamera ? "barcode" : "manual",
-          barcode_number: barcodeNumber,
-          serial_number: serialNumber,
-          equipment_type: pendingRental.equipment_type,
-          vendor_id: pendingRental.vendor_id,
-          vendor_name: vendor?.name ?? null,
-          current_location: location,
-          delivered_by: actor.displayName,
-          timestamp: deliveredAt
-        }
-      }
-    ]);
 
     setSaving(false);
     setScannerOpen(false);
@@ -1269,6 +1204,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const submitPickupCall = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (saving) {
+      return;
+    }
+
     const actor = requireActionAttribution("Select who called for pickup before saving.");
 
     if (!actor) {
@@ -1284,47 +1223,29 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     setError("");
 
     const supabase = createClient();
-    const vendor = firstRelated(selectedReturnRental.rental_vendors);
     const eventAt = new Date(`${returnForm.date}T${returnForm.time}:00`).toISOString();
     const note = returnForm.note.trim() || null;
     const confirmationNumber = returnForm.confirmationNumber.trim() || null;
-    const { error: updateError } = await supabase
-      .from("rental_records")
-      .update({
-        status: "pickup_called",
-        pickup_requested_at: eventAt,
-        pickup_requested_by_staff_profile_id: actor.staffProfileId,
-        pickup_confirmation_number: confirmationNumber,
-        pickup_request_note: note
-      })
-      .eq("id", selectedReturnRental.id);
+    const { error: transitionError } = await supabase.rpc("call_rental_pickup", {
+      target_record_id: selectedReturnRental.id,
+      actor_staff_profile_id: actor.staffProfileId,
+      p_pickup_called_at: eventAt,
+      p_confirmation_number: confirmationNumber,
+      p_pickup_note: note
+    });
 
-    if (updateError) {
+    if (transitionError) {
+      if (isStaleRentalTransitionError(transitionError.message)) {
+        return handleRentalTransitionFailure("callPickup", "Unable to log pickup call.", () => {
+          setReturnForm(defaultReturnForm());
+          setPickupCallDetailsOpen(false);
+        });
+      }
+
       setSaving(false);
       setError("Unable to log pickup call.");
       return;
     }
-
-    await supabase.from("rental_events").insert({
-      department_id: authContext.departmentId,
-      rental_record_id: selectedReturnRental.id,
-      equipment_id: null,
-      event_type: "pickup_called",
-      event_at: eventAt,
-      actor_staff_profile_id: actor.staffProfileId,
-      event_data: {
-        barcode_number: selectedReturnRental.barcode_number,
-        serial_number: selectedReturnRental.serial_number,
-        equipment_type: selectedReturnRental.equipment_type,
-        vendor_id: selectedReturnRental.vendor_id,
-        vendor_name: vendor?.name ?? null,
-        current_location: selectedReturnRental.current_location,
-        confirmation_number: confirmationNumber,
-        note,
-        called_by: actor.displayName,
-        timestamp: eventAt
-      }
-    });
 
     setSaving(false);
     setReturnForm(defaultReturnForm());
@@ -1335,6 +1256,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const submitPendingPickupPickedUp = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (saving) {
+      return;
+    }
 
     const actor = requireActionAttribution("Select who confirmed pickup before saving.");
 
@@ -1351,44 +1276,27 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     setError("");
 
     const supabase = createClient();
-    const vendor = firstRelated(pendingPickupConfirmation.rental_vendors);
     const eventAt = new Date(`${pickupDateDraft}T${pickupTimeDraft}:00`).toISOString();
     const note = pickupNoteDraft.trim() || null;
-    const { error: updateError } = await supabase
-      .from("rental_records")
-      .update({
-        status: "picked_up",
-        returned_at: eventAt,
-        returned_by_staff_profile_id: actor.staffProfileId,
-        return_note: note
-      })
-      .eq("id", pendingPickupConfirmation.id);
+    const { error: transitionError } = await supabase.rpc("confirm_rental_picked_up", {
+      target_record_id: pendingPickupConfirmation.id,
+      actor_staff_profile_id: actor.staffProfileId,
+      p_picked_up_at: eventAt,
+      p_pickup_note: note
+    });
 
-    if (updateError) {
+    if (transitionError) {
+      if (isStaleRentalTransitionError(transitionError.message)) {
+        return handleRentalTransitionFailure("confirmPickedUp", "Unable to confirm picked up.", () => {
+          setPendingPickupConfirmation(null);
+          setPickupDetailsOpen(false);
+        });
+      }
+
       setSaving(false);
       setError("Unable to confirm picked up.");
       return;
     }
-
-    await supabase.from("rental_events").insert({
-      department_id: authContext.departmentId,
-      rental_record_id: pendingPickupConfirmation.id,
-      equipment_id: null,
-      event_type: "picked_up",
-      event_at: eventAt,
-      actor_staff_profile_id: actor.staffProfileId,
-      event_data: {
-        barcode_number: pendingPickupConfirmation.barcode_number,
-        serial_number: pendingPickupConfirmation.serial_number,
-        equipment_type: pendingPickupConfirmation.equipment_type,
-        vendor_id: pendingPickupConfirmation.vendor_id,
-        vendor_name: vendor?.name ?? null,
-        current_location: pendingPickupConfirmation.current_location,
-        note,
-        picked_up_by: actor.displayName,
-        timestamp: eventAt
-      }
-    });
 
     setSaving(false);
     setPendingPickupConfirmation(null);
@@ -1402,6 +1310,10 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
   const submitPendingCancellation = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (saving) {
+      return;
+    }
 
     const actor = requireActionAttribution("Select who completed this cancellation before saving.");
 
@@ -1421,53 +1333,37 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     const { rental, action } = pendingCancellation;
     const eventAt = new Date().toISOString();
     const note = cancelNote.trim() || null;
-    const vendor = firstRelated(rental.rental_vendors);
-    const eventType = action === "delivery" ? "delivery_cancelled" : "pickup_cancelled";
-    const updatePayload =
+    const { error: transitionError } =
       action === "delivery"
-        ? {
-            status: "delivery_cancelled",
-            cancelled_at: eventAt,
-            cancelled_by_staff_profile_id: actor.staffProfileId,
-            cancellation_note: note
-          }
-        : {
-            status: "active",
-            pickup_requested_at: null,
-            pickup_requested_by_staff_profile_id: null,
-            pickup_confirmation_number: null,
-            pickup_request_note: null
-          };
-    const { error: updateError } = await supabase
-      .from("rental_records")
-      .update(updatePayload)
-      .eq("id", rental.id);
+        ? await supabase.rpc("cancel_rental_delivery", {
+            target_record_id: rental.id,
+            actor_staff_profile_id: actor.staffProfileId,
+            p_cancelled_at: eventAt,
+            p_cancellation_note: note
+          })
+        : await supabase.rpc("cancel_rental_pickup", {
+            target_record_id: rental.id,
+            actor_staff_profile_id: actor.staffProfileId,
+            p_cancelled_at: eventAt,
+            p_cancellation_note: note
+          });
 
-    if (updateError) {
+    if (transitionError) {
+      if (isStaleRentalTransitionError(transitionError.message)) {
+        return handleRentalTransitionFailure(
+          action === "delivery" ? "cancelDelivery" : "cancelPickup",
+          action === "delivery" ? "Unable to cancel delivery." : "Unable to cancel pickup request.",
+          () => {
+            setPendingCancellation(null);
+            setCancelNote("");
+          }
+        );
+      }
+
       setSaving(false);
       setError(action === "delivery" ? "Unable to cancel delivery." : "Unable to cancel pickup request.");
       return;
     }
-
-    await supabase.from("rental_events").insert({
-      department_id: authContext.departmentId,
-      rental_record_id: rental.id,
-      equipment_id: null,
-      event_type: eventType,
-      event_at: eventAt,
-      actor_staff_profile_id: actor.staffProfileId,
-      event_data: {
-        barcode_number: rental.barcode_number,
-        serial_number: rental.serial_number,
-        equipment_type: rental.equipment_type,
-        vendor_id: rental.vendor_id,
-        vendor_name: vendor?.name ?? null,
-        current_location: rental.current_location,
-        note,
-        cancelled_by: actor.displayName,
-        timestamp: eventAt
-      }
-    });
 
     setSaving(false);
     setPendingCancellation(null);

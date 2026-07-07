@@ -8,12 +8,12 @@ Browser/live testing: not performed in this pass because this checkout does not 
 
 Overall readiness: Not Ready for broad go-live. Almost Ready for a controlled leadership review after the P0/P1 items below are addressed or explicitly accepted.
 
-The app has strong functional coverage for the major operational workflows: schedule viewing, Command Center shift updates, Director shift status, rental lifecycle, Aide/Admin Order Management, and ICU Command Center. The most important current risks are not UI polish. They are account-claim security, migration history/schema drift, non-transactional workflow transitions, and unbounded rental history/export loading.
+The app has strong functional coverage for the major operational workflows: schedule viewing, Command Center shift updates, Director shift status, rental lifecycle, Aide/Admin Order Management, and ICU Command Center. The most important current risks are not UI polish. They are account-claim security, migration history/schema drift, remaining non-transactional schedule/Cover-Switch workflow transitions, and unbounded rental history/export loading.
 
 Recommended next step:
 1. Close the public account-claim/security P0.
 2. Reconcile Supabase migrations against the actual production migration table before any broad deployment.
-3. Move high-value state transitions into database RPCs or guarded updates.
+3. Move remaining high-value schedule/Cover-Switch transitions into database RPCs or guarded updates.
 4. Run a live role-by-role smoke test against the deployed app after the above changes.
 
 ## 2. P0/P1 Findings
@@ -115,7 +115,7 @@ Recommended fix:
 - Longer term, move lifecycle transitions plus event inserts into RPCs.
 
 Fixed in this pass:
-- No. This is workflow logic and should be handled in a targeted rental hardening phase.
+- Yes. Phase 2 added database transition functions for pending delivery creation, delivery confirmation, pickup request, pickup cancellation, picked-up confirmation, and delivery cancellation. These functions verify current status before updating, insert events only after a successful guarded update, preserve selected staff attribution, and return stale-state errors without creating duplicate events.
 
 ### P1 - Rental history/export paths are unbounded
 
@@ -273,7 +273,7 @@ Director Dashboard:
 Rental Management:
 - Pending rentals are not counted as active in the visible summary.
 - Quantity ordering creates multiple awaiting-delivery records.
-- Lifecycle state transitions need stale-state guards.
+- Lifecycle state transitions now use guarded database functions for stale-state and duplicate-submit resistance.
 - Export/feed performance needs hardening.
 
 Order Management:
@@ -374,9 +374,10 @@ Fixes:
 - Added this production-readiness audit report.
 - Added Phase 1 staff deactivation enforcement: inactive linked staff are blocked at login/session validation, protected route auth context, onboarding contact save, and database RLS helper checks.
 - Added admin roster guardrails for access deactivation/reactivation, including self-deactivation blocking and clear success messages.
+- Added Phase 2 rental lifecycle hardening: rental status transitions now use guarded database functions with expected-status checks, active staff attribution validation, duplicate active barcode/serial rejection on delivery, and event insertion only after successful transitions.
 
 Why these fixes were safe:
-- They do not change auth flow, routing, database schema, role permissions, or operational workflows.
+- They do not change auth flow, routing, role permissions, or user-facing operational workflows.
 - They reduce credential exposure and improve navigation accessibility.
 - The deactivation work uses the existing `staff_profiles.is_active` field and preserves historical data instead of deleting profiles, memberships, or records.
 
@@ -386,7 +387,7 @@ Separate prompt/phase recommended:
 - Replace public username claim with one-time invite/reset tokens.
 - Reconcile Supabase migration history with production.
 - Add optional global Supabase refresh-token revocation for deactivated users if management wants immediate token invalidation beyond app-level denial on refresh/route check.
-- Add guarded/RPC workflow transitions for rental and schedule actions.
+- Add guarded/RPC workflow transitions for remaining schedule and Cover/Switch actions.
 - Add rental history pagination and scoped export/feed behavior.
 - Add database uniqueness constraints after checking for existing duplicate rows.
 - Extract shared accessible modal shell.

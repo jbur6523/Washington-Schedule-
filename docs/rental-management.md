@@ -73,6 +73,23 @@ When delivery is confirmed from the shared Command Center login, the modal requi
 
 The full `/operations/rental-management/deliver/[id]` Confirm Delivery page remains available as a direct-route fallback, but the normal Pending Delivery dashboard card uses the modal flow.
 
+## Stale-State Protection
+
+Rental lifecycle writes are guarded by database transition functions so stale UI state and duplicate taps cannot create conflicting events.
+
+Guarded transitions:
+
+- `create_pending_rental_delivery`: creates each pending delivery record and its matching `called_in` event together.
+- `confirm_rental_delivery`: allows only `pending_delivery` / `called_in` to become `active`; it saves barcode/serial/equipment identity and creates delivery events only after the guarded status update succeeds.
+- `call_rental_pickup`: allows only `active` / `delivered` rentals to become `pickup_called`.
+- `cancel_rental_pickup`: allows only pickup-pending statuses to return to `active`.
+- `confirm_rental_picked_up`: allows only pickup-pending statuses to become `picked_up`.
+- `cancel_rental_delivery`: allows only `pending_delivery` / `called_in` to become `delivery_cancelled`.
+
+If another user already updated a rental from a stale modal, the action is rejected, no event is inserted, Rental Management refreshes, and the user sees a friendly stale-state message. Save/confirm buttons are also disabled while requests are pending to prevent double submission.
+
+Command Center attribution is preserved by passing the selected staff profile to the transition functions. Rental History and exports continue to display the selected staff actor rather than the shared device account.
+
 ## Rental Lifecycle
 
 Rental records use these user-facing lifecycle states:
