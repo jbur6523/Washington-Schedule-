@@ -5,35 +5,13 @@ import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
+import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
   resolveCurrentShiftStatus,
   updatedByName
 } from "@/lib/shift-status/utils";
-
-const shiftStatusSelect = [
-  "id",
-  "department_id",
-  "shift_date",
-  "shift_type",
-  "rts_on",
-  "rts_required",
-  "vent_count",
-  "bipap_count",
-  "c_section_count",
-  "vaginal_delivery_count",
-  "cabg_count",
-  "bronch_count",
-  "sputum_induction_count",
-  "other_procedure_count",
-  "other_procedure_note",
-  "updated_by_staff_profile_id",
-  "updated_by_name",
-  "created_at",
-  "updated_at",
-  "staff_profiles(display_name)"
-].join(", ");
 
 function titleStatus(update: ShiftStatusUpdate | null) {
   if (!update) {
@@ -90,20 +68,16 @@ export function CurrentShiftStatusSummary({
   useEffect(() => {
     const loadStatus = async () => {
       const supabase = createClient();
-      const { data, error: loadError } = await supabase
-        .from("shift_status_updates")
-        .select(shiftStatusSelect)
-        .eq("department_id", authContext.departmentId)
-        .order("updated_at", { ascending: false })
-        .limit(30);
+      const { data, error: loadError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 30);
 
       if (loadError) {
+        console.error("Staff current shift status load failed", loadError);
         setError("Shift status unavailable.");
         setUpdates([]);
         return;
       }
 
-      setUpdates((data ?? []) as unknown as ShiftStatusUpdate[]);
+      setUpdates(data);
       setError("");
     };
 

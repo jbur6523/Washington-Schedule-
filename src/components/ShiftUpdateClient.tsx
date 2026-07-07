@@ -6,6 +6,7 @@ import { Activity, Baby, Bed, ClipboardList, Droplet, Heart, MoreHorizontal, Ste
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
+import { isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
 import { currentShiftType, shiftTypeLabel, todayInTimezone } from "@/lib/shift-status/utils";
 
 type ShiftUpdateForm = {
@@ -183,8 +184,7 @@ export function ShiftUpdateClient({
     setError("");
     setMessage("");
 
-    const supabase = createClient();
-    const { error: saveError } = await supabase.from("shift_status_updates").insert({
+    const basePayload = {
       department_id: authContext.departmentId,
       shift_date: form.shiftDate,
       shift_type: form.shiftType,
@@ -193,7 +193,6 @@ export function ShiftUpdateClient({
       vent_count: numberValue(form.ventCount),
       bipap_count: numberValue(form.bipapCount),
       c_section_count: numberValue(form.cSectionCount),
-      vaginal_delivery_count: numberValue(form.vaginalDeliveryCount),
       cabg_count: numberValue(form.cabgCount),
       bronch_count: numberValue(form.bronchCount),
       sputum_induction_count: numberValue(form.sputumInductionCount),
@@ -201,7 +200,19 @@ export function ShiftUpdateClient({
       other_procedure_note: form.otherProcedureNote.trim() || null,
       updated_by_staff_profile_id: form.updatedByStaffProfileId || null,
       updated_by_name: updatedByName
+    };
+
+    const supabase = createClient();
+    let { error: saveError } = await supabase.from("shift_status_updates").insert({
+      ...basePayload,
+      vaginal_delivery_count: numberValue(form.vaginalDeliveryCount)
     });
+
+    if (isMissingVaginalDeliveryColumn(saveError as ShiftStatusQueryError | null)) {
+      console.warn("Retrying shift update without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      const retry = await supabase.from("shift_status_updates").insert(basePayload);
+      saveError = retry.error;
+    }
 
     setSaving(false);
 

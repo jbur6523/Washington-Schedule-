@@ -34,6 +34,7 @@ import {
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import {
   currentShiftStatusWindow,
   formatShiftStatusNumber,
@@ -43,29 +44,6 @@ import {
   todayInTimezone,
   updatedByName
 } from "@/lib/shift-status/utils";
-
-const shiftStatusSelect = [
-  "id",
-  "department_id",
-  "shift_date",
-  "shift_type",
-  "rts_on",
-  "rts_required",
-  "vent_count",
-  "bipap_count",
-  "c_section_count",
-  "vaginal_delivery_count",
-  "cabg_count",
-  "bronch_count",
-  "sputum_induction_count",
-  "other_procedure_count",
-  "other_procedure_note",
-  "updated_by_staff_profile_id",
-  "updated_by_name",
-  "created_at",
-  "updated_at",
-  "staff_profiles(display_name)"
-].join(", ");
 
 const activeRentalStatuses = ["active", "delivered"];
 const scheduleEntrySelect =
@@ -543,13 +521,8 @@ export function DirectorShiftStatusClient({
     setCopyMessage("");
 
     const supabase = createClient();
-    const [{ data, error: loadError }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
-      supabase
-        .from("shift_status_updates")
-        .select(shiftStatusSelect)
-        .eq("department_id", authContext.departmentId)
-        .order("updated_at", { ascending: false })
-        .limit(30),
+    const [{ data, error: loadError, usedLegacyProcedureSelect }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
+      fetchShiftStatusUpdates(supabase, authContext.departmentId, 30),
       supabase
         .from("rental_records")
         .select("id", { count: "exact", head: true })
@@ -561,12 +534,17 @@ export function DirectorShiftStatusClient({
     setActiveRentalCount(rentalCountError ? null : rentalCount ?? 0);
 
     if (loadError) {
-      setError("Unable to load shift status.");
+      console.error("Director shift status load failed", loadError);
+      setError("Could not load shift status. Please try again.");
       setUpdates([]);
       return;
     }
 
-    setUpdates((data ?? []) as unknown as ShiftStatusUpdate[]);
+    if (usedLegacyProcedureSelect) {
+      console.warn("Director shift status loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+    }
+
+    setUpdates(data);
   };
 
   const loadSchedulePreview = async () => {
@@ -720,8 +698,8 @@ export function DirectorShiftStatusClient({
   );
   const selectedLatest = useMemo(() => latestShiftStatus(selectedUpdates), [selectedUpdates]);
   const fallbackLatest = useMemo(() => latestShiftStatus(updates), [updates]);
-  const latest = selectedLatest ?? (isSelectedCurrentShift ? fallbackLatest : null);
-  const showingFallback = !selectedLatest && Boolean(latest);
+  const latest = selectedLatest;
+  const showingFallback = false;
   const snapshotLatest = fallbackLatest;
   const procedureWindow = useMemo(() => currentProcedureWindow(timezone), [timezone]);
   const procedureLatest = useMemo(
@@ -943,7 +921,7 @@ export function DirectorShiftStatusClient({
 
           {!loading && !latest && !error && (
             <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
-              No update has been submitted for this shift yet.
+              No update has been submitted for the current shift yet.
             </p>
           )}
 
@@ -964,56 +942,67 @@ export function DirectorShiftStatusClient({
           </button>
         </section>
 
-        {snapshotLatest && (
-          <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <Building2 size={22} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
-                <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+              <Building2 size={22} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
+              <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
+            </div>
+          </div>
+          {snapshotLatest ? (
+            <>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={snapshotLatest.vent_count} />
+                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
+                <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
+                <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
               </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <SnapshotCard icon={<Wind size={20} />} label="Vents" value={snapshotLatest.vent_count} />
-              <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
-              <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
-              <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
-            </div>
-            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
-              <p>Updated by: {snapshotUpdatedBy}</p>
-            </div>
-          </section>
-        )}
-
-        {snapshotLatest && (
-          <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-            <div className="flex items-start gap-3">
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                <ClipboardList size={22} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-xl font-black leading-tight text-hospital-ink">Scheduled Procedures</h2>
-                <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
+              <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+                <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
+                <p>Updated by: {snapshotUpdatedBy}</p>
               </div>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
-              <ProcedureCard icon={<User size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
-              <ProcedureCard icon={<Users size={18} />} label="Vaginal Delivery" value={currentProcedureCounts.vaginalDelivery} />
-              <ProcedureCard icon={<Activity size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
-              <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
-              <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
-              <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={currentProcedureCounts.other} />
-            </div>
-            {currentProcedureCounts.note && (
-              <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-                Other note: {currentProcedureCounts.note}
+            </>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {activeRentalCount !== null && (
+                <div className="grid grid-cols-2 gap-3">
+                  <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount} />
+                </div>
+              )}
+              <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+                No department snapshot has been submitted yet.
               </p>
-            )}
-          </section>
-        )}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+              <ClipboardList size={22} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-black leading-tight text-hospital-ink">Scheduled Procedures</h2>
+              <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
+            <ProcedureCard icon={<User size={18} />} label="C-Sections" value={currentProcedureCounts.cSections} />
+            <ProcedureCard icon={<Users size={18} />} label="Vaginal Delivery" value={currentProcedureCounts.vaginalDelivery} />
+            <ProcedureCard icon={<Activity size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
+            <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
+            <ProcedureCard icon={<Wind size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
+            <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={currentProcedureCounts.other} />
+          </div>
+          {currentProcedureCounts.note && (
+            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+              Other note: {currentProcedureCounts.note}
+            </p>
+          )}
+        </section>
 
         {latest && (
           <>
