@@ -78,6 +78,55 @@ export function formatShiftStatusNumber(value: number | null | undefined) {
   }).format(value);
 }
 
+export type StaffingStatus = "staffed" | "short" | "no_update";
+
+export const SHORT_STAFF_THRESHOLD = 0.5;
+
+export function getStaffingStatus(
+  rtsScheduled: number | null | undefined,
+  rtsNeeded: number | null | undefined
+): {
+  status: StaffingStatus;
+  shortAmount: number;
+} {
+  if (rtsScheduled === null || rtsScheduled === undefined || rtsNeeded === null || rtsNeeded === undefined) {
+    return {
+      status: "no_update",
+      shortAmount: 0
+    };
+  }
+
+  const scheduled = Number(rtsScheduled);
+  const needed = Number(rtsNeeded);
+
+  if (!Number.isFinite(scheduled) || !Number.isFinite(needed)) {
+    return {
+      status: "no_update",
+      shortAmount: 0
+    };
+  }
+
+  const rawShortAmount = needed - scheduled;
+  const shortAmount = Math.max(0, rawShortAmount);
+
+  return {
+    status: rawShortAmount >= SHORT_STAFF_THRESHOLD ? "short" : "staffed",
+    shortAmount
+  };
+}
+
+export function staffingStatusLabel(status: StaffingStatus) {
+  if (status === "short") {
+    return "Short";
+  }
+
+  if (status === "staffed") {
+    return "Staffed";
+  }
+
+  return "No Update";
+}
+
 export function formatShiftStatusTime(value: string | null | undefined, timezone = "America/Los_Angeles") {
   if (!value) {
     return "Unknown";

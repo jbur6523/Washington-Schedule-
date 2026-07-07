@@ -9,7 +9,9 @@ import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
+  getStaffingStatus,
   resolveCurrentShiftStatus,
+  staffingStatusLabel,
   updatedByName
 } from "@/lib/shift-status/utils";
 
@@ -18,7 +20,7 @@ function titleStatus(update: ShiftStatusUpdate | null) {
     return "No Update";
   }
 
-  return update.rts_on >= update.rts_required ? "Staffed" : "Short";
+  return staffingStatusLabel(getStaffingStatus(update.rts_on, update.rts_required).status);
 }
 
 function titleStatusClass(status: string) {

@@ -43,9 +43,11 @@ import {
   currentShiftStatusWindow,
   formatShiftStatusNumber,
   formatShiftStatusTime,
+  getStaffingStatus,
   latestShiftStatus,
   resolveCurrentShiftStatus,
   shiftTypeLabel,
+  staffingStatusLabel,
   todayInTimezone,
   updatedByName
 } from "@/lib/shift-status/utils";
@@ -91,14 +93,18 @@ function formatReportTime(value: string | null | undefined, timezone: string) {
 }
 
 function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCount = update.vent_count) {
-  const shortBy = Math.max(0, update.rts_required - update.rts_on);
+  const staffing = getStaffingStatus(update.rts_on, update.rts_required);
+  const staffingLines =
+    staffing.status === "short"
+      ? ["Status: Short", `Short by: ${formatShiftStatusNumber(staffing.shortAmount)}`]
+      : [`Status: ${staffingStatusLabel(staffing.status)}`];
 
   return [
     `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date, timezone)}`,
     "",
     `RTs scheduled: ${formatShiftStatusNumber(update.rts_on)}`,
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
-    `Staffing status: ${shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Staffed"}`,
+    ...staffingLines,
     "",
     `Vents: ${displayedVentCount}`,
     `BiPAPs: ${update.bipap_count}`,
@@ -125,7 +131,9 @@ function directorStatus(update: ShiftStatusUpdate | null) {
     };
   }
 
-  if (update.rts_on >= update.rts_required) {
+  const staffing = getStaffingStatus(update.rts_on, update.rts_required);
+
+  if (staffing.status === "staffed") {
     return {
       label: "Staffed",
       className: "border-emerald-100 bg-emerald-50 text-emerald-700",

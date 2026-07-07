@@ -113,7 +113,7 @@ The card comes from Command Center shift updates and shows:
 - Last updated time
 - Updated by, when available
 
-The compact card shows only those three number tiles. `Staffed`, `Short`, or `No Update` appears only in the title line. `Staffed` uses green, `Short` uses red, and `No Update` uses neutral gray.
+The compact card shows only those three number tiles. `Staffed`, `Short`, or `No Update` appears only in the title line. `Staffed` uses green, `Short` uses red, and `No Update` uses neutral gray. `Short` only appears when `RTs Needed - RTs Scheduled >= 0.5`; smaller gaps such as `8 scheduled / 8.4 needed` remain `Staffed`.
 
 The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule filter. Those controls continue to filter schedule cards only. Current Shift Status uses the same Command Center update source as the Director dashboard. It first looks for the active department shift window:
 

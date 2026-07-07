@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusStaffOption } from "@/lib/shift-status/types";
 import { createClient } from "@/lib/supabase/client";
-import { currentShiftType, todayInTimezone } from "@/lib/shift-status/utils";
+import { currentShiftType, formatShiftStatusNumber, getStaffingStatus, staffingStatusLabel, todayInTimezone } from "@/lib/shift-status/utils";
 
 type ShortShiftForm = {
   shiftDate: string;
@@ -73,14 +73,28 @@ export function CommandShortShiftAlertClient({
     () => staffOptions.find((staff) => staff.id === form.postedByStaffProfileId)?.display_name ?? form.postedByName.trim(),
     [form.postedByName, form.postedByStaffProfileId, staffOptions]
   );
-  const shortBy = Math.max(0, Number(form.rtsRequired || 0) - Number(form.rtsOn || 0));
-  const canPost = Boolean(activeScheduleVersionId && form.shiftDate && form.rtsOn !== "" && form.rtsRequired !== "" && postedBy);
+  const staffing = getStaffingStatus(
+    form.rtsOn === "" ? null : Number(form.rtsOn),
+    form.rtsRequired === "" ? null : Number(form.rtsRequired)
+  );
+  const canPost = Boolean(
+    activeScheduleVersionId &&
+      form.shiftDate &&
+      form.rtsOn !== "" &&
+      form.rtsRequired !== "" &&
+      postedBy &&
+      staffing.status === "short"
+  );
 
   const postShortShift = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!canPost) {
-      setError("Shift date, RT counts, and posted-by attribution are required.");
+      setError(
+        staffing.status === "staffed"
+          ? "Only post a Short Shift Alert when RTs Needed is at least 0.5 above RTs Scheduled."
+          : "Shift date, RT counts, and posted-by attribution are required."
+      );
       return;
     }
 
@@ -89,7 +103,10 @@ export function CommandShortShiftAlertClient({
     setMessage("");
 
     const times = standardTimes(form.shiftType);
-    const noteParts = [`RTs ${form.rtsOn} scheduled / ${form.rtsRequired} needed`, `Short by ${shortBy}`];
+    const noteParts = [
+      `RTs ${form.rtsOn} scheduled / ${form.rtsRequired} needed`,
+      `Short by ${formatShiftStatusNumber(staffing.shortAmount)}`
+    ];
     if (form.note.trim()) {
       noteParts.push(form.note.trim());
     }
@@ -103,7 +120,7 @@ export function CommandShortShiftAlertClient({
         shift_type: form.shiftType,
         shift_start: times.shift_start,
         shift_end: times.shift_end,
-        severity: shortBy >= 2 ? "urgent" : "short",
+        severity: staffing.shortAmount >= 2 ? "urgent" : "short",
         message: noteParts.join(". "),
         posted_by_name: postedBy
       })
@@ -189,8 +206,18 @@ export function CommandShortShiftAlertClient({
                 />
               </label>
             </div>
-            <p className="mt-3 rounded-2xl bg-rose-50 px-3 py-2 text-sm font-black text-rose-700">
-              Short by: {shortBy}
+            <p
+              className={`mt-3 rounded-2xl px-3 py-2 text-sm font-black ${
+                staffing.status === "short"
+                  ? "bg-rose-50 text-rose-700"
+                  : staffing.status === "staffed"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-slate-50 text-slate-500"
+              }`}
+            >
+              {staffing.status === "short"
+                ? `Short by: ${formatShiftStatusNumber(staffing.shortAmount)}`
+                : staffingStatusLabel(staffing.status)}
             </p>
           </section>
 
