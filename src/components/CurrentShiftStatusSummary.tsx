@@ -55,6 +55,10 @@ function MiniStatCard({
   );
 }
 
+type IcuSnapshotCountRow = {
+  vents?: number | null;
+};
+
 export function CurrentShiftStatusSummary({
   authContext,
   timezone
@@ -64,11 +68,26 @@ export function CurrentShiftStatusSummary({
 }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
+  const [icuVentCount, setIcuVentCount] = useState<number | null>(null);
   const [error, setError] = useState("");
 
   const loadStatus = useCallback(async () => {
     const supabase = createClient();
-    const { data, error: loadError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 30);
+    const [{ data, error: loadError }, { data: icuCounts, error: icuCountsError }] = await Promise.all([
+      fetchShiftStatusUpdates(supabase, authContext.departmentId, 30),
+      supabase.rpc("get_current_icu_snapshot_counts", { target_department_id: authContext.departmentId }).maybeSingle()
+    ]);
+
+    const icuCountsRow = icuCounts as IcuSnapshotCountRow | null;
+
+    if (!icuCountsError && icuCountsRow) {
+      setIcuVentCount(Number(icuCountsRow.vents ?? 0));
+    } else {
+      if (icuCountsError) {
+        console.error("Staff ICU vent count load failed", icuCountsError);
+      }
+      setIcuVentCount(null);
+    }
 
     if (loadError) {
       console.error("Staff current shift status load failed", loadError);
@@ -106,11 +125,28 @@ export function CurrentShiftStatusSummary({
         }
       )
       .subscribe();
+    const icuChannel = supabase
+      .channel(`staff-icu-snapshot-${authContext.departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patients",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        () => {
+          setNowTick(Date.now());
+          void loadStatus();
+        }
+      )
+      .subscribe();
 
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
+      void supabase.removeChannel(icuChannel);
     };
   }, [authContext.departmentId, loadStatus]);
 
@@ -120,6 +156,7 @@ export function CurrentShiftStatusSummary({
   );
   const statusLabel = titleStatus(latest);
   const statusClass = titleStatusClass(statusLabel);
+  const displayedVentCount = icuVentCount ?? latest?.vent_count ?? 0;
 
   if (error) {
     return (
@@ -156,7 +193,7 @@ export function CurrentShiftStatusSummary({
             <div className="grid grid-cols-3 gap-2">
               <MiniStatCard label="SCHEDULED" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
               <MiniStatCard label="NEEDED" value={formatShiftStatusNumber(latest.rts_required)} />
-              <MiniStatCard label="VENTS" value={latest.vent_count} />
+              <MiniStatCard label="VENTS" value={displayedVentCount} />
             </div>
           )}
         </div>

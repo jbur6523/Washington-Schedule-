@@ -84,7 +84,7 @@ Fields:
 - Shift type: Day Shift or Night Shift
 - RTs Scheduled
 - RTs Needed, which can include decimals such as `6.9`
-- Vent count
+- Vent count, which uses ICU Command Center active Vent count when available and falls back to the Command Center shift update value only if the ICU aggregate count is unavailable.
 - BiPAP count
 - C-Section count
 - Vaginal Delivery count
@@ -118,7 +118,7 @@ The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule 
 - Day Shift: `08:00-19:59`
 - Night Shift: `20:00-07:59`
 
-At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. During the day window, if the day update has not been submitted yet but a same-day night update exists, the card can show that latest same-day Command Center update so Staff and Director do not disagree about whether data exists. After the night reset, it does not fall back to stale day-shift data. If no eligible Command Center update exists, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts.
+At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. During the day window, if the day update has not been submitted yet but a same-day night update exists, the card can show that latest same-day Command Center update so Staff and Director do not disagree about whether data exists. After the night reset, it does not fall back to stale day-shift data. If no eligible Command Center update exists, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts. The displayed Vent count is prioritized from the ICU Command Center aggregate count so Staff, Director, and ICU Snapshot vent totals stay aligned.
 
 ## Director Shift Status
 
