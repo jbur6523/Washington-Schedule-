@@ -16,12 +16,10 @@ import {
   FileText,
   Heart,
   LogOut,
-  Moon,
   MoreHorizontal,
   Phone,
   Search,
   Stethoscope,
-  Sun,
   User,
   Users,
   Wind
@@ -31,6 +29,7 @@ import { DirectorIcuSnapshotSection } from "@/components/IcuReadOnlyViews";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
+import type { IcuSnapshotCounts } from "@/lib/icu-command-center/types";
 import {
   adaptActiveSchedule,
   type ActiveSchedule,
@@ -91,48 +90,7 @@ function formatReportTime(value: string | null | undefined, timezone: string) {
   }).format(new Date(value));
 }
 
-function minutesSince(value: string) {
-  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
-}
-
-function freshnessLabel(update: ShiftStatusUpdate | null, isSelectedCurrentShift: boolean) {
-  if (!update) {
-    return {
-      label: "Waiting for update",
-      className: "border-slate-200 bg-slate-50 text-slate-600"
-    };
-  }
-
-  const minutes = minutesSince(update.updated_at);
-  if (isSelectedCurrentShift && minutes >= 240) {
-    return {
-      label: "Needs update",
-      className: "border-amber-200 bg-amber-50 text-amber-800"
-    };
-  }
-
-  if (minutes < 1) {
-    return {
-      label: "Updated just now",
-      className: "border-emerald-100 bg-emerald-50 text-emerald-700"
-    };
-  }
-
-  if (minutes < 60) {
-    return {
-      label: `Updated ${minutes} minutes ago`,
-      className: "border-emerald-100 bg-emerald-50 text-emerald-700"
-    };
-  }
-
-  const hours = Math.floor(minutes / 60);
-  return {
-    label: `Updated ${hours} ${hours === 1 ? "hour" : "hours"} ago`,
-    className: "border-emerald-100 bg-emerald-50 text-emerald-700"
-  };
-}
-
-function reportText(update: ShiftStatusUpdate, timezone: string) {
+function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCount = update.vent_count) {
   const shortBy = Math.max(0, update.rts_required - update.rts_on);
 
   return [
@@ -142,7 +100,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
     `Staffing status: ${shortBy > 0 ? `Short by ${formatShiftStatusNumber(shortBy)}` : "Staffed"}`,
     "",
-    `Vents: ${update.vent_count}`,
+    `Vents: ${displayedVentCount}`,
     `BiPAPs: ${update.bipap_count}`,
     "",
     "Scheduled procedures:",
@@ -156,32 +114,6 @@ function reportText(update: ShiftStatusUpdate, timezone: string) {
     `Updated by: ${updatedByName(update)}`,
     `Updated at: ${formatReportTime(update.updated_at, timezone)}`
   ].join("\n");
-}
-
-function displayInitials(name: string) {
-  if (!name || name === "Unknown") {
-    return name || "Unknown";
-  }
-
-  const trimmed = name.trim();
-  if (/^[A-Z]{2,5}$/.test(trimmed)) {
-    return trimmed;
-  }
-
-  if (!trimmed.includes(" ") && trimmed.length <= 4) {
-    return trimmed.toUpperCase();
-  }
-
-  const parts = name
-    .replace(/[^a-zA-Z\s-]/g, "")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return name;
-  }
-
-  return parts.map((part) => part[0]?.toUpperCase()).join("");
 }
 
 function directorStatus(update: ShiftStatusUpdate | null) {
@@ -253,10 +185,6 @@ function shortScheduleDateLabel(dateValue: string, timezone: string) {
     month: "2-digit",
     day: "2-digit"
   }).format(date);
-}
-
-function formatShiftDateSubtitle(shiftType: ShiftStatusShiftType, dateValue: string, timezone: string) {
-  return `${shiftTypeLabel(shiftType)} · ${formatDateLabel(dateValue, timezone)}`;
 }
 
 function formatPhoneHref(phoneNumber: string) {
@@ -520,6 +448,7 @@ export function DirectorShiftStatusClient({
   const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorViewShiftDefaultShift(timezone));
   const [manualScheduleDate, setManualScheduleDate] = useState("");
   const [manualScheduleError, setManualScheduleError] = useState("");
+  const [icuSnapshotCounts, setIcuSnapshotCounts] = useState<IcuSnapshotCounts | null>(null);
   const isSelectedCurrentShift = true;
 
   const loadShiftStatus = useCallback(async (showLoading = true) => {
@@ -751,17 +680,8 @@ export function DirectorShiftStatusClient({
     currentProcedureCounts.sputumInductions +
     currentProcedureCounts.other;
   const status = directorStatus(latest);
-  const freshness = freshnessLabel(latest, isSelectedCurrentShift && !showingFallback);
-  const textReport = latest ? reportText(latest, timezone) : "";
-  const updatedBy = latest ? displayInitials(updatedByName(latest)) : "";
-  const selectedShiftLabel = shiftTypeLabel(latest?.shift_type ?? selectedChoice.shiftType);
-  const selectedShiftDate = formatDateLabel(latest?.shift_date ?? selectedChoice.shiftDate, timezone);
-  const ShiftIcon = (latest?.shift_type ?? selectedChoice.shiftType) === "night" ? Moon : Sun;
-  const snapshotShiftSubtitle = snapshotLatest
-    ? formatShiftDateSubtitle(snapshotLatest.shift_type, snapshotLatest.shift_date, timezone)
-    : formatShiftDateSubtitle(selectedChoice.shiftType, selectedChoice.shiftDate, timezone);
-  const procedureShiftSubtitle = formatShiftDateSubtitle(procedureWindow.shiftType, procedureWindow.shiftDate, timezone);
-  const snapshotUpdatedBy = snapshotLatest ? displayInitials(updatedByName(snapshotLatest)) : "";
+  const displayedVentCount = icuSnapshotCounts?.vents ?? snapshotLatest?.vent_count ?? null;
+  const textReport = latest ? reportText(latest, timezone, icuSnapshotCounts?.vents ?? latest.vent_count) : "";
   const filteredDirectoryProfiles = useMemo(() => {
     const query = directorySearch.trim().toLowerCase();
     if (!query) {
@@ -924,18 +844,18 @@ export function DirectorShiftStatusClient({
             </span>
           </div>
 
-          <div className="mt-3 space-y-2">
-            <p className="flex items-center gap-2 text-sm font-black text-cyan-700">
-              <ShiftIcon size={18} />
-              {selectedShiftLabel} <span className="text-slate-300">·</span> {selectedShiftDate}
-            </p>
-            {latest && (
-              <p className="flex items-center gap-2 text-sm font-bold text-slate-500">
+          {latest && (
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-bold leading-6 text-slate-500">
+              <p className="flex items-center gap-2">
                 <Clock3 size={17} />
-                {freshness.label} by {updatedBy}
+                Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}
               </p>
-            )}
-          </div>
+              <p className="flex items-center gap-2">
+                <User size={17} />
+                Updated by: {updatedByName(latest)}
+              </p>
+            </div>
+          )}
 
           {showingFallback && (
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
@@ -985,20 +905,19 @@ export function DirectorShiftStatusClient({
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
-              <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{snapshotShiftSubtitle}</p>
             </div>
           </div>
           {snapshotLatest ? (
             <>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={snapshotLatest.vent_count} />
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? snapshotLatest.vent_count} />
                 <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
                 <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
                 <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
               </div>
               <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
                 <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
-                <p>Updated by: {snapshotUpdatedBy}</p>
+                <p>Updated by: {updatedByName(snapshotLatest)}</p>
               </div>
             </>
           ) : (
@@ -1015,7 +934,7 @@ export function DirectorShiftStatusClient({
           )}
         </section>
 
-        <DirectorIcuSnapshotSection departmentId={authContext.departmentId} />
+        <DirectorIcuSnapshotSection departmentId={authContext.departmentId} onCountsChange={setIcuSnapshotCounts} />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex items-start gap-3">
@@ -1024,7 +943,6 @@ export function DirectorShiftStatusClient({
             </span>
             <div className="min-w-0 flex-1">
               <h2 className="text-xl font-black leading-tight text-hospital-ink">Scheduled Procedures</h2>
-              <p className="mt-0.5 text-left text-sm font-black text-cyan-700">{procedureShiftSubtitle}</p>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5 min-[440px]:grid-cols-3">
@@ -1039,6 +957,12 @@ export function DirectorShiftStatusClient({
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
               Other note: {currentProcedureCounts.note}
             </p>
+          )}
+          {procedureLatest && (
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+              <p>Last updated: {formatShiftStatusTime(procedureLatest.updated_at, timezone)}</p>
+              <p>Updated by: {updatedByName(procedureLatest)}</p>
+            </div>
           )}
         </section>
 

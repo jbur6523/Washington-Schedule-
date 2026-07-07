@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import Link from "next/link";
-import { AlertTriangle, Bed, Plus, RefreshCw, Save, Trash2, Wind } from "lucide-react";
+import { AlertTriangle, Bed, LogOut, Plus, RefreshCw, Save, Trash2, Wind } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { IcuDeviceType, IcuPatientRecord, IcuVentMode } from "@/lib/icu-command-center/types";
 import {
@@ -277,6 +276,12 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [error, setError] = useState("");
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
+
+  const signOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/login";
+  };
   const recentlyUpdated = useMemo(
     () => [...records].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()).slice(0, 3),
     [records]
@@ -505,12 +510,14 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           </div>
         </section>
 
-        <Link
-          href="/"
-          className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
         >
-          Back to Schedule
-        </Link>
+          <LogOut size={16} />
+          Sign out
+        </button>
       </div>
 
       {formOpen && (

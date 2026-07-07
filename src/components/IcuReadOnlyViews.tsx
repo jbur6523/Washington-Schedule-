@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Activity, AlertTriangle, ArrowLeft, RefreshCw, Wind, X } from "lucide-react";
-import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
+import type { IcuPatientRecord, IcuSnapshotCounts } from "@/lib/icu-command-center/types";
 import {
   formatIcuAirway,
   formatIcuDeviceSummary,
@@ -122,10 +122,22 @@ function useIcuPatients(departmentId: string) {
   return { records, loading, error, reload: loadRecords };
 }
 
-export function DirectorIcuSnapshotSection({ departmentId }: { departmentId: string }) {
+export function DirectorIcuSnapshotSection({
+  departmentId,
+  onCountsChange
+}: {
+  departmentId: string;
+  onCountsChange?: (counts: IcuSnapshotCounts) => void;
+}) {
   const [detailOpen, setDetailOpen] = useState(false);
   const { records, loading, error, reload } = useIcuPatients(departmentId);
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
+
+  useEffect(() => {
+    if (!loading && !error) {
+      onCountsChange?.(counts);
+    }
+  }, [counts, error, loading, onCountsChange]);
 
   return (
     <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
