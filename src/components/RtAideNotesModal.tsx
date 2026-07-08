@@ -809,7 +809,7 @@ export function RtAideNotesModal({
                             setExpandedResponseNoteId(note.id);
                             setResponseDrafts((current) => ({ ...current, [note.id]: current[note.id] ?? "" }));
                           }}
-                          className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-pink-100 bg-pink-50 px-4 text-sm font-black text-pink-700 transition duration-150 active:scale-[0.98]"
+                          className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-indigo-500/40 bg-indigo-700 px-4 text-sm font-black text-white shadow-md shadow-indigo-950/20 transition duration-150 hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 active:scale-[0.98] active:bg-indigo-900"
                         >
                           + Add Note
                         </button>
