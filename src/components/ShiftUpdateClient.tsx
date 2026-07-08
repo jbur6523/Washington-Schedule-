@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { Activity, Baby, Bed, ClipboardList, Droplet, Heart, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { ShiftStatusShiftType, ShiftStatusStaffOption } from "@/lib/shift-status/types";
-import { isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
+import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import { fetchShiftStatusUpdates, isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
 import { currentShiftType, shiftTypeLabel, todayInTimezone } from "@/lib/shift-status/utils";
 
 type ShiftUpdateForm = {
@@ -32,6 +32,64 @@ function numberValue(value: string) {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function shiftSortKey(shiftDate: string, shiftType: ShiftStatusShiftType) {
+  return `${shiftDate}-${shiftType === "day" ? "1" : "2"}`;
+}
+
+function getLastKnownUpdate(updates: ShiftStatusUpdate[], shiftDate: string, shiftType: ShiftStatusShiftType) {
+  const selectedKey = shiftSortKey(shiftDate, shiftType);
+  const sameShift = updates
+    .filter((update) => update.shift_date === shiftDate && update.shift_type === shiftType)
+    .sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime());
+
+  if (sameShift[0]) {
+    return sameShift[0];
+  }
+
+  return updates
+    .filter((update) => shiftSortKey(update.shift_date, update.shift_type) <= selectedKey)
+    .sort((left, right) => {
+      const keyCompare = shiftSortKey(right.shift_date, right.shift_type).localeCompare(
+        shiftSortKey(left.shift_date, left.shift_type)
+      );
+
+      if (keyCompare !== 0) {
+        return keyCompare;
+      }
+
+      return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
+    })[0] ?? null;
+}
+
+function formatLastKnownTime(value: string, timezone: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+
+  return `${part("month")}/${part("day")} ${part("hour")}:${part("minute")}`;
+}
+
+function lastKnownHelper(update: ShiftStatusUpdate | null, value: number | null | undefined, timezone: string) {
+  if (!update || value === null || value === undefined) {
+    return "Last: —";
+  }
+
+  const timestamp = formatLastKnownTime(update.updated_at, timezone);
+  return timestamp ? `Last: ${value} · ${timestamp}` : `Last: ${value}`;
+}
+
 const labelClass = "block min-h-4 text-[11px] font-extrabold uppercase leading-4 tracking-normal text-slate-500";
 const controlClass =
   "mt-1 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100";
@@ -50,6 +108,7 @@ function CountInputCard({
   value,
   step = "1",
   inputMode = "numeric",
+  helperText,
   onChange
 }: {
   icon: ReactNode;
@@ -57,10 +116,11 @@ function CountInputCard({
   value: string;
   step?: string;
   inputMode?: "numeric" | "decimal";
+  helperText: string;
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex min-h-[7.25rem] flex-col items-center justify-center rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+    <label className="flex min-h-[8.75rem] flex-col items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
       <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
         {icon}
       </span>
@@ -74,6 +134,7 @@ function CountInputCard({
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
+      <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>
     </label>
   );
 }
@@ -82,15 +143,17 @@ function ProcedureInputTile({
   icon,
   label,
   value,
+  helperText,
   onChange
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  helperText: string;
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="flex min-h-[8.5rem] flex-col items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+    <label className="flex min-h-[9.75rem] flex-col items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
       <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
         {icon}
       </span>
@@ -105,6 +168,7 @@ function ProcedureInputTile({
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
+      <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>
     </label>
   );
 }
@@ -135,6 +199,7 @@ export function ShiftUpdateClient({
     updatedByName: ""
   }));
   const [saving, setSaving] = useState(false);
+  const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -155,6 +220,26 @@ export function ShiftUpdateClient({
 
     return () => window.clearTimeout(timer);
   }, [authContext.departmentId]);
+
+  const loadLastKnownUpdate = useCallback(async () => {
+    const supabase = createClient();
+    const { data, error: updatesError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 75);
+
+    if (updatesError) {
+      setLastKnownUpdate(null);
+      return;
+    }
+
+    setLastKnownUpdate(getLastKnownUpdate(data, form.shiftDate, form.shiftType));
+  }, [authContext.departmentId, form.shiftDate, form.shiftType]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadLastKnownUpdate();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadLastKnownUpdate]);
 
   const selectedStaff = useMemo(
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
@@ -222,6 +307,7 @@ export function ShiftUpdateClient({
     }
 
     setMessage("Shift update saved.");
+    await loadLastKnownUpdate();
   };
 
   return (
@@ -276,6 +362,7 @@ export function ShiftUpdateClient({
                 icon={<Users size={18} />}
                 label="RTs Scheduled"
                 value={form.rtsOn}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_on, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, rtsOn: value }))}
               />
               <CountInputCard
@@ -284,18 +371,21 @@ export function ShiftUpdateClient({
                 value={form.rtsRequired}
                 step="0.1"
                 inputMode="decimal"
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_required, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, rtsRequired: value }))}
               />
               <CountInputCard
                 icon={<Wind size={18} />}
                 label="Vents"
                 value={form.ventCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vent_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, ventCount: value }))}
               />
               <CountInputCard
                 icon={<Activity size={18} />}
                 label="BiPAPs"
                 value={form.bipapCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.bipap_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, bipapCount: value }))}
               />
             </div>
@@ -316,36 +406,42 @@ export function ShiftUpdateClient({
                 icon={<Bed size={18} />}
                 label="C-Sections"
                 value={form.cSectionCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.c_section_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, cSectionCount: value }))}
               />
               <ProcedureInputTile
                 icon={<Baby size={18} />}
                 label="Vaginal Deliveries"
                 value={form.vaginalDeliveryCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vaginal_delivery_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, vaginalDeliveryCount: value }))}
               />
               <ProcedureInputTile
                 icon={<Heart size={18} />}
                 label="CABG"
                 value={form.cabgCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.cabg_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, cabgCount: value }))}
               />
               <ProcedureInputTile
                 icon={<Stethoscope size={18} />}
                 label="Bronchs"
                 value={form.bronchCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.bronch_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, bronchCount: value }))}
               />
               <ProcedureInputTile
                 icon={<Droplet size={18} />}
                 label="Sputum Inductions"
                 value={form.sputumInductionCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.sputum_induction_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, sputumInductionCount: value }))}
               />
               <ProcedureInputTile
                 icon={<MoreHorizontal size={18} />}
                 label="Other"
                 value={form.otherProcedureCount}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.other_procedure_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, otherProcedureCount: value }))}
               />
             </div>

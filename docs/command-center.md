@@ -103,6 +103,8 @@ The `Updated By` selector shows active Lead and Admin users who can act as shift
 
 The manual initials/name fallback is secondary and should be used only when the appropriate Lead cannot be selected from the dropdown. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
+Current Counts and Scheduled Procedures inputs show short last-known helper text beneath each count field. The format is `Last: VALUE · MM/DD HH:mm`, such as `Last: 8 · 07/07 11:34`. If no previous value is available, the helper shows `Last: —`. These values are informational only and do not auto-fill the Shift Update inputs.
+
 ## Normal Schedule Current Shift Status
 
 Authenticated department users see a compact `Current Shift Status` card directly under the Schedule page `Shift View` selector. This replaces the older main-header summary row for Scheduled, Available, Coverage, Short Shifts, and Switch Requests.
