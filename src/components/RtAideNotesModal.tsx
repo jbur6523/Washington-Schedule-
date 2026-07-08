@@ -6,6 +6,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
 const maxNoteLength = 500;
+const notesPageSize = 10;
 const rtAideNoteColumns =
   "id, department_id, note_text, priority, status, created_by_staff_profile_id, created_by_name, acknowledged_at, acknowledged_by_staff_profile_id, acknowledged_by_name, response_text, responded_at, responded_by_staff_profile_id, responded_by_name, closed_at, closed_by_staff_profile_id, closed_by_name, created_at, updated_at";
 
@@ -89,16 +90,38 @@ function statusClass(status: RtAideNoteStatus) {
   return "bg-slate-100 text-slate-600 border-slate-200";
 }
 
+function priorityCardClass(priority: RtAideNotePriority) {
+  if (priority === "urgent") {
+    return "border-rose-200 bg-rose-50 shadow-rose-900/5";
+  }
+
+  return "border-violet-200 bg-violet-50 shadow-violet-900/5";
+}
+
+function priorityChipClass(priority: RtAideNotePriority) {
+  if (priority === "urgent") {
+    return "border border-rose-200 bg-rose-100 text-rose-800";
+  }
+
+  return "border border-violet-200 bg-violet-100 text-violet-800";
+}
+
 export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }: RtAideNotesModalProps) {
   const [notes, setNotes] = useState<RtAideNoteRow[]>([]);
+  const [visibleNoteCount, setVisibleNoteCount] = useState(notesPageSize);
+  const [activeNoteCount, setActiveNoteCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [priority, setPriority] = useState<RtAideNotePriority>("normal");
-  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [leadOptions, setLeadOptions] = useState<StaffOption[]>([]);
+  const [aideOptions, setAideOptions] = useState<StaffOption[]>([]);
   const [addedByStaffProfileId, setAddedByStaffProfileId] = useState("");
   const [manualAddedByName, setManualAddedByName] = useState("");
   const [useManualAddedBy, setUseManualAddedBy] = useState(false);
+  const [responseAddedByStaffProfileId, setResponseAddedByStaffProfileId] = useState("");
+  const [manualResponseAddedByName, setManualResponseAddedByName] = useState("");
+  const [useManualResponseAddedBy, setUseManualResponseAddedBy] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
@@ -110,13 +133,21 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   const canResolveNotes = authContext.role === "admin" || authContext.operationsRole === "aide";
   const hasNoteText = noteText.trim().length > 0;
   const selectedAddedBy = useMemo(
-    () => staffOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
-    [addedByStaffProfileId, staffOptions]
+    () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
+    [addedByStaffProfileId, leadOptions]
+  );
+  const selectedResponseAddedBy = useMemo(
+    () => aideOptions.find((staff) => staff.id === responseAddedByStaffProfileId) ?? null,
+    [aideOptions, responseAddedByStaffProfileId]
   );
   const addedByName = useManualAddedBy ? manualAddedByName.trim() : selectedAddedBy?.display_name ?? "";
+  const responseAddedByName = useManualResponseAddedBy
+    ? manualResponseAddedByName.trim()
+    : selectedResponseAddedBy?.display_name ?? "";
   const canSendNewNote = canCreateNotes && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
 
   const activeNotes = useMemo(() => notes.filter((note) => note.status !== "closed"), [notes]);
+  const hasMoreNotes = activeNoteCount > activeNotes.length;
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
@@ -129,18 +160,38 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
       .eq("department_id", authContext.departmentId)
       .neq("status", "closed")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(0, visibleNoteCount - 1);
 
-    if (loadError) {
+    const { count, error: countError } = await supabase
+      .from("rt_aide_notes")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", authContext.departmentId)
+      .neq("status", "closed");
+
+    if (loadError || countError) {
       setNotes([]);
+      setActiveNoteCount(0);
       setError("Unable to load RT Aide Notes.");
       setLoading(false);
       return;
     }
 
     setNotes((data ?? []) as RtAideNoteRow[]);
+    setActiveNoteCount(count ?? 0);
     setLoading(false);
-  }, [authContext.departmentId]);
+  }, [authContext.departmentId, visibleNoteCount]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisibleNoteCount(notesPageSize);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -169,12 +220,12 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
         .order("display_name", { ascending: true });
 
       if (optionsError) {
-        setStaffOptions([]);
+        setLeadOptions([]);
         return;
       }
 
       const options = (data ?? []) as StaffOption[];
-      setStaffOptions(options);
+      setLeadOptions(options);
       setAddedByStaffProfileId((current) => {
         if (current && options.some((staff) => staff.id === current)) {
           return current;
@@ -190,6 +241,44 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
 
     return () => window.clearTimeout(timer);
   }, [authContext.departmentId, authContext.staffProfileId, canCreateNotes, open]);
+
+  useEffect(() => {
+    if (!open || !canResolveNotes) {
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const supabase = createClient();
+      const { data, error: optionsError } = await supabase
+        .from("staff_profiles")
+        .select("id, display_name")
+        .eq("department_id", authContext.departmentId)
+        .eq("is_active", true)
+        .eq("operations_role", "aide")
+        .order("display_name", { ascending: true });
+
+      if (optionsError) {
+        setAideOptions([]);
+        return;
+      }
+
+      const options = (data ?? []) as StaffOption[];
+      setAideOptions(options);
+      setResponseAddedByStaffProfileId((current) => {
+        if (current && options.some((staff) => staff.id === current)) {
+          return current;
+        }
+
+        if (authContext.staffProfileId && options.some((staff) => staff.id === authContext.staffProfileId)) {
+          return authContext.staffProfileId;
+        }
+
+        return "";
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [authContext.departmentId, authContext.staffProfileId, canResolveNotes, open]);
 
   const notifyChanged = () => {
     onNotesChanged?.();
@@ -227,7 +316,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     setPriority("normal");
     setManualAddedByName("");
     setUseManualAddedBy(false);
-    if (authContext.staffProfileId && staffOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+    if (authContext.staffProfileId && leadOptions.some((staff) => staff.id === authContext.staffProfileId)) {
       setAddedByStaffProfileId(authContext.staffProfileId);
     }
     setMessage("Note sent to RT Aides.");
@@ -275,7 +364,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     }
 
     const responseText = (responseDrafts[note.id] ?? "").trim();
-    if (!responseText) {
+    if (!responseText || !responseAddedByName) {
+      setError("Select who added this note before sending.");
       return;
     }
 
@@ -292,7 +382,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
         response_text: responseText,
         responded_at: now,
         responded_by_staff_profile_id: authContext.staffProfileId,
-        responded_by_name: authContext.displayName,
+        responded_by_name: responseAddedByName,
         acknowledged_at: note.acknowledged_at ?? now,
         acknowledged_by_staff_profile_id: note.acknowledged_by_staff_profile_id ?? authContext.staffProfileId,
         acknowledged_by_name: note.acknowledged_by_name ?? authContext.displayName
@@ -309,6 +399,11 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     }
 
     setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
+    setManualResponseAddedByName("");
+    setUseManualResponseAddedBy(false);
+    if (authContext.staffProfileId && aideOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+      setResponseAddedByStaffProfileId(authContext.staffProfileId);
+    }
     setExpandedResponseNoteId((current) => (current === note.id ? null : current));
     setMessage("Note sent.");
     await loadNotes();
@@ -394,7 +489,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                     className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
                   >
                     <option value="">Select lead adding note</option>
-                    {staffOptions.map((staff) => (
+                    {leadOptions.map((staff) => (
                       <option key={staff.id} value={staff.id}>
                         {staff.display_name}
                       </option>
@@ -456,7 +551,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-lg font-black text-hospital-ink">Recent Notes</h3>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
-              {activeNotes.length}
+              {activeNoteCount}
             </span>
           </div>
 
@@ -469,23 +564,21 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
               No RT Aide notes right now.
             </div>
           ) : (
-            activeNotes.map((note) => {
+            <>
+              {activeNotes.map((note) => {
               const responseDraft = responseDrafts[note.id] ?? "";
               const canAcknowledge = canResolveNotes && note.status === "new";
-              const canSendResponse = canResolveNotes && responseDraft.trim().length > 0 && busyNoteId !== note.id;
+              const canSendResponse =
+                canResolveNotes && responseDraft.trim().length > 0 && responseAddedByName.length > 0 && busyNoteId !== note.id;
 
               return (
-                <article key={note.id} className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-md shadow-slate-900/5">
+                <article key={note.id} className={`rounded-[1.75rem] border p-4 shadow-md ${priorityCardClass(note.priority)}`}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex flex-wrap gap-2">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusClass(note.status)}`}>
                         {statusLabel(note.status)}
                       </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${
-                          note.priority === "urgent" ? "bg-rose-50 text-rose-700" : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${priorityChipClass(note.priority)}`}>
                         {note.priority === "urgent" ? "Urgent" : "Normal"}
                       </span>
                     </div>
@@ -538,6 +631,58 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
 
                       {expandedResponseNoteId === note.id ? (
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <div className="mb-3">
+                            <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-added-by-${note.id}`}>
+                              Added by
+                            </label>
+                            {useManualResponseAddedBy ? (
+                              <div className="mt-2 space-y-2">
+                                <input
+                                  id={`rt-aide-response-added-by-${note.id}`}
+                                  value={manualResponseAddedByName}
+                                  onChange={(event) => setManualResponseAddedByName(event.target.value.slice(0, 80))}
+                                  placeholder="Enter name"
+                                  className="min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUseManualResponseAddedBy(false);
+                                    setManualResponseAddedByName("");
+                                  }}
+                                  className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
+                                >
+                                  Choose from aide list
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="mt-2 space-y-2">
+                                <select
+                                  id={`rt-aide-response-added-by-${note.id}`}
+                                  value={responseAddedByStaffProfileId}
+                                  onChange={(event) => setResponseAddedByStaffProfileId(event.target.value)}
+                                  className="min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                                >
+                                  <option value="">Select aide adding note</option>
+                                  {aideOptions.map((staff) => (
+                                    <option key={staff.id} value={staff.id}>
+                                      {staff.display_name}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUseManualResponseAddedBy(true);
+                                    setResponseAddedByStaffProfileId("");
+                                  }}
+                                  className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
+                                >
+                                  Not listed? Type name manually
+                                </button>
+                              </div>
+                            )}
+                          </div>
                           <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-${note.id}`}>
                             Add Note
                           </label>
@@ -564,6 +709,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                               onClick={() => {
                                 setExpandedResponseNoteId(null);
                                 setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
+                                setManualResponseAddedByName("");
+                                setUseManualResponseAddedBy(false);
                               }}
                               className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98]"
                             >
@@ -595,7 +742,18 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                   )}
                 </article>
               );
-            })
+            })}
+              {hasMoreNotes && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleNoteCount((current) => current + notesPageSize)}
+                  disabled={loading}
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Load More
+                </button>
+              )}
+            </>
           )}
         </div>
       </section>
