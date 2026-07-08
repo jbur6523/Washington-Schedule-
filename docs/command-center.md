@@ -184,9 +184,11 @@ The command phone can post a Short Shift alert using the existing Short Shift in
 The Respiratory Command Center dashboard includes `RT Aide Notes` for lightweight notes and questions to RT Aides/equipment techs.
 
 - Command Center users can create notes from the Respiratory Command Center dashboard. RLS also permits department Lead/Admin accounts to create/view notes when surfaced through an authorized workflow.
+- Note creation requires `Added by`; the form lists active Lead/Admin staff names and includes `Not listed? Type name manually` for fallback attribution. The selected or typed name is shown as the note's visible creator.
 - Each note requires note text, supports Normal or Urgent priority, and shows `No patient information.`
 - Notes appear in Order Management for Aide/Admin users as distinct task/message cards with a `status = new` badge count.
-- Aide/Admin users can acknowledge notes with a prominent checkbox-style action and can optionally expand `+ Add Note` when a reply/detail is needed.
+- Aide/Admin users can acknowledge notes with a compact checkbox-style action and can optionally expand `+ Add Note` when a reply/detail is needed.
+- Aide note text appears directly under the original RT note, while acknowledgement metadata sits at the bottom of each card.
 - Command Center users can reopen RT Aide Notes to view New, Acknowledged, and Responded status, including optional Aide note text and responder display name.
 - This workflow is for the Respiratory Command Center only. It is not shown in the ICU Command Center.
 

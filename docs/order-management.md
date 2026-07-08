@@ -85,9 +85,11 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 The `RT Aide Notes` button opens a shared Command Center-to-Aide notes workflow.
 
 - Respiratory Command Center users, Lead users, and Admin users can create notes or questions for RT Aides.
+- Creating a note requires `Added by`. The selector uses active Lead/Admin staff options, with `Not listed? Type name manually` as a fallback. The visible `Created by` value uses this selected or typed display name.
 - Aide and Admin users can view notes from Order Management as separate task/message cards with status and priority chips.
-- Aide and Admin users can acknowledge new notes with a prominent checkbox-style control.
+- Aide and Admin users can acknowledge new notes with a compact checkbox-style control.
 - Optional Aide notes are collapsed behind `+ Add Note` by default; Aides can acknowledge without writing a note.
+- If an Aide note exists, it appears directly under the original RT note. Acknowledgement metadata appears at the bottom of the note card.
 - The Order Management button shows a `new` badge count for notes with `status = new`.
 - Acknowledging a note saves acknowledged date/time and the Aide/Admin display name, then removes it from the new-note badge count.
 - Sending an optional note saves response text, responded date/time, and responder display name, and sets status to `responded`.

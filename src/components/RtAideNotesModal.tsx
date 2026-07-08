@@ -34,6 +34,11 @@ type RtAideNoteRow = {
   updated_at: string;
 };
 
+type StaffOption = {
+  id: string;
+  display_name: string;
+};
+
 type RtAideNotesModalProps = {
   authContext: AuthenticatedUserContext;
   open: boolean;
@@ -90,6 +95,10 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   const [saving, setSaving] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [priority, setPriority] = useState<RtAideNotePriority>("normal");
+  const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
+  const [addedByStaffProfileId, setAddedByStaffProfileId] = useState("");
+  const [manualAddedByName, setManualAddedByName] = useState("");
+  const [useManualAddedBy, setUseManualAddedBy] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
@@ -100,6 +109,12 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     authContext.role === "admin" || authContext.role === "lead" || authContext.operationsRole === "command_center";
   const canResolveNotes = authContext.role === "admin" || authContext.operationsRole === "aide";
   const hasNoteText = noteText.trim().length > 0;
+  const selectedAddedBy = useMemo(
+    () => staffOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
+    [addedByStaffProfileId, staffOptions]
+  );
+  const addedByName = useManualAddedBy ? manualAddedByName.trim() : selectedAddedBy?.display_name ?? "";
+  const canSendNewNote = canCreateNotes && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
 
   const activeNotes = useMemo(() => notes.filter((note) => note.status !== "closed"), [notes]);
 
@@ -137,13 +152,53 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     });
   }, [loadNotes, open]);
 
+  useEffect(() => {
+    if (!open || !canCreateNotes) {
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const supabase = createClient();
+      const { data, error: optionsError } = await supabase
+        .from("staff_profiles")
+        .select("id, display_name")
+        .eq("department_id", authContext.departmentId)
+        .eq("is_active", true)
+        .in("assigned_role", ["admin", "lead"])
+        .eq("operations_role", "none")
+        .order("display_name", { ascending: true });
+
+      if (optionsError) {
+        setStaffOptions([]);
+        return;
+      }
+
+      const options = (data ?? []) as StaffOption[];
+      setStaffOptions(options);
+      setAddedByStaffProfileId((current) => {
+        if (current && options.some((staff) => staff.id === current)) {
+          return current;
+        }
+
+        if (authContext.staffProfileId && options.some((staff) => staff.id === authContext.staffProfileId)) {
+          return authContext.staffProfileId;
+        }
+
+        return "";
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [authContext.departmentId, authContext.staffProfileId, canCreateNotes, open]);
+
   const notifyChanged = () => {
     onNotesChanged?.();
   };
 
   const sendNote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canCreateNotes || !hasNoteText || !authContext.staffProfileId) {
+    if (!canSendNewNote || !authContext.staffProfileId) {
+      setError("Select who added this note before sending.");
       return;
     }
 
@@ -158,7 +213,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
       priority,
       status: "new",
       created_by_staff_profile_id: authContext.staffProfileId,
-      created_by_name: authContext.displayName
+      created_by_name: addedByName
     });
 
     setSaving(false);
@@ -170,6 +225,11 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
 
     setNoteText("");
     setPriority("normal");
+    setManualAddedByName("");
+    setUseManualAddedBy(false);
+    if (authContext.staffProfileId && staffOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+      setAddedByStaffProfileId(authContext.staffProfileId);
+    }
     setMessage("Note sent to RT Aides.");
     await loadNotes();
     notifyChanged();
@@ -300,6 +360,60 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
               <span>No patient information.</span>
               <span>{noteText.length}/{maxNoteLength}</span>
             </div>
+
+            <div className="mt-4">
+              <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor="rt-aide-added-by">
+                Added by
+              </label>
+              {useManualAddedBy ? (
+                <div className="mt-2 space-y-2">
+                  <input
+                    id="rt-aide-added-by"
+                    value={manualAddedByName}
+                    onChange={(event) => setManualAddedByName(event.target.value.slice(0, 80))}
+                    placeholder="Enter name"
+                    className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseManualAddedBy(false);
+                      setManualAddedByName("");
+                    }}
+                    className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
+                  >
+                    Choose from lead list
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  <select
+                    id="rt-aide-added-by"
+                    value={addedByStaffProfileId}
+                    onChange={(event) => setAddedByStaffProfileId(event.target.value)}
+                    className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                  >
+                    <option value="">Select lead adding note</option>
+                    {staffOptions.map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUseManualAddedBy(true);
+                      setAddedByStaffProfileId("");
+                    }}
+                    className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
+                  >
+                    Not listed? Type name manually
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="mt-4 grid grid-cols-2 gap-2">
               {(["normal", "urgent"] as RtAideNotePriority[]).map((option) => (
                 <button
@@ -318,7 +432,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
             </div>
             <button
               type="submit"
-              disabled={!hasNoteText || saving || !authContext.staffProfileId}
+              disabled={!canSendNewNote || saving}
               className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send size={16} />
@@ -384,18 +498,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                     Created by: {note.created_by_name ?? "Unknown"}
                   </p>
 
-                  {note.acknowledged_at && (
-                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-emerald-800">
-                      <div className="flex items-center gap-2 text-sm font-extrabold">
-                        <CheckCircle2 size={17} />
-                        <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
-                      </div>
-                      <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
-                    </div>
-                  )}
-
                   {note.response_text && (
-                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                    <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
                       <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">
                         Note from {note.responded_by_name ?? "Aide"}
                       </p>
@@ -408,6 +512,16 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                     </div>
                   )}
 
+                  {note.acknowledged_at && (
+                    <div className="mt-3 border-t border-slate-100 pt-3 text-emerald-800">
+                      <div className="flex items-center gap-2 text-sm font-extrabold">
+                        <CheckCircle2 size={17} />
+                        <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
+                      </div>
+                      <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
+                    </div>
+                  )}
+
                   {canResolveNotes && (
                     <div className="mt-4 space-y-3">
                       {canAcknowledge && (
@@ -415,9 +529,9 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                           type="button"
                           onClick={() => void acknowledgeNote(note)}
                           disabled={busyNoteId === note.id}
-                          className="inline-flex min-h-14 w-full items-center justify-start gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left text-base font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-3.5 text-left text-sm font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <span className="h-7 w-7 shrink-0 rounded-lg border-2 border-emerald-500 bg-white" />
+                          <span className="h-5 w-5 shrink-0 rounded-md border-2 border-emerald-500 bg-white" />
                           {busyNoteId === note.id ? "Acknowledging..." : "Acknowledge"}
                         </button>
                       )}
@@ -465,7 +579,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                             </button>
                           </div>
                         </div>
-                      ) : (
+                      ) : !note.response_text ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -476,7 +590,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                         >
                           + Add Note
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </article>
