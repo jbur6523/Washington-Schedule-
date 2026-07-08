@@ -130,6 +130,32 @@ const icuPatientEventSelect = [
 
 const icuTimezone = "America/Los_Angeles";
 
+function formatIcuSnapshotUpdatedAt(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value));
+}
+
+function getLatestActiveIcuUpdatedAt(records: IcuPatientRecord[]) {
+  const latest = records
+    .filter((record) => record.is_active)
+    .map((record) => record.updated_at || record.created_at)
+    .filter(Boolean)
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+
+  return latest ?? null;
+}
+
 function numericOrNull(value: string) {
   const trimmed = value.trim();
   return trimmed ? Number(trimmed) : null;
@@ -553,6 +579,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [todayActivityError, setTodayActivityError] = useState("");
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
+  const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
 
   const signOut = async () => {
     await signOutAndRedirect();
@@ -939,6 +966,9 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
             <StatCard label="BiPAP" value={counts.bipap} />
             <StatCard label="Critical Vents" value={counts.criticalVents} />
           </div>
+          <p className="mt-3 text-center text-xs font-extrabold text-slate-500">
+            Last updated: {snapshotLastUpdated}
+          </p>
         </section>
 
         <button
@@ -989,18 +1019,6 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
             ))}
         </section>
 
-        <button
-          type="button"
-          onClick={() => {
-            setPreviousDateOpen(true);
-            setPreviousDateError("");
-          }}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
-        >
-          <Search size={16} />
-          Search Previous Date
-        </button>
-
         <section className="space-y-3 rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1035,6 +1053,54 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           {!todayActivityLoading &&
             !todayActivityError &&
             todayActivity.map((eventRecord) => <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />)}
+
+          <div className="rounded-3xl border border-cyan-100 bg-cyan-50/40 p-3">
+            <div className="flex items-center gap-2">
+              <Search size={16} className="text-cyan-700" />
+              <p className="text-sm font-black text-hospital-ink">Search Previous Date</p>
+            </div>
+            <p className="mt-1 text-xs font-bold text-slate-500">Enter a previous ICU activity date as MMDDYY.</p>
+            <form onSubmit={searchPreviousDate} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="block">
+                <span className="sr-only">Previous ICU activity date</span>
+                <input
+                  value={previousDateInput}
+                  onChange={(event) => setPreviousDateInput(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="070626"
+                  className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-base font-black text-hospital-ink outline-none focus:border-cyan-400"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={previousDateLoading}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Search size={16} />
+                {previousDateLoading ? "Searching..." : "Search"}
+              </button>
+            </form>
+
+            {previousDateError && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                {previousDateError}
+              </p>
+            )}
+
+            <div className="mt-3 space-y-3">
+              {previousDateLabel && (
+                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
+              )}
+              {previousDateLabel && previousDateResults.length === 0 && (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  No ICU activity found for this date.
+                </p>
+              )}
+              {previousDateResults.map((eventRecord) => (
+                <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />
+              ))}
+            </div>
+          </div>
         </section>
 
         <button
