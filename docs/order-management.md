@@ -85,14 +85,16 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 The `RT Aide Notes` button opens a shared Command Center-to-Aide notes workflow.
 
 - Respiratory Command Center users, Lead users, and Admin users can create notes or questions for RT Aides.
-- Aide and Admin users can view notes from Order Management, acknowledge new notes, and send optional responses.
+- Aide and Admin users can view notes from Order Management as separate task/message cards with status and priority chips.
+- Aide and Admin users can acknowledge new notes with a prominent checkbox-style control.
+- Optional Aide notes are collapsed behind `+ Add Note` by default; Aides can acknowledge without writing a note.
 - The Order Management button shows a `new` badge count for notes with `status = new`.
 - Acknowledging a note saves acknowledged date/time and the Aide/Admin display name, then removes it from the new-note badge count.
-- Sending a response saves response text, responded date/time, and responder display name, and sets status to `responded`.
-- RT Command Center users can reopen `RT Aide Notes` to see whether notes are New, Acknowledged, or Responded and can read response text.
+- Sending an optional note saves response text, responded date/time, and responder display name, and sets status to `responded`.
+- RT Command Center users can reopen `RT Aide Notes` to see whether notes are New, Acknowledged, or Responded and can read optional Aide note text.
 - Staff, Director, ICU Command Center, and unauthenticated users do not have access.
 
-Note and response fields are capped at 500 characters and show:
+Note and optional Add Note fields are capped at 500 characters and show:
 
 `No patient information.`
 

@@ -91,6 +91,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   const [noteText, setNoteText] = useState("");
   const [priority, setPriority] = useState<RtAideNotePriority>("normal");
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
+  const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -248,7 +249,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     }
 
     setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
-    setMessage("Response sent.");
+    setExpandedResponseNoteId((current) => (current === note.id ? null : current));
+    setMessage("Note sent.");
     await loadNotes();
     notifyChanged();
   };
@@ -359,8 +361,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
               const canSendResponse = canResolveNotes && responseDraft.trim().length > 0 && busyNoteId !== note.id;
 
               return (
-                <article key={note.id} className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                <article key={note.id} className="rounded-[1.75rem] border border-slate-200 bg-white p-4 shadow-md shadow-slate-900/5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex flex-wrap gap-2">
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusClass(note.status)}`}>
                         {statusLabel(note.status)}
@@ -373,27 +375,35 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                         {note.priority === "urgent" ? "Urgent" : "Normal"}
                       </span>
                     </div>
-                    <span className="text-xs font-bold text-slate-400">{formatDateTime(note.created_at)}</span>
+                    <span className="text-right text-xs font-bold text-slate-400">{formatDateTime(note.created_at)}</span>
                   </div>
-                  <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-hospital-ink">{note.note_text}</p>
+                  <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-hospital-ink">
+                    {note.note_text}
+                  </p>
                   <p className="mt-3 text-xs font-bold text-slate-500">
                     Created by: {note.created_by_name ?? "Unknown"}
                   </p>
 
                   {note.acknowledged_at && (
-                    <p className="mt-2 text-xs font-bold text-amber-700">
-                      Acknowledged by {note.acknowledged_by_name ?? "Unknown"} at {formatDateTime(note.acknowledged_at)}
-                    </p>
+                    <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-emerald-800">
+                      <div className="flex items-center gap-2 text-sm font-extrabold">
+                        <CheckCircle2 size={17} />
+                        <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
+                      </div>
+                      <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
+                    </div>
                   )}
 
                   {note.response_text && (
                     <div className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                      <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">Response</p>
+                      <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">
+                        Note from {note.responded_by_name ?? "Aide"}
+                      </p>
                       <p className="mt-1 whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950">
                         {note.response_text}
                       </p>
                       <p className="mt-2 text-xs font-bold text-emerald-700">
-                        Responded by {note.responded_by_name ?? "Unknown"} at {formatDateTime(note.responded_at)}
+                        {formatDateTime(note.responded_at)}
                       </p>
                     </div>
                   )}
@@ -405,43 +415,68 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                           type="button"
                           onClick={() => void acknowledgeNote(note)}
                           disabled={busyNoteId === note.id}
-                          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 text-sm font-extrabold text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex min-h-14 w-full items-center justify-start gap-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-4 text-left text-base font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <CheckCircle2 size={16} />
+                          <span className="h-7 w-7 shrink-0 rounded-lg border-2 border-emerald-500 bg-white" />
                           {busyNoteId === note.id ? "Acknowledging..." : "Acknowledge"}
                         </button>
                       )}
 
-                      <div>
-                        <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-${note.id}`}>
-                          Response
-                        </label>
-                        <textarea
-                          id={`rt-aide-response-${note.id}`}
-                          value={responseDraft}
-                          onChange={(event) =>
-                            setResponseDrafts((current) => ({
-                              ...current,
-                              [note.id]: event.target.value.slice(0, maxNoteLength)
-                            }))
-                          }
-                          placeholder="Add response..."
-                          maxLength={maxNoteLength}
-                          className="mt-2 min-h-20 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                        />
-                        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
-                          <span>No patient information.</span>
-                          <span>{responseDraft.length}/{maxNoteLength}</span>
+                      {expandedResponseNoteId === note.id ? (
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                          <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-${note.id}`}>
+                            Add Note
+                          </label>
+                          <textarea
+                            id={`rt-aide-response-${note.id}`}
+                            value={responseDraft}
+                            onChange={(event) =>
+                              setResponseDrafts((current) => ({
+                                ...current,
+                                [note.id]: event.target.value.slice(0, maxNoteLength)
+                              }))
+                            }
+                            placeholder="Add optional note..."
+                            maxLength={maxNoteLength}
+                            className="mt-2 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                          />
+                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
+                            <span>No patient information.</span>
+                            <span>{responseDraft.length}/{maxNoteLength}</span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedResponseNoteId(null);
+                                setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
+                              }}
+                              className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98]"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void sendResponse(note)}
+                              disabled={!canSendResponse}
+                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 transition duration-150 active:scale-[0.98] active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {busyNoteId === note.id ? "Sending..." : "Send Note"}
+                            </button>
+                          </div>
                         </div>
+                      ) : (
                         <button
                           type="button"
-                          onClick={() => void sendResponse(note)}
-                          disabled={!canSendResponse}
-                          className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          onClick={() => {
+                            setExpandedResponseNoteId(note.id);
+                            setResponseDrafts((current) => ({ ...current, [note.id]: current[note.id] ?? "" }));
+                          }}
+                          className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-pink-100 bg-pink-50 px-4 text-sm font-black text-pink-700 transition duration-150 active:scale-[0.98]"
                         >
-                          {busyNoteId === note.id ? "Sending..." : "Send Response"}
+                          + Add Note
                         </button>
-                      </div>
+                      )}
                     </div>
                   )}
                 </article>
