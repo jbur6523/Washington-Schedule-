@@ -45,6 +45,7 @@ type RtAideNotesModalProps = {
   open: boolean;
   onClose: () => void;
   onNotesChanged?: () => void;
+  context?: "lead" | "aide";
 };
 
 function formatDateTime(value: string | null) {
@@ -106,7 +107,13 @@ function priorityChipClass(priority: RtAideNotePriority) {
   return "border border-purple-200 bg-purple-100 text-purple-800";
 }
 
-export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }: RtAideNotesModalProps) {
+export function RtAideNotesModal({
+  authContext,
+  open,
+  onClose,
+  onNotesChanged,
+  context = "lead"
+}: RtAideNotesModalProps) {
   const [notes, setNotes] = useState<RtAideNoteRow[]>([]);
   const [visibleNoteCount, setVisibleNoteCount] = useState(notesPageSize);
   const [activeNoteCount, setActiveNoteCount] = useState(0);
@@ -131,6 +138,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   const canCreateNotes =
     authContext.role === "admin" || authContext.role === "lead" || authContext.operationsRole === "command_center";
   const canResolveNotes = authContext.role === "admin" || authContext.operationsRole === "aide";
+  const canCreateInContext = context === "lead" && canCreateNotes;
+  const canResolveInContext = context === "aide" && canResolveNotes;
   const hasNoteText = noteText.trim().length > 0;
   const selectedAddedBy = useMemo(
     () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
@@ -144,7 +153,8 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   const responseAddedByName = useManualResponseAddedBy
     ? manualResponseAddedByName.trim()
     : selectedResponseAddedBy?.display_name ?? "";
-  const canSendNewNote = canCreateNotes && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
+  const canSendNewNote =
+    canCreateInContext && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
 
   const activeNotes = useMemo(() => notes.filter((note) => note.status !== "closed"), [notes]);
   const hasMoreNotes = activeNoteCount > activeNotes.length;
@@ -204,7 +214,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   }, [loadNotes, open]);
 
   useEffect(() => {
-    if (!open || !canCreateNotes) {
+    if (!open || !canCreateInContext) {
       return;
     }
 
@@ -240,10 +250,10 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [authContext.departmentId, authContext.staffProfileId, canCreateNotes, open]);
+  }, [authContext.departmentId, authContext.staffProfileId, canCreateInContext, open]);
 
   useEffect(() => {
-    if (!open || !canResolveNotes) {
+    if (!open || !canResolveInContext) {
       return;
     }
 
@@ -278,7 +288,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [authContext.departmentId, authContext.staffProfileId, canResolveNotes, open]);
+  }, [authContext.departmentId, authContext.staffProfileId, canResolveInContext, open]);
 
   const notifyChanged = () => {
     onNotesChanged?.();
@@ -325,7 +335,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   };
 
   const acknowledgeNote = async (note: RtAideNoteRow) => {
-    if (!canResolveNotes || !authContext.staffProfileId || note.status !== "new") {
+    if (!canResolveInContext || !authContext.staffProfileId || note.status !== "new") {
       return;
     }
 
@@ -359,7 +369,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
   };
 
   const sendResponse = async (note: RtAideNoteRow) => {
-    if (!canResolveNotes || !authContext.staffProfileId) {
+    if (!canResolveInContext || !authContext.staffProfileId) {
       return;
     }
 
@@ -426,7 +436,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Shared Notes</p>
               <h2 className="text-2xl font-black text-hospital-ink">Aide Communication Board</h2>
               <p className="mt-1 text-sm font-bold text-slate-500">
-                {canResolveNotes && !canCreateNotes
+                {context === "aide"
                   ? "View notes and respond to RT leads."
                   : "Send notes or questions to RT Aides."}
               </p>
@@ -442,7 +452,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
           </button>
         </div>
 
-        {canCreateNotes && (
+        {canCreateInContext && (
           <form onSubmit={sendNote} className="mt-5 rounded-3xl border border-cyan-100 bg-cyan-50/50 p-4">
             <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor="rt-aide-note">
               Note
@@ -571,9 +581,12 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
             <>
               {activeNotes.map((note) => {
               const responseDraft = responseDrafts[note.id] ?? "";
-              const canAcknowledge = canResolveNotes && note.status === "new";
+              const canAcknowledge = canResolveInContext && note.status === "new";
               const canSendResponse =
-                canResolveNotes && responseDraft.trim().length > 0 && responseAddedByName.length > 0 && busyNoteId !== note.id;
+                canResolveInContext &&
+                responseDraft.trim().length > 0 &&
+                responseAddedByName.length > 0 &&
+                busyNoteId !== note.id;
 
               return (
                 <article key={note.id} className={`rounded-[1.75rem] border p-4 shadow-md ${priorityCardClass(note.priority)}`}>
@@ -619,7 +632,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
                     </div>
                   )}
 
-                  {canResolveNotes && (
+                  {canResolveInContext && (
                     <div className="mt-4 space-y-3">
                       {canAcknowledge && (
                         <button

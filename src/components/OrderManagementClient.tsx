@@ -818,7 +818,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             <button
               type="button"
               onClick={openRtAideNotes}
-              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-md shadow-cyan-900/10"
+              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-blue-700 bg-blue-700 px-4 text-sm font-extrabold text-white shadow-md shadow-blue-900/20 transition duration-150 active:scale-[0.98] active:bg-blue-800 active:shadow-sm"
             >
               <MessageSquareText size={18} />
               Aide Communication Board
@@ -1288,6 +1288,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           open={rtAideNotesOpen}
           onClose={() => setRtAideNotesOpen(false)}
           onNotesChanged={() => void loadRtAideNewCount()}
+          context="aide"
         />
       </div>
     </main>

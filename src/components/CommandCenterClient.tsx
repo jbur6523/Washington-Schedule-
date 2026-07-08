@@ -130,6 +130,7 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
         authContext={authContext}
         open={rtAideNotesOpen}
         onClose={() => setRtAideNotesOpen(false)}
+        context="lead"
       />
     </main>
   );
