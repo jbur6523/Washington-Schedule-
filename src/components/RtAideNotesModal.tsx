@@ -92,18 +92,18 @@ function statusClass(status: RtAideNoteStatus) {
 
 function priorityCardClass(priority: RtAideNotePriority) {
   if (priority === "urgent") {
-    return "border-rose-200 bg-rose-50 shadow-rose-900/5";
+    return "border-red-300 bg-red-100/80 shadow-red-900/5";
   }
 
-  return "border-violet-200 bg-violet-50 shadow-violet-900/5";
+  return "border-purple-200 bg-purple-50 shadow-purple-900/5";
 }
 
 function priorityChipClass(priority: RtAideNotePriority) {
   if (priority === "urgent") {
-    return "border border-rose-200 bg-rose-100 text-rose-800";
+    return "border border-red-300 bg-red-200 text-red-900";
   }
 
-  return "border border-violet-200 bg-violet-100 text-violet-800";
+  return "border border-purple-200 bg-purple-100 text-purple-800";
 }
 
 export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }: RtAideNotesModalProps) {
@@ -171,7 +171,7 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
     if (loadError || countError) {
       setNotes([]);
       setActiveNoteCount(0);
-      setError("Unable to load RT Aide Notes.");
+      setError("Unable to load Aide Communication Board.");
       setLoading(false);
       return;
     }
@@ -424,15 +424,19 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
             </span>
             <div>
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Shared Notes</p>
-              <h2 className="text-2xl font-black text-hospital-ink">RT Aide Notes</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">Leave notes or questions for RT Aides.</p>
+              <h2 className="text-2xl font-black text-hospital-ink">Aide Communication Board</h2>
+              <p className="mt-1 text-sm font-bold text-slate-500">
+                {canResolveNotes && !canCreateNotes
+                  ? "View notes and respond to RT leads."
+                  : "Send notes or questions to RT Aides."}
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600"
-            aria-label="Close RT Aide Notes"
+            aria-label="Close Aide Communication Board"
           >
             <X size={18} />
           </button>
@@ -557,11 +561,11 @@ export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged }:
 
           {loading ? (
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-              Loading RT Aide Notes...
+              Loading Aide Communication Board...
             </div>
           ) : activeNotes.length === 0 ? (
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-              No RT Aide notes right now.
+              No Aide Communication Board notes right now.
             </div>
           ) : (
             <>

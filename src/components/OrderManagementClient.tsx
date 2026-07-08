@@ -795,7 +795,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Aide Workboard</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Manage supply orders, tasks, and RT aide notes.
+                  Manage supply orders, tasks, and aide communication.
                 </p>
               </div>
             </div>
@@ -821,7 +821,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
               className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-md shadow-cyan-900/10"
             >
               <MessageSquareText size={18} />
-              RT Aide Notes
+              Aide Communication Board
               {rtAideNewCount > 0 && (
                 <span className="ml-1 rounded-full bg-pink-600 px-2 py-0.5 text-xs font-black text-white">
                   {rtAideNewCount} new

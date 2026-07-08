@@ -13,6 +13,8 @@ type CommandCenterClientProps = {
 
 export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
+  const cardBaseClass =
+    "h-36 rounded-3xl border p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]";
 
   const signOut = async () => {
     await signOutAndRedirect();
@@ -21,19 +23,19 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
   return (
     <main className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+        <section className="rounded-3xl border border-white bg-white/95 p-5 text-center shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
-          <h1 className="mt-2 text-3xl font-black text-hospital-ink">Respiratory Command Center</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Department phone operations</p>
+          <h1 className="mt-2 text-3xl font-black text-hospital-ink">Lead Command Board</h1>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Lead shift operations</p>
         </section>
 
         <div className="grid gap-3">
           <Link
             href="/command-center/shift-update"
-            className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft active:scale-[0.99]"
+            className={`${cardBaseClass} border-sky-100 bg-sky-50/90`}
           >
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-sky-700">
                 <ClipboardList size={24} />
               </span>
               <div>
@@ -47,9 +49,9 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
 
           <Link
             href="/operations/rental-management"
-            className="rounded-3xl border border-amber-100 bg-amber-50/90 p-4 shadow-soft active:scale-[0.99]"
+            className={`${cardBaseClass} border-amber-100 bg-amber-50/90`}
           >
-            <div className="flex items-start gap-3">
+            <div className="flex h-full items-start gap-3">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-600">
                 <RefreshCcw size={24} />
               </span>
@@ -65,14 +67,14 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
           <button
             type="button"
             onClick={() => setRtAideNotesOpen(true)}
-            className="rounded-3xl border border-cyan-100 bg-cyan-50/80 p-4 text-left shadow-soft active:scale-[0.99]"
+            className={`${cardBaseClass} border-purple-100 bg-purple-50/90`}
           >
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700">
                 <MessageSquareText size={24} />
               </span>
               <div>
-                <h2 className="text-xl font-black text-hospital-ink">RT Aide Notes</h2>
+                <h2 className="text-xl font-black text-hospital-ink">Aide Communication Board</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
                   Send notes or questions to RT Aides.
                 </p>
@@ -82,10 +84,10 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
 
           <Link
             href="/command-center/icu-snapshot"
-            className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft active:scale-[0.99]"
+            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
           >
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
                 <Activity size={24} />
               </span>
               <div>
@@ -99,10 +101,10 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
 
           <Link
             href="/command-center/short-shift-alert"
-            className="rounded-3xl border border-rose-100 bg-white/95 p-4 shadow-soft active:scale-[0.99]"
+            className={`${cardBaseClass} border-red-200 bg-red-50/95`}
           >
-            <div className="flex items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rose-50 text-rose-600">
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-red-700">
                 <Megaphone size={24} />
               </span>
               <div>

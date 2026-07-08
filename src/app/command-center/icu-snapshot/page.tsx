@@ -14,7 +14,7 @@ function AccessDenied() {
         <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Snapshot</p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this page.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-          ICU Snapshot is available to the Respiratory Command Center in read-only mode.
+          ICU Snapshot is available to the Lead Command Board in read-only mode.
         </p>
         <Link
           href="/"

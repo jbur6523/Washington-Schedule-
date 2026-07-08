@@ -36,9 +36,9 @@ The top header shows one dashboard button for users with operations access:
 The dashboard page title uses the full label.
 Command Center, ICU Command Center, and Director accounts do not use this header entry point because they route directly to their simplified pages after login.
 
-## Respiratory Command Center
+## Lead Command Board
 
-The Respiratory Command Center is available at `/command-center` for `operations_role = command_center`.
+The Lead Command Board is available at `/command-center` for `operations_role = command_center`.
 
 Seeded shared-device login:
 
@@ -49,11 +49,11 @@ The command phone menu contains:
 
 - Shift Update
 - Rental Management
-- RT Aide Notes
+- Aide Communication Board
 - ICU Snapshot
 - Short Shift Alert
 
-It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login. RT Aide Notes lets Command Center users send notes or questions to Aides/Admin users in Order Management.
+It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login. Aide Communication Board lets Command Center users send notes or questions to Aides/Admin users in Order Management.
 
 ## ICU Command Center
 
@@ -65,7 +65,7 @@ Seeded shared-device login:
 
 The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, active-device snapshot counts, Update, Discontinue, History, Today's ICU Activity, Search Previous Date, and a Vent-only Critical toggle. Discontinue requires Discontinued Date and Discontinued Time for all devices. Vent discontinuation also requires a Ventilator Outcome. Discontinue does not hard-delete records.
 
-Director and Respiratory Command Center users can view ICU details read-only. Regular Staff, Aides, unauthenticated users, and Director users cannot edit ICU entries.
+Director and Lead Command Board users can view ICU details read-only. Regular Staff, Aides, unauthenticated users, and Director users cannot edit ICU entries.
 
 The ICU Command Center must not store patient names, MRNs, DOBs, diagnoses, clinical free-text notes, or patient-identifying information.
 
@@ -104,7 +104,7 @@ Order Management is intentionally simple in this phase:
 
 - The main page shows a single `Create Order` action and submitted order history.
 - The `To-Do List` action opens a shared department order-notes modal for Admin and Aide users.
-- The `RT Aide Notes` action shows notes from Respiratory Command Center users, with a badge for new unacknowledged notes.
+- The `Aide Communication Board` action shows notes from Lead Command Board users, with a badge for new unacknowledged notes.
 - The create form opens separately in a mobile modal instead of loading inline by default.
 - Aide takes or uploads a picture when available.
 - Picture upload is optional but strongly encouraged.
@@ -117,7 +117,7 @@ Order Management is intentionally simple in this phase:
 - The shared To-Do List saves only when the user taps `Save`, shows last updated metadata, and requires confirmation before clearing.
 - Clearing the To-Do List transforms the confirmation card into a same-size rotating celebration card, then closes the modal automatically.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
-- Aide/Admin users can acknowledge RT Aide Notes and send optional responses. Command Center/Lead/Admin users can create notes and view acknowledgement/response status.
+- Aide/Admin users can acknowledge Aide Communication Board and send optional responses. Command Center/Lead/Admin users can create notes and view acknowledgement/response status.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.
 

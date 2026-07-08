@@ -1,6 +1,6 @@
-# Respiratory Command Center
+# Lead Command Board
 
-The Respiratory Command Center is a simplified department-phone experience inside WHHS RT Schedule. It is for shared respiratory department operations, not personal schedule management.
+The Lead Command Board is a simplified department-phone experience inside WHHS RT Schedule. It is for shared respiratory department operations, not personal schedule management.
 
 ## Access Types
 
@@ -26,7 +26,7 @@ Command Center can access only:
 - Rental Management
 - ICU Snapshot
 - Short Shift Alert
-- RT Aide Notes
+- Aide Communication Board
 
 Because this is a shared login, actions must ask who completed the work. Visible history and exports should show the selected staff member or initials, not `sputum`.
 
@@ -68,7 +68,7 @@ Menu cards:
 
 - `Shift Update`: update current shift staffing and equipment numbers.
 - `Rental Management`: order rentals, confirm delivery, and manage pickups.
-- `RT Aide Notes`: send notes or questions to RT Aides.
+- `Aide Communication Board`: send notes or questions to RT Aides.
 - `ICU Snapshot`: view ICU respiratory devices and settings in read-only mode.
 - `Short Shift Alert`: post a staffing need for the current shift.
 
@@ -179,19 +179,19 @@ Route:
 
 The command phone can post a Short Shift alert using the existing Short Shift infrastructure. The form requires staff attribution and includes a no-patient-information warning.
 
-## RT Aide Notes
+## Aide Communication Board
 
-The Respiratory Command Center dashboard includes `RT Aide Notes` for lightweight notes and questions to RT Aides/equipment techs.
+The Lead Command Board dashboard includes `Aide Communication Board` for lightweight notes and questions to RT Aides/equipment techs.
 
-- Command Center users can create notes from the Respiratory Command Center dashboard. RLS also permits department Lead/Admin accounts to create/view notes when surfaced through an authorized workflow.
+- Command Center users can create notes from the Lead Command Board dashboard. RLS also permits department Lead/Admin accounts to create/view notes when surfaced through an authorized workflow.
 - Note creation requires `Added by`; the form lists active Lead/Admin staff names and includes `Not listed? Type name manually` for fallback attribution. The selected or typed name is shown as the note's visible creator.
 - Each note requires note text, supports Normal or Urgent priority, and shows `No patient information.`
 - Notes appear in Order Management for Aide/Admin users as distinct task/message cards with a `status = new` badge count. Normal notes use soft purple cards, and Urgent notes use soft red cards.
 - Aide/Admin users can acknowledge notes with a compact checkbox-style action and can optionally expand `+ Add Note` when a reply/detail is needed. The Add Note attribution selector lists active Aides, with a manual fallback if needed.
 - Aide note text appears directly under the original RT note, while acknowledgement metadata sits at the bottom of each card.
 - The modal shows 10 active notes at a time and uses `Load More` for older notes.
-- Command Center users can reopen RT Aide Notes to view New, Acknowledged, and Responded status, including optional Aide note text and responder display name.
-- This workflow is for the Respiratory Command Center only. It is not shown in the ICU Command Center.
+- Command Center users can reopen Aide Communication Board to view New, Acknowledged, and Responded status, including optional Aide note text and responder display name.
+- This workflow is for the Lead Command Board only. It is not shown in the ICU Command Center.
 
 ## Privacy
 

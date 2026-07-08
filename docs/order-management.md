@@ -28,7 +28,7 @@ The main Order Management page stays compact:
 
 - one primary `Create Order` button
 - one yellow `To-Do List` button
-- one `RT Aide Notes` button for Command Center notes and questions
+- one `Aide Communication Board` button for Command Center notes and questions
 - an `Order History` section for submitted orders
 - `No department orders yet.` when the history is empty
 
@@ -80,9 +80,9 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 - The celebration message is not shown as a bottom toast or as a large banner inside the To-Do List editor.
 - The helper text says `No patient information.`
 
-## RT Aide Notes
+## Aide Communication Board
 
-The `RT Aide Notes` button opens a shared Command Center-to-Aide notes workflow.
+The `Aide Communication Board` button opens a shared Command Center-to-Aide notes workflow.
 
 - Respiratory Command Center users, Lead users, and Admin users can create notes or questions for RT Aides.
 - Creating an RT-side note requires `Added by`. The selector uses active Lead/Admin staff options, with `Not listed? Type name manually` as a fallback. The visible `Created by` value uses this selected or typed display name.
@@ -91,11 +91,11 @@ The `RT Aide Notes` button opens a shared Command Center-to-Aide notes workflow.
 - Optional Aide notes are collapsed behind `+ Add Note` by default; Aides can acknowledge without writing a note. Sending an Aide note requires `Added by` from the active Aide list, with the same manual fallback.
 - If an Aide note exists, it appears directly under the original RT note. Acknowledgement metadata appears at the bottom of the note card.
 - Normal note cards use soft purple styling. Urgent note cards use soft red styling.
-- RT Aide Notes show 10 active notes at a time. `Load More` reveals the next 10 while the Order Management badge still counts all notes with `status = new`.
+- Aide Communication Board shows 10 active notes at a time. `Load More` reveals the next 10 while the Order Management badge still counts all notes with `status = new`.
 - The Order Management button shows a `new` badge count for notes with `status = new`.
 - Acknowledging a note saves acknowledged date/time and the Aide/Admin display name, then removes it from the new-note badge count.
 - Sending an optional note saves response text, responded date/time, and responder display name, and sets status to `responded`.
-- RT Command Center users can reopen `RT Aide Notes` to see whether notes are New, Acknowledged, or Responded and can read optional Aide note text.
+- RT Command Center users can reopen `Aide Communication Board` to see whether notes are New, Acknowledged, or Responded and can read optional Aide note text.
 - Staff, Director, ICU Command Center, and unauthenticated users do not have access.
 
 Note and optional Add Note fields are capped at 500 characters and show:
@@ -115,7 +115,7 @@ Order history uses indexes for newest-first history and Req Number lookup:
 
 The shared To-Do List is stored in `order_management_todo` as one department-scoped row. RLS allows Admin and Aide users to read and update the shared note.
 
-RT Aide Notes are stored in `rt_aide_notes`. RLS allows Admin, Lead, and Respiratory Command Center users to create/view notes, and Aide/Admin users to acknowledge or respond. Staff, Director, ICU Command Center, and unauthenticated users are not granted note access.
+Aide Communication Board records are stored in `rt_aide_notes`. RLS allows Admin, Lead, and Respiratory Command Center users to create/view notes, and Aide/Admin users to acknowledge or respond. Staff, Director, ICU Command Center, and unauthenticated users are not granted note access.
 
 The workflow must not store or display:
 

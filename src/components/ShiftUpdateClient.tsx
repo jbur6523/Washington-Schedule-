@@ -228,7 +228,7 @@ export function ShiftUpdateClient({
     <main className="min-h-screen px-4 py-8">
       <div className="mx-auto max-w-xl space-y-4">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Respiratory Command Center</p>
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Lead Command Board</p>
           <h1 className="mt-2 text-2xl font-black text-hospital-ink">Shift Update</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
             Update current shift staffing and equipment numbers.
