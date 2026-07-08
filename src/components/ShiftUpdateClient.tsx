@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, Baby, Bed, ClipboardList, Droplet, Heart, MoreHorizontal, Stethoscope, User, Users, Wind } from "lucide-react";
+import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
@@ -438,20 +438,21 @@ export function ShiftUpdateClient({
                 onChange={(value) => setForm((current) => ({ ...current, sputumInductionCount: value }))}
               />
               <ProcedureInputTile
-                icon={<MoreHorizontal size={18} />}
-                label="Other"
+                icon={<Bone size={18} />}
+                label="MRI"
                 value={form.otherProcedureCount}
                 helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.other_procedure_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, otherProcedureCount: value }))}
               />
             </div>
             <label className="mt-3 block">
-              <span className={labelClass}>Other Note (Optional)</span>
+              <span className={labelClass}>Other Procedures</span>
               <input
                 value={form.otherProcedureNote}
                 onChange={(event) => setForm((current) => ({ ...current, otherProcedureNote: event.target.value.slice(0, 100) }))}
                 maxLength={100}
-                className={controlClass}
+                placeholder="Enter procedure type"
+                className={`${controlClass} placeholder:text-slate-400`}
               />
               <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
             </label>
