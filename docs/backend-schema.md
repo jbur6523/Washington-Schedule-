@@ -70,8 +70,10 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `department_orders`: Aide/Admin-created department supply order records. Each row stores department, creator staff profile, creator display name fallback, optional Req Number, optional private image storage path, optional image URL fallback, notes capped at 280 characters, and created/updated timestamps. The table requires at least a Req Number, photo path/URL, or note so blank orders are not saved.
 - Order history uses newest-first indexes on `department_orders.created_at` and a Req Number lookup index on `department_orders.req_number`. The UI loads the 7 most recent orders by default, paginates View All in 25-order pages, and searches Req Number through Supabase rather than filtering only loaded rows.
 - `order_management_todo`: one shared department-scoped Order Management To-Do List row. It stores text content, last updated staff profile/name, and timestamps. Admin and Aide users can read and update the shared list; Staff, Lead, Director, and Command Center users cannot access it.
+- `rt_aide_notes`: department-scoped notes and questions from Respiratory Command Center/Lead/Admin users to RT Aides. Each row stores note text, Normal/Urgent priority, New/Acknowledged/Responded/Closed status, creator display name, optional acknowledgment metadata, optional response text/metadata, optional close metadata, and timestamps. Note and response text are capped at 500 characters.
 - `department-order-images`: private Supabase Storage bucket for Order Management photos. Images are stored under department-scoped paths and displayed through signed URLs for thumbnails and larger previews.
 - Order Management creation is available to Aides and Admin users. RLS and storage policies use `staff_profiles.operations_role = aide`, active staff profiles, and department Admin checks to allow Aides/Admins to create/read orders and upload/read order images. Staff, Lead, Director, and Command Center users are not granted Order Management access unless explicitly added later.
+- RT Aide Notes RLS allows Admin, Lead, and Respiratory Command Center users to create and view notes. Aide and Admin users can acknowledge and respond from Order Management. Staff, Director, ICU Command Center, and unauthenticated users are denied.
 - Order Management notes must not contain patient information, MRNs, clinical details, staff usernames, auth IDs, staff phone numbers, or staff emails.
 
 ### ICU Command Center
@@ -172,6 +174,7 @@ Helper functions:
 - `user_is_icu_command_center(department_id)`: checks whether the current active account is the shared ICU Command Center account for that department.
 - `user_can_manage_icu_patients(department_id)`: allows department Admin and ICU Command Center users to manage ICU entries.
 - `user_can_view_icu_patients(department_id)`: allows ICU managers plus Director and Command Center users to read ICU entries.
+- `user_is_department_lead(department_id)`: checks whether the current active account has the Lead role in that department.
 - `user_is_department_aide(department_id)`: checks whether the current account is an active Aide in that department.
 - `current_staff_profile_id(department_id)`: returns the active staff profile linked to the current profile in a department.
 

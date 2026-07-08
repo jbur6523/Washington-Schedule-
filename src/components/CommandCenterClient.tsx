@@ -1,10 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ClipboardList, LogOut, Megaphone, RefreshCcw } from "lucide-react";
+import { useState } from "react";
+import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, RefreshCcw } from "lucide-react";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
+import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { RtAideNotesModal } from "@/components/RtAideNotesModal";
 
-export function CommandCenterClient() {
+type CommandCenterClientProps = {
+  authContext: AuthenticatedUserContext;
+};
+
+export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
+  const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
+
   const signOut = async () => {
     await signOutAndRedirect();
   };
@@ -53,6 +62,24 @@ export function CommandCenterClient() {
             </div>
           </Link>
 
+          <button
+            type="button"
+            onClick={() => setRtAideNotesOpen(true)}
+            className="rounded-3xl border border-cyan-100 bg-cyan-50/80 p-4 text-left shadow-soft active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
+                <MessageSquareText size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">RT Aide Notes</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                  Send notes or questions to RT Aides.
+                </p>
+              </div>
+            </div>
+          </button>
+
           <Link
             href="/command-center/icu-snapshot"
             className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft active:scale-[0.99]"
@@ -97,6 +124,11 @@ export function CommandCenterClient() {
           Sign out
         </button>
       </div>
+      <RtAideNotesModal
+        authContext={authContext}
+        open={rtAideNotesOpen}
+        onClose={() => setRtAideNotesOpen(false)}
+      />
     </main>
   );
 }

@@ -47,5 +47,5 @@ export default async function CommandCenterPage() {
     return <AccessDenied />;
   }
 
-  return <CommandCenterClient />;
+  return <CommandCenterClient authContext={auth.context} />;
 }

@@ -28,6 +28,7 @@ The main Order Management page stays compact:
 
 - one primary `Create Order` button
 - one yellow `To-Do List` button
+- one `RT Aide Notes` button for Command Center notes and questions
 - an `Order History` section for submitted orders
 - `No department orders yet.` when the history is empty
 
@@ -79,6 +80,22 @@ The `To-Do List` button opens a modal shared by all Order Management users in th
 - The celebration message is not shown as a bottom toast or as a large banner inside the To-Do List editor.
 - The helper text says `No patient information.`
 
+## RT Aide Notes
+
+The `RT Aide Notes` button opens a shared Command Center-to-Aide notes workflow.
+
+- Respiratory Command Center users, Lead users, and Admin users can create notes or questions for RT Aides.
+- Aide and Admin users can view notes from Order Management, acknowledge new notes, and send optional responses.
+- The Order Management button shows a `new` badge count for notes with `status = new`.
+- Acknowledging a note saves acknowledged date/time and the Aide/Admin display name, then removes it from the new-note badge count.
+- Sending a response saves response text, responded date/time, and responder display name, and sets status to `responded`.
+- RT Command Center users can reopen `RT Aide Notes` to see whether notes are New, Acknowledged, or Responded and can read response text.
+- Staff, Director, ICU Command Center, and unauthenticated users do not have access.
+
+Note and response fields are capped at 500 characters and show:
+
+`No patient information.`
+
 ## Data Model
 
 Orders are stored in `department_orders`.
@@ -91,6 +108,8 @@ Order history uses indexes for newest-first history and Req Number lookup:
 - `department_orders_req_number_idx` supports Req Number search.
 
 The shared To-Do List is stored in `order_management_todo` as one department-scoped row. RLS allows Admin and Aide users to read and update the shared note.
+
+RT Aide Notes are stored in `rt_aide_notes`. RLS allows Admin, Lead, and Respiratory Command Center users to create/view notes, and Aide/Admin users to acknowledge or respond. Staff, Director, ICU Command Center, and unauthenticated users are not granted note access.
 
 The workflow must not store or display:
 

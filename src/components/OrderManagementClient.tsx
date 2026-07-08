@@ -4,9 +4,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Camera, ChevronDown, ClipboardList, PackageCheck, PackagePlus, X } from "lucide-react";
+import { ArrowLeft, Camera, ChevronDown, ClipboardList, MessageSquareText, PackageCheck, PackagePlus, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
+import { RtAideNotesModal } from "@/components/RtAideNotesModal";
 
 const orderImageBucket = "department-order-images";
 const maxNoteLength = 280;
@@ -112,6 +113,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
   const [expandedNotesOrderId, setExpandedNotesOrderId] = useState<string | null>(null);
   const [todoOpen, setTodoOpen] = useState(false);
+  const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
+  const [rtAideNewCount, setRtAideNewCount] = useState(0);
   const [todoContent, setTodoContent] = useState("");
   const [savedTodoContent, setSavedTodoContent] = useState("");
   const [todoUpdatedAt, setTodoUpdatedAt] = useState<string | null>(null);
@@ -137,6 +140,19 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const displayedOrders = searchActive ? searchOrders : historyMode === "recent" ? recentOrders : allOrders;
   const displayedOrdersLoading = searchActive ? searchLoading : historyMode === "recent" ? loading : allLoading;
   const submittedCountLabel = orderCount ?? recentOrders.length;
+
+  const loadRtAideNewCount = useCallback(async () => {
+    const supabase = createClient();
+    const { count, error: countError } = await supabase
+      .from("rt_aide_notes")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", authContext.departmentId)
+      .eq("status", "new");
+
+    if (!countError) {
+      setRtAideNewCount(count ?? 0);
+    }
+  }, [authContext.departmentId]);
 
   const signOrderPreviews = useCallback(async (rows: DepartmentOrderRow[]) => {
     const supabase = createClient();
@@ -368,7 +384,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   }, []);
 
   useEffect(() => {
-    if (!isCreateOpen && !todoOpen && !expandedImage) {
+    if (!isCreateOpen && !todoOpen && !expandedImage && !rtAideNotesOpen) {
       return;
     }
 
@@ -378,7 +394,13 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [expandedImage, isCreateOpen, todoOpen]);
+  }, [expandedImage, isCreateOpen, rtAideNotesOpen, todoOpen]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadRtAideNewCount();
+    });
+  }, [loadRtAideNewCount]);
 
   useEffect(() => {
     if (!todoOpen) {
@@ -445,6 +467,10 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setDiscardConfirmOpen(false);
     setClearCelebrationMessage("");
     setTodoOpen(true);
+  };
+
+  const openRtAideNotes = () => {
+    setRtAideNotesOpen(true);
   };
 
   const closeCreateOrder = () => {
@@ -788,6 +814,19 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             >
               <ClipboardList size={18} />
               To-Do List
+            </button>
+            <button
+              type="button"
+              onClick={openRtAideNotes}
+              className="mt-2 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800 shadow-md shadow-cyan-900/10"
+            >
+              <MessageSquareText size={18} />
+              RT Aide Notes
+              {rtAideNewCount > 0 && (
+                <span className="ml-1 rounded-full bg-pink-600 px-2 py-0.5 text-xs font-black text-white">
+                  {rtAideNewCount} new
+                </span>
+              )}
             </button>
             {success && (
               <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
@@ -1243,6 +1282,13 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             </div>
           </div>
         )}
+
+        <RtAideNotesModal
+          authContext={authContext}
+          open={rtAideNotesOpen}
+          onClose={() => setRtAideNotesOpen(false)}
+          onNotesChanged={() => void loadRtAideNewCount()}
+        />
       </div>
     </main>
   );

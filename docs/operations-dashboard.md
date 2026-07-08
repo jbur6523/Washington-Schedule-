@@ -49,10 +49,11 @@ The command phone menu contains:
 
 - Shift Update
 - Rental Management
+- RT Aide Notes
 - ICU Snapshot
 - Short Shift Alert
 
-It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login.
+It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login. RT Aide Notes lets Command Center users send notes or questions to Aides/Admin users in Order Management.
 
 ## ICU Command Center
 
@@ -103,6 +104,7 @@ Order Management is intentionally simple in this phase:
 
 - The main page shows a single `Create Order` action and submitted order history.
 - The `To-Do List` action opens a shared department order-notes modal for Admin and Aide users.
+- The `RT Aide Notes` action shows notes from Respiratory Command Center users, with a badge for new unacknowledged notes.
 - The create form opens separately in a mobile modal instead of loading inline by default.
 - Aide takes or uploads a picture when available.
 - Picture upload is optional but strongly encouraged.
@@ -115,6 +117,7 @@ Order Management is intentionally simple in this phase:
 - The shared To-Do List saves only when the user taps `Save`, shows last updated metadata, and requires confirmation before clearing.
 - Clearing the To-Do List transforms the confirmation card into a same-size rotating celebration card, then closes the modal automatically.
 - Admin can create orders and upload images with the same permissions as Aides, and can view submitted order count, orders, thumbnails/previews, created date/time, creator display name, and notes for monitoring.
+- Aide/Admin users can acknowledge RT Aide Notes and send optional responses. Command Center/Lead/Admin users can create notes and view acknowledgement/response status.
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.
 

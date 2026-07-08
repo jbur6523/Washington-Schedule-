@@ -26,6 +26,7 @@ Command Center can access only:
 - Rental Management
 - ICU Snapshot
 - Short Shift Alert
+- RT Aide Notes
 
 Because this is a shared login, actions must ask who completed the work. Visible history and exports should show the selected staff member or initials, not `sputum`.
 
@@ -67,6 +68,7 @@ Menu cards:
 
 - `Shift Update`: update current shift staffing and equipment numbers.
 - `Rental Management`: order rentals, confirm delivery, and manage pickups.
+- `RT Aide Notes`: send notes or questions to RT Aides.
 - `ICU Snapshot`: view ICU respiratory devices and settings in read-only mode.
 - `Short Shift Alert`: post a staffing need for the current shift.
 
@@ -176,6 +178,17 @@ Route:
 `/command-center/short-shift-alert`
 
 The command phone can post a Short Shift alert using the existing Short Shift infrastructure. The form requires staff attribution and includes a no-patient-information warning.
+
+## RT Aide Notes
+
+The Respiratory Command Center dashboard includes `RT Aide Notes` for lightweight notes and questions to RT Aides/equipment techs.
+
+- Command Center users can create notes from the Respiratory Command Center dashboard. RLS also permits department Lead/Admin accounts to create/view notes when surfaced through an authorized workflow.
+- Each note requires note text, supports Normal or Urgent priority, and shows `No patient information.`
+- Notes appear in Order Management for Aide/Admin users with a new-note badge.
+- Aide/Admin users can acknowledge notes and send optional responses.
+- Command Center users can reopen RT Aide Notes to view New, Acknowledged, and Responded status, including response text and responder display name.
+- This workflow is for the Respiratory Command Center only. It is not shown in the ICU Command Center.
 
 ## Privacy
 
