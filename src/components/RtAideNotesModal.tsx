@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { CheckCircle2, MessageSquareText, Send, X } from "lucide-react";
+import { CheckCircle2, MessageSquareText, Send, Trash2, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -132,6 +132,7 @@ export function RtAideNotesModal({
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<RtAideNoteRow | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -420,6 +421,41 @@ export function RtAideNotesModal({
     notifyChanged();
   };
 
+  const deleteAcknowledgedNote = async () => {
+    if (!deleteCandidate || !canResolveInContext || !authContext.staffProfileId) {
+      return;
+    }
+
+    setBusyNoteId(deleteCandidate.id);
+    setError("");
+    setMessage("");
+
+    const supabase = createClient();
+    const { error: updateError } = await supabase
+      .from("rt_aide_notes")
+      .update({
+        status: "closed",
+        closed_at: new Date().toISOString(),
+        closed_by_staff_profile_id: authContext.staffProfileId,
+        closed_by_name: authContext.displayName
+      })
+      .eq("id", deleteCandidate.id)
+      .eq("department_id", authContext.departmentId)
+      .in("status", ["acknowledged", "responded"]);
+
+    setBusyNoteId(null);
+
+    if (updateError) {
+      setError("Unable to delete message.");
+      return;
+    }
+
+    setDeleteCandidate(null);
+    setMessage("Message deleted.");
+    await loadNotes();
+    notifyChanged();
+  };
+
   if (!open) {
     return null;
   }
@@ -629,6 +665,17 @@ export function RtAideNotesModal({
                         <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
                       </div>
                       <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
+                      {canResolveInContext && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteCandidate(note)}
+                          disabled={busyNoteId === note.id}
+                          className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-3.5 text-sm font-black text-red-700 shadow-sm transition duration-150 active:scale-[0.98] active:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Trash2 size={15} />
+                          Delete
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -773,6 +820,35 @@ export function RtAideNotesModal({
             </>
           )}
         </div>
+
+        {deleteCandidate && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4">
+            <section className="w-full max-w-sm rounded-[1.75rem] border border-white bg-white p-5 shadow-2xl">
+              <h3 className="text-xl font-black text-hospital-ink">Delete message?</h3>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+                This will remove the acknowledged message from the active Aide Communication Board.
+              </p>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteCandidate(null)}
+                  disabled={busyNoteId === deleteCandidate.id}
+                  className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteAcknowledgedNote()}
+                  disabled={busyNoteId === deleteCandidate.id}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 text-sm font-black text-white shadow-md shadow-red-900/20 transition duration-150 active:scale-[0.98] active:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {busyNoteId === deleteCandidate.id ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </section>
     </div>
   );
