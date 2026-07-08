@@ -793,9 +793,9 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 <PackagePlus size={22} />
               </span>
               <div>
-                <h2 className="text-xl font-black text-hospital-ink">Create Order</h2>
+                <h2 className="text-xl font-black text-hospital-ink">Aide Workboard</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Add a Req Number, picture, or notes for a department supply order.
+                  Manage supply orders, tasks, and RT aide notes.
                 </p>
               </div>
             </div>
