@@ -387,12 +387,14 @@ Fixes:
 - Added Phase 2 rental lifecycle hardening: rental status transitions now use guarded database functions with expected-status checks, active staff attribution validation, duplicate active barcode/serial rejection on delivery, and event insertion only after successful transitions.
 - Added Phase 3 migration reconciliation documentation, including duplicate timestamp inventory, production verification SQL, and a forward-only strategy for manually applied/out-of-order migrations.
 - Kept and documented the ICU read-only compatibility fallback and ICU schema repair migration so those pre-existing dirty files are no longer unexplained.
+- Added session-switching hardening: protected pages now distinguish temporary auth/profile verification failures from true unauthorized access, login waits for fresh no-store session/role status before routing, and sign-out clears transient app session state before redirect.
 
 Why these fixes were safe:
 - They do not change auth flow, routing, role permissions, or user-facing operational workflows.
 - They reduce credential exposure and improve navigation accessibility.
 - The deactivation work uses the existing `staff_profiles.is_active` field and preserves historical data instead of deleting profiles, memberships, or records.
 - The migration reconciliation work is documentation-first and forward-only. It does not rename applied migrations, drop data, or assume production SQL results that were not collected.
+- The session-switching hardening keeps real role denials intact and only changes the loading/error path when the app cannot fully verify session/profile/role context.
 
 ## 11. Deferred Fixes
 

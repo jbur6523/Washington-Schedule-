@@ -26,6 +26,17 @@ type ClaimResponse = {
   phoneNumber?: string;
 };
 
+type SessionStatusResponse = {
+  status?: "active" | "inactive" | "checking" | "unauthenticated" | "unassigned";
+  message?: string;
+  redirectTo?: string;
+};
+
+type SessionVerification =
+  | { state: "active"; redirectTo: string }
+  | { state: "inactive" }
+  | { state: "unavailable" };
+
 type OnboardingContext = {
   staffProfileId: string;
   departmentId: string;
@@ -167,24 +178,56 @@ export function LoginForm() {
     setUsername("");
   };
 
-  const enterApp = () => {
-    router.replace("/");
+  const enterApp = (path = "/") => {
+    router.replace(path);
     router.refresh();
   };
 
-  const verifyActiveSession = async (): Promise<"active" | "inactive" | "unavailable"> => {
+  const waitForSession = () => new Promise((resolve) => window.setTimeout(resolve, 250));
+
+  const verifyActiveSession = async (): Promise<SessionVerification> => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt > 0) {
+        await waitForSession();
+      }
+
+      const status = await fetchSessionStatus();
+
+      if (status.state !== "unavailable") {
+        return status;
+      }
+    }
+
+    return { state: "unavailable" };
+  };
+
+  const fetchSessionStatus = async (): Promise<SessionVerification> => {
     try {
       const response = await fetch("/api/auth/session-status", {
         cache: "no-store"
       });
 
       if (response.status === 403) {
-        return "inactive";
+        return { state: "inactive" };
       }
 
-      return response.ok ? "active" : "unavailable";
+      if (!response.ok) {
+        return { state: "unavailable" };
+      }
+
+      const result = (await response.json().catch(() => ({}))) as SessionStatusResponse;
+
+      if (result.status === "active") {
+        return { state: "active", redirectTo: result.redirectTo ?? "/" };
+      }
+
+      if (result.status === "inactive") {
+        return { state: "inactive" };
+      }
+
+      return { state: "unavailable" };
     } catch {
-      return "unavailable";
+      return { state: "unavailable" };
     }
   };
 
@@ -237,19 +280,19 @@ export function LoginForm() {
       password
     });
 
-    setLoading(false);
-
     if (signInError) {
+      setLoading(false);
       setError(signInError.message || "Your session expired. Please sign in again.");
       return;
     }
 
     const sessionStatus = await verifyActiveSession();
+    setLoading(false);
 
-    if (sessionStatus !== "active") {
+    if (sessionStatus.state !== "active") {
       await supabase.auth.signOut();
       setError(
-        sessionStatus === "inactive"
+        sessionStatus.state === "inactive"
           ? inactiveAccountMessage
           : "Unable to verify account access. Please try again."
       );
@@ -257,7 +300,7 @@ export function LoginForm() {
     }
 
     saveRememberedUsername(assignedUsername);
-    enterApp();
+    enterApp(sessionStatus.redirectTo);
   };
 
   const handleClaim = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -301,20 +344,21 @@ export function LoginForm() {
       email: result.authEmail ?? authEmailForUsername(assignedUsername),
       password
     });
-    setLoading(false);
 
     if (signInError) {
+      setLoading(false);
       setMessage("Account created. Please sign in with your assigned username and password.");
       setMode("claimed");
       return;
     }
 
     const sessionStatus = await verifyActiveSession();
+    setLoading(false);
 
-    if (sessionStatus !== "active") {
+    if (sessionStatus.state !== "active") {
       await supabase.auth.signOut();
       setError(
-        sessionStatus === "inactive"
+        sessionStatus.state === "inactive"
           ? inactiveAccountMessage
           : "Unable to verify account access. Please try again."
       );
@@ -324,7 +368,7 @@ export function LoginForm() {
     saveRememberedUsername(result.username ?? assignedUsername);
 
     if (!result.staffProfileId || !result.departmentId) {
-      enterApp();
+      enterApp(sessionStatus.redirectTo);
       return;
     }
 
@@ -333,7 +377,7 @@ export function LoginForm() {
       result.operationsRole === "director" ||
       result.operationsRole === "icu_command_center"
     ) {
-      enterApp();
+      enterApp(sessionStatus.redirectTo);
       return;
     }
 
@@ -793,7 +837,7 @@ export function LoginForm() {
             </button>
             <button
               type="button"
-              onClick={enterApp}
+              onClick={() => enterApp()}
               disabled={loading}
               className="min-h-12 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
             >

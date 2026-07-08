@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { clearAndSignOut } from "@/lib/auth/client-session";
 
 export function InactiveAccountNotice({ displayName }: { displayName?: string }) {
   useEffect(() => {
-    const supabase = createClient();
-    void supabase.auth.signOut();
+    void clearAndSignOut();
   }, []);
 
   return (

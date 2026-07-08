@@ -57,7 +57,16 @@ The browser Supabase client is configured with:
 
 The app relies on Supabase's managed session storage and refresh flow. It does not manually store access tokens or refresh tokens.
 
-Server-rendered protected pages check the current Supabase user before routing. If a session exists but the profile or role lookup fails, the app should show an assignment/access state instead of storing passwords or bypassing authorization.
+Server-rendered protected pages check the current Supabase user before routing. Protected route checks distinguish:
+
+- loading/checking session
+- authenticated and authorized
+- authenticated but unauthorized
+- unauthenticated
+- inactive account
+- temporary verification failure
+
+Temporary profile, membership, or staff-profile lookup failures show a retry-friendly access verification message instead of a permanent permission denial. Real role mismatches still show the appropriate access-denied page.
 
 ## Role-Based Restore
 
@@ -69,6 +78,10 @@ When a persisted session is restored, the app still runs role/access routing:
 - Admin, Lead, Aide, and Staff use the normal app landing behavior
 
 Persistent login does not weaken authorization. Staff still cannot access Command Center, Rental Management, or Director routes unless their role allows it.
+
+After login, the browser calls the no-store session status endpoint and waits for fresh server-confirmed role context before routing. This avoids reusing stale role/profile state when switching between Admin, Staff, Aide, Director, Command Center, and ICU Command Center accounts.
+
+On sign out, app-level transient session state is cleared before redirecting to `/login`. Remembered username storage may remain when intentionally enabled, but role/profile authorization state is not reused.
 
 ## Inactive Staff Access
 

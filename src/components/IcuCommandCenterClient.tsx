@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AlertTriangle, Bed, ClipboardList, History, LogOut, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type {
   IcuDeviceType,
@@ -554,9 +555,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
 
   const signOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    await signOutAndRedirect();
   };
 
   const loadRecords = useCallback(async () => {

@@ -27,6 +27,7 @@ import {
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { DirectorIcuSnapshotSection } from "@/components/IcuReadOnlyViews";
 import { createClient } from "@/lib/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
 import type { IcuSnapshotCounts } from "@/lib/icu-command-center/types";
@@ -791,9 +792,7 @@ export function DirectorShiftStatusClient({
   };
 
   const signOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    await signOutAndRedirect();
   };
 
   return (

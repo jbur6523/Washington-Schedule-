@@ -29,6 +29,7 @@ import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import { hasOperationsDashboardAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
   adaptActiveSchedule,
@@ -285,9 +286,7 @@ function Header({
   onOpenSettings: () => void;
 }) {
   const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    await signOutAndRedirect();
   };
   const hasOperationsDashboard = hasOperationsDashboardAccess(authContext);
   const dashboardLabel =

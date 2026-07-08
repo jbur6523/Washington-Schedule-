@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import { Activity, ClipboardList, LogOut, Megaphone, RefreshCcw } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { signOutAndRedirect } from "@/lib/auth/client-session";
 
 export function CommandCenterClient() {
   const signOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    window.location.href = "/login";
+    await signOutAndRedirect();
   };
 
   return (

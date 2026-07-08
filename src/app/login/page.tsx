@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/app/login/login-form";
+import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
@@ -24,6 +25,10 @@ export default async function LoginPage() {
 
     if (auth.status === "inactive") {
       return <InactiveAccountNotice displayName={auth.displayName} />;
+    }
+
+    if (auth.status === "error") {
+      return <AuthVerificationNotice message={auth.message} />;
     }
   }
 

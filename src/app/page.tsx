@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import AppClient from "@/app/app-client";
+import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -79,6 +80,10 @@ export default async function Home() {
 
   if (auth.status === "inactive") {
     return <InactiveAccountNotice displayName={auth.displayName} />;
+  }
+
+  if (auth.status === "error") {
+    return <AuthVerificationNotice message={auth.message} />;
   }
 
   if (isCommandCenter(auth.context)) {

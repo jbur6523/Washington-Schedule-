@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
 import { canEditIcuCommandCenter } from "@/lib/auth/access";
@@ -36,6 +37,10 @@ export default async function IcuCommandCenterPage() {
 
   if (auth.status === "inactive") {
     return <InactiveAccountNotice displayName={auth.displayName} />;
+  }
+
+  if (auth.status === "error") {
+    return <AuthVerificationNotice message={auth.message} />;
   }
 
   if (auth.status !== "authenticated" || !canEditIcuCommandCenter(auth.context)) {
