@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     .eq("username_normalized", username)
     .maybeSingle();
 
-  if (error || !profile || !profile.is_active) {
+  if (error || !profile) {
     return NextResponse.json({ status: "not_found" }, { status: 404 });
   }
 

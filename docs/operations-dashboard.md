@@ -19,11 +19,11 @@ Command Center, ICU Command Center, and Director access are separate experiences
 
 Unauthenticated users are redirected to login. Regular staff who open dashboard routes directly see a friendly access-denied state.
 
-Inactive staff profiles cannot use dashboard routes, even if their Supabase Auth session still exists. Roster deactivation preserves history but blocks app access on the next login, refresh, or protected route check.
+Roster deactivation preserves history, but emergency stabilization on 2026-07-07 deferred using inactive status as a hard app-access lockout. Normal role-based route protections still apply.
 
 ## Admin Staff Access Control
 
-Admin roster management includes an `Active` status for staff profiles. Deactivating access requires confirmation, keeps the staff profile and historical records intact, and prevents that linked user from using protected app routes. Reactivating access allows the user to sign in again. Admins cannot deactivate their own active account from the roster editor.
+Admin roster management includes an `Active` status for staff profiles. The status is currently roster/display state only; hard access lockout is deferred pending safer management/IT approval and production testing. Historical records remain intact. Admins cannot deactivate their own active account from the roster editor.
 
 ## Header Entry Point
 

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { DirectorShiftStatusClient } from "@/components/DirectorShiftStatusClient";
-import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { canViewDirectorShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
@@ -36,9 +35,6 @@ export default async function DirectorShiftStatusPage() {
     redirect("/login");
   }
 
-  if (auth.status === "inactive") {
-    return <InactiveAccountNotice displayName={auth.displayName} />;
-  }
 
   if (auth.status === "error") {
     return <AuthVerificationNotice message={auth.message} />;

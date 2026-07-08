@@ -46,7 +46,6 @@ export async function POST(request: Request) {
     .select("id, auth_user_id")
     .eq("id", staffProfileId)
     .eq("auth_user_id", user.id)
-    .eq("is_active", true)
     .maybeSingle();
 
   if (staffError || !staffProfile) {

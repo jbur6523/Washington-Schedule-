@@ -43,7 +43,6 @@ export async function POST(request: Request) {
   if (
     staffError ||
     !staffProfile ||
-    !staffProfile.is_active ||
     staffProfile.account_claimed_at ||
     staffProfile.auth_user_id
   ) {

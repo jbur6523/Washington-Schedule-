@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
-import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -35,9 +34,6 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-  if (auth.status === "inactive") {
-    return <InactiveAccountNotice displayName={auth.displayName} />;
-  }
 
   if (auth.status === "error") {
     return <AuthVerificationNotice message={auth.message} />;

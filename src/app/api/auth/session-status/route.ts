@@ -28,16 +28,6 @@ function appLandingPath(context: AuthenticatedUserContext) {
 export async function GET() {
   const auth = await getAuthenticatedUserContext();
 
-  if (auth.status === "inactive") {
-    return NextResponse.json(
-      {
-        status: "inactive",
-        message: "This account is inactive. Please contact an administrator."
-      },
-      { status: 403, headers: noStoreHeaders }
-    );
-  }
-
   if (auth.status === "error") {
     return NextResponse.json(
       {

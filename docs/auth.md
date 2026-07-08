@@ -63,7 +63,6 @@ Server-rendered protected pages check the current Supabase user before routing. 
 - authenticated and authorized
 - authenticated but unauthorized
 - unauthenticated
-- inactive account
 - temporary verification failure
 
 Temporary profile, membership, or staff-profile lookup failures show a retry-friendly access verification message instead of a permanent permission denial. Real role mismatches still show the appropriate access-denied page.
@@ -83,15 +82,15 @@ After login, the browser calls the no-store session status endpoint and waits fo
 
 On sign out, app-level transient session state is cleared before redirecting to `/login`. Remembered username storage may remain when intentionally enabled, but role/profile authorization state is not reused.
 
-## Inactive Staff Access
+## Staff Deactivation Access
 
-Staff profile active status is enforced during login/session restoration and protected route checks. If a linked `staff_profiles` row is inactive, the user is signed out or denied protected app access and sees:
+Emergency stabilization on 2026-07-07 deferred staff deactivation lockout because the Phase 1 active-user hardening caused unstable login/access behavior in production deployments.
 
-`This account is inactive. Please contact an administrator.`
+`staff_profiles.is_active` remains available for roster display/filtering, but the app no longer uses it as a hard login/session/protected-route gate.
 
-Existing browser sessions are blocked on the next refresh or protected route check. Phase 1 does not implement tokenized invite/reset flows or global Supabase refresh-token revocation; it enforces app-level access denial and RLS helper checks for inactive linked staff.
+Inactive-user enforcement should be redesigned later with safer management/IT approval, production schema verification, and role-by-role smoke testing. This phase does not implement tokenized invite/reset flows or global Supabase refresh-token revocation.
 
-Deactivation preserves historical records such as schedules, rental history, orders, ICU events, shift updates, and visible staff attribution. Admins can reactivate access from roster management.
+Deactivation preserves historical records such as schedules, rental history, orders, ICU events, shift updates, and visible staff attribution. Admin roster management may still show Active/Inactive state, but it is not currently an access revocation mechanism.
 
 ## Command Center Phone
 

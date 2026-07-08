@@ -26,7 +26,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `staff_profiles`: department staff directory records. Staff can exist before they create an account, so `profile_id` is nullable.
 - `staff_profiles.username` and `staff_profiles.username_normalized`: permanent department-assigned username.
 - `staff_profiles.account_claimed_at` and `staff_profiles.auth_user_id`: account claim/link state.
-- `staff_profiles.is_active`: app access status. Inactive staff keep historical records and directory context, but login/session restoration and protected app access are blocked.
+- `staff_profiles.is_active`: roster display/filtering status. Emergency stabilization on 2026-07-07 deferred using this field as a hard login/session/protected-route access gate; inactive staff keep historical records and directory context.
 - `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.

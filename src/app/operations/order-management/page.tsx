@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
-import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { OrderManagementClient } from "@/components/OrderManagementClient";
 import { hasOrderManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
@@ -35,9 +34,6 @@ export default async function OrderManagementPage() {
     redirect("/login");
   }
 
-  if (auth.status === "inactive") {
-    return <InactiveAccountNotice displayName={auth.displayName} />;
-  }
 
   if (auth.status === "error") {
     return <AuthVerificationNotice message={auth.message} />;

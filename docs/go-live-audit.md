@@ -80,7 +80,7 @@ Recommended fix:
 - Document whether inactive staff should retain directory visibility only.
 
 Fixed in this pass:
-- Yes, as a Phase 1 app-level hardening fix. The authenticated user context now requires a linked active `staff_profiles` row, inactive login/session restoration shows a friendly inactive-account message and signs out the browser session, protected server routes that use the shared auth helper deny inactive users, and RLS helper functions were updated to require active linked staff. Historical records remain preserved. Tokenized invite/reset flow and global Supabase refresh-token revocation remain separate future security phases.
+- Deferred after emergency stabilization. The Phase 1 app-level hardening caused unstable login/access behavior in production deployments, including false `Could not verify access` screens for valid users. The hard `staff_profiles.is_active` login/session/RLS gate was removed from main on 2026-07-07 so stable login is restored for leadership review. Historical records remain preserved. Tokenized invite/reset flow, proper deactivation lockout, and global Supabase refresh-token revocation remain separate future security phases.
 
 ### P1 - ICU migration repair does not fully restore ICU invariants
 
@@ -217,7 +217,7 @@ Auth and roles:
 
 Security concerns:
 - Public username claim/reset flow is the top security blocker.
-- Staff deactivation needs to revoke membership/session access consistently.
+- Staff deactivation lockout is deferred after the emergency login stabilization. A safer access-revocation design still needs management/IT approval and production smoke testing.
 - Rental Excel feed uses a static token and admin client; it must be managed like a secret integration.
 
 Privacy:
@@ -363,7 +363,6 @@ Files changed in this audit:
 - `src/app/api/onboarding/contact/route.ts`
 - `src/app/api/admin/staff-profiles/[id]/route.ts`
 - `src/components/AdminRosterManagement.tsx`
-- `src/components/InactiveAccountNotice.tsx`
 - `src/components/BottomNavigation.tsx`
 - `src/lib/auth/current-user.ts`
 - `src/lib/auth/types.ts`
@@ -382,7 +381,7 @@ Fixes:
 - Updated Command Center/Operations docs so the shared setup password is provided out of band instead of published.
 - Added `aria-current="page"` and a focus-visible ring to the bottom navigation active tab.
 - Added this production-readiness audit report.
-- Added Phase 1 staff deactivation enforcement: inactive linked staff are blocked at login/session validation, protected route auth context, onboarding contact save, and database RLS helper checks.
+- Deferred Phase 1 staff deactivation enforcement after it caused unstable production login/access behavior. The app no longer uses `staff_profiles.is_active` as a hard login/session/protected-route gate.
 - Added admin roster guardrails for access deactivation/reactivation, including self-deactivation blocking and clear success messages.
 - Added Phase 2 rental lifecycle hardening: rental status transitions now use guarded database functions with expected-status checks, active staff attribution validation, duplicate active barcode/serial rejection on delivery, and event insertion only after successful transitions.
 - Added Phase 3 migration reconciliation documentation, including duplicate timestamp inventory, production verification SQL, and a forward-only strategy for manually applied/out-of-order migrations.
@@ -392,7 +391,7 @@ Fixes:
 Why these fixes were safe:
 - They do not change auth flow, routing, role permissions, or user-facing operational workflows.
 - They reduce credential exposure and improve navigation accessibility.
-- The deactivation work uses the existing `staff_profiles.is_active` field and preserves historical data instead of deleting profiles, memberships, or records.
+- `staff_profiles.is_active` remains for roster display/filtering and preserves historical data, but access lockout is deferred pending safer testing.
 - The migration reconciliation work is documentation-first and forward-only. It does not rename applied migrations, drop data, or assume production SQL results that were not collected.
 - The session-switching hardening keeps real role denials intact and only changes the loading/error path when the app cannot fully verify session/profile/role context.
 

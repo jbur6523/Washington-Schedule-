@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
-import { InactiveAccountNotice } from "@/components/InactiveAccountNotice";
 import { RentalManagementClient } from "@/components/RentalManagementClient";
 import { hasRentalManagementAccess } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
@@ -35,9 +34,6 @@ export default async function RentalHistoryPage() {
     redirect("/login");
   }
 
-  if (auth.status === "inactive") {
-    return <InactiveAccountNotice displayName={auth.displayName} />;
-  }
 
   if (auth.status === "error") {
     return <AuthVerificationNotice message={auth.message} />;

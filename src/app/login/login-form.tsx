@@ -27,14 +27,13 @@ type ClaimResponse = {
 };
 
 type SessionStatusResponse = {
-  status?: "active" | "inactive" | "checking" | "unauthenticated" | "unassigned";
+  status?: "active" | "checking" | "unauthenticated" | "unassigned";
   message?: string;
   redirectTo?: string;
 };
 
 type SessionVerification =
   | { state: "active"; redirectTo: string }
-  | { state: "inactive" }
   | { state: "unavailable" };
 
 type OnboardingContext = {
@@ -59,7 +58,6 @@ const defaultNotificationPreferences: NotificationPreferences = {
 };
 
 const rememberedUsernameKey = "whhs-remembered-username";
-const inactiveAccountMessage = "This account is inactive. Please contact an administrator.";
 
 function isValidEmail(value: string) {
   return !value.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -207,10 +205,6 @@ export function LoginForm() {
         cache: "no-store"
       });
 
-      if (response.status === 403) {
-        return { state: "inactive" };
-      }
-
       if (!response.ok) {
         return { state: "unavailable" };
       }
@@ -219,10 +213,6 @@ export function LoginForm() {
 
       if (result.status === "active") {
         return { state: "active", redirectTo: result.redirectTo ?? "/" };
-      }
-
-      if (result.status === "inactive") {
-        return { state: "inactive" };
       }
 
       return { state: "unavailable" };
@@ -291,11 +281,7 @@ export function LoginForm() {
 
     if (sessionStatus.state !== "active") {
       await supabase.auth.signOut();
-      setError(
-        sessionStatus.state === "inactive"
-          ? inactiveAccountMessage
-          : "Unable to verify account access. Please try again."
-      );
+      setError("Unable to verify account access. Please try again.");
       return;
     }
 
@@ -357,11 +343,7 @@ export function LoginForm() {
 
     if (sessionStatus.state !== "active") {
       await supabase.auth.signOut();
-      setError(
-        sessionStatus.state === "inactive"
-          ? inactiveAccountMessage
-          : "Unable to verify account access. Please try again."
-      );
+      setError("Unable to verify account access. Please try again.");
       return;
     }
 
