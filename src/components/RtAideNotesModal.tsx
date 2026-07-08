@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { CheckCircle2, MessageSquareText, Send, Trash2, X } from "lucide-react";
+import { Archive, CheckCircle2, MessageSquareText, Send, X } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -72,7 +72,7 @@ function statusLabel(status: RtAideNoteStatus) {
   if (status === "new") return "New";
   if (status === "acknowledged") return "Acknowledged";
   if (status === "responded") return "Responded";
-  return "Closed";
+  return "Archived";
 }
 
 function statusClass(status: RtAideNoteStatus) {
@@ -132,7 +132,8 @@ export function RtAideNotesModal({
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<RtAideNoteRow | null>(null);
+  const [archiveCandidate, setArchiveCandidate] = useState<RtAideNoteRow | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -141,6 +142,7 @@ export function RtAideNotesModal({
   const canResolveNotes = authContext.role === "admin" || authContext.operationsRole === "aide";
   const canCreateInContext = context === "lead" && canCreateNotes;
   const canResolveInContext = context === "aide" && canResolveNotes;
+  const canArchiveInContext = context === "aide" && authContext.operationsRole === "aide";
   const hasNoteText = noteText.trim().length > 0;
   const selectedAddedBy = useMemo(
     () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
@@ -157,27 +159,36 @@ export function RtAideNotesModal({
   const canSendNewNote =
     canCreateInContext && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
 
-  const activeNotes = useMemo(() => notes.filter((note) => note.status !== "closed"), [notes]);
-  const hasMoreNotes = activeNoteCount > activeNotes.length;
+  const visibleNotes = notes;
+  const hasMoreNotes = activeNoteCount > visibleNotes.length;
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
     setError("");
 
     const supabase = createClient();
-    const { data, error: loadError } = await supabase
+    let notesQuery = supabase
       .from("rt_aide_notes")
       .select(rtAideNoteColumns)
       .eq("department_id", authContext.departmentId)
-      .neq("status", "closed")
       .order("created_at", { ascending: false })
       .range(0, visibleNoteCount - 1);
 
-    const { count, error: countError } = await supabase
+    let countQuery = supabase
       .from("rt_aide_notes")
       .select("id", { count: "exact", head: true })
-      .eq("department_id", authContext.departmentId)
-      .neq("status", "closed");
+      .eq("department_id", authContext.departmentId);
+
+    if (showArchived) {
+      notesQuery = notesQuery.eq("status", "closed");
+      countQuery = countQuery.eq("status", "closed");
+    } else {
+      notesQuery = notesQuery.neq("status", "closed");
+      countQuery = countQuery.neq("status", "closed");
+    }
+
+    const { data, error: loadError } = await notesQuery;
+    const { count, error: countError } = await countQuery;
 
     if (loadError || countError) {
       setNotes([]);
@@ -190,7 +201,7 @@ export function RtAideNotesModal({
     setNotes((data ?? []) as RtAideNoteRow[]);
     setActiveNoteCount(count ?? 0);
     setLoading(false);
-  }, [authContext.departmentId, visibleNoteCount]);
+  }, [authContext.departmentId, showArchived, visibleNoteCount]);
 
   useEffect(() => {
     if (!open) {
@@ -199,6 +210,7 @@ export function RtAideNotesModal({
 
     const timer = window.setTimeout(() => {
       setVisibleNoteCount(notesPageSize);
+      setShowArchived(false);
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -421,12 +433,12 @@ export function RtAideNotesModal({
     notifyChanged();
   };
 
-  const deleteAcknowledgedNote = async () => {
-    if (!deleteCandidate || !canResolveInContext || !authContext.staffProfileId) {
+  const archiveAcknowledgedNote = async () => {
+    if (!archiveCandidate || !canArchiveInContext || !authContext.staffProfileId) {
       return;
     }
 
-    setBusyNoteId(deleteCandidate.id);
+    setBusyNoteId(archiveCandidate.id);
     setError("");
     setMessage("");
 
@@ -439,19 +451,19 @@ export function RtAideNotesModal({
         closed_by_staff_profile_id: authContext.staffProfileId,
         closed_by_name: authContext.displayName
       })
-      .eq("id", deleteCandidate.id)
+      .eq("id", archiveCandidate.id)
       .eq("department_id", authContext.departmentId)
       .in("status", ["acknowledged", "responded"]);
 
     setBusyNoteId(null);
 
     if (updateError) {
-      setError("Unable to delete message.");
+      setError("Unable to archive message.");
       return;
     }
 
-    setDeleteCandidate(null);
-    setMessage("Message deleted.");
+    setArchiveCandidate(null);
+    setMessage("Message archived.");
     await loadNotes();
     notifyChanged();
   };
@@ -599,7 +611,7 @@ export function RtAideNotesModal({
 
         <div className="mt-5 space-y-3">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-black text-hospital-ink">Recent Notes</h3>
+            <h3 className="text-lg font-black text-hospital-ink">{showArchived ? "Archived Notes" : "Recent Notes"}</h3>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
               {activeNoteCount}
             </span>
@@ -609,13 +621,13 @@ export function RtAideNotesModal({
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
               Loading Aide Communication Board...
             </div>
-          ) : activeNotes.length === 0 ? (
+          ) : visibleNotes.length === 0 ? (
             <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-              No Aide Communication Board notes right now.
+              {showArchived ? "No archived Aide Communication Board notes." : "No Aide Communication Board notes right now."}
             </div>
           ) : (
             <>
-              {activeNotes.map((note) => {
+              {visibleNotes.map((note) => {
               const responseDraft = responseDrafts[note.id] ?? "";
               const canAcknowledge = canResolveInContext && note.status === "new";
               const canSendResponse =
@@ -665,15 +677,15 @@ export function RtAideNotesModal({
                         <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
                       </div>
                       <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
-                      {canResolveInContext && (
+                      {canArchiveInContext && note.status !== "closed" && (
                         <button
                           type="button"
-                          onClick={() => setDeleteCandidate(note)}
+                          onClick={() => setArchiveCandidate(note)}
                           disabled={busyNoteId === note.id}
-                          className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-red-200 bg-white px-3.5 text-sm font-black text-red-700 shadow-sm transition duration-150 active:scale-[0.98] active:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          <Trash2 size={15} />
-                          Delete
+                          <Archive size={15} />
+                          Archive
                         </button>
                       )}
                     </div>
@@ -807,43 +819,59 @@ export function RtAideNotesModal({
                 </article>
               );
             })}
-              {hasMoreNotes && (
-                <button
-                  type="button"
-                  onClick={() => setVisibleNoteCount((current) => current + notesPageSize)}
-                  disabled={loading}
-                  className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Load More
-                </button>
-              )}
             </>
           )}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {hasMoreNotes && (
+              <button
+                type="button"
+                onClick={() => setVisibleNoteCount((current) => current + notesPageSize)}
+                disabled={loading}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Load More
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setShowArchived((current) => !current);
+                setVisibleNoteCount(notesPageSize);
+                setExpandedResponseNoteId(null);
+                setArchiveCandidate(null);
+                setMessage("");
+                setError("");
+              }}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-slate-900 px-4 text-sm font-black text-white shadow-sm transition duration-150 active:scale-[0.98] active:bg-slate-800"
+            >
+              {showArchived ? "View Active Notes" : "View Archived"}
+            </button>
+          </div>
         </div>
 
-        {deleteCandidate && (
+        {archiveCandidate && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4">
             <section className="w-full max-w-sm rounded-[1.75rem] border border-white bg-white p-5 shadow-2xl">
-              <h3 className="text-xl font-black text-hospital-ink">Delete message?</h3>
+              <h3 className="text-xl font-black text-hospital-ink">Archive message?</h3>
               <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                This will remove the acknowledged message from the active Aide Communication Board.
+                This will move the acknowledged message out of the active board. It can still be viewed later in archived notes.
               </p>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setDeleteCandidate(null)}
-                  disabled={busyNoteId === deleteCandidate.id}
+                  onClick={() => setArchiveCandidate(null)}
+                  disabled={busyNoteId === archiveCandidate.id}
                   className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  onClick={() => void deleteAcknowledgedNote()}
-                  disabled={busyNoteId === deleteCandidate.id}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 text-sm font-black text-white shadow-md shadow-red-900/20 transition duration-150 active:scale-[0.98] active:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  onClick={() => void archiveAcknowledgedNote()}
+                  disabled={busyNoteId === archiveCandidate.id}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 text-sm font-black text-white shadow-md shadow-slate-900/20 transition duration-150 active:scale-[0.98] active:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {busyNoteId === deleteCandidate.id ? "Deleting..." : "Delete"}
+                  {busyNoteId === archiveCandidate.id ? "Archiving..." : "Archive"}
                 </button>
               </div>
             </section>
