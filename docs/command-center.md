@@ -181,6 +181,19 @@ Route:
 
 The command phone can post a Short Shift alert using the existing Short Shift infrastructure. The form requires staff attribution and includes a no-patient-information warning.
 
+## Lead Communication Board
+
+The Lead Command Board dashboard includes `Lead Communication Board` for lightweight operational notes meant for RT Leads/resources.
+
+- Lead Command Board, Director Shift Status, and ICU Command Center users can open the board from their respective dashboards.
+- Admin, Lead, Command Center, Director, and ICU Command Center users can create notes. Staff and Aide users are denied unless they also have an allowed role.
+- Note creation requires text, Normal/Urgent priority, and `Added by` attribution. Lead Command Board uses active Lead/Admin names with a manual fallback; Director and ICU contexts default to the current display name with a manual fallback.
+- Lead Command Board shows a badge for all notes with `status = new`. The badge count is not limited to the first page of visible notes.
+- Only Lead/Admin users can `Mark Reviewed`. Reviewing stores reviewed date/time and reviewer display name, changes status to Reviewed, and reduces the new-note badge count.
+- Lead/Admin users can optionally expand `+ Add Note` to add one follow-up note. This also marks the note reviewed if it was still New.
+- Notes load 10 at a time, newest first, with `Load More` for older active notes.
+- The board is not a chat app and must not contain patient names, MRNs, diagnoses, DOBs, or patient-identifying clinical details.
+
 ## Aide Communication Board
 
 The Lead Command Board dashboard includes `Aide Communication Board` for lightweight notes and questions to RT Aides/equipment techs.

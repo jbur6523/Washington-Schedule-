@@ -263,6 +263,7 @@ Respiratory Command Center:
 - Command Center routes are separated from normal staff app navigation.
 - Shift Update uses lead/admin updater attribution, current counts, procedure tiles, and no-patient-info notes.
 - `vaginal_delivery_count` exists in migrations and UI, but the client still falls back if the column is missing.
+- Lead Communication Board is available from Lead Command Board, Director Shift Status, and ICU Command Center so Director/ICU/Command Center users can leave operational notes for RT Leads. Lead/Admin users can mark notes reviewed.
 
 Director Dashboard:
 - Read-only design is intact.

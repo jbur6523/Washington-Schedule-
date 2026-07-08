@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertTriangle, Bed, ClipboardList, History, LogOut, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, Bed, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type {
@@ -577,6 +578,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
   const [todayActivityLoading, setTodayActivityLoading] = useState(true);
   const [todayActivityError, setTodayActivityError] = useState("");
+  const [leadNotesOpen, setLeadNotesOpen] = useState(false);
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
   const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
@@ -944,6 +946,20 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
             Use bed/room only. Do not enter patient names, MRNs, DOBs, diagnoses, or clinical notes.
           </p>
         </section>
+
+        <button
+          type="button"
+          onClick={() => setLeadNotesOpen(true)}
+          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+        >
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+            <MessageSquareText size={20} />
+          </span>
+          <span>
+            <span className="block text-sm font-black text-hospital-ink">Lead Communication Board</span>
+            <span className="mt-0.5 block text-xs font-bold text-slate-500">Shared notes for RT leads.</span>
+          </span>
+        </button>
 
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <div className="flex items-center justify-between gap-3">
@@ -1626,6 +1642,13 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           </section>
         </div>
       )}
+
+      <LeadCommunicationBoardModal
+        authContext={authContext}
+        open={leadNotesOpen}
+        onClose={() => setLeadNotesOpen(false)}
+        context="icu"
+      />
     </main>
   );
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, RefreshCcw } from "lucide-react";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { RtAideNotesModal } from "@/components/RtAideNotesModal";
 
 type CommandCenterClientProps = {
@@ -13,8 +14,23 @@ type CommandCenterClientProps = {
 
 export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
+  const [leadNotesOpen, setLeadNotesOpen] = useState(false);
+  const [leadNewNoteCount, setLeadNewNoteCount] = useState(0);
   const cardBaseClass =
     "h-36 rounded-3xl border p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]";
+
+  const loadLeadNewNoteCount = useCallback(async () => {
+    const count = await fetchLeadCommunicationNewCount(authContext.departmentId);
+    setLeadNewNoteCount(count);
+  }, [authContext.departmentId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadLeadNewNoteCount();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadLeadNewNoteCount]);
 
   const signOut = async () => {
     await signOutAndRedirect();
@@ -82,6 +98,29 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
             </div>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setLeadNotesOpen(true)}
+            className={`${cardBaseClass} relative border-blue-100 bg-blue-50/90`}
+          >
+            {leadNewNoteCount > 0 && (
+              <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2.5 py-1 text-xs font-black text-white shadow-sm">
+                {leadNewNoteCount} new
+              </span>
+            )}
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-blue-700">
+                <MessageSquareText size={24} />
+              </span>
+              <div className="pr-14">
+                <h2 className="text-xl font-black text-hospital-ink">Lead Communication Board</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                  Shared notes for RT leads.
+                </p>
+              </div>
+            </div>
+          </button>
+
           <Link
             href="/command-center/icu-snapshot"
             className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
@@ -130,6 +169,13 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
         authContext={authContext}
         open={rtAideNotesOpen}
         onClose={() => setRtAideNotesOpen(false)}
+        context="lead"
+      />
+      <LeadCommunicationBoardModal
+        authContext={authContext}
+        open={leadNotesOpen}
+        onClose={() => setLeadNotesOpen(false)}
+        onNotesChanged={loadLeadNewNoteCount}
         context="lead"
       />
     </main>

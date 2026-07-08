@@ -50,10 +50,11 @@ The command phone menu contains:
 - Shift Update
 - Rental Management
 - Aide Communication Board
+- Lead Communication Board
 - ICU Snapshot
 - Short Shift Alert
 
-It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login. Aide Communication Board lets Command Center users send notes or questions to Aides/Admin users in Order Management.
+It does not show the normal bottom navigation, Gossip, Staff Directory, Admin settings, or personal staff tools. ICU Snapshot is read-only from the Respiratory Command Center. Rental actions and Short Shift actions require staff attribution so history and exports show the selected staff member or initials instead of the shared login. Aide Communication Board lets Command Center users send notes or questions to Aides/Admin users in Order Management. Lead Communication Board lets Command Center, Director, and ICU Command Center users leave operational notes for RT Leads.
 
 ## ICU Command Center
 
@@ -63,11 +64,13 @@ Seeded shared-device login:
 
 - Username: `ventilator`
 
-The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, active-device snapshot counts, Update, Discontinue, History, Today's ICU Activity, Search Previous Date, and a Vent-only Critical toggle. Discontinue requires Discontinued Date and Discontinued Time for all devices. Vent discontinuation also requires a Ventilator Outcome. Discontinue does not hard-delete records.
+The ICU Command Center tracks ICU respiratory devices and settings by bed only. It supports Vent, BiPAP, CPAP, and HFNC entries, conditional device settings, active-device snapshot counts, Update, Discontinue, History, Today's ICU Activity, Search Previous Date, Lead Communication Board, and a Vent-only Critical toggle. Discontinue requires Discontinued Date and Discontinued Time for all devices. Vent discontinuation also requires a Ventilator Outcome. Discontinue does not hard-delete records.
 
 Director and Lead Command Board users can view ICU details read-only. Regular Staff, Aides, unauthenticated users, and Director users cannot edit ICU entries.
 
 The ICU Command Center must not store patient names, MRNs, DOBs, diagnoses, clinical free-text notes, or patient-identifying information.
+
+Lead Communication Board notes created from ICU Command Center are for operational lead awareness only and include a `No patient information.` reminder. ICU users can create/view notes but cannot mark them reviewed unless they also have Lead/Admin access.
 
 Trusted-device sign-in persistence is documented in `docs/auth.md`. It keeps the Supabase session on the department phone without storing the command-center password.
 

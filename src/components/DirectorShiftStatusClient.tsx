@@ -16,6 +16,7 @@ import {
   FileText,
   Heart,
   LogOut,
+  MessageSquareText,
   MoreHorizontal,
   Phone,
   Search,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { DirectorIcuSnapshotSection } from "@/components/IcuReadOnlyViews";
+import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -445,6 +447,7 @@ export function DirectorShiftStatusClient({
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [leadNotesOpen, setLeadNotesOpen] = useState(false);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [directorySearch, setDirectorySearch] = useState("");
@@ -839,6 +842,20 @@ export function DirectorShiftStatusClient({
                 <span className="mt-0.5 block text-xs font-bold text-slate-500">View RT staff phone numbers.</span>
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setLeadNotesOpen(true)}
+              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
+            >
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+                <MessageSquareText size={20} />
+              </span>
+              <span>
+                <span className="block text-sm font-black text-hospital-ink">Lead Communication Board</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-500">Shared notes for RT leads.</span>
+              </span>
+            </button>
           </div>
         </section>
 
@@ -1081,6 +1098,13 @@ export function DirectorShiftStatusClient({
             </section>
           </div>
         )}
+
+        <LeadCommunicationBoardModal
+          authContext={authContext}
+          open={leadNotesOpen}
+          onClose={() => setLeadNotesOpen(false)}
+          context="director"
+        />
 
         {shiftPreviewOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
