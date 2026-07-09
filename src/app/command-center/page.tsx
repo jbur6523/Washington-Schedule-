@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { CommandCenterClient } from "@/components/CommandCenterClient";
-import { isCommandCenter } from "@/lib/auth/access";
+import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export default async function CommandCenterPage() {
     return <AuthVerificationNotice message={auth.message} />;
   }
 
-  if (auth.status !== "authenticated" || !isCommandCenter(auth.context)) {
+  if (auth.status !== "authenticated" || !canManageShiftStatus(auth.context)) {
     return <AccessDenied />;
   }
 

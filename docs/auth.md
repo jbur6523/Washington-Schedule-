@@ -78,6 +78,8 @@ When a persisted session is restored, the app still runs role/access routing:
 
 Persistent login does not weaken authorization. Staff still cannot access Command Center, Rental Management, or Director routes unless their role allows it.
 
+Admin users are the app superuser for management review and testing. Admin Dashboard links to the staff schedule, Manage Schedule, Staff Directory, Cover/Switch, Gossip, Lead Command Board, Director Dashboard, ICU Command Center, ICU Snapshot, Rental Management, Order Management, communication boards, Short Shift Alert, and staff management tools. Non-admin role restrictions remain unchanged.
+
 After login, the browser calls the no-store session status endpoint and waits for fresh server-confirmed role context before routing. This avoids reusing stale role/profile state when switching between Admin, Staff, Aide, Director, Command Center, and ICU Command Center accounts.
 
 On sign out, app-level transient session state is cleared before redirecting to `/login`. Remembered username storage may remain when intentionally enabled, but role/profile authorization state is not reused.

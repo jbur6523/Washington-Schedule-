@@ -14,7 +14,7 @@ Dashboard access is role based:
 - Staff with `staff_profiles.operations_role = icu_command_center` route to the separate ICU Command Center instead of the normal Operations Dashboard.
 - Regular staff do not see the dashboard button.
 
-Admins and leads use their existing app role. Aide access is a separate operations capability so it does not grant lead/admin schedule permissions.
+Admins are the app superuser for management review and testing. The Admin Dashboard links to every major module, including role-specific dashboards, without granting those permissions to non-admin roles. Leads use their existing app role. Aide access is a separate operations capability so it does not grant lead/admin schedule permissions.
 Command Center, ICU Command Center, and Director access are separate experiences for shared department operations and director read-only status viewing.
 
 Unauthenticated users are redirected to login. Regular staff who open dashboard routes directly see a friendly access-denied state.
@@ -38,7 +38,7 @@ Command Center, ICU Command Center, and Director accounts do not use this header
 
 ## Lead Command Board
 
-The Lead Command Board is available at `/command-center` for `operations_role = command_center`.
+The Lead Command Board is available at `/command-center` for Admin, Lead, and `operations_role = command_center` users.
 
 Seeded shared-device login:
 
@@ -76,7 +76,7 @@ Trusted-device sign-in persistence is documented in `docs/auth.md`. It keeps the
 
 ## Director Shift Status
 
-The Director read-only page is available at `/director/shift-status` for `operations_role = director`.
+The Director read-only page is available at `/director/shift-status` for Admin, Lead, and `operations_role = director` users.
 
 Seeded director username:
 

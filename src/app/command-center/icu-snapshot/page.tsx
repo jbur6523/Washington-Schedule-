@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { IcuReadOnlyPage } from "@/components/IcuReadOnlyViews";
-import { isCommandCenter } from "@/lib/auth/access";
+import { canViewIcuCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export default async function CommandCenterIcuSnapshotPage() {
     return <AuthVerificationNotice message={auth.message} />;
   }
 
-  if (auth.status !== "authenticated" || !isCommandCenter(auth.context)) {
+  if (auth.status !== "authenticated" || !canViewIcuCommandCenter(auth.context)) {
     return <AccessDenied />;
   }
 

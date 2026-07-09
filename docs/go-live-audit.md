@@ -210,6 +210,7 @@ Keep pagination limits, add client-side image compression for order uploads, and
 
 Auth and roles:
 - Role helpers are present and mostly consistent: Admin, Lead, Aide, Staff, Director, Command Center, and ICU Command Center are modeled.
+- Admin is treated as the app superuser for management review and testing, with Admin Dashboard links into all major modules.
 - Director and Command Center routing is server-checked.
 - Order Management is scoped to Admin/Aide.
 - Rental Management is scoped to operations users and Command Center.

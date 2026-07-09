@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { CommandShortShiftAlertClient } from "@/components/CommandShortShiftAlertClient";
-import { isCommandCenter } from "@/lib/auth/access";
+import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -37,7 +37,7 @@ export default async function CommandCenterShortShiftAlertPage() {
     return <AuthVerificationNotice message={auth.message} />;
   }
 
-  if (auth.status !== "authenticated" || !isCommandCenter(auth.context)) {
+  if (auth.status !== "authenticated" || !canManageShiftStatus(auth.context)) {
     return <AccessDenied />;
   }
 
