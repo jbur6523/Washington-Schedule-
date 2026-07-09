@@ -40,7 +40,7 @@ import {
   type ScheduleVersionRow,
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
-import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import {
   currentShiftStatusWindow,
@@ -203,27 +203,6 @@ function formatPhoneHref(phoneNumber: string) {
   return dialable ? `tel:${dialable}` : undefined;
 }
 
-function zonedDateTimeParts(date: Date, timezone: string) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(date);
-
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  const dateValue = `${value("year")}-${value("month")}-${value("day")}`;
-
-  return {
-    dateValue,
-    minutes: Number(value("hour") || "0") * 60 + Number(value("minute") || "0")
-  };
-}
-
 function directorViewShiftDefaultShift(timezone: string): "day" | "night" {
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
@@ -292,55 +271,6 @@ function parseManualScheduleDate(value: string) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function currentProcedureWindow(timezone: string) {
-  const now = new Date();
-  const { dateValue, minutes } = zonedDateTimeParts(now, timezone);
-  const dayReset = 7 * 60 + 30;
-  const nightReset = 19 * 60 + 30;
-
-  if (minutes >= nightReset) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "night" as ShiftStatusShiftType,
-      resetDate: dateValue,
-      resetMinutes: nightReset
-    };
-  }
-
-  if (minutes >= dayReset) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "day" as ShiftStatusShiftType,
-      resetDate: dateValue,
-      resetMinutes: dayReset
-    };
-  }
-
-  const previous = previousDate(dateValue);
-  return {
-    shiftDate: previous,
-    shiftType: "night" as ShiftStatusShiftType,
-    resetDate: previous,
-    resetMinutes: nightReset
-  };
-}
-
-function updateIsAfterProcedureReset(update: ShiftStatusUpdate, timezone: string, window: ReturnType<typeof currentProcedureWindow>) {
-  if (update.shift_date !== window.shiftDate || update.shift_type !== window.shiftType) {
-    return false;
-  }
-
-  const updated = zonedDateTimeParts(new Date(update.updated_at), timezone);
-  if (updated.dateValue > window.resetDate) {
-    return true;
-  }
-  if (updated.dateValue < window.resetDate) {
-    return false;
-  }
-
-  return updated.minutes >= window.resetMinutes;
-}
-
 function procedureCounts(update: ShiftStatusUpdate | null) {
   return {
     cSections: update?.c_section_count ?? 0,
@@ -351,6 +281,20 @@ function procedureCounts(update: ShiftStatusUpdate | null) {
     other: update?.other_procedure_count ?? 0,
     note: update?.other_procedure_note ?? null
   };
+}
+
+function isFreshProcedureUpdate(update: ShiftStatusUpdate | null, now: Date) {
+  if (!update) {
+    return false;
+  }
+
+  const updatedAt = new Date(update.updated_at).getTime();
+
+  if (!Number.isFinite(updatedAt)) {
+    return false;
+  }
+
+  return now.getTime() - updatedAt < 24 * 60 * 60 * 1000;
 }
 
 type DirectoryStaffProfile = {
@@ -678,11 +622,9 @@ export function DirectorShiftStatusClient({
   const latest = isSelectedCurrentShift ? currentStatusDisplay.latest : selectedLatest;
   const showingFallback = isSelectedCurrentShift ? currentStatusDisplay.showingFallback : false;
   const snapshotLatest = fallbackLatest;
-  const procedureWindow = useMemo(() => currentProcedureWindow(timezone), [timezone]);
-  const procedureLatest = useMemo(
-    () => latestShiftStatus(updates.filter((update) => updateIsAfterProcedureReset(update, timezone, procedureWindow))),
-    [procedureWindow, timezone, updates]
-  );
+  const latestProcedureUpdate = fallbackLatest;
+  const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
+  const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
   const currentProcedureCounts = procedureCounts(procedureLatest);
   const procedureTotal =
     currentProcedureCounts.cSections +
@@ -982,10 +924,13 @@ export function DirectorShiftStatusClient({
               Other note: {currentProcedureCounts.note}
             </p>
           )}
-          {procedureLatest && (
+          {latestProcedureUpdate && (
             <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(procedureLatest.updated_at, timezone)}</p>
-              <p>Updated by: {updatedByName(procedureLatest)}</p>
+              <p>Last updated: {formatShiftStatusTime(latestProcedureUpdate.updated_at, timezone)}</p>
+              <p>
+                Updated by: {updatedByName(latestProcedureUpdate)}
+                {!procedureIsFresh && <span className="text-amber-700"> · expired after 24 hours</span>}
+              </p>
             </div>
           )}
         </section>
