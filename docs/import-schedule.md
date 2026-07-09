@@ -190,6 +190,8 @@ Review rows include date, day of week, shift type, shift start, shift end, raw s
 
 Rows can be edited, removed, marked Needs Review, or cleared from Needs Review.
 
+Rows needing attention are displayed first without changing the underlying imported data. The display order is Needs Review rows, unmatched staff rows, low-confidence matches, rows with validation issues, then ready rows. Original import order is preserved within each group, and each card shows the original imported row number. The `All Rows` / `Needs Review Only` filter changes only what is displayed; summary counts and final import behavior are unchanged.
+
 If a person is crossed out on the source schedule, do not include them in the reviewed schedule rows. Remove that row before creating a schedule version.
 
 If a person has `(L)`, `Lead`, or a clear handwritten `L` next to their name, mark that reviewed schedule entry as Shift Lead. If the marker is unclear, keep the row in Needs Review.

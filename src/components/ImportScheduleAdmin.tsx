@@ -118,6 +118,7 @@ const allowedFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "appl
 const allowedShiftTypes = new Set(Object.keys(shiftTypeLabels));
 const allowedEntryStatuses = new Set(["scheduled", "available"]);
 const allowedShortShiftSeverities = new Set(["short", "urgent"]);
+type ReviewFilter = "all" | "needs_review";
 const emptyVersionForm: VersionForm = {
   label: "",
   starts_on: "",
@@ -308,6 +309,30 @@ function validateReviewRow(row: ReviewRow) {
   return issues.length ? issues.join(", ") : "Ready";
 }
 
+function reviewRowPriority(row: ReviewRow) {
+  if (row.removed) {
+    return 5;
+  }
+
+  if (row.needs_review || row.import_status === "needs_review") {
+    return 0;
+  }
+
+  if (!row.matched_staff_profile_id || row.match_source === "unmatched") {
+    return 1;
+  }
+
+  if (row.matched_staff_profile_id && row.confidence > 0 && row.confidence < 0.9) {
+    return 2;
+  }
+
+  if (validateReviewRow(row) !== "Ready") {
+    return 3;
+  }
+
+  return 4;
+}
+
 function entryKey(row: {
   shift_date: string;
   shift_type: string;
@@ -424,6 +449,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   const [shortShiftForm, setShortShiftForm] = useState<ShortShiftDraft>(emptyShortShiftDraft);
   const [versionForm, setVersionForm] = useState<VersionForm>(emptyVersionForm);
   const [importMode, setImportMode] = useState<ImportMode>("create_new");
+  const [reviewFilter, setReviewFilter] = useState<ReviewFilter>("all");
   const [activeVersion, setActiveVersion] = useState<ActiveVersionSummary | null>(null);
   const [existingEntries, setExistingEntries] = useState<ExistingScheduleEntry[]>([]);
   const [existingShortages, setExistingShortages] = useState<ExistingShortShift[]>([]);
@@ -435,6 +461,23 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
   const [createdVersionId, setCreatedVersionId] = useState("");
 
   const activeRows = useMemo(() => reviewRows.filter((row) => !row.removed), [reviewRows]);
+  const displayedReviewRows = useMemo(
+    () =>
+      reviewRows
+        .map((row, index) => ({ row, index }))
+        .filter(({ row }) => reviewFilter === "all" || reviewRowPriority(row) < 4)
+        .sort((left, right) => {
+          const priorityDifference = reviewRowPriority(left.row) - reviewRowPriority(right.row);
+
+          if (priorityDifference !== 0) {
+            return priorityDifference;
+          }
+
+          return left.index - right.index;
+        })
+        .map(({ row }) => row),
+    [reviewFilter, reviewRows]
+  );
   const activeShortShiftDrafts = useMemo(
     () => shortShiftDrafts.filter((shortage) => !shortage.removed),
     [shortShiftDrafts]
@@ -1444,11 +1487,35 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                 </div>
               ))}
             </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {[
+                ["all", "All Rows"],
+                ["needs_review", "Needs Review Only"]
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setReviewFilter(value as ReviewFilter)}
+                  className={`min-h-10 rounded-2xl px-3 text-xs font-extrabold transition duration-150 active:scale-[0.98] ${
+                    reviewFilter === value
+                      ? "bg-cyan-700 text-white shadow-sm"
+                      : "border border-slate-200 bg-white text-slate-600"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="mt-4 space-y-3">
               {reviewRows.length === 0 && (
                 <p className="rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">No draft rows yet.</p>
               )}
-              {reviewRows.map((row) => {
+              {reviewRows.length > 0 && displayedReviewRows.length === 0 && (
+                <p className="rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
+                  No rows need review right now.
+                </p>
+              )}
+              {displayedReviewRows.map((row) => {
                 const staff = staffById.get(row.matched_staff_profile_id);
                 const validation = validateReviewRow(row);
                 const rowReady = validation === "Ready";
@@ -1466,7 +1533,7 @@ export function ImportScheduleAdmin({ authContext }: ImportScheduleAdminProps) {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-sm font-black text-hospital-ink">Row {row.rowIndex}</p>
+                        <p className="text-sm font-black text-hospital-ink">Original Row {row.rowIndex}</p>
                         <p className="mt-1 text-xs font-bold text-slate-500">{validation}</p>
                         <span
                           className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-extrabold ${
