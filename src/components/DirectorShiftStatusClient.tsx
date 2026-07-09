@@ -5,6 +5,7 @@ import {
   Activity,
   Baby,
   Bed,
+  Bone,
   Building2,
   CalendarCheck,
   CheckCircle2,
@@ -17,7 +18,6 @@ import {
   Heart,
   LogOut,
   MessageSquareText,
-  MoreHorizontal,
   Phone,
   Search,
   Stethoscope,
@@ -118,7 +118,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
     `CABG: ${update.cabg_count}`,
     `Bronchs: ${update.bronch_count}`,
     `Sputum Inductions: ${update.sputum_induction_count}`,
-    `Other: ${update.other_procedure_count}`,
+    `MRI: ${update.other_procedure_count}`,
     "",
     `Updated by: ${updatedByName(update)}`,
     `Updated at: ${formatReportTime(update.updated_at, timezone)}`
@@ -975,7 +975,7 @@ export function DirectorShiftStatusClient({
             <ProcedureCard icon={<Heart size={18} />} label="CABG" value={currentProcedureCounts.cabg} />
             <ProcedureCard icon={<Stethoscope size={18} />} label="Bronchs" value={currentProcedureCounts.bronchs} />
             <ProcedureCard icon={<Droplet size={18} />} label="Sputum Inductions" value={currentProcedureCounts.sputumInductions} />
-            <ProcedureCard icon={<MoreHorizontal size={18} />} label="Other" value={currentProcedureCounts.other} />
+            <ProcedureCard icon={<Bone size={18} />} label="MRI" value={currentProcedureCounts.other} />
           </div>
           {currentProcedureCounts.note && (
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
