@@ -63,41 +63,6 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
             </div>
           </Link>
 
-          <Link
-            href="/operations/rental-management"
-            className={`${cardBaseClass} border-amber-100 bg-amber-50/90`}
-          >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-600">
-                <RefreshCcw size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Rental Management</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                  Order rentals, confirm delivery, and manage pickups.
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => setRtAideNotesOpen(true)}
-            className={`${cardBaseClass} border-purple-100 bg-purple-50/90`}
-          >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700">
-                <MessageSquareText size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Aide Communication Board</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                  Send notes or questions to RT Aides.
-                </p>
-              </div>
-            </div>
-          </button>
-
           <button
             type="button"
             onClick={() => setLeadNotesOpen(true)}
@@ -133,6 +98,41 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
                 <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
                   View ICU respiratory devices and settings.
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setRtAideNotesOpen(true)}
+            className={`${cardBaseClass} border-purple-100 bg-purple-50/90`}
+          >
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700">
+                <MessageSquareText size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">Aide Communication Board</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                  Send notes or questions to RT Aides.
+                </p>
+              </div>
+            </div>
+          </button>
+
+          <Link
+            href="/operations/rental-management"
+            className={`${cardBaseClass} border-amber-100 bg-amber-50/90`}
+          >
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-600">
+                <RefreshCcw size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">Rental Management</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                  Order rentals, confirm delivery, and manage pickups.
                 </p>
               </div>
             </div>
