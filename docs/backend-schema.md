@@ -81,6 +81,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 ### ICU Command Center
 
 - `icu_patients`: department-scoped operational ICU respiratory snapshot records. Each row stores bed, device type, device-specific respiratory settings, optional Vent airway fields, Critical Vent flag, active/discontinued state, created/updated staff profile references, and timestamps.
+- `get_current_icu_snapshot_counts(department_id)`: protected aggregate used by Staff Schedule for ICU active-device counts. It returns active device totals plus `latest_updated_at` so the app can choose the freshest Vent source between ICU Command Center and Lead Command Board Shift Update.
 - Active ICU entries are unique by department and bed. Discontinue sets `is_active = false`; records are not hard-deleted.
 - Discontinuation stores `discontinued_at` and `discontinued_by_staff_profile_id`. Vent discontinuation also stores optional `ventilator_outcome` with one of the approved operational outcomes: Extubation, Trached Aerosol, Unplanned, Expired (on ventilator), Transferred to another facility, Donor network, or Discontinue Vent Support (Palliative).
 - `icu_patient_events`: department-scoped ICU lifecycle history. Rows reference an ICU patient record and store `added`, `updated`, `critical_status_updated`, or `discontinued` events with `event_time`, a safe event summary, optional safe JSON device/settings data, visible staff attribution, and timestamps.

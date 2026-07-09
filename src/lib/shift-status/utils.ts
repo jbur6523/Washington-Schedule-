@@ -148,29 +148,77 @@ export function latestShiftStatus(updates: ShiftStatusUpdate[]) {
   return [...updates].sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0] ?? null;
 }
 
+export function latestShiftStatusFor(updates: ShiftStatusUpdate[], shiftDate: string, shiftType: ShiftStatusShiftType) {
+  return latestShiftStatus(updates.filter((update) => update.shift_date === shiftDate && update.shift_type === shiftType));
+}
+
+function timestampValue(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+export function resolveEffectiveVentCount({
+  leadUpdate,
+  icuVentCount,
+  icuUpdatedAt
+}: {
+  leadUpdate: ShiftStatusUpdate | null;
+  icuVentCount: number | null | undefined;
+  icuUpdatedAt?: string | null;
+}) {
+  const leadTimestamp = timestampValue(leadUpdate?.updated_at);
+  const icuTimestamp = timestampValue(icuUpdatedAt);
+
+  if (leadUpdate && (leadTimestamp !== null || icuTimestamp === null) && (icuTimestamp === null || (leadTimestamp ?? 0) >= icuTimestamp)) {
+    return {
+      value: leadUpdate.vent_count,
+      source: "Lead Command Board" as const,
+      updatedAt: leadUpdate.updated_at
+    };
+  }
+
+  if (icuVentCount !== null && icuVentCount !== undefined) {
+    return {
+      value: icuVentCount,
+      source: "ICU Command Center" as const,
+      updatedAt: icuUpdatedAt ?? null
+    };
+  }
+
+  return {
+    value: leadUpdate?.vent_count ?? 0,
+    source: leadUpdate ? ("Lead Command Board" as const) : ("No Update" as const),
+    updatedAt: leadUpdate?.updated_at ?? null
+  };
+}
+
 export function resolveCurrentShiftStatus(
   updates: ShiftStatusUpdate[],
   timezone = "America/Los_Angeles",
   date = new Date()
 ) {
   const currentWindow = currentShiftStatusWindow(timezone, date);
-  const currentWindowUpdates = updates.filter(
-    (update) => update.shift_date === currentWindow.shiftDate && update.shift_type === currentWindow.shiftType
-  );
+  const latestAny = latestShiftStatus(updates);
+  const currentLatest = latestShiftStatusFor(updates, currentWindow.shiftDate, currentWindow.shiftType);
   const fallbackWindowUpdates = updates.filter(
     (update) =>
       update.shift_date === currentWindow.shiftDate &&
       (currentWindow.shiftType === "day" || update.shift_type === currentWindow.shiftType)
   );
-  const currentLatest = latestShiftStatus(currentWindowUpdates);
   const fallbackLatest = latestShiftStatus(fallbackWindowUpdates);
+  const latest = latestAny ?? currentLatest ?? fallbackLatest;
 
   return {
     currentWindow,
-    latest: currentLatest ?? fallbackLatest,
+    latest,
     currentLatest,
     fallbackLatest,
-    showingFallback: !currentLatest && Boolean(fallbackLatest)
+    latestAny,
+    showingFallback: Boolean(latest && latest.id !== currentLatest?.id)
   };
 }
 

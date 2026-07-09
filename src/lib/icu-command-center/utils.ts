@@ -97,6 +97,11 @@ function peepValue(value: number | null | undefined) {
 
 export function getIcuSnapshotCounts(records: IcuPatientRecord[]): IcuSnapshotCounts {
   const active = records.filter((record) => record.is_active);
+  const latestUpdatedAt =
+    active
+      .map((record) => record.updated_at || record.created_at)
+      .filter(Boolean)
+      .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
 
   return {
     vents: active.filter((record) => record.device_type === "vent").length,
@@ -104,7 +109,8 @@ export function getIcuSnapshotCounts(records: IcuPatientRecord[]): IcuSnapshotCo
     bipap: active.filter((record) => record.device_type === "bipap").length,
     cpap: active.filter((record) => record.device_type === "cpap").length,
     criticalVents: active.filter((record) => record.device_type === "vent" && record.is_critical_vent).length,
-    totalActive: active.length
+    totalActive: active.length,
+    latestUpdatedAt
   };
 }
 

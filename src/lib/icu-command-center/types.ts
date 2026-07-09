@@ -65,4 +65,5 @@ export type IcuSnapshotCounts = {
   cpap: number;
   criticalVents: number;
   totalActive: number;
+  latestUpdatedAt: string | null;
 };

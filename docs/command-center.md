@@ -124,7 +124,7 @@ The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule 
 - Day Shift: `08:00-19:59`
 - Night Shift: `20:00-07:59`
 
-At `08:00` the card starts looking for the new day-shift update. At `20:00` it starts looking for the new night-shift update. During the day window, if the day update has not been submitted yet but a same-day night update exists, the card can show that latest same-day Command Center update so Staff and Director do not disagree about whether data exists. After the night reset, it does not fall back to stale day-shift data. If no eligible Command Center update exists, the card shows `Current Shift Status · No Update` and a single compact no-update message. The normal Schedule page intentionally omits BiPAP counts and procedure counts. The displayed Vent count is prioritized from the ICU Command Center aggregate count so Staff, Director, and ICU Snapshot vent totals stay aligned.
+Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs Scheduled, RTs Needed, BiPAPs, and scheduled procedure fields. If multiple rows exist for the same shift, the newest `updated_at` row wins. The normal Schedule page intentionally omits BiPAP counts and procedure counts. The displayed Vent count uses the freshest source between the Lead Command Board `vent_count` update and the ICU Command Center active vent snapshot: whichever source was updated most recently wins.
 
 ## Director Shift Status
 
@@ -140,7 +140,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - `Respiratory Directory` action for a read-only staff contact modal
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
-- `Department Snapshot` card with left-aligned shift/date context, Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, and last-updated metadata
+- `Department Snapshot` card with left-aligned shift/date context, effective Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, last-updated metadata, and subtle Vent source metadata
 - Scheduled procedure detail cards for C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and MRI with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.

@@ -10,6 +10,7 @@ import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
+  resolveEffectiveVentCount,
   resolveCurrentShiftStatus,
   staffingStatusLabel,
   updatedByName
@@ -59,6 +60,7 @@ function MiniStatCard({
 
 type IcuSnapshotCountRow = {
   vents?: number | null;
+  latest_updated_at?: string | null;
 };
 
 export function CurrentShiftStatusSummary({
@@ -71,6 +73,7 @@ export function CurrentShiftStatusSummary({
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [icuVentCount, setIcuVentCount] = useState<number | null>(null);
+  const [icuVentUpdatedAt, setIcuVentUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const loadStatus = useCallback(async () => {
@@ -84,11 +87,13 @@ export function CurrentShiftStatusSummary({
 
     if (!icuCountsError && icuCountsRow) {
       setIcuVentCount(Number(icuCountsRow.vents ?? 0));
+      setIcuVentUpdatedAt(icuCountsRow.latest_updated_at ?? null);
     } else {
       if (icuCountsError) {
         console.error("Staff ICU vent count load failed", icuCountsError);
       }
       setIcuVentCount(null);
+      setIcuVentUpdatedAt(null);
     }
 
     if (loadError) {
@@ -158,7 +163,11 @@ export function CurrentShiftStatusSummary({
   );
   const statusLabel = titleStatus(latest);
   const statusClass = titleStatusClass(statusLabel);
-  const displayedVentCount = icuVentCount ?? latest?.vent_count ?? 0;
+  const effectiveVent = resolveEffectiveVentCount({
+    leadUpdate: latest,
+    icuVentCount,
+    icuUpdatedAt: icuVentUpdatedAt
+  });
 
   if (error) {
     return (
@@ -195,7 +204,7 @@ export function CurrentShiftStatusSummary({
             <div className="grid grid-cols-3 gap-2">
               <MiniStatCard label="SCHEDULED" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
               <MiniStatCard label="NEEDED" value={formatShiftStatusNumber(latest.rts_required)} />
-              <MiniStatCard label="VENTS" value={displayedVentCount} />
+              <MiniStatCard label="VENTS" value={effectiveVent.value} />
             </div>
           )}
         </div>

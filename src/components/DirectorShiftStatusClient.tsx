@@ -48,6 +48,7 @@ import {
   formatShiftStatusTime,
   getStaffingStatus,
   latestShiftStatus,
+  resolveEffectiveVentCount,
   resolveCurrentShiftStatus,
   shiftTypeLabel,
   staffingStatusLabel,
@@ -634,8 +635,13 @@ export function DirectorShiftStatusClient({
     currentProcedureCounts.sputumInductions +
     currentProcedureCounts.other;
   const status = directorStatus(latest);
-  const displayedVentCount = icuSnapshotCounts?.vents ?? snapshotLatest?.vent_count ?? null;
-  const textReport = latest ? reportText(latest, timezone, icuSnapshotCounts?.vents ?? latest.vent_count) : "";
+  const effectiveVent = resolveEffectiveVentCount({
+    leadUpdate: snapshotLatest,
+    icuVentCount: icuSnapshotCounts?.vents,
+    icuUpdatedAt: icuSnapshotCounts?.latestUpdatedAt
+  });
+  const displayedVentCount = snapshotLatest || icuSnapshotCounts ? effectiveVent.value : null;
+  const textReport = latest ? reportText(latest, timezone, effectiveVent.value) : "";
   const filteredDirectoryProfiles = useMemo(() => {
     const query = directorySearch.trim().toLowerCase();
     if (!query) {
@@ -884,6 +890,10 @@ export function DirectorShiftStatusClient({
               <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
                 <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
                 <p>Updated by: {updatedByName(snapshotLatest)}</p>
+                <p>
+                  Vents source: {effectiveVent.source}
+                  {effectiveVent.updatedAt ? ` · ${formatShiftStatusTime(effectiveVent.updatedAt, timezone)}` : ""}
+                </p>
               </div>
             </>
           ) : (
