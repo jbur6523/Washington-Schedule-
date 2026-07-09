@@ -124,7 +124,7 @@ Order Management is intentionally simple in this phase:
 
 Order Management is protected by route checks and Supabase RLS/storage policies. Lead, Director, Command Center, and regular Staff do not have access.
 
-Aide schedule/staff cards use a soft pink treatment and an `Aide` badge based on `staff_profiles.operations_role = aide`. This changes only user-facing display; it does not mutate employment type or schedule data.
+Aide schedule/staff cards use a soft pink treatment and an `Aide` badge based on `staff_profiles.operations_role = aide`. This changes only user-facing display; it does not mutate employment type or schedule data. Aides can remain visible on the staff schedule, but RT staffing totals count only scheduled or available FT/PD entries with no operational role, so Aides and other operational accounts do not inflate scheduled/available RT counts.
 
 ## Current Rental Scope
 

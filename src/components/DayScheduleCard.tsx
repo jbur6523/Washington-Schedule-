@@ -39,6 +39,13 @@ function getShiftCategory(item: { shiftTime: string; shiftCategory?: "day" | "ni
   return item.shiftTime.startsWith("18:") || item.shiftTime.startsWith("19:") ? "night" : "day";
 }
 
+function isCountableRtStaffEntry(entry: ScheduleEntry) {
+  const operationalRole = entry.operationsRole ?? "none";
+  const isRtEmploymentType = entry.staffType === "Full-time" || entry.staffType === "Per diem";
+
+  return isRtEmploymentType && operationalRole === "none";
+}
+
 function StaffScheduleRow({
   entry,
   variant,
@@ -198,13 +205,15 @@ function ShiftGroup({
 }) {
   const shiftPosts = posts.filter((post) => getShiftCategory(post) === shiftCategory);
   const shiftAlerts = shiftPosts.filter((post) => post.scope === "shift" && post.status === "Short Shift");
+  const scheduledRtCount = scheduled.filter(isCountableRtStaffEntry).length;
+  const availableRtCount = available.filter(isCountableRtStaffEntry).length;
 
   return (
     <section className="space-y-2">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-extrabold text-slate-800">{title}</h4>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-500">
-          {scheduled.length} scheduled / {available.length} available
+          {scheduledRtCount} scheduled / {availableRtCount} available
         </span>
       </div>
 
@@ -360,6 +369,8 @@ export function DayScheduleCard({
   const visibleAvailable = day.available.filter((entry) => shouldShowShift(shiftFilter, entry));
   const visibleCoverageRequests = day.coverageRequests.filter((entry) => shouldShowShift(shiftFilter, entry));
   const visiblePosts = day.shiftPosts.filter((post) => shouldShowShift(shiftFilter, post));
+  const visibleScheduledRtCount = visibleScheduled.filter(isCountableRtStaffEntry).length;
+  const visibleAvailableRtCount = visibleAvailable.filter(isCountableRtStaffEntry).length;
   const alertPosts = getDayAlertPosts(visiblePosts);
   const showDayShift = shouldShowShift(shiftFilter, { shiftTime: "06:30-19:00", shiftCategory: "day" });
   const showNightShift = shouldShowShift(shiftFilter, { shiftTime: "18:30-07:00", shiftCategory: "night" });
@@ -392,7 +403,7 @@ export function DayScheduleCard({
             {shiftSubtitle}
           </p>
           <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
-            {visibleScheduled.length} scheduled - {visibleAvailable.length} available -{" "}
+            {visibleScheduledRtCount} scheduled - {visibleAvailableRtCount} available -{" "}
             {visibleCoverageRequests.length} coverage requested
           </p>
           <span className="mt-2 inline-flex text-xs font-extrabold text-cyan-700">
