@@ -1,3 +1,5 @@
+drop function if exists public.get_current_icu_snapshot_counts(uuid);
+
 create or replace function public.get_current_icu_snapshot_counts(target_department_id uuid)
 returns table (
   vents integer,
