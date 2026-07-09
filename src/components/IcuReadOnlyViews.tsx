@@ -126,6 +126,10 @@ type IcuLoadError = {
   hint?: string;
 };
 
+type IcuReadOnlyRecord = IcuPatientRecord & {
+  updated_by_name?: string | null;
+};
+
 function isMissingOptionalIcuColumn(error: IcuLoadError | null) {
   const message = `${error?.message ?? ""} ${error?.details ?? ""} ${error?.hint ?? ""}`.toLowerCase();
 
@@ -143,7 +147,7 @@ function logIcuLoadError(context: string, departmentId: string, error: IcuLoadEr
   });
 }
 
-function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuPatientRecord {
+function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecord {
   return {
     id: record.id ?? "",
     department_id: record.department_id ?? "",
@@ -179,8 +183,59 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuPatientRecord
   };
 }
 
+async function attachUpdatedByNames(records: IcuReadOnlyRecord[], supabase: ReturnType<typeof createClient>) {
+  const staffIds = Array.from(new Set(records.map((record) => record.updated_by_staff_profile_id).filter(Boolean)));
+
+  if (staffIds.length === 0) {
+    return records;
+  }
+
+  const { data, error } = await supabase.from("staff_profiles").select("id, display_name").in("id", staffIds);
+
+  if (error) {
+    console.warn("ICU snapshot updater names unavailable", {
+      code: error.code,
+      message: error.message
+    });
+    return records;
+  }
+
+  const namesById = new Map((data ?? []).map((staff) => [staff.id, staff.display_name]));
+
+  return records.map((record) => ({
+    ...record,
+    updated_by_name: record.updated_by_staff_profile_id ? namesById.get(record.updated_by_staff_profile_id) ?? null : null
+  }));
+}
+
+function latestIcuSnapshotRecord(records: IcuReadOnlyRecord[]) {
+  return records
+    .filter((record) => record.is_active)
+    .sort(
+      (left, right) =>
+        new Date(right.updated_at || right.created_at).getTime() - new Date(left.updated_at || left.created_at).getTime()
+    )[0];
+}
+
+function formatIcuSnapshotDateTime(value: string | null | undefined) {
+  if (!value) {
+    return "--";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value));
+}
+
 function useIcuPatients(departmentId: string) {
-  const [records, setRecords] = useState<IcuPatientRecord[]>([]);
+  const [records, setRecords] = useState<IcuReadOnlyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -213,7 +268,8 @@ function useIcuPatients(departmentId: string) {
           console.warn("ICU snapshot loaded with legacy column fallback. Apply the latest ICU migrations to restore full lifecycle fields.", {
             departmentId
           });
-          setRecords(((fallbackData ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord));
+          const fallbackRecords = ((fallbackData ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord);
+          setRecords(await attachUpdatedByNames(fallbackRecords, supabase));
           return;
         }
 
@@ -228,7 +284,8 @@ function useIcuPatients(departmentId: string) {
     }
 
     setLoading(false);
-    setRecords(((data ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord));
+    const normalizedRecords = ((data ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord);
+    setRecords(await attachUpdatedByNames(normalizedRecords, supabase));
   }, [departmentId]);
 
   useEffect(() => {
@@ -250,6 +307,7 @@ export function DirectorIcuSnapshotSection({
   const [detailOpen, setDetailOpen] = useState(false);
   const { records, loading, error, reload } = useIcuPatients(departmentId);
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
+  const latestSnapshotRecord = useMemo(() => latestIcuSnapshotRecord(records), [records]);
 
   useEffect(() => {
     if (!loading && !error) {
@@ -280,6 +338,11 @@ export function DirectorIcuSnapshotSection({
         <SnapshotCard label="HFNC" value={counts.hfnc} />
         <SnapshotCard label="BiPAP" value={counts.bipap} />
         <SnapshotCard label="Critical Vents" value={counts.criticalVents} />
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+        <p>Last updated: {formatIcuSnapshotDateTime(latestSnapshotRecord?.updated_at ?? latestSnapshotRecord?.created_at)}</p>
+        <p>Updated by: {latestSnapshotRecord?.updated_by_name ?? "Unknown"}</p>
       </div>
 
       <button

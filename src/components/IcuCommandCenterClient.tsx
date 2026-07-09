@@ -950,9 +950,9 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
         <button
           type="button"
           onClick={() => setLeadNotesOpen(true)}
-          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-purple-200 bg-purple-100/80 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99]"
         >
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
             <MessageSquareText size={20} />
           </span>
           <span>

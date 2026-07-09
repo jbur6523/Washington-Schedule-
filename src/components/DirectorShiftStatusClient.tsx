@@ -807,7 +807,7 @@ export function DirectorShiftStatusClient({
               <div className="min-w-0">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
                 <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink">
-                  Respiratory Shift Status
+                  Director Dashboard
                 </h1>
                 <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold leading-5 text-slate-500">
                   <span>Live department numbers from the Command Center</span>
@@ -846,9 +846,9 @@ export function DirectorShiftStatusClient({
             <button
               type="button"
               onClick={() => setLeadNotesOpen(true)}
-              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
+              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-purple-200 bg-purple-100/80 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
             >
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-700 shadow-sm">
+              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
                 <MessageSquareText size={20} />
               </span>
               <span>
