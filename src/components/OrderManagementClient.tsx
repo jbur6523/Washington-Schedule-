@@ -8,13 +8,29 @@ import { ArrowLeft, Camera, ChevronDown, ClipboardList, MessageSquareText, Packa
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 import { RtAideNotesModal } from "@/components/RtAideNotesModal";
+import { PmmOrderFields } from "@/components/PmmOrderFields";
+import { OrderDetailsDialog } from "@/components/OrderDetailsDialog";
+import {
+  buildOrderLineRpcInputs,
+  isExplicitOrderRpcRejection,
+  mapOrderRpcError,
+  validateNonCatalogItems
+} from "@/lib/order-management/pmm";
+import {
+  emptyOrderLinesDraft,
+  type DepartmentOrderRow,
+  type OrderLineRpcInput,
+  type OrderLinesDraft,
+  type OrderWithPreview
+} from "@/lib/order-management/types";
+import { acquireSubmissionLock, releaseSubmissionLock } from "@/lib/order-management/submission";
 
 const orderImageBucket = "department-order-images";
 const maxNoteLength = 280;
 const recentOrderLimit = 7;
 const orderPageSize = 25;
 const orderSelectColumns =
-  "id, department_id, created_by_staff_profile_id, created_by_name, req_number, image_url, image_storage_path, notes, created_at, updated_at";
+  "id, department_id, created_by_staff_profile_id, created_by_name, req_number, image_url, image_storage_path, notes, created_at, updated_at, department_order_lines(id, order_id, line_type, pmm_number, item_name_snapshot, sort_order, created_at)";
 const todoClearMessageStorageKey = "order-todo-clear-message-index";
 const todoClearMessages = [
   "Slaaayyyyyy 👏🏻",
@@ -23,23 +39,6 @@ const todoClearMessages = [
   "We are so back. 💅🏻",
   "Chaos reduced by 3% 💃🏻"
 ];
-
-type DepartmentOrderRow = {
-  id: string;
-  department_id: string;
-  created_by_staff_profile_id: string | null;
-  created_by_name: string | null;
-  req_number: string | null;
-  image_url: string | null;
-  image_storage_path: string | null;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type OrderWithPreview = DepartmentOrderRow & {
-  signedImageUrl: string | null;
-};
 
 type OrderTodoRow = {
   id: string;
@@ -53,6 +52,13 @@ type OrderTodoRow = {
 
 type OrderManagementClientProps = {
   authContext: AuthenticatedUserContext;
+};
+
+type PendingOrderSubmission = {
+  orderId: string;
+  fingerprint: string;
+  imagePath: string | null;
+  imageUploaded: boolean;
 };
 
 function formatCreatedAt(value: string) {
@@ -87,6 +93,8 @@ function safeFileName(fileName: string) {
 export function OrderManagementClient({ authContext }: OrderManagementClientProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const submissionLockRef = useRef(false);
+  const pendingSubmissionRef = useRef<PendingOrderSubmission | null>(null);
   const todoClearFallbackIndexRef = useRef(-1);
   const todoClearCelebrationTimerRef = useRef<number | null>(null);
   const [recentOrders, setRecentOrders] = useState<OrderWithPreview[]>([]);
@@ -109,8 +117,11 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reqNumber, setReqNumber] = useState("");
   const [notes, setNotes] = useState("");
+  const [orderLinesDraft, setOrderLinesDraft] = useState<OrderLinesDraft>(emptyOrderLinesDraft);
+  const [orderLinesResetKey, setOrderLinesResetKey] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [expandedImage, setExpandedImage] = useState<{ url: string; label: string } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<OrderWithPreview | null>(null);
   const [expandedNotesOrderId, setExpandedNotesOrderId] = useState<string | null>(null);
   const [todoOpen, setTodoOpen] = useState(false);
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
@@ -128,8 +139,21 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
 
   const isAdminView = authContext.role === "admin";
   const canCreateOrders = authContext.role === "admin" || authContext.operationsRole === "aide";
-  const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim()) || Boolean(reqNumber.trim());
-  const canCreate = canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && !saving;
+  const hasOrderLineContent =
+    orderLinesDraft.pmmNumbers.length > 0 || orderLinesDraft.nonCatalogItems.some((item) => Boolean(item.itemName.trim()));
+  const hasOrderContent = Boolean(selectedFile) || Boolean(notes.trim()) || Boolean(reqNumber.trim()) || hasOrderLineContent;
+  const hasBlockingPmm = orderLinesDraft.lookupStates.some((item) =>
+    ["blocked", "unknown", "error", "loading"].includes(item.state)
+  );
+  const invalidNonCatalogIds = validateNonCatalogItems(orderLinesDraft.nonCatalogItems);
+  const orderLinesReady =
+    orderLinesDraft.invalidTokens.length === 0 &&
+    !orderLinesDraft.lookupLoading &&
+    !orderLinesDraft.lookupError &&
+    !hasBlockingPmm &&
+    invalidNonCatalogIds.length === 0;
+  const canCreate =
+    canCreateOrders && Boolean(authContext.staffProfileId) && hasOrderContent && orderLinesReady && !saving;
   const noteLength = notes.length;
   const createdByLabel = authContext.displayName || "Current user";
   const backLabel = isAdminView ? "Back to Admin Dashboard" : "Back to Aide Dashboard";
@@ -384,7 +408,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   }, []);
 
   useEffect(() => {
-    if (!isCreateOpen && !todoOpen && !expandedImage && !rtAideNotesOpen) {
+    if (!isCreateOpen && !todoOpen && !expandedImage && !rtAideNotesOpen && !selectedOrder) {
       return;
     }
 
@@ -394,7 +418,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [expandedImage, isCreateOpen, rtAideNotesOpen, todoOpen]);
+  }, [expandedImage, isCreateOpen, rtAideNotesOpen, selectedOrder, todoOpen]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -448,6 +472,9 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
     setPreviewUrl(null);
     setReqNumber("");
     setNotes("");
+    setOrderLinesDraft(emptyOrderLinesDraft);
+    setOrderLinesResetKey((current) => current + 1);
+    pendingSubmissionRef.current = null;
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -457,6 +484,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const openCreateOrder = () => {
     setError("");
     setSuccess("");
+    pendingSubmissionRef.current = null;
     setIsCreateOpen(true);
   };
 
@@ -472,6 +500,14 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
   const openRtAideNotes = () => {
     setRtAideNotesOpen(true);
   };
+
+  const closeOrderDetails = useCallback(() => {
+    setSelectedOrder(null);
+  }, []);
+
+  const openOrderImage = useCallback((url: string, label: string) => {
+    setExpandedImage({ url, label });
+  }, []);
 
   const closeCreateOrder = () => {
     if (saving) {
@@ -605,62 +641,122 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       return;
     }
 
-    if (!selectedFile && !notes.trim() && !reqNumber.trim()) {
-      setError("Add a picture, note, or Req Number before creating the order.");
+    if (orderLinesDraft.invalidTokens.length > 0) {
+      setError("PMM numbers must contain digits only.");
       return;
     }
 
+    if (orderLinesDraft.lookupLoading || orderLinesDraft.lookupError) {
+      setError("Wait for the PMM lookup to finish before submitting.");
+      return;
+    }
+
+    const blockedPmm = orderLinesDraft.lookupStates.find((item) =>
+      ["blocked", "unknown", "error", "loading"].includes(item.state)
+    );
+    if (blockedPmm) {
+      setError(`Remove or resolve PMM #${blockedPmm.pmmNumber} before submitting.`);
+      return;
+    }
+
+    if (invalidNonCatalogIds.length > 0) {
+      setError("Every Non-Catalog Item needs an Item Name.");
+      return;
+    }
+
+    const orderLines = buildOrderLineRpcInputs(orderLinesDraft.pmmNumbers, orderLinesDraft.nonCatalogItems);
+
+    if (!selectedFile && !notes.trim() && !reqNumber.trim() && orderLines.length === 0) {
+      setError("Add a PMM, Non-Catalog Item, picture, note, or Req Number before creating the order.");
+      return;
+    }
+
+    const fingerprint = JSON.stringify({
+      reqNumber: reqNumber.trim() || null,
+      notes: notes.trim() || null,
+      lines: orderLines,
+      file: selectedFile
+        ? { name: selectedFile.name, size: selectedFile.size, type: selectedFile.type, lastModified: selectedFile.lastModified }
+        : null
+    });
+    const existingPending = pendingSubmissionRef.current;
+
+    if (existingPending && existingPending.fingerprint !== fingerprint) {
+      setError("The previous submission could not be confirmed. Retry it without changing the order, or refresh Order History first.");
+      return;
+    }
+
+    if (!acquireSubmissionLock(submissionLockRef)) {
+      return;
+    }
+
+    const orderId = existingPending?.orderId ?? crypto.randomUUID();
+    const initialImagePath = selectedFile
+      ? `${authContext.departmentId}/${orderId}/${Date.now()}-${safeFileName(selectedFile.name)}`
+      : null;
+    const pending: PendingOrderSubmission =
+      existingPending ?? { orderId, fingerprint, imagePath: initialImagePath, imageUploaded: false };
+    pendingSubmissionRef.current = pending;
     setSaving(true);
     setError("");
     setSuccess("");
 
     const supabase = createClient();
-    const orderId = crypto.randomUUID();
-    let imagePath: string | null = null;
 
-    if (selectedFile) {
-      imagePath = `${authContext.departmentId}/${orderId}/${Date.now()}-${safeFileName(selectedFile.name)}`;
-      const { error: uploadError } = await supabase.storage
-        .from(orderImageBucket)
-        .upload(imagePath, selectedFile, {
-          contentType: selectedFile.type || "image/jpeg",
-          upsert: false
-        });
+    try {
+      if (selectedFile && pending.imagePath && !pending.imageUploaded) {
+        const { error: uploadError } = await supabase.storage
+          .from(orderImageBucket)
+          .upload(pending.imagePath, selectedFile, {
+            contentType: selectedFile.type || "image/jpeg",
+            upsert: false
+          });
 
-      if (uploadError) {
-        setSaving(false);
-        setError("Image upload failed. Please try again.");
+        if (uploadError) {
+          pendingSubmissionRef.current = null;
+          setError("Image upload failed. Please try again.");
+          return;
+        }
+
+        pending.imageUploaded = true;
+      }
+
+      const { error: rpcError } = await supabase.rpc("create_department_order_with_lines", {
+        p_order_id: pending.orderId,
+        p_department_id: authContext.departmentId,
+        p_req_number: reqNumber.trim() || null,
+        p_image_storage_path: pending.imagePath,
+        p_notes: notes.trim() || null,
+        p_lines: orderLines as OrderLineRpcInput[]
+      });
+
+      if (rpcError) {
+        const rpcMessage = [rpcError.code, rpcError.message, rpcError.details, rpcError.hint].filter(Boolean).join(" ");
+
+        if (isExplicitOrderRpcRejection(rpcMessage)) {
+          if (pending.imagePath && pending.imageUploaded) {
+            await supabase.storage.from(orderImageBucket).remove([pending.imagePath]);
+          }
+          pendingSubmissionRef.current = null;
+          setError(mapOrderRpcError(rpcMessage));
+        } else {
+          setError("Could not confirm whether the order was saved. Tap Submit Order again to retry safely with the same order ID.");
+        }
         return;
       }
-    }
 
-    const { error: insertError } = await supabase.from("department_orders").insert({
-      id: orderId,
-      department_id: authContext.departmentId,
-      created_by_staff_profile_id: authContext.staffProfileId,
-      created_by_name: createdByLabel,
-      req_number: reqNumber.trim() || null,
-      image_storage_path: imagePath,
-      image_url: null,
-      notes: notes.trim() || null
-    });
-
-    if (insertError) {
-      if (imagePath) {
-        await supabase.storage.from(orderImageBucket).remove([imagePath]);
-      }
+      resetForm();
+      setSuccess("Order submitted.");
+      setIsCreateOpen(false);
+      setAllOrders([]);
+      setAllHasMore(false);
+      await loadRecentOrders();
+    } catch {
+      setError("Could not confirm whether the order was saved. Tap Submit Order again to retry safely with the same order ID.");
+    } finally {
+      releaseSubmissionLock(submissionLockRef);
       setSaving(false);
-      setError("Unable to create order.");
-      return;
     }
-
-    resetForm();
-    setSuccess("Order submitted.");
-    setIsCreateOpen(false);
-    setSaving(false);
-    setAllOrders([]);
-    setAllHasMore(false);
-    await loadRecentOrders();
   };
 
   const ordersMarkup = useMemo(() => {
@@ -734,6 +830,15 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                     </button>
                   </div>
                 )}
+              </div>
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOrder(order)}
+                  className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-pink-600 px-5 text-sm font-extrabold text-white shadow-sm shadow-pink-900/15"
+                >
+                  View Order
+                </button>
               </div>
               {order.notes && (
                 <>
@@ -968,7 +1073,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                   </p>
                   <h2 className="mt-1 text-2xl font-black text-hospital-ink">Create Order</h2>
                   <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                    Picture, notes, and Req Number are optional, but at least one is required.
+                    Add a PMM, Non-Catalog Item, picture, note, or Req Number.
                   </p>
                 </div>
                 <button
@@ -1025,6 +1130,12 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                   />
                 </label>
 
+                <PmmOrderFields
+                  key={orderLinesResetKey}
+                  disabled={saving}
+                  onChange={setOrderLinesDraft}
+                />
+
                 <label className="mt-4 grid gap-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                   Notes (optional)
                   <textarea
@@ -1070,7 +1181,7 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
                 </div>
                 {!hasOrderContent && (
                   <p className="mt-2 text-center text-xs font-bold text-slate-500">
-                    Add a picture, note, or Req Number to create an order.
+                    Add a PMM, Non-Catalog Item, picture, note, or Req Number to create an order.
                   </p>
                 )}
               </form>
@@ -1253,6 +1364,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
             )}
           </div>
         )}
+
+        <OrderDetailsDialog order={selectedOrder} onClose={closeOrderDetails} onOpenImage={openOrderImage} />
 
         {expandedImage && (
           <div

@@ -37,11 +37,14 @@ The Create Order form opens separately in a mobile modal. It supports:
 - take or upload a picture from a phone
 - picture upload is optional but strongly encouraged
 - optional `Req Number`
+- optional PMM Numbers with catalog item-name lookup
+- multiple manual Non-Catalog Items without fake PMM values
 - optional notes up to 280 characters
-- note-only or Req-number-only orders are allowed when a picture is not available
+- PMM-only, Non-Catalog-only, note-only, Req-number-only, and image-only orders are allowed
 - automatic created-by attribution from the current Aide display name/staff profile
-- `Submit Order` is disabled until a picture, note, or Req Number is entered
+- `Submit Order` is disabled until a meaningful order component is present and all PMM/manual lines are valid
 - saved order history cards with `Order Req - XXXXXX`, `Date: MM/DD/YYYY Time: HH:mm`, `Created by: User`, an image thumbnail when attached, and notes
+- a `View Order` dialog with date, creator, Req Number, PMM numbers, historical item-name snapshots, Non-Catalog Items, notes, and an image when present
 - tapping a thumbnail opens a full-size preview modal so photographed order sheets can be read
 
 Admin users open the same modal form as Aides and can create/upload orders for beta testing. Admin users also see submitted orders, thumbnails, created date/time, creator display names, and notes for monitoring.
@@ -60,7 +63,54 @@ Order History is optimized for larger order volume:
 - `Order Look Up` searches the database by optional Req Number, including older orders outside the recent list.
 - Search does not run while typing. The user enters a Req Number and taps the enabled `Search Order` button, or clears the search to return to the default recent list.
 - Search supports partial Req Number matching.
+- PMM and item-name searching are not added in this phase; the explicit Req Number search behavior remains unchanged.
 - History cards keep the printable operational format with left-aligned text details, a right-aligned thumbnail only when an image exists, and a centered `View Notes` button when notes exist.
+
+## PMM Catalog
+
+PMM numbers are stored as text so leading zeroes are preserved. Create Order accepts commas, spaces, semicolons, and line breaks, formats Space as a comma delimiter, and removes repeated PMMs while preserving their first-entered order. Values are never coerced through JavaScript numbers.
+
+The catalog migration seeds 169 resolved records from the reviewed PMM bundle:
+
+- 161 active and orderable
+- 6 discontinued and non-orderable
+- 2 do-not-use and non-orderable
+- 6 of the active rows are marked `review_required`; they remain orderable but display an amber review warning
+
+The 17 unresolved `unknown` or `review` records are excluded from the seed. An unseeded PMM displays as not found and cannot be submitted as a PMM line. The Order Management user may instead remove it and add a clearly named Non-Catalog Item; the app never guesses an item name or uses `NONSTOCK`, `0`, or another fake PMM.
+
+Authorized Admin and Aide Order Management users may read the catalog. Authenticated browser users cannot insert, update, or delete catalog rows. Catalog additions and corrections require a reviewed forward-only migration. Before adding a row:
+
+1. Confirm the PMM number and item name with the department.
+2. Keep the PMM as numeric text and ensure it is unique.
+3. Set status and `is_orderable` consistently.
+4. Keep unresolved items out of the active seed.
+5. Run the catalog count and duplicate checks in the post-apply verification SQL.
+
+## Normalized Order Lines and Atomic Save
+
+`department_order_lines` stores PMM and Non-Catalog lines. PMM lines reference `pmm_catalog` and copy the current catalog item name into `item_name_snapshot`. View Order reads that snapshot, so a later catalog rename does not rewrite historical orders. Legacy `department_orders` rows without child lines continue to display their existing Req Number, creator, notes, and image.
+
+Create Order generates a UUID before upload because the private storage path includes the order ID. The same UUID is the database idempotency key. `create_department_order_with_lines` authenticates the caller internally, verifies department membership plus the existing Admin/Aide role, revalidates every PMM, and writes the parent and all lines in one PostgreSQL transaction. An identical retry returns the existing order ID; a conflicting reuse is rejected.
+
+Image storage is external to the PostgreSQL transaction. The browser uploads first and removes the private object after an explicit database rejection. A tab closure, transport ambiguity, or failed cleanup can leave an orphaned private object, but the RPC cannot leave a partial parent/line database order.
+
+## PMM Migration and Rollout
+
+The forward-only migration is `202607150001_order_management_pmm_catalog.sql`. It must not be applied until the target migration history is reconciled, because older duplicate timestamp prefixes exist and the production state is unknown.
+
+Approved rollout order:
+
+1. Run `supabase/manual/order_management_pmm_preflight.sql` read-only against the approved target.
+2. Review its required tables, columns, helpers, policies, and grants.
+3. Apply only the reviewed PMM migration through the approved Supabase process; do not create or manipulate a migration-history table.
+4. Run `supabase/manual/order_management_pmm_post_apply_verification.sql` read-only and confirm 169 total rows, 161 active/orderable, 6 discontinued, 2 do-not-use, 6 review-required, zero duplicates, RLS, function ACLs, and indexes.
+5. Deploy the matching application only after the schema verification succeeds.
+6. Complete role and workflow acceptance testing in an approved non-production environment before a production pilot.
+
+Rollback is application-first and forward-only: revert the application release while leaving the additive catalog and historical line data in place. Do not drop catalog or line tables after real orders exist. Any destructive cleanup requires a separately reviewed maintenance plan.
+
+Manual acceptance must cover active, amber-review, unknown, discontinued, do-not-use, duplicate, Non-Catalog, PMM-only, legacy, image, notes, Req Number, long mobile View Order, Aide/Admin access, forbidden roles, and public `/login`. These tests must use approved non-PHI test data and an approved environment.
 
 ## To-Do List
 
@@ -105,6 +155,8 @@ Note and optional Add Note fields are capped at 500 characters and show:
 ## Data Model
 
 Orders are stored in `department_orders`.
+
+PMM catalog entries are stored in `pmm_catalog`. Normalized PMM and Non-Catalog order lines are stored in `department_order_lines`.
 
 Images are stored in the private `department-order-images` Supabase Storage bucket, not directly as base64 in the database. The app stores the storage path and displays thumbnails/previews with signed URLs. Full-size signed image previews load only when the user taps a thumbnail.
 
