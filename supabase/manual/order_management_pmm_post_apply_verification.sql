@@ -79,3 +79,13 @@ order by conrelid::regclass::text, conname;
 select count(*) as unexpected_nonseed_status_rows
 from public.pmm_catalog
 where catalog_status not in ('active', 'discontinued', 'do_not_use');
+
+select
+  to_regprocedure(
+    'public.create_department_order_with_lines(uuid,uuid,text,text,text,jsonb)'
+  ) is not null as rpc_signature_present,
+  position(
+    'pg_catalog.coalesce' in pg_get_functiondef(
+      'public.create_department_order_with_lines(uuid,uuid,text,text,text,jsonb)'::regprocedure
+    )
+  ) = 0 as invalid_qualified_coalesce_absent;

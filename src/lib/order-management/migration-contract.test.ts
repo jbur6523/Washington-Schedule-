@@ -6,8 +6,16 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = resolve(process.cwd(), "supabase/migrations/202607150001_order_management_pmm_catalog.sql");
 const migration = readFileSync(migrationPath, "utf8");
+const repairMigrationPath = resolve(
+  process.cwd(),
+  "supabase/migrations/202607150002_order_management_pmm_rpc_coalesce_repair.sql"
+);
+const repairMigration = readFileSync(repairMigrationPath, "utf8");
 const orderClient = readFileSync(resolve(process.cwd(), "src/components/OrderManagementClient.tsx"), "utf8");
 const rpcBody = migration.match(
+  /create or replace function public\.create_department_order_with_lines[\s\S]+?revoke all on function public\.create_department_order_with_lines/
+)?.[0] ?? "";
+const repairRpcBody = repairMigration.match(
   /create or replace function public\.create_department_order_with_lines[\s\S]+?revoke all on function public\.create_department_order_with_lines/
 )?.[0] ?? "";
 
@@ -64,5 +72,24 @@ describe("PMM migration contract", () => {
     expect(orderClient).toContain("const recentOrderLimit = 7");
     expect(orderClient).toContain("const orderPageSize = 25");
     expect(orderClient).toContain('.ilike("req_number", `%${searchValue}%`)');
+  });
+
+  it("repairs invalid schema-qualified COALESCE calls without weakening the RPC", () => {
+    expect(repairMigration).toContain("create or replace function public.create_department_order_with_lines");
+    expect(repairMigration).toContain("security definer");
+    expect(repairMigration).toContain("set search_path = pg_catalog");
+    expect(repairMigration).toContain("v_lines jsonb := coalesce(p_lines, '[]'::jsonb)");
+    expect(repairMigration).toContain("select coalesce(");
+    expect(repairRpcBody).not.toContain("pg_catalog.coalesce");
+    expect(repairMigration).toContain("pg_catalog.pg_advisory_xact_lock");
+    expect(repairMigration).toContain("ORDER_ID_REPLAY_MISMATCH");
+    expect(repairMigration).toContain("insert into public.department_orders");
+    expect(repairMigration).toContain("insert into public.department_order_lines");
+    expect(repairMigration).toContain(
+      "revoke all on function public.create_department_order_with_lines(uuid, uuid, text, text, text, jsonb) from public"
+    );
+    expect(repairMigration).toContain(
+      "grant execute on function public.create_department_order_with_lines(uuid, uuid, text, text, text, jsonb) to authenticated"
+    );
   });
 });

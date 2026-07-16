@@ -14,6 +14,7 @@ import {
   buildOrderLineRpcInputs,
   isExplicitOrderRpcRejection,
   mapOrderRpcError,
+  mapUnexpectedOrderRpcError,
   validateNonCatalogItems
 } from "@/lib/order-management/pmm";
 import {
@@ -60,6 +61,25 @@ type PendingOrderSubmission = {
   imagePath: string | null;
   imageUploaded: boolean;
 };
+
+function logOrderRpcErrorInDiagnosticEnvironment(error: {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+}) {
+  const isVercelPreview =
+    typeof window !== "undefined" && window.location.hostname.toLowerCase().endsWith(".vercel.app");
+
+  if (process.env.NODE_ENV !== "production" || isVercelPreview) {
+    console.error("Order Management RPC failed", {
+      code: error.code ?? null,
+      message: error.message ?? null,
+      details: error.details ?? null,
+      hint: error.hint ?? null
+    });
+  }
+}
 
 function formatCreatedAt(value: string) {
   const date = new Date(value);
@@ -740,7 +760,8 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
           pendingSubmissionRef.current = null;
           setError(mapOrderRpcError(rpcMessage));
         } else {
-          setError("Could not confirm whether the order was saved. Tap Submit Order again to retry safely with the same order ID.");
+          logOrderRpcErrorInDiagnosticEnvironment(rpcError);
+          setError(mapUnexpectedOrderRpcError(rpcError));
         }
         return;
       }
@@ -752,7 +773,11 @@ export function OrderManagementClient({ authContext }: OrderManagementClientProp
       setAllHasMore(false);
       await loadRecentOrders();
     } catch {
-      setError("Could not confirm whether the order was saved. Tap Submit Order again to retry safely with the same order ID.");
+      setError(
+        mapUnexpectedOrderRpcError({
+          code: "TRANSPORT"
+        })
+      );
     } finally {
       releaseSubmissionLock(submissionLockRef);
       setSaving(false);

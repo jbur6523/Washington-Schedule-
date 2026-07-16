@@ -153,3 +153,38 @@ export function isExplicitOrderRpcRejection(message: string) {
     "INVALID_ORDER_IMAGE_PATH"
   ].some((code) => message.includes(code));
 }
+
+export type OrderRpcErrorDetails = {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+};
+
+export function getOrderRpcDiagnosticCode(error: OrderRpcErrorDetails) {
+  const normalizedCode = (error.code ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 16);
+
+  return `OM-RPC-${normalizedCode || "UNEXPECTED"}`;
+}
+
+export function mapUnexpectedOrderRpcError(error: OrderRpcErrorDetails) {
+  const diagnosticCode = getOrderRpcDiagnosticCode(error);
+
+  if (error.code === "42883") {
+    return `The order service needs a database repair. Report code ${diagnosticCode}. Retry this order after the repair is applied.`;
+  }
+
+  if (error.code === "PGRST202") {
+    return `The order service is still updating. Report code ${diagnosticCode}. Try again shortly with the same order.`;
+  }
+
+  if (error.code === "42501") {
+    return `The order service denied the request. Report code ${diagnosticCode}.`;
+  }
+
+  return `Could not confirm whether the order was saved. Report code ${diagnosticCode}. Tap Submit Order again to retry safely with the same order ID.`;
+}

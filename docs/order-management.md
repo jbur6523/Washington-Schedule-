@@ -99,12 +99,14 @@ Image storage is external to the PostgreSQL transaction. The browser uploads fir
 
 The forward-only migration is `202607150001_order_management_pmm_catalog.sql`. It must not be applied until the target migration history is reconciled, because older duplicate timestamp prefixes exist and the production state is unknown.
 
+The forward-only RPC repair is `202607150002_order_management_pmm_rpc_coalesce_repair.sql`. Read-only production probes found that the original function schema-qualified PostgreSQL's `COALESCE` expression as `pg_catalog.coalesce`, causing SQLSTATE `42883` before authentication or order writes began. The repair replaces only the function definition with unqualified `coalesce(...)`; it preserves the restricted search path, authenticated Admin/Aide checks, server-side PMM validation, advisory locking, idempotent replay, and atomic parent/line writes. Do not edit or rerun the already-applied catalog migration to make this repair.
+
 Approved rollout order:
 
 1. Run `supabase/manual/order_management_pmm_preflight.sql` read-only against the approved target.
 2. Review its required tables, columns, helpers, policies, and grants.
-3. Apply only the reviewed PMM migration through the approved Supabase process; do not create or manipulate a migration-history table.
-4. Run `supabase/manual/order_management_pmm_post_apply_verification.sql` read-only and confirm 169 total rows, 161 active/orderable, 6 discontinued, 2 do-not-use, 6 review-required, zero duplicates, RLS, function ACLs, and indexes.
+3. Apply only the reviewed migrations needed by the target through the approved Supabase process. If the catalog migration is already present, apply only the forward-only RPC repair. Do not create or manipulate a migration-history table.
+4. Run `supabase/manual/order_management_pmm_post_apply_verification.sql` read-only and confirm 169 total rows, 161 active/orderable, 6 discontinued, 2 do-not-use, 6 review-required, zero duplicates, RLS, function ACLs, indexes, the expected RPC signature, and absence of `pg_catalog.coalesce` from the deployed RPC definition.
 5. Deploy the matching application only after the schema verification succeeds.
 6. Complete role and workflow acceptance testing in an approved non-production environment before a production pilot.
 

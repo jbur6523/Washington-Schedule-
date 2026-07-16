@@ -4,8 +4,10 @@ import {
   buildOrderLineRpcInputs,
   buildPmmLookupStates,
   formatPmmNumbers,
+  getOrderRpcDiagnosticCode,
   isExplicitOrderRpcRejection,
   mapOrderRpcError,
+  mapUnexpectedOrderRpcError,
   normalizePmmInput,
   parsePmmInput,
   validateNonCatalogItems
@@ -124,6 +126,20 @@ describe("normalized order lines", () => {
     expect(mapOrderRpcError("P0001 PMM_NOT_ORDERABLE:68")).toBe("PMM #68 cannot be ordered.");
     expect(isExplicitOrderRpcRejection("P0001 ORDER_ID_REPLAY_MISMATCH")).toBe(true);
     expect(isExplicitOrderRpcRejection("Failed to fetch")).toBe(false);
+  });
+
+  it("maps infrastructure failures to safe reportable diagnostic codes", () => {
+    expect(getOrderRpcDiagnosticCode({ code: "42883" })).toBe("OM-RPC-42883");
+    expect(getOrderRpcDiagnosticCode({ code: "PGRST202" })).toBe("OM-RPC-PGRST202");
+    expect(getOrderRpcDiagnosticCode({ code: "bad code!" })).toBe("OM-RPC-BADCODE");
+    expect(getOrderRpcDiagnosticCode({})).toBe("OM-RPC-UNEXPECTED");
+    expect(mapUnexpectedOrderRpcError({ code: "42883", message: "raw database detail" })).toBe(
+      "The order service needs a database repair. Report code OM-RPC-42883. Retry this order after the repair is applied."
+    );
+    expect(mapUnexpectedOrderRpcError({ code: "TRANSPORT" })).toContain("OM-RPC-TRANSPORT");
+    expect(mapUnexpectedOrderRpcError({ code: "42883", message: "raw database detail" })).not.toContain(
+      "raw database detail"
+    );
   });
 
   it("blocks a second submit until the in-flight submission releases", () => {
