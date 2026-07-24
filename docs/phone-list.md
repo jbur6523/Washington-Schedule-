@@ -1,6 +1,6 @@
 # Lead Command Board Phone List
 
-Phase 1 adds a saved phone-list draft workflow at `/command-center/phone-list`. Printing is intentionally outside this phase.
+The workflow at `/command-center/phone-list` supports saved operational drafts and a browser-native printable phone list.
 
 ## Access
 
@@ -63,6 +63,18 @@ Migration: `supabase/migrations/202607240001_lead_command_phone_list.sql`
 - `phone_list_assignments`: the canonical row, selected profile reference, name snapshot, extension, order, and timestamps
 - `save_phone_list_draft(uuid, date, text, jsonb)`: atomic, access-checked save RPC
 
-The migration has not been applied by this feature branch. Before an approved application, run the read-only preflight in `supabase/manual/phone_list_preflight.sql`. After applying the single migration through the approved process, run `supabase/manual/phone_list_post_apply_verification.sql`.
+The Phase 1 migration is a prerequisite and is not modified by the printing phase. For a new approved environment, run `supabase/manual/phone_list_preflight.sql` before applying it and `supabase/manual/phone_list_post_apply_verification.sql` afterward.
 
-Do not deploy the application route until the target project's migration and verification are complete.
+## Printing
+
+**Print Phone List** calls the browser's native `window.print()` dialog without navigating or creating a file. The dedicated print-only layout reads the current React assignment state, so unsaved names and extensions are included.
+
+Route-scoped print CSS in `src/components/PhoneListPrintLayout.module.css`:
+
+- uses US Letter portrait with 0.25-inch top/bottom and 0.35-inch side margins
+- hides the entire screen workflow, including navigation, controls, status messages, roster, and autocomplete
+- prints all 31 canonical rows from the shared row definitions
+- uses fixed compact row sizing, protected section/row breaks, and wrapping value fields
+- preserves blank ruled staff and extension fields
+
+The print workflow does not add a PDF, spreadsheet, download, export, database, authentication, or permission path.

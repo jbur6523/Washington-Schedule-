@@ -10,8 +10,10 @@ import {
   type ChangeEvent,
   type KeyboardEvent
 } from "react";
-import { ArrowLeft, Check, LoaderCircle, Phone, Save, Users } from "lucide-react";
+import { ArrowLeft, Check, LoaderCircle, Phone, Printer, Save, Users } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { PhoneListPrintLayout } from "@/components/PhoneListPrintLayout";
+import printStyles from "@/components/PhoneListPrintLayout.module.css";
 import { phoneListSections } from "@/lib/phone-list/rows";
 import type {
   PhoneListAssignment,
@@ -113,6 +115,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
   const [loadError, setLoadError] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState("");
+  const [printError, setPrintError] = useState("");
   const [draftUpdatedAt, setDraftUpdatedAt] = useState<string | null>(null);
   const loadSequenceRef = useRef(0);
   const saveInFlightRef = useRef(false);
@@ -366,6 +369,20 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
     saveInFlightRef.current = false;
   };
 
+  const printPhoneList = () => {
+    setPrintError("");
+
+    try {
+      if (typeof window.print !== "function") {
+        throw new Error("Printing is unavailable.");
+      }
+
+      window.print();
+    } catch {
+      setPrintError("Printing is not available in this browser. Your phone list has not changed.");
+    }
+  };
+
   const saveLabel =
     saveState === "saving"
       ? "Saving"
@@ -376,8 +393,9 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
           : "Not saved yet";
 
   return (
-    <main className="min-h-screen px-3 py-5 sm:px-5 sm:py-8">
-      <div className="mx-auto max-w-7xl space-y-4">
+    <main className={`${printStyles.page} min-h-screen px-3 py-5 sm:px-5 sm:py-8`}>
+      <div className={printStyles.screen}>
+        <div className="mx-auto max-w-7xl space-y-4">
         <header className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <Link
             href="/command-center"
@@ -457,15 +475,26 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
               )}
               {saveState === "error" && <span className="text-red-700">Save failed</span>}
             </div>
-            <button
-              type="button"
-              onClick={() => void saveDraft()}
-              disabled={loading || saveState === "saving" || Boolean(loadError)}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saveState === "saving" ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />}
-              Save Draft
-            </button>
+            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={printPhoneList}
+                disabled={loading || Boolean(loadError)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Printer size={17} />
+                Print Phone List
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveDraft()}
+                disabled={loading || saveState === "saving" || Boolean(loadError)}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saveState === "saving" ? <LoaderCircle className="animate-spin" size={17} /> : <Save size={17} />}
+                Save Draft
+              </button>
+            </div>
           </div>
 
           {loadError && (
@@ -476,6 +505,11 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
           {saveError && (
             <p role="alert" className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
               {saveError}
+            </p>
+          )}
+          {printError && (
+            <p role="alert" className="mt-3 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-800">
+              {printError}
             </p>
           )}
         </section>
@@ -588,6 +622,12 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
           </aside>
         </div>
       </div>
+      </div>
+      <PhoneListPrintLayout
+        scheduleDate={scheduleDate}
+        shiftType={shiftType}
+        assignments={assignments}
+      />
     </main>
   );
 }

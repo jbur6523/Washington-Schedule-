@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PhoneListClient } from "@/components/PhoneListClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -95,6 +95,57 @@ describe("PhoneListClient", () => {
     fireEvent.keyDown(staffInput, { key: "Enter" });
 
     expect(staffInput).toHaveValue("Bravo Therapist");
+  });
+
+  it("prints current unsaved values and preserves Save Draft behavior", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    const staffInput = await screen.findByTestId("staff-name-main_lead_therapist");
+    const phoneInput = screen.getByTestId("phone-number-main_lead_therapist");
+    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+    await waitFor(() => expect(printButton).not.toBeDisabled());
+
+    fireEvent.change(staffInput, { target: { value: "Unsubmitted Therapist" } });
+    fireEvent.change(phoneInput, { target: { value: "6404" } });
+    fireEvent.click(printButton);
+
+    expect(print).toHaveBeenCalledOnce();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    const printLayout = screen.getByTestId("phone-list-print-layout");
+    expect(within(printLayout).getByText("Unsubmitted Therapist")).toBeInTheDocument();
+    expect(within(printLayout).getByText("6404")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Save Draft" })[0]);
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+
+    const rpcArguments = mocks.rpc.mock.calls[0][1];
+    const savedAssignments = rpcArguments.p_assignments as Array<{
+      row_key: string;
+      staff_name_snapshot: string | null;
+      phone_number: string | null;
+    }>;
+    expect(savedAssignments.find((row) => row.row_key === "main_lead_therapist")).toMatchObject({
+      staff_name_snapshot: "Unsubmitted Therapist",
+      phone_number: "6404"
+    });
+  });
+
+  it("shows a non-destructive message when browser printing is unavailable", async () => {
+    vi.spyOn(window, "print").mockImplementation(() => {
+      throw new Error("Printing unavailable");
+    });
+    render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+    await waitFor(() => expect(printButton).not.toBeDisabled());
+    fireEvent.click(printButton);
+
+    expect(
+      screen.getByText("Printing is not available in this browser. Your phone list has not changed.")
+    ).toBeInTheDocument();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("stores the profile reference for an autocomplete selection and allows manual names", async () => {

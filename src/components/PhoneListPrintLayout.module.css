@@ -1,0 +1,131 @@
+.print {
+  display: none;
+}
+
+@page {
+  size: letter portrait;
+  margin: 0.25in 0.35in;
+}
+
+@media print {
+  :global(html),
+  :global(body) {
+    width: auto !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  :global(body) {
+    margin: 0 !important;
+  }
+
+  .page {
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .screen {
+    display: none !important;
+  }
+
+  .print {
+    display: block !important;
+    width: 100%;
+    color: #000;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 8pt;
+    line-height: 1;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print,
+  .print * {
+    box-sizing: border-box;
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    min-height: 0.42in;
+    border-bottom: 1.5pt solid #000;
+    padding: 0 0 0.07in;
+  }
+
+  .header h1 {
+    margin: 0;
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    line-height: 1;
+  }
+
+  .meta {
+    display: flex;
+    gap: 0.22in;
+    align-items: flex-end;
+    font-size: 8.5pt;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .body {
+    margin-top: 0.05in;
+  }
+
+  .section {
+    margin: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .section h2 {
+    height: 0.18in;
+    margin: 0;
+    padding: 0.025in 0 0;
+    border-bottom: 1pt solid #000;
+    font-size: 8.5pt;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 2.15in minmax(0, 1fr) 1.08in;
+    min-height: 0.255in;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .label,
+  .value {
+    display: flex;
+    min-width: 0;
+    align-items: flex-end;
+    padding: 0.025in 0.055in 0.02in;
+  }
+
+  .label {
+    padding-left: 0;
+    font-size: 7.75pt;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .value {
+    border-bottom: 0.75pt solid #000;
+    font-size: 7.5pt;
+    font-weight: 400;
+    line-height: 1.05;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
