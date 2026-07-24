@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, RefreshCcw } from "lucide-react";
+import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, Phone, RefreshCcw } from "lucide-react";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
@@ -58,6 +58,23 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
                 <h2 className="text-xl font-black text-hospital-ink">Shift Update</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
                   Update current shift staffing and equipment numbers.
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/command-center/phone-list"
+            className={`${cardBaseClass} border-cyan-100 bg-cyan-50/90`}
+          >
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
+                <Phone size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">Phone List</h2>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                  Assign scheduled staff to department extensions.
                 </p>
               </div>
             </div>
