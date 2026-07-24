@@ -97,6 +97,36 @@ describe("PhoneListClient", () => {
     expect(staffInput).toHaveValue("Bravo Therapist");
   });
 
+  it("renders compact accessible assignment fields and keeps the actions concise", async () => {
+    render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    const staffInput = await screen.findByLabelText("Lead Therapist staff name");
+    const extensionInput = screen.getByLabelText("Lead Therapist extension");
+    const firstRow = screen.getByTestId("assignment-row-main_lead_therapist");
+    const firstFields = screen.getByTestId("assignment-fields-main_lead_therapist");
+    const assignmentRows = screen.getAllByTestId(/^assignment-row-/);
+    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+
+    expect(assignmentRows).toHaveLength(31);
+    expect(staffInput).toHaveAttribute("placeholder", "Roster # or staff name");
+    expect(extensionInput).toHaveAttribute("placeholder", "Ext.");
+    expect(staffInput).toHaveClass("min-w-0");
+    expect(extensionInput).toHaveClass("min-w-0");
+    expect(firstRow).toHaveClass("p-3");
+    expect(firstFields.className).toContain(
+      "grid-cols-[minmax(0,1fr)_clamp(5.625rem,28vw,7.1875rem)]"
+    );
+    expect(screen.getAllByRole("button", { name: "Save Draft" })).toHaveLength(1);
+    const lastAssignmentRow = assignmentRows.at(-1);
+    expect(lastAssignmentRow).toBeDefined();
+    if (!lastAssignmentRow) {
+      throw new Error("Expected the final Phone List assignment row.");
+    }
+    expect(
+      lastAssignmentRow.compareDocumentPosition(printButton) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it("prints current unsaved values and preserves Save Draft behavior", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);

@@ -96,5 +96,7 @@ describe("PhoneListPrintLayout", () => {
     expect(css).toContain("min-height: 0.255in");
     expect(css).toContain("break-inside: avoid");
     expect(css).toContain("overflow-wrap: anywhere");
+    expect(css).toContain("font-size: 14pt");
+    expect(css).toContain("font-size: 8.25pt");
   });
 });

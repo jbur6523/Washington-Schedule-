@@ -47,6 +47,9 @@ type SaveState = "idle" | "dirty" | "saving" | "saved" | "error";
 const controlClass =
   "h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100";
 
+const assignmentControlClass =
+  "h-11 min-w-0 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition placeholder:font-semibold placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100";
+
 function formatDraftTime(value: string | null, timezone: string) {
   if (!value) {
     return "";
@@ -475,16 +478,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
               )}
               {saveState === "error" && <span className="text-red-700">Save failed</span>}
             </div>
-            <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={printPhoneList}
-                disabled={loading || Boolean(loadError)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Printer size={17} />
-                Print Phone List
-              </button>
+            <div className="w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => void saveDraft()}
@@ -524,7 +518,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
         </details>
 
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
-          <section className="space-y-4">
+          <section className="space-y-3">
             <datalist id="phone-list-active-staff">
               {directory.map((staff) => (
                 <option key={staff.id} value={staff.displayName} />
@@ -535,12 +529,15 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
               <fieldset
                 key={section.key}
                 disabled={loading || Boolean(loadError)}
-                className="rounded-3xl border border-white bg-white/95 p-3 shadow-soft sm:p-5"
+                className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-soft sm:p-4"
               >
-                <legend className="px-2 text-base font-black uppercase tracking-wide text-hospital-ink">
+                <legend className="sr-only">
                   {section.label}
                 </legend>
-                <div className="mt-1 space-y-2">
+                <h2 className="mb-2 px-1 text-sm font-black uppercase tracking-wide text-hospital-ink sm:text-base">
+                  {section.label}
+                </h2>
+                <div className="space-y-2">
                   {section.rows.map((row) => {
                     const assignment = assignments.find((item) => item.rowKey === row.key);
 
@@ -551,13 +548,16 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
                     return (
                       <div
                         key={row.key}
-                        className="grid gap-2 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 sm:grid-cols-[minmax(9rem,0.8fr)_minmax(13rem,1.4fr)_9rem] sm:items-end"
+                        data-testid={`assignment-row-${row.key}`}
+                        className="min-w-0 rounded-xl border border-slate-200 bg-slate-50/70 p-3"
                       >
-                        <p className="text-sm font-black leading-5 text-slate-700 sm:pb-3">{row.label}</p>
-                        <label className="block">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
-                            Staff Name
-                          </span>
+                        <p className="mb-2 text-sm font-black leading-5 text-slate-700">{row.label}</p>
+                        <div
+                          data-testid={`assignment-fields-${row.key}`}
+                          className="grid min-w-0 grid-cols-[minmax(0,1fr)_clamp(5.625rem,28vw,7.1875rem)] gap-2 max-[319px]:grid-cols-1"
+                        >
+                          <label className="block min-w-0">
+                            <span className="sr-only">{row.label} staff name</span>
                           <input
                             type="text"
                             list="phone-list-active-staff"
@@ -567,16 +567,15 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
                               handleStaffKeyDown(event, row.key, assignment.staffNameSnapshot)
                             }
                             onBlur={() => commitNumericShortcut(row.key, assignment.staffNameSnapshot)}
-                            placeholder="Roster #, staff, or manual name"
+                            placeholder="Roster # or staff name"
+                            aria-label={`${row.label} staff name`}
                             autoComplete="off"
                             data-testid={`staff-name-${row.key}`}
-                            className={`mt-1 ${controlClass}`}
+                            className={assignmentControlClass}
                           />
-                        </label>
-                        <label className="block">
-                          <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
-                            Phone Number
-                          </span>
+                          </label>
+                          <label className="block min-w-0 max-[319px]:max-w-[7.1875rem]">
+                            <span className="sr-only">{row.label} extension</span>
                           <input
                             type="text"
                             inputMode="tel"
@@ -586,12 +585,14 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
                                 updatePhoneForAssignment(assignments, row.key, event.target.value)
                               )
                             }
-                            placeholder="Extension"
+                            placeholder="Ext."
+                            aria-label={`${row.label} extension`}
                             maxLength={30}
                             data-testid={`phone-number-${row.key}`}
-                            className={`mt-1 ${controlClass}`}
+                            className={assignmentControlClass}
                           />
-                        </label>
+                          </label>
+                        </div>
                       </div>
                     );
                   })}
@@ -601,12 +602,12 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
 
             <button
               type="button"
-              onClick={() => void saveDraft()}
-              disabled={loading || saveState === "saving" || Boolean(loadError)}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-5 text-sm font-black text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={printPhoneList}
+              disabled={loading || Boolean(loadError)}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {saveState === "saving" ? <LoaderCircle className="animate-spin" size={18} /> : <Save size={18} />}
-              Save Draft
+              <Printer size={18} />
+              Print Phone List
             </button>
           </section>
 
