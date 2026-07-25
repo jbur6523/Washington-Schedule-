@@ -26,6 +26,10 @@ export function PhoneListPrintLayout({
   const assignmentsByRowKey = new Map(
     assignments.map((assignment) => [assignment.rowKey, assignment])
   );
+  const printableSections = phoneListSections.map((section) => ({
+    ...section,
+    rows: section.key === "additional_staff" ? section.rows.slice(0, 1) : section.rows
+  }));
 
   return (
     <section
@@ -42,7 +46,7 @@ export function PhoneListPrintLayout({
       </header>
 
       <div className={styles.body}>
-        {phoneListSections.map((section) => (
+        {printableSections.map((section) => (
           <section key={section.key} className={styles.section}>
             <h2>{section.label}</h2>
             <div>
