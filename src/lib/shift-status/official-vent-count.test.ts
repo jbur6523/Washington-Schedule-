@@ -21,7 +21,11 @@ const directorClient = readFileSync(
   "utf8"
 );
 const directorIcuView = readFileSync(
-  resolve(process.cwd(), "src/components/IcuReadOnlyViews.tsx"),
+  resolve(process.cwd(), "src/components/DirectorDashboardIcuSummary.tsx"),
+  "utf8"
+);
+const icuCommandCenter = readFileSync(
+  resolve(process.cwd(), "src/components/IcuCommandCenterClient.tsx"),
   "utf8"
 );
 const scheduleSummary = readFileSync(
@@ -126,15 +130,25 @@ describe("official vent count", () => {
       "useOfficialVentCount(authContext.departmentId, timezone)"
     );
     expect(directorClient).toContain("officialVent={officialVent}");
+    expect(directorClient).toContain(
+      'from "@/components/DirectorDashboardIcuSummary"'
+    );
+    expect(directorClient).not.toContain(
+      'from "@/components/IcuReadOnlyViews"'
+    );
     expect(directorClient).not.toContain("resolveEffectiveVentCount");
     expect(directorIcuView).toContain(
-      '<SnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />'
+      "officialVentCount: officialVent?.vent_count ?? null"
     );
+    expect(directorIcuView).not.toContain("value={rawIcuCounts.vents}");
     expect(scheduleSummary).toContain(
       'label="VENTS" value={officialVent?.vent_count ?? "—"}'
     );
     expect(scheduleSummary).not.toContain(
       "get_current_icu_snapshot_counts"
+    );
+    expect(icuCommandCenter).toContain(
+      '<StatCard label="Vents" value={counts.vents} />'
     );
   });
 });

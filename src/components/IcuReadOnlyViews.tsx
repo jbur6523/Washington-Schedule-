@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Activity, AlertTriangle, ArrowLeft, RefreshCw, Wind, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import {
   formatIcuAirway,
@@ -12,7 +12,6 @@ import {
   getIcuSnapshotCounts
 } from "@/lib/icu-command-center/utils";
 import { createClient } from "@/lib/supabase/client";
-import type { OfficialVentCountUpdate } from "@/lib/shift-status/types";
 import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
 import {
   formatShiftStatusTime,
@@ -93,7 +92,7 @@ type IcuReadOnlyProps = {
   timezone?: string;
 };
 
-function SnapshotCard({ label, value }: { label: string; value: number | string }) {
+export function IcuSnapshotCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3 text-center shadow-sm">
       <p className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">{label}</p>
@@ -102,7 +101,7 @@ function SnapshotCard({ label, value }: { label: string; value: number | string 
   );
 }
 
-function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
+export function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
   const airway = formatIcuAirway(record);
 
   return (
@@ -215,7 +214,7 @@ async function attachUpdatedByNames(records: IcuReadOnlyRecord[], supabase: Retu
   }));
 }
 
-function latestIcuSnapshotRecord(records: IcuReadOnlyRecord[]) {
+export function latestIcuSnapshotRecord(records: IcuReadOnlyRecord[]) {
   return records
     .filter((record) => record.is_active)
     .sort(
@@ -224,7 +223,7 @@ function latestIcuSnapshotRecord(records: IcuReadOnlyRecord[]) {
     )[0];
 }
 
-function formatIcuSnapshotDateTime(value: string | null | undefined) {
+export function formatIcuSnapshotDateTime(value: string | null | undefined) {
   if (!value) {
     return "--";
   }
@@ -241,7 +240,7 @@ function formatIcuSnapshotDateTime(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
-function useIcuPatients(departmentId: string) {
+export function useIcuPatients(departmentId: string) {
   const [records, setRecords] = useState<IcuReadOnlyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -304,130 +303,6 @@ function useIcuPatients(departmentId: string) {
   return { records, loading, error, reload: loadRecords };
 }
 
-export function DirectorIcuSnapshotSection({
-  departmentId,
-  officialVent,
-  officialVentLoading,
-  officialVentError,
-  timezone
-}: {
-  departmentId: string;
-  officialVent: OfficialVentCountUpdate | null;
-  officialVentLoading: boolean;
-  officialVentError: string;
-  timezone: string;
-}) {
-  const [detailOpen, setDetailOpen] = useState(false);
-  const { records, loading, error, reload } = useIcuPatients(departmentId);
-  const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
-  const latestSnapshotRecord = useMemo(() => latestIcuSnapshotRecord(records), [records]);
-
-  return (
-    <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-          <Wind size={22} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-black leading-tight text-hospital-ink">ICU Snapshot</h2>
-          <p className="mt-0.5 text-sm font-bold leading-5 text-slate-500">Active ICU respiratory devices.</p>
-        </div>
-      </div>
-
-      {error && (
-        <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-          {error}
-        </p>
-      )}
-
-      <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <SnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />
-        <SnapshotCard label="HFNC" value={counts.hfnc} />
-        <SnapshotCard label="BiPAP" value={counts.bipap} />
-        <SnapshotCard label="Critical Vents" value={counts.criticalVents} />
-      </div>
-
-      <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-        {officialVent ? (
-          <>
-            <p>
-              Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
-              {formatShiftStatusTime(officialVent.created_at, timezone)}
-            </p>
-            <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
-          </>
-        ) : (
-          <p className="text-rose-700">
-            {officialVentLoading
-              ? "Loading official vent count..."
-              : officialVentError || "No official vent update for this shift."}
-          </p>
-        )}
-        <p>
-          ICU details updated:{" "}
-          {formatIcuSnapshotDateTime(latestSnapshotRecord?.updated_at ?? latestSnapshotRecord?.created_at)}
-        </p>
-        <p>ICU details updated by: {latestSnapshotRecord?.updated_by_name ?? "Unknown"}</p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setDetailOpen(true)}
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
-      >
-        View All
-      </button>
-
-      {detailOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="director-icu-detail-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Read-only report</p>
-                <h2 id="director-icu-detail-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  ICU Detail
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setDetailOpen(false)}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {loading && <p className="rounded-2xl bg-white px-3 py-4 text-sm font-bold text-slate-500">Loading ICU detail...</p>}
-              {!loading && records.length === 0 && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No active ICU respiratory devices.
-                </p>
-              )}
-              {!loading && records.map((record) => <IcuReadOnlyCard key={record.id} record={record} />)}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => void reload()}
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-          </section>
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function IcuReadOnlyPage({
   departmentId,
   title = "ICU Snapshot",
@@ -469,10 +344,10 @@ export function IcuReadOnlyPage({
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <SnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />
-            <SnapshotCard label="HFNC" value={counts.hfnc} />
-            <SnapshotCard label="BiPAP" value={counts.bipap} />
-            <SnapshotCard label="Critical Vents" value={counts.criticalVents} />
+            <IcuSnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />
+            <IcuSnapshotCard label="HFNC" value={counts.hfnc} />
+            <IcuSnapshotCard label="BiPAP" value={counts.bipap} />
+            <IcuSnapshotCard label="Critical Vents" value={counts.criticalVents} />
           </div>
           <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
             {officialVent ? (

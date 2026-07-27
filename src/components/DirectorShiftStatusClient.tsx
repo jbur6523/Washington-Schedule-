@@ -25,8 +25,8 @@ import {
   Users,
   Wind
 } from "lucide-react";
+import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
-import { DirectorIcuSnapshotSection } from "@/components/IcuReadOnlyViews";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
@@ -924,7 +924,7 @@ export function DirectorShiftStatusClient({
           )}
         </section>
 
-        <DirectorIcuSnapshotSection
+        <DirectorDashboardIcuSummary
           departmentId={authContext.departmentId}
           officialVent={officialVent}
           officialVentLoading={officialVentLoading}
