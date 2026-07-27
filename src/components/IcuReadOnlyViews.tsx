@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Activity, AlertTriangle, ArrowLeft, RefreshCw, Wind, X } from "lucide-react";
-import type { IcuPatientRecord, IcuSnapshotCounts } from "@/lib/icu-command-center/types";
+import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import {
   formatIcuAirway,
   formatIcuDeviceSummary,
@@ -12,6 +12,12 @@ import {
   getIcuSnapshotCounts
 } from "@/lib/icu-command-center/utils";
 import { createClient } from "@/lib/supabase/client";
+import type { OfficialVentCountUpdate } from "@/lib/shift-status/types";
+import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
+import {
+  formatShiftStatusTime,
+  officialVentSourceLabel
+} from "@/lib/shift-status/utils";
 
 const icuPatientSelect = [
   "id",
@@ -84,9 +90,10 @@ type IcuReadOnlyProps = {
   subtitle?: string;
   backHref?: string;
   backLabel?: string;
+  timezone?: string;
 };
 
-function SnapshotCard({ label, value }: { label: string; value: number }) {
+function SnapshotCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3 text-center shadow-sm">
       <p className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">{label}</p>
@@ -299,21 +306,21 @@ function useIcuPatients(departmentId: string) {
 
 export function DirectorIcuSnapshotSection({
   departmentId,
-  onCountsChange
+  officialVent,
+  officialVentLoading,
+  officialVentError,
+  timezone
 }: {
   departmentId: string;
-  onCountsChange?: (counts: IcuSnapshotCounts) => void;
+  officialVent: OfficialVentCountUpdate | null;
+  officialVentLoading: boolean;
+  officialVentError: string;
+  timezone: string;
 }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const { records, loading, error, reload } = useIcuPatients(departmentId);
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
   const latestSnapshotRecord = useMemo(() => latestIcuSnapshotRecord(records), [records]);
-
-  useEffect(() => {
-    if (!loading && !error) {
-      onCountsChange?.(counts);
-    }
-  }, [counts, error, loading, onCountsChange]);
 
   return (
     <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
@@ -334,15 +341,33 @@ export function DirectorIcuSnapshotSection({
       )}
 
       <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <SnapshotCard label="Vents" value={counts.vents} />
+        <SnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />
         <SnapshotCard label="HFNC" value={counts.hfnc} />
         <SnapshotCard label="BiPAP" value={counts.bipap} />
         <SnapshotCard label="Critical Vents" value={counts.criticalVents} />
       </div>
 
       <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-        <p>Last updated: {formatIcuSnapshotDateTime(latestSnapshotRecord?.updated_at ?? latestSnapshotRecord?.created_at)}</p>
-        <p>Updated by: {latestSnapshotRecord?.updated_by_name ?? "Unknown"}</p>
+        {officialVent ? (
+          <>
+            <p>
+              Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
+              {formatShiftStatusTime(officialVent.created_at, timezone)}
+            </p>
+            <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
+          </>
+        ) : (
+          <p className="text-rose-700">
+            {officialVentLoading
+              ? "Loading official vent count..."
+              : officialVentError || "No official vent update for this shift."}
+          </p>
+        )}
+        <p>
+          ICU details updated:{" "}
+          {formatIcuSnapshotDateTime(latestSnapshotRecord?.updated_at ?? latestSnapshotRecord?.created_at)}
+        </p>
+        <p>ICU details updated by: {latestSnapshotRecord?.updated_by_name ?? "Unknown"}</p>
       </div>
 
       <button
@@ -408,10 +433,16 @@ export function IcuReadOnlyPage({
   title = "ICU Snapshot",
   subtitle = "View ICU respiratory devices and settings.",
   backHref = "/",
-  backLabel = "Back"
+  backLabel = "Back",
+  timezone = "America/Los_Angeles"
 }: IcuReadOnlyProps) {
   const { records, loading, error, reload } = useIcuPatients(departmentId);
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
+  const {
+    update: officialVent,
+    loading: officialVentLoading,
+    error: officialVentError
+  } = useOfficialVentCount(departmentId, timezone);
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -438,10 +469,27 @@ export function IcuReadOnlyPage({
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <SnapshotCard label="Vents" value={counts.vents} />
+            <SnapshotCard label="Vents" value={officialVent?.vent_count ?? "—"} />
             <SnapshotCard label="HFNC" value={counts.hfnc} />
             <SnapshotCard label="BiPAP" value={counts.bipap} />
             <SnapshotCard label="Critical Vents" value={counts.criticalVents} />
+          </div>
+          <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+            {officialVent ? (
+              <>
+                <p>
+                  Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
+                  {formatShiftStatusTime(officialVent.created_at, timezone)}
+                </p>
+                <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
+              </>
+            ) : (
+              <p className="text-rose-700">
+                {officialVentLoading
+                  ? "Loading official vent count..."
+                  : officialVentError || "No official vent update for this shift."}
+              </p>
+            )}
           </div>
         </section>
 

@@ -41,6 +41,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `shift_shortages`: shift-level Short Shift alerts. This is the only table that represents Short Shift.
 - `user_schedule_overrides`: staff-owned self-managed app schedule changes layered on top of the baseline schedule.
 - `shift_status_updates`: Command Center shift-level operational updates. Rows store RTs scheduled, RTs needed, vent/BiPAP counts, scheduled procedure counts including C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and MRI, plus visible updated-by attribution for the Director Shift Status page and compact Schedule summary. MRI is stored in the existing `other_procedure_count` column for compatibility. Director Scheduled Procedures display the latest saved procedure counts for 24 hours, then show `0` while preserving historical rows. `rts_required` is displayed as `RTs Needed` and supports decimal values such as `6.9`.
+- `official_vent_count_updates`: append-only canonical department Vent updates keyed by department, operational date, and day/night shift. Each row stores the official count, `lead_command_center` or `icu_command_center` source, server-generated timestamp, and updater attribution when available. Authenticated department members can read it but cannot write it directly. Database triggers append only after a genuine Lead Vent-field change or persisted ICU active-Vent membership change.
 
 ### Requests and Offers
 
@@ -81,7 +82,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 ### ICU Command Center
 
 - `icu_patients`: department-scoped operational ICU respiratory snapshot records. Each row stores bed, device type, device-specific respiratory settings, optional Vent airway fields, Critical Vent flag, active/discontinued state, created/updated staff profile references, and timestamps.
-- `get_current_icu_snapshot_counts(department_id)`: protected aggregate used by Staff Schedule for ICU active-device counts. It returns active device totals plus `latest_updated_at` so the app can choose the freshest Vent source between ICU Command Center and Lead Command Board Shift Update.
+- `get_current_icu_snapshot_counts(department_id)`: protected aggregate for raw ICU active-device counts. Shared department Vent displays no longer use its generic latest record timestamp to select an official count.
 - Active ICU entries are unique by department and bed. Discontinue sets `is_active = false`; records are not hard-deleted.
 - Discontinuation stores `discontinued_at` and `discontinued_by_staff_profile_id`. Vent discontinuation also stores optional `ventilator_outcome` with one of the approved operational outcomes: Extubation, Trached Aerosol, Unplanned, Expired (on ventilator), Transferred to another facility, Donor network, or Discontinue Vent Support (Palliative).
 - `icu_patient_events`: department-scoped ICU lifecycle history. Rows reference an ICU patient record and store `added`, `updated`, `critical_status_updated`, or `discontinued` events with `event_time`, a safe event summary, optional safe JSON device/settings data, visible staff attribution, and timestamps.

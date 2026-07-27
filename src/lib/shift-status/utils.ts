@@ -1,4 +1,9 @@
-import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type {
+  OfficialVentCountSource,
+  OfficialVentCountUpdate,
+  ShiftStatusShiftType,
+  ShiftStatusUpdate
+} from "@/lib/shift-status/types";
 
 export function todayInTimezone(timezone = "America/Los_Angeles") {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -144,56 +149,28 @@ export function formatShiftStatusTime(value: string | null | undefined, timezone
   }).format(new Date(value)).replace(",", "");
 }
 
+export function officialVentSourceLabel(source: OfficialVentCountSource) {
+  return source === "lead_command_center" ? "Lead Command Center" : "ICU Command Center";
+}
+
+export function officialVentForWindow(
+  update: OfficialVentCountUpdate | null,
+  shiftDate: string,
+  shiftType: ShiftStatusShiftType
+) {
+  if (!update || update.shift_date !== shiftDate || update.shift_type !== shiftType) {
+    return null;
+  }
+
+  return update;
+}
+
 export function latestShiftStatus(updates: ShiftStatusUpdate[]) {
   return [...updates].sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0] ?? null;
 }
 
 export function latestShiftStatusFor(updates: ShiftStatusUpdate[], shiftDate: string, shiftType: ShiftStatusShiftType) {
   return latestShiftStatus(updates.filter((update) => update.shift_date === shiftDate && update.shift_type === shiftType));
-}
-
-function timestampValue(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const timestamp = new Date(value).getTime();
-  return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-export function resolveEffectiveVentCount({
-  leadUpdate,
-  icuVentCount,
-  icuUpdatedAt
-}: {
-  leadUpdate: ShiftStatusUpdate | null;
-  icuVentCount: number | null | undefined;
-  icuUpdatedAt?: string | null;
-}) {
-  const leadTimestamp = timestampValue(leadUpdate?.updated_at);
-  const icuTimestamp = timestampValue(icuUpdatedAt);
-
-  if (leadUpdate && (leadTimestamp !== null || icuTimestamp === null) && (icuTimestamp === null || (leadTimestamp ?? 0) >= icuTimestamp)) {
-    return {
-      value: leadUpdate.vent_count,
-      source: "Lead Command Board" as const,
-      updatedAt: leadUpdate.updated_at
-    };
-  }
-
-  if (icuVentCount !== null && icuVentCount !== undefined) {
-    return {
-      value: icuVentCount,
-      source: "ICU Command Center" as const,
-      updatedAt: icuUpdatedAt ?? null
-    };
-  }
-
-  return {
-    value: leadUpdate?.vent_count ?? 0,
-    source: leadUpdate ? ("Lead Command Board" as const) : ("No Update" as const),
-    updatedAt: leadUpdate?.updated_at ?? null
-  };
 }
 
 export function resolveCurrentShiftStatus(

@@ -88,7 +88,7 @@ Fields:
 - Shift type: Day Shift or Night Shift
 - RTs Scheduled
 - RTs Needed, which can include decimals such as `6.9`
-- Vent count, which uses ICU Command Center active Vent count when available and falls back to the Command Center shift update value only if the ICU aggregate count is unavailable.
+- Official Vent count from the shift-scoped `official_vent_count_updates` stream. The newest genuine Lead Vent change or ICU tracked Vent-total change wins.
 - BiPAP count
 - C-Section count
 - Vaginal Delivery count
@@ -124,7 +124,7 @@ The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule 
 - Day Shift: `08:00-19:59`
 - Night Shift: `20:00-07:59`
 
-Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs Scheduled, RTs Needed, BiPAPs, and scheduled procedure fields. If multiple rows exist for the same shift, the newest `updated_at` row wins. The normal Schedule page intentionally omits BiPAP counts and procedure counts. The displayed Vent count uses the freshest source between the Lead Command Board `vent_count` update and the ICU Command Center active vent snapshot: whichever source was updated most recently wins.
+Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs Scheduled, RTs Needed, BiPAPs, and scheduled procedure fields. If multiple rows exist for the same shift, the newest `updated_at` row wins for those non-Vent fields. The normal Schedule page intentionally omits BiPAP counts and procedure counts. Every shared Vent display reads the same current-shift row from the append-only `official_vent_count_updates` stream. A Lead save appends an official Vent update only when the Lead Vent field changed from the previous Lead save for that operational shift. An ICU mutation appends one only when persisted active Vent membership changed, using a fresh database count after the mutation. Page loads, refreshes, unrelated Lead saves, ICU settings edits, Critical Vent toggles, and generic timestamp changes do not publish official Vent updates.
 
 ## Director Shift Status
 
@@ -140,7 +140,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - `Respiratory Directory` action for a read-only staff contact modal
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for Scheduled and RTs Needed
-- `Department Snapshot` card with left-aligned shift/date context, effective Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, last-updated metadata, and subtle Vent source metadata
+- `Department Snapshot` card with left-aligned shift/date context, official Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, last-updated metadata, and the official Vent source/timestamp
 - Scheduled procedure detail cards for C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and MRI with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.
@@ -150,7 +150,7 @@ If the selected current shift has no submitted update, the page can show the mos
 
 The `Respiratory Directory` modal reads `staff_profiles` and includes active and inactive staff sorted by display name. It shows display names and phone numbers only, with phone numbers linked by `tel:` when present. It does not show usernames, auth IDs, email addresses, edit buttons, or admin controls.
 
-The Director page includes an `ICU Snapshot` section with Vents, HFNC, BiPAP, and Critical Vents. `View All` opens a read-only ICU detail report with bed, device, airway when relevant, settings, Critical Vent flag, and last updated time. Director users cannot edit, discontinue, toggle Critical Vent status, or view internal ICU lifecycle controls.
+The Director page includes an `ICU Snapshot` section with Vents, HFNC, BiPAP, and Critical Vents. Its Vents card uses the exact same official Vent state as Department Snapshot; HFNC, BiPAP, Critical Vents, detail rows, and their ICU-specific metadata continue to come from ICU tracking. `View All` opens a read-only ICU detail report with bed, device, airway when relevant, settings, Critical Vent flag, and last updated time. Director users cannot edit, discontinue, toggle Critical Vent status, or view internal ICU lifecycle controls.
 
 The `View Shift` modal uses the active uploaded schedule data. It defaults to the current `America/Los_Angeles` calendar date when that date exists in the uploaded schedule, then the closest future uploaded date, then the previous shift date if no future date exists. The date dropdown shows the previous shift date when uploaded, the current date when uploaded, and all future uploaded dates. Older past uploaded dates stay out of the dropdown and can be entered manually as `MMDDYY`; if no uploaded schedule exists for that date, the modal shows `No uploaded schedule found for this date.` The modal defaults to Day Shift from `07:00-18:59` Pacific and Night Shift from `19:00-06:59` Pacific. It shows scheduled staff names, shift times, FT/PD/Aide badges, and Shift Lead indicators only. It does not expose request, coverage, delete, remove, or other staff schedule actions. The modal uses the top `Close` control only, and the staff list has extra bottom padding so the final card remains fully visible when scrolled.
 

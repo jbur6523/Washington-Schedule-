@@ -4,6 +4,7 @@ import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { IcuReadOnlyPage } from "@/components/IcuReadOnlyViews";
 import { canViewIcuCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,17 @@ export default async function CommandCenterIcuSnapshotPage() {
     return <AccessDenied />;
   }
 
+  const supabase = await createClient();
+  const { data: department } = await supabase
+    .from("departments")
+    .select("timezone")
+    .eq("id", auth.context.departmentId)
+    .maybeSingle();
+
   return (
     <IcuReadOnlyPage
       departmentId={auth.context.departmentId}
+      timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
       title="ICU Snapshot"
       subtitle="View ICU respiratory devices and settings."
       backHref="/command-center"

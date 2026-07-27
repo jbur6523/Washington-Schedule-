@@ -27,3 +27,17 @@ export type ShiftStatusStaffOption = {
   id: string;
   display_name: string;
 };
+
+export type OfficialVentCountSource = "lead_command_center" | "icu_command_center";
+
+export type OfficialVentCountUpdate = {
+  id: number;
+  department_id: string;
+  shift_date: string;
+  shift_type: ShiftStatusShiftType;
+  vent_count: number;
+  source: OfficialVentCountSource;
+  updated_by_staff_profile_id: string | null;
+  updated_by_name: string | null;
+  created_at: string;
+};

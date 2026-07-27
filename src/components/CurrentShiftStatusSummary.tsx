@@ -6,11 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
+import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
 import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
-  resolveEffectiveVentCount,
   resolveCurrentShiftStatus,
   staffingStatusLabel,
   updatedByName
@@ -58,11 +58,6 @@ function MiniStatCard({
   );
 }
 
-type IcuSnapshotCountRow = {
-  vents?: number | null;
-  latest_updated_at?: string | null;
-};
-
 export function CurrentShiftStatusSummary({
   authContext,
   timezone
@@ -72,29 +67,19 @@ export function CurrentShiftStatusSummary({
 }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
-  const [icuVentCount, setIcuVentCount] = useState<number | null>(null);
-  const [icuVentUpdatedAt, setIcuVentUpdatedAt] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const { update: officialVent, error: officialVentError } = useOfficialVentCount(
+    authContext.departmentId,
+    timezone
+  );
 
   const loadStatus = useCallback(async () => {
     const supabase = createClient();
-    const [{ data, error: loadError }, { data: icuCounts, error: icuCountsError }] = await Promise.all([
-      fetchShiftStatusUpdates(supabase, authContext.departmentId, 30),
-      supabase.rpc("get_current_icu_snapshot_counts", { target_department_id: authContext.departmentId }).maybeSingle()
-    ]);
-
-    const icuCountsRow = icuCounts as IcuSnapshotCountRow | null;
-
-    if (!icuCountsError && icuCountsRow) {
-      setIcuVentCount(Number(icuCountsRow.vents ?? 0));
-      setIcuVentUpdatedAt(icuCountsRow.latest_updated_at ?? null);
-    } else {
-      if (icuCountsError) {
-        console.error("Staff ICU vent count load failed", icuCountsError);
-      }
-      setIcuVentCount(null);
-      setIcuVentUpdatedAt(null);
-    }
+    const { data, error: loadError } = await fetchShiftStatusUpdates(
+      supabase,
+      authContext.departmentId,
+      30
+    );
 
     if (loadError) {
       console.error("Staff current shift status load failed", loadError);
@@ -132,28 +117,11 @@ export function CurrentShiftStatusSummary({
         }
       )
       .subscribe();
-    const icuChannel = supabase
-      .channel(`staff-icu-snapshot-${authContext.departmentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "icu_patients",
-          filter: `department_id=eq.${authContext.departmentId}`
-        },
-        () => {
-          setNowTick(Date.now());
-          void loadStatus();
-        }
-      )
-      .subscribe();
 
     return () => {
       window.clearTimeout(timer);
       window.clearInterval(interval);
       void supabase.removeChannel(channel);
-      void supabase.removeChannel(icuChannel);
     };
   }, [authContext.departmentId, loadStatus]);
 
@@ -163,13 +131,8 @@ export function CurrentShiftStatusSummary({
   );
   const statusLabel = titleStatus(latest);
   const statusClass = titleStatusClass(statusLabel);
-  const effectiveVent = resolveEffectiveVentCount({
-    leadUpdate: latest,
-    icuVentCount,
-    icuUpdatedAt: icuVentUpdatedAt
-  });
 
-  if (error) {
+  if (error || officialVentError) {
     return (
       <div className="mt-2.5 border-t border-violet-100 pt-2.5">
         <p className="text-center text-xs font-black uppercase tracking-normal text-cyan-700">
@@ -204,7 +167,7 @@ export function CurrentShiftStatusSummary({
             <div className="grid grid-cols-3 gap-2">
               <MiniStatCard label="SCHEDULED" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
               <MiniStatCard label="NEEDED" value={formatShiftStatusNumber(latest.rts_required)} />
-              <MiniStatCard label="VENTS" value={effectiveVent.value} />
+              <MiniStatCard label="VENTS" value={officialVent?.vent_count ?? "—"} />
             </div>
           )}
         </div>

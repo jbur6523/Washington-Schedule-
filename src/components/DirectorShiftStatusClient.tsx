@@ -32,7 +32,6 @@ import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
-import type { IcuSnapshotCounts } from "@/lib/icu-command-center/types";
 import {
   adaptActiveSchedule,
   type ActiveSchedule,
@@ -42,13 +41,14 @@ import {
 } from "@/lib/schedule/supabase-schedule";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
+import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
 import {
   currentShiftStatusWindow,
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
   latestShiftStatus,
-  resolveEffectiveVentCount,
+  officialVentSourceLabel,
   resolveCurrentShiftStatus,
   shiftTypeLabel,
   staffingStatusLabel,
@@ -96,7 +96,7 @@ function formatReportTime(value: string | null | undefined, timezone: string) {
   }).format(new Date(value));
 }
 
-function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCount = update.vent_count) {
+function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCount: string | number) {
   const staffing = getStaffingStatus(update.rts_on, update.rts_required);
   const staffingLines =
     staffing.status === "short"
@@ -405,7 +405,11 @@ export function DirectorShiftStatusClient({
   const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorViewShiftDefaultShift(timezone));
   const [manualScheduleDate, setManualScheduleDate] = useState("");
   const [manualScheduleError, setManualScheduleError] = useState("");
-  const [icuSnapshotCounts, setIcuSnapshotCounts] = useState<IcuSnapshotCounts | null>(null);
+  const {
+    update: officialVent,
+    loading: officialVentLoading,
+    error: officialVentError
+  } = useOfficialVentCount(authContext.departmentId, timezone);
   const isSelectedCurrentShift = true;
 
   const loadShiftStatus = useCallback(async (showLoading = true) => {
@@ -635,13 +639,8 @@ export function DirectorShiftStatusClient({
     currentProcedureCounts.sputumInductions +
     currentProcedureCounts.other;
   const status = directorStatus(latest);
-  const effectiveVent = resolveEffectiveVentCount({
-    leadUpdate: snapshotLatest,
-    icuVentCount: icuSnapshotCounts?.vents,
-    icuUpdatedAt: icuSnapshotCounts?.latestUpdatedAt
-  });
-  const displayedVentCount = snapshotLatest || icuSnapshotCounts ? effectiveVent.value : null;
-  const textReport = latest ? reportText(latest, timezone, effectiveVent.value) : "";
+  const displayedVentCount = officialVent?.vent_count ?? null;
+  const textReport = latest ? reportText(latest, timezone, displayedVentCount ?? "No Update") : "";
   const filteredDirectoryProfiles = useMemo(() => {
     const query = directorySearch.trim().toLowerCase();
     if (!query) {
@@ -879,21 +878,36 @@ export function DirectorShiftStatusClient({
               <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
             </div>
           </div>
-          {snapshotLatest ? (
+          {snapshotLatest || officialVent ? (
             <>
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? snapshotLatest.vent_count} />
-                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? "—"} />
+                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest?.bipap_count ?? 0} />
                 <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
                 <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
               </div>
               <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-                <p>Last updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
-                <p>Updated by: {updatedByName(snapshotLatest)}</p>
-                <p>
-                  Vents source: {effectiveVent.source}
-                  {effectiveVent.updatedAt ? ` · ${formatShiftStatusTime(effectiveVent.updatedAt, timezone)}` : ""}
-                </p>
+                {snapshotLatest && (
+                  <>
+                    <p>Department details updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
+                    <p>Department details updated by: {updatedByName(snapshotLatest)}</p>
+                  </>
+                )}
+                {officialVent ? (
+                  <>
+                    <p>
+                      Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
+                      {formatShiftStatusTime(officialVent.created_at, timezone)}
+                    </p>
+                    <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
+                  </>
+                ) : (
+                  <p className="text-rose-700">
+                    {officialVentLoading
+                      ? "Loading official vent count..."
+                      : officialVentError || "No official vent update for this shift."}
+                  </p>
+                )}
               </div>
             </>
           ) : (
@@ -910,7 +924,13 @@ export function DirectorShiftStatusClient({
           )}
         </section>
 
-        <DirectorIcuSnapshotSection departmentId={authContext.departmentId} onCountsChange={setIcuSnapshotCounts} />
+        <DirectorIcuSnapshotSection
+          departmentId={authContext.departmentId}
+          officialVent={officialVent}
+          officialVentLoading={officialVentLoading}
+          officialVentError={officialVentError}
+          timezone={timezone}
+        />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex items-start gap-3">
