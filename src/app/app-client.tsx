@@ -27,7 +27,7 @@ import { ShiftPostCard } from "@/components/ShiftPostCard";
 import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
-import { hasOperationsDashboardAccess } from "@/lib/auth/access";
+import { getProfileDashboardShortcut } from "@/lib/admin/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -299,15 +299,7 @@ function Header({
   const handleSignOut = async () => {
     await signOutAndRedirect();
   };
-  const hasOperationsDashboard = hasOperationsDashboardAccess(authContext);
-  const dashboardLabel =
-    authContext.role === "admin"
-      ? "Admin"
-      : authContext.role === "lead"
-        ? "Lead"
-        : authContext.operationsRole === "aide"
-          ? "Aide"
-          : "";
+  const dashboardShortcut = getProfileDashboardShortcut(authContext);
 
   return (
     <header className="border-b border-white/70 bg-white/85 px-4 pb-4 pt-5 sm:px-5">
@@ -355,13 +347,13 @@ function Header({
                 Sign out
               </button>
             )}
-            {hasOperationsDashboard && (
+            {dashboardShortcut && (
               <Link
-                href="/operations"
+                href={dashboardShortcut.href}
                 className="inline-flex min-h-9 items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-3 text-xs font-extrabold text-cyan-700"
               >
                 <ShieldCheck size={14} />
-                {dashboardLabel}
+                {dashboardShortcut.label}
               </Link>
             )}
           </div>

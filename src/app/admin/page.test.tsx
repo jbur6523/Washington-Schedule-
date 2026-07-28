@@ -1,0 +1,55 @@
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import AdminPage from "./page";
+
+const { getAuthenticatedUserContextMock } = vi.hoisted(() => ({
+  getAuthenticatedUserContextMock: vi.fn()
+}));
+
+vi.mock("@/lib/auth/current-user", () => ({
+  getAuthenticatedUserContext: getAuthenticatedUserContextMock
+}));
+
+vi.mock("next/navigation", () => ({
+  notFound: vi.fn(),
+  redirect: vi.fn()
+}));
+
+describe("admin dashboard", () => {
+  beforeEach(() => {
+    getAuthenticatedUserContextMock.mockResolvedValue({
+      status: "authenticated",
+      context: {
+        authUserId: "admin-user",
+        profileId: "admin-profile",
+        staffProfileId: "admin-staff",
+        departmentId: "department",
+        departmentName: "Respiratory Therapy",
+        role: "admin",
+        operationsRole: "none",
+        displayName: "Admin User",
+        hasLinkedStaffProfile: true
+      }
+    });
+  });
+
+  it("renders only the six approved admin shortcuts in a responsive grid", async () => {
+    const view = render(await AdminPage());
+    const expectedLinks = [
+      ["Lead Command Board", "/command-center"],
+      ["Director Dashboard", "/director/shift-status"],
+      ["ICU Command Center", "/icu-command-center"],
+      ["Rental Management", "/operations/rental-management"],
+      ["Order Management", "/operations/order-management"],
+      ["Import Schedule", "/admin/import-schedule"]
+    ] as const;
+
+    for (const [name, href] of expectedLinks) {
+      expect(screen.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
+    }
+
+    expect(screen.getAllByRole("link")).toHaveLength(7);
+    expect(screen.queryByRole("link", { name: /Staff Management/ })).not.toBeInTheDocument();
+    expect(view.container.querySelector(".grid")).toHaveClass("grid", "gap-3", "sm:grid-cols-2");
+  });
+});

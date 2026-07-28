@@ -643,7 +643,11 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
   const currentLocation = form.location === "Other" ? form.otherLocation.trim() : form.location;
   const requestedReturnRentalId = searchParams.get("rental") ?? "";
   const requestedReturnAction = "";
-  const dashboardBackHref = commandCenterMode ? "/command-center" : "/operations";
+  const dashboardBackHref = commandCenterMode
+    ? "/command-center"
+    : authContext.role === "admin"
+      ? "/admin"
+      : "/operations";
   const dashboardBackLabel = commandCenterMode ? "Back to Command Center" : "Back to Dashboard";
 
   useEffect(() => {
