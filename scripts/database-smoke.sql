@@ -722,6 +722,248 @@ $$;
 
 reset role;
 
+-- Remaining go-live operational workflows: rentals, orders, and RT aide
+-- communication. Reuse the ICU audit account as an aide after the ICU checks
+-- above so every mutation still runs through authenticated RLS.
+update public.staff_profiles
+set operations_role = 'aide'
+where id = '30000000-0000-0000-0000-000000000002';
+
+insert into public.rental_vendors (
+  id,
+  department_id,
+  name,
+  is_active
+)
+values (
+  '81000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Audit Rental Vendor',
+  true
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000002',
+  true
+);
+
+create temporary table audit_rental_record as
+select id
+from public.create_pending_rental_delivery(
+  '10000000-0000-0000-0000-000000000001',
+  '81000000-0000-0000-0000-000000000001',
+  'v60',
+  1,
+  clock_timestamp(),
+  '30000000-0000-0000-0000-000000000002',
+  'Go-live audit'
+);
+
+do $$
+begin
+  begin
+    perform public.create_pending_rental_delivery(
+      '10000000-0000-0000-0000-000000000001',
+      '81000000-0000-0000-0000-000000000001',
+      'v60',
+      1,
+      clock_timestamp(),
+      '30000000-0000-0000-0000-000000000001',
+      'Forged actor'
+    );
+
+    raise exception 'Aide forged a rental actor';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+select public.confirm_rental_delivery(
+  (select id from audit_rental_record),
+  '30000000-0000-0000-0000-000000000002',
+  clock_timestamp(),
+  'AUDIT-V60-001',
+  'AUDIT-V60-001',
+  'Audit location',
+  'Go-live audit delivery',
+  'manual_check_in'
+);
+
+select public.call_rental_pickup(
+  (select id from audit_rental_record),
+  '30000000-0000-0000-0000-000000000002',
+  clock_timestamp(),
+  'AUDIT-CONFIRMATION',
+  'Go-live audit pickup'
+);
+
+select public.confirm_rental_picked_up(
+  (select id from audit_rental_record),
+  '30000000-0000-0000-0000-000000000002',
+  clock_timestamp(),
+  'Go-live audit complete'
+);
+
+do $$
+begin
+  if (
+    select status
+    from public.rental_records
+    where id = (select id from audit_rental_record)
+  ) <> 'picked_up'::public.rental_record_status then
+    raise exception 'Rental lifecycle did not reach picked_up';
+  end if;
+end;
+$$;
+
+select public.create_department_order_with_lines(
+  '82000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'AUDIT-REQ-001',
+  null,
+  'Go-live audit order',
+  '[{"line_type":"non_catalog","item_name":"Audit respiratory supply"}]'::jsonb
+);
+
+select public.create_department_order_with_lines(
+  '82000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'AUDIT-REQ-001',
+  null,
+  'Go-live audit order',
+  '[{"line_type":"non_catalog","item_name":"Audit respiratory supply"}]'::jsonb
+);
+
+do $$
+begin
+  if (
+    select count(*)
+    from public.department_orders
+    where id = '82000000-0000-0000-0000-000000000001'
+  ) <> 1 then
+    raise exception 'Retried order created a duplicate';
+  end if;
+
+  if (
+    select count(*)
+    from public.department_order_lines
+    where order_id = '82000000-0000-0000-0000-000000000001'
+  ) <> 1 then
+    raise exception 'Retried order created duplicate lines';
+  end if;
+end;
+$$;
+
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000003',
+  true
+);
+
+do $$
+begin
+  begin
+    perform public.create_pending_rental_delivery(
+      '10000000-0000-0000-0000-000000000001',
+      '81000000-0000-0000-0000-000000000001',
+      'v60',
+      1,
+      clock_timestamp(),
+      '30000000-0000-0000-0000-000000000003',
+      'Unauthorized rental'
+    );
+
+    raise exception 'Regular staff created a rental';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'RENTAL_ACCESS_DENIED' then
+        raise;
+      end if;
+  end;
+
+  begin
+    perform public.create_department_order_with_lines(
+      '82000000-0000-0000-0000-000000000002',
+      '10000000-0000-0000-0000-000000000001',
+      null,
+      null,
+      'Unauthorized order',
+      '[]'::jsonb
+    );
+
+    raise exception 'Regular staff created an order';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'ORDER_ACCESS_DENIED' then
+        raise;
+      end if;
+  end;
+end;
+$$;
+
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000001',
+  true
+);
+
+insert into public.rt_aide_notes (
+  id,
+  department_id,
+  note_text,
+  priority,
+  status,
+  created_by_staff_profile_id,
+  created_by_name
+)
+values (
+  '83000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  'Go-live audit aide note',
+  'normal',
+  'new',
+  '30000000-0000-0000-0000-000000000001',
+  'Audit Lead'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000002',
+  true
+);
+
+update public.rt_aide_notes
+set
+  status = 'closed',
+  acknowledged_at = clock_timestamp(),
+  acknowledged_by_staff_profile_id = '30000000-0000-0000-0000-000000000002',
+  acknowledged_by_name = 'Audit Aide',
+  response_text = 'Audit response',
+  responded_at = clock_timestamp(),
+  responded_by_staff_profile_id = '30000000-0000-0000-0000-000000000002',
+  responded_by_name = 'Audit Aide',
+  closed_at = clock_timestamp(),
+  closed_by_staff_profile_id = '30000000-0000-0000-0000-000000000002',
+  closed_by_name = 'Audit Aide'
+where id = '83000000-0000-0000-0000-000000000001';
+
+do $$
+begin
+  if (
+    select status
+    from public.rt_aide_notes
+    where id = '83000000-0000-0000-0000-000000000001'
+  ) <> 'closed' then
+    raise exception 'RT aide note did not complete its lifecycle';
+  end if;
+end;
+$$;
+
+reset role;
+
 insert into public.schedule_versions (
   id,
   department_id,
@@ -761,6 +1003,31 @@ values (
   'day_shift',
   '06:30',
   '19:00',
+  'scheduled'
+);
+
+insert into public.schedule_entries (
+  id,
+  schedule_version_id,
+  department_id,
+  staff_profile_id,
+  shift_date,
+  day_of_week,
+  shift_type,
+  shift_start,
+  shift_end,
+  entry_status
+)
+values (
+  '50000000-0000-0000-0000-000000000002',
+  '40000000-0000-0000-0000-000000000001',
+  '10000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000002',
+  '2099-01-03',
+  'Saturday',
+  'night_shift',
+  '18:30',
+  '07:00',
   'scheduled'
 );
 
@@ -866,6 +1133,90 @@ begin
 end;
 $$;
 
+insert into public.shift_requests (
+  id,
+  department_id,
+  schedule_entry_id,
+  staff_profile_id,
+  request_type,
+  status,
+  created_by
+)
+values (
+  '60000000-0000-0000-0000-000000000002',
+  '10000000-0000-0000-0000-000000000001',
+  '50000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000003',
+  'switch_requested',
+  'active',
+  '20000000-0000-0000-0000-000000000003'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000002',
+  true
+);
+
+insert into public.shift_request_offers (
+  id,
+  department_id,
+  shift_request_id,
+  offer_type,
+  offered_by_staff_profile_id,
+  offered_schedule_entry_id,
+  status
+)
+values (
+  '70000000-0000-0000-0000-000000000003',
+  '10000000-0000-0000-0000-000000000001',
+  '60000000-0000-0000-0000-000000000002',
+  'switch',
+  '30000000-0000-0000-0000-000000000002',
+  '50000000-0000-0000-0000-000000000002',
+  'offered'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '11000000-0000-0000-0000-000000000003',
+  true
+);
+
+select public.respond_to_shift_request_offer(
+  '70000000-0000-0000-0000-000000000003',
+  'accepted'
+);
+
+do $$
+begin
+  if (
+    select status
+    from public.shift_requests
+    where id = '60000000-0000-0000-0000-000000000002'
+  ) <> 'resolved'::public.shift_request_status then
+    raise exception 'Accepted switch did not resolve request';
+  end if;
+
+  begin
+    perform public.save_self_managed_shift(
+      '10000000-0000-0000-0000-000000000001',
+      'add',
+      null,
+      '2099-01-02',
+      'night_shift',
+      '18:30',
+      '07:00',
+      'Audit duplicate add'
+    );
+
+    raise exception 'Duplicate active self-managed shift was accepted';
+  exception
+    when unique_violation then null;
+  end;
+end;
+$$;
+
 select set_config(
   'request.jwt.claim.sub',
   '11000000-0000-0000-0000-000000000005',
@@ -896,6 +1247,24 @@ begin
       and audit.after_json ->> 'assigned_role' = 'staff'
   ) then
     raise exception 'Role change audit did not capture actor and before/after roles';
+  end if;
+
+  update public.staff_profiles
+  set is_active = false
+  where id = '30000000-0000-0000-0000-000000000003';
+
+  update public.staff_profiles
+  set is_active = true
+  where id = '30000000-0000-0000-0000-000000000003';
+
+  if (
+    select count(*)
+    from public.audit_events audit
+    where audit.entity_id = '30000000-0000-0000-0000-000000000003'
+      and audit.event_type = 'staff_access_changed'
+      and audit.actor_profile_id = '20000000-0000-0000-0000-000000000005'
+  ) < 2 then
+    raise exception 'User deactivate/reactivate lifecycle was not fully audited';
   end if;
 
   begin
