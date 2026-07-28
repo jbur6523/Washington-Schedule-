@@ -41,7 +41,7 @@ Returning claimed users are not forced through contact setup on every login. Sta
 - Authenticated department members can view Staff Directory records allowed by RLS.
 - The normal Staff Directory is a shared contact directory and does not show usernames, claim status, auth links, or reset controls.
 - Admin users can create and edit staff profiles.
-- Admin users can assign `staff`, `lead`, or `aide` from the roster Role control. Only username `burj` is admin.
+- Admin users can assign app and operations access from the roster Role controls. A username never grants a role.
 - Admin users can reset/unclaim staff accounts without deleting the staff profile.
 - Admin users can preload phone numbers by assigned username.
 - Selecting `Aide` grants Aide Dashboard and Rental Management access without granting lead/admin schedule permissions.
@@ -126,7 +126,7 @@ Phone preload updates only `staff_profiles.phone_number`. It does not add schedu
 - Normalize by lowercasing and removing spaces, hyphens, apostrophes, and punctuation.
 - Append a number for duplicates, such as `burj2`.
 - `Bei Yi` is always `yibe`.
-- `burj` is reserved for Jonathan Burdick and is the only admin username.
+- Administrator access is assigned explicitly on the staff record and is independent of the username.
 - Lead defaults are Allan Timbang, Jonathan Burdick, Heather Heath, Tom Nguyen, Win Hlaing, Bei Yi, Katryna Vuong, Joann Devera, Victor Davis, Jean Rodrillo, Gene Benoza, and Stephanie Ortiz.
 - Usernames are permanent after account claim. Admins can regenerate usernames only while a profile is unclaimed.
 

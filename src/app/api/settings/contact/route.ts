@@ -36,7 +36,11 @@ export async function POST(request: Request) {
   const email = normalizeOptional(body.email);
   const preferredContactMethod = normalizePreferredContactMethod(body.preferredContactMethod);
 
-  if (!isValidEmail(email)) {
+  if (
+    !isValidEmail(email)
+    || (email?.length ?? 0) > 254
+    || (phoneNumber?.length ?? 0) > 50
+  ) {
     return NextResponse.json({ message: "Contact information is invalid." }, { status: 400 });
   }
 

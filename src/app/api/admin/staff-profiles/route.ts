@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { normalizeUsername } from "@/lib/auth/username";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 type StaffRole = "admin" | "lead" | "staff";
 type EmploymentType = "full_time" | "per_diem";
@@ -34,22 +35,19 @@ function cleanOptional(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function safeAssignedRole(usernameNormalized: string, requestedRole: unknown): StaffRole {
-  if (usernameNormalized === "burj") {
-    return "admin";
-  }
+function validOptionalEmail(value: unknown) {
+  const email = cleanOptional(value);
+  return !email || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
 
-  return requestedRole === "lead" ? "lead" : "staff";
+function safeAssignedRole(requestedRole: unknown): StaffRole {
+  return requestedRole === "admin" || requestedRole === "lead" ? requestedRole : "staff";
 }
 
 function validatePayload(payload: StaffProfilePayload, departmentId: string) {
   const displayName = typeof payload.display_name === "string" ? payload.display_name.trim() : "";
   const username = typeof payload.username === "string" ? payload.username.trim() : "";
-  const usernameNormalized = normalizeUsername(
-    typeof payload.username_normalized === "string" && payload.username_normalized.trim()
-      ? payload.username_normalized
-      : username
-  );
+  const usernameNormalized = normalizeUsername(username);
   const employmentType = payload.employment_type;
   const homeAssignment = payload.home_assignment;
   const preferredContactMethod = payload.preferred_contact_method;
@@ -59,8 +57,24 @@ function validatePayload(payload: StaffProfilePayload, departmentId: string) {
     return { error: "Staff name is required." };
   }
 
+  if (displayName.length > 120) {
+    return { error: "Staff name must be 120 characters or fewer." };
+  }
+
   if (!usernameNormalized) {
     return { error: "Assigned username is required." };
+  }
+
+  if (usernameNormalized.length > 80) {
+    return { error: "Assigned username must be 80 characters or fewer." };
+  }
+
+  if ((cleanOptional(payload.phone_number)?.length ?? 0) > 50) {
+    return { error: "Phone number must be 50 characters or fewer." };
+  }
+
+  if (!validOptionalEmail(payload.email)) {
+    return { error: "Email address is invalid." };
   }
 
   if (!employmentType || !validEmploymentTypes.has(employmentType)) {
@@ -89,7 +103,7 @@ function validatePayload(payload: StaffProfilePayload, departmentId: string) {
       display_name: displayName,
       username: username || usernameNormalized,
       username_normalized: usernameNormalized,
-      assigned_role: safeAssignedRole(usernameNormalized, payload.assigned_role),
+      assigned_role: safeAssignedRole(payload.assigned_role),
       operations_role: operationsRole,
       employment_type: employmentType,
       home_assignment: homeAssignment,
@@ -126,6 +140,10 @@ export async function POST(request: Request) {
   const inputProfiles = Array.isArray(body?.profiles) ? body.profiles : [body];
   const payloads = [];
 
+  if (inputProfiles.length === 0 || inputProfiles.length > 500) {
+    return NextResponse.json({ message: "Submit between 1 and 500 staff profiles." }, { status: 400 });
+  }
+
   for (const item of inputProfiles) {
     const validation = validatePayload(item ?? {}, guard.context.departmentId);
 
@@ -148,7 +166,6 @@ export async function POST(request: Request) {
   const { data: existing, error: existingError } = await guard.supabase
     .from("staff_profiles")
     .select("id, username_normalized, display_name")
-    .eq("department_id", guard.context.departmentId)
     .in(
       "username_normalized",
       payloads.map((payload) => payload.username_normalized)
@@ -162,7 +179,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "A staff profile with that username already exists." }, { status: 409 });
   }
 
-  const { data, error } = await guard.supabase.from("staff_profiles").insert(payloads).select("id");
+  const authenticatedSupabase = await createServerClient();
+  const { data, error } = await authenticatedSupabase
+    .from("staff_profiles")
+    .insert(payloads)
+    .select("id");
 
   if (error) {
     return NextResponse.json({ message: "Unable to create staff profile." }, { status: 400 });

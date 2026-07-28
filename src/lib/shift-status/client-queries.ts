@@ -65,6 +65,8 @@ async function queryShiftStatusUpdates(supabase: SupabaseClient, departmentId: s
     .select(selectColumns)
     .eq("department_id", departmentId)
     .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(limit);
 
   return {

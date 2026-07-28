@@ -41,6 +41,17 @@ function zonedDateHour(timezone = "America/Los_Angeles", date = new Date()) {
   };
 }
 
+function previousIsoDate(dateValue: string) {
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const previous = new Date(Date.UTC(year, month - 1, day - 1));
+
+  return [
+    previous.getUTCFullYear().toString().padStart(4, "0"),
+    (previous.getUTCMonth() + 1).toString().padStart(2, "0"),
+    previous.getUTCDate().toString().padStart(2, "0")
+  ].join("-");
+}
+
 export function currentShiftType(timezone = "America/Los_Angeles", date = new Date()) {
   const { hour } = zonedDateHour(timezone, date);
   return hour >= 8 && hour < 20 ? "day" : "night";
@@ -64,7 +75,9 @@ export function currentShiftStatusWindow(timezone = "America/Los_Angeles", date 
   }
 
   return {
-    shiftDate: dateValue,
+    // The operational date for the midnight-to-08:00 portion of a night
+    // shift is the date on which that shift began.
+    shiftDate: previousIsoDate(dateValue),
     shiftType: "night" as ShiftStatusShiftType
   };
 }
@@ -166,7 +179,19 @@ export function officialVentForWindow(
 }
 
 export function latestShiftStatus(updates: ShiftStatusUpdate[]) {
-  return [...updates].sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())[0] ?? null;
+  return [...updates].sort((left, right) => {
+    const updatedAtDifference = new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
+    if (updatedAtDifference !== 0) {
+      return updatedAtDifference;
+    }
+
+    const createdAtDifference = new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    if (createdAtDifference !== 0) {
+      return createdAtDifference;
+    }
+
+    return right.id.localeCompare(left.id);
+  })[0] ?? null;
 }
 
 export function latestShiftStatusFor(updates: ShiftStatusUpdate[], shiftDate: string, shiftType: ShiftStatusShiftType) {
@@ -181,21 +206,15 @@ export function resolveCurrentShiftStatus(
   const currentWindow = currentShiftStatusWindow(timezone, date);
   const latestAny = latestShiftStatus(updates);
   const currentLatest = latestShiftStatusFor(updates, currentWindow.shiftDate, currentWindow.shiftType);
-  const fallbackWindowUpdates = updates.filter(
-    (update) =>
-      update.shift_date === currentWindow.shiftDate &&
-      (currentWindow.shiftType === "day" || update.shift_type === currentWindow.shiftType)
-  );
-  const fallbackLatest = latestShiftStatus(fallbackWindowUpdates);
-  const latest = latestAny ?? currentLatest ?? fallbackLatest;
 
   return {
     currentWindow,
-    latest,
+    // Never substitute a prior operational shift into a current-shift card.
+    latest: currentLatest,
     currentLatest,
-    fallbackLatest,
+    fallbackLatest: null,
     latestAny,
-    showingFallback: Boolean(latest && latest.id !== currentLatest?.id)
+    showingFallback: false
   };
 }
 

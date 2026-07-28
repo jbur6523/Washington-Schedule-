@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhoneListClient } from "@/components/PhoneListClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
@@ -45,6 +45,8 @@ const authContext: AuthenticatedUserContext = {
 
 describe("PhoneListClient", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-07-27T15:00:00-07:00"));
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: "draft-1", error: null });
     mocks.tableResults.clear();
@@ -81,6 +83,10 @@ describe("PhoneListClient", () => {
     });
     mocks.tableResults.set("user_schedule_overrides", { data: [], error: null });
     mocks.tableResults.set("phone_list_drafts", { data: null, error: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows the complete active directory and commits roster shortcuts", async () => {
@@ -228,9 +234,9 @@ describe("PhoneListClient", () => {
     mocks.tableResults.set("phone_list_drafts", {
       data: {
         id: "draft-1",
-        schedule_date: "2026-07-24",
+        schedule_date: "2026-07-27",
         shift_type: "day",
-        updated_at: "2026-07-24T12:00:00Z",
+        updated_at: "2026-07-27T22:00:00Z",
         phone_list_assignments: [
           {
             row_key: "main_lead_therapist",
@@ -245,7 +251,9 @@ describe("PhoneListClient", () => {
 
     render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
 
-    expect(await screen.findByTestId("staff-name-main_lead_therapist")).toHaveValue("Alpha Therapist");
+    await waitFor(() =>
+      expect(screen.getByTestId("staff-name-main_lead_therapist")).toHaveValue("Alpha Therapist")
+    );
     expect(screen.getByTestId("phone-number-main_lead_therapist")).toHaveValue("6303");
     expect(screen.getByText(/Saved/)).toBeInTheDocument();
   });

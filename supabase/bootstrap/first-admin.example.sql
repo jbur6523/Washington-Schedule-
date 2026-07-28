@@ -1,5 +1,7 @@
 -- Manual first-admin bootstrap for the Washington-Schedule internal pilot.
--- Review and run this manually before the first admin claims username burj.
+-- Review and run this manually to pre-create the initial administrator record.
+-- The explicit assigned_role value grants access; the username has no special
+-- authorization behavior.
 -- This is not an automatic migration.
 -- Do not include real phone numbers unless approved by hospital policy.
 

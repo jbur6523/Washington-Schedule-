@@ -222,13 +222,13 @@ export function shiftCategoryForType(shiftType: string): "day" | "night" {
 }
 
 export function dayNameFromDate(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(date);
 }
 
 export function compactDateLabel(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  return new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric" }).format(date);
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric", timeZone: "UTC" }).format(date);
 }
 
 function formatTimeValue(value: string) {

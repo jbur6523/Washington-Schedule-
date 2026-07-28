@@ -143,6 +143,10 @@ function isMissingOptionalIcuColumn(error: IcuLoadError | null) {
 }
 
 function logIcuLoadError(context: string, departmentId: string, error: IcuLoadError) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
   console.error("ICU snapshot load failed", {
     context,
     departmentId,
@@ -199,10 +203,12 @@ async function attachUpdatedByNames(records: IcuReadOnlyRecord[], supabase: Retu
   const { data, error } = await supabase.from("staff_profiles").select("id, display_name").in("id", staffIds);
 
   if (error) {
-    console.warn("ICU snapshot updater names unavailable", {
-      code: error.code,
-      message: error.message
-    });
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("ICU snapshot updater names unavailable", {
+        code: error.code,
+        message: error.message
+      });
+    }
     return records;
   }
 
@@ -245,8 +251,10 @@ export function useIcuPatients(departmentId: string) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadRecords = useCallback(async () => {
-    setLoading(true);
+  const loadRecords = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError("");
 
     const supabase = createClient();
@@ -271,9 +279,11 @@ export function useIcuPatients(departmentId: string) {
         setLoading(false);
 
         if (!fallbackError) {
-          console.warn("ICU snapshot loaded with legacy column fallback. Apply the latest ICU migrations to restore full lifecycle fields.", {
-            departmentId
-          });
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("ICU snapshot loaded with legacy column fallback. Apply the latest ICU migrations to restore full lifecycle fields.", {
+              departmentId
+            });
+          }
           const fallbackRecords = ((fallbackData ?? []) as Partial<IcuPatientRecord>[]).map(normalizeIcuRecord);
           setRecords(await attachUpdatedByNames(fallbackRecords, supabase));
           return;
@@ -299,6 +309,37 @@ export function useIcuPatients(departmentId: string) {
       void loadRecords();
     });
   }, [loadRecords]);
+
+  useEffect(() => {
+    let refreshTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void loadRecords(false);
+      }, 200);
+    };
+    const interval = window.setInterval(refresh, 60_000);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`icu-readonly-${departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patients",
+          filter: `department_id=eq.${departmentId}`
+        },
+        refresh
+      )
+      .subscribe();
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [departmentId, loadRecords]);
 
   return { records, loading, error, reload: loadRecords };
 }

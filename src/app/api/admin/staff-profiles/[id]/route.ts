@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { normalizeUsername } from "@/lib/auth/username";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -37,22 +38,19 @@ function cleanOptional(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function safeAssignedRole(usernameNormalized: string, requestedRole: unknown): StaffRole {
-  if (usernameNormalized === "burj") {
-    return "admin";
-  }
+function validOptionalEmail(value: unknown) {
+  const email = cleanOptional(value);
+  return !email || (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+}
 
-  return requestedRole === "lead" ? "lead" : "staff";
+function safeAssignedRole(requestedRole: unknown): StaffRole {
+  return requestedRole === "admin" || requestedRole === "lead" ? requestedRole : "staff";
 }
 
 function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized: string) {
   const displayName = typeof payload.display_name === "string" ? payload.display_name.trim() : "";
   const requestedUsername = typeof payload.username === "string" ? payload.username.trim() : "";
-  const usernameNormalized = normalizeUsername(
-    typeof payload.username_normalized === "string" && payload.username_normalized.trim()
-      ? payload.username_normalized
-      : requestedUsername || currentUsernameNormalized
-  );
+  const usernameNormalized = normalizeUsername(requestedUsername || currentUsernameNormalized);
   const employmentType = payload.employment_type;
   const homeAssignment = payload.home_assignment;
   const preferredContactMethod = payload.preferred_contact_method;
@@ -62,8 +60,24 @@ function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized
     return { error: "Staff name is required." };
   }
 
+  if (displayName.length > 120) {
+    return { error: "Staff name must be 120 characters or fewer." };
+  }
+
   if (!usernameNormalized) {
     return { error: "Assigned username is required." };
+  }
+
+  if (usernameNormalized.length > 80) {
+    return { error: "Assigned username must be 80 characters or fewer." };
+  }
+
+  if ((cleanOptional(payload.phone_number)?.length ?? 0) > 50) {
+    return { error: "Phone number must be 50 characters or fewer." };
+  }
+
+  if (!validOptionalEmail(payload.email)) {
+    return { error: "Email address is invalid." };
   }
 
   if (!employmentType || !validEmploymentTypes.has(employmentType)) {
@@ -91,7 +105,7 @@ function validatePayload(payload: StaffProfilePayload, currentUsernameNormalized
       display_name: displayName,
       username: requestedUsername || usernameNormalized,
       username_normalized: usernameNormalized,
-      assigned_role: safeAssignedRole(usernameNormalized, payload.assigned_role),
+      assigned_role: safeAssignedRole(payload.assigned_role),
       operations_role: operationsRole,
       employment_type: employmentType,
       home_assignment: homeAssignment,
@@ -118,7 +132,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const supabase = createAdminClient();
   const { data: currentProfile, error: readError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, profile_id, username_normalized, is_active")
+    .select("id, department_id, profile_id, username_normalized, assigned_role, is_active")
     .eq("id", id)
     .eq("department_id", auth.context.departmentId)
     .maybeSingle();
@@ -135,17 +149,36 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   if (
-    currentProfile.is_active &&
-    validation.data.is_active === false &&
+    (validation.data.is_active === false || validation.data.assigned_role !== "admin") &&
     (currentProfile.id === auth.context.staffProfileId || currentProfile.profile_id === auth.context.profileId)
   ) {
-    return NextResponse.json({ message: "You cannot deactivate your own access." }, { status: 400 });
+    return NextResponse.json({ message: "You cannot remove your own administrator access." }, { status: 400 });
+  }
+
+  if (
+    currentProfile.assigned_role === "admin" &&
+    currentProfile.is_active &&
+    (validation.data.assigned_role !== "admin" || validation.data.is_active === false)
+  ) {
+    const { count: activeAdminCount, error: activeAdminError } = await supabase
+      .from("staff_profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("department_id", auth.context.departmentId)
+      .eq("assigned_role", "admin")
+      .eq("is_active", true);
+
+    if (activeAdminError) {
+      return NextResponse.json({ message: "Unable to validate administrator access." }, { status: 400 });
+    }
+
+    if ((activeAdminCount ?? 0) <= 1) {
+      return NextResponse.json({ message: "At least one active administrator is required." }, { status: 400 });
+    }
   }
 
   const { data: duplicate, error: duplicateError } = await supabase
     .from("staff_profiles")
     .select("id")
-    .eq("department_id", auth.context.departmentId)
     .eq("username_normalized", validation.data.username_normalized)
     .neq("id", id)
     .maybeSingle();
@@ -158,22 +191,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ message: "A staff profile with that username already exists." }, { status: 409 });
   }
 
-  const { error: updateError } = await supabase
+  // Use the caller's authenticated database session for the final mutation so
+  // the database access-audit trigger records the administrator as the actor.
+  const authenticatedSupabase = await createServerClient();
+  const { error: updateError } = await authenticatedSupabase
     .from("staff_profiles")
     .update(validation.data)
     .eq("id", id)
     .eq("department_id", auth.context.departmentId);
 
   if (updateError) {
-    return NextResponse.json({ message: "Unable to update staff profile." }, { status: 400 });
-  }
-
-  if (currentProfile.profile_id) {
-    await supabase
-      .from("department_memberships")
-      .update({ role: validation.data.assigned_role })
-      .eq("department_id", auth.context.departmentId)
-      .eq("profile_id", currentProfile.profile_id);
+    const message = updateError.message.includes("administrator")
+      ? updateError.message
+      : "Unable to update staff profile.";
+    return NextResponse.json({ message }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });

@@ -1,5 +1,6 @@
 import "server-only";
 
+import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { createClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
 import type { AppRole, AuthContextResult, OperationsRole } from "@/lib/auth/types";
 
@@ -17,6 +18,10 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     return { status: "unauthenticated" };
   }
 
+  if (!hasSupabaseAdminConfig()) {
+    return { status: "error", message: "Account verification is not configured." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user }
@@ -26,38 +31,67 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     return { status: "unauthenticated" };
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, display_name, email")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
-  if (!profile) {
-    return { status: "unassigned", displayName: user.email ?? undefined };
+  if (profileError) {
+    return { status: "error", message: "Could not verify your account profile." };
   }
 
-  const { data: membership } = await supabase
+  if (!profile) {
+    return { status: "unassigned" };
+  }
+
+  // Inactive users are intentionally invisible through normal RLS. Resolve
+  // only the staff row linked to this already-verified Auth profile on the
+  // server so deactivation can produce a clear inactive state while still
+  // denying every application data query.
+  const admin = createAdminClient();
+  const { data: staffProfiles, error: staffProfileError } = await admin
+    .from("staff_profiles")
+    .select("id, department_id, profile_id, auth_user_id, operations_role, is_active")
+    .eq("profile_id", profile.id)
+    .limit(2);
+
+  if (staffProfileError) {
+    return { status: "error", displayName: profile.display_name, message: "Could not verify your staff access." };
+  }
+
+  if ((staffProfiles ?? []).length > 1) {
+    return { status: "error", displayName: profile.display_name, message: "Multiple staff assignments require administrator review." };
+  }
+
+  const staffProfile = staffProfiles?.[0] ?? null;
+
+  if (!staffProfile) {
+    return { status: "unassigned", displayName: profile.display_name };
+  }
+
+  if (staffProfile.auth_user_id && staffProfile.auth_user_id !== user.id) {
+    return { status: "error", displayName: profile.display_name, message: "Could not verify your staff access." };
+  }
+
+  if (!staffProfile.is_active) {
+    return { status: "inactive", displayName: profile.display_name };
+  }
+
+  const { data: membership, error: membershipError } = await admin
     .from("department_memberships")
     .select("role, department_id, departments(id, name)")
     .eq("profile_id", profile.id)
-    .limit(1)
+    .eq("department_id", staffProfile.department_id)
     .maybeSingle<MembershipRow>();
+
+  if (membershipError) {
+    return { status: "error", displayName: profile.display_name, message: "Could not verify your department access." };
+  }
 
   if (!membership?.departments) {
     return { status: "unassigned", displayName: profile.display_name };
   }
-
-  /*
-   * TODO: Staff deactivation access lockout is deferred until management/IT
-   * approval and safer auth testing. Do not use staff_profiles.is_active as a
-   * hard login/session gate in this emergency stabilization path.
-   */
-  const { data: staffProfile } = await supabase
-    .from("staff_profiles")
-    .select("id, operations_role")
-    .eq("department_id", membership.department_id)
-    .eq("profile_id", profile.id)
-    .maybeSingle();
 
   const operationsRoleValues = new Set<OperationsRole>([
     "none",
@@ -75,13 +109,13 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     context: {
       authUserId: user.id,
       profileId: profile.id,
-      staffProfileId: staffProfile?.id ?? null,
+      staffProfileId: staffProfile.id,
       departmentId: membership.department_id,
       departmentName: membership.departments.name,
       role: membership.role,
       operationsRole: operationsRole as OperationsRole,
       displayName: profile.display_name,
-      hasLinkedStaffProfile: Boolean(staffProfile?.id)
+      hasLinkedStaffProfile: true
     }
   };
 }

@@ -54,7 +54,7 @@ After the bootstrap SQL is run, Jonathan can open the app, enter username `burj`
 - Duplicates receive a numeric suffix.
 - Username values are stored on `staff_profiles.username` and `staff_profiles.username_normalized`.
 - Supabase Auth still uses email/password internally. The app maps a username to an internal auth email in server/client auth code.
-- `burj` is the only admin username and belongs to Jonathan Burdick.
+- Assign the initial administrator explicitly with `assigned_role = 'admin'`; the username itself does not grant administrator access.
 - Leads are represented with the `lead` membership role.
 
 Default lead staff:

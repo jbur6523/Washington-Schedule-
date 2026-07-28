@@ -29,6 +29,10 @@ import {
   ventModeOptions
 } from "@/lib/icu-command-center/utils";
 import { createClient } from "@/lib/supabase/client";
+import {
+  timeZoneParts,
+  wallTimeToIso
+} from "@/lib/time/zoned-date-time";
 
 type IcuCommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
@@ -162,6 +166,43 @@ function numericOrNull(value: string) {
   return trimmed ? Number(trimmed) : null;
 }
 
+const numericFieldLabels: Array<[keyof IcuPatientForm, string]> = [
+  ["rate", "Rate"],
+  ["tidal_volume", "Tidal Volume"],
+  ["peep", "PEEP"],
+  ["fio2", "FiO2"],
+  ["ps", "Pressure Support"],
+  ["t_high", "T High"],
+  ["t_low", "T Low"],
+  ["p_high", "P High"],
+  ["p_low", "P Low"],
+  ["percent_min_vol", "% Min Vol"],
+  ["ipap", "IPAP"],
+  ["epap", "EPAP"],
+  ["cpap", "CPAP"],
+  ["flow", "Flow"]
+];
+
+function validateIcuNumericFields(form: IcuPatientForm) {
+  for (const [field, label] of numericFieldLabels) {
+    const value = form[field];
+    if (typeof value !== "string" || !value.trim()) {
+      continue;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return `${label} must be a non-negative number.`;
+    }
+
+    if (field === "fio2" && parsed > 100) {
+      return "FiO2 must be between 0 and 100.";
+    }
+  }
+
+  return null;
+}
+
 function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
   return {
     bed: record.bed,
@@ -228,52 +269,6 @@ function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unk
     criticalVent: record.is_critical_vent,
     ...extra
   };
-}
-
-function timeZoneParts(date: Date, timeZone = icuTimezone) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(date);
-
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-
-  return {
-    year: Number(value("year")),
-    month: Number(value("month")),
-    day: Number(value("day")),
-    hour: Number(value("hour")),
-    minute: Number(value("minute")),
-    second: Number(value("second"))
-  };
-}
-
-function timezoneOffsetMs(date: Date, timeZone = icuTimezone) {
-  const parts = timeZoneParts(date, timeZone);
-  const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return asUtc - date.getTime();
-}
-
-function wallTimeToIso(dateValue: string, timeValue: string, timeZone = icuTimezone) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  const [hour, minute] = timeValue.split(":").map(Number);
-
-  if (!year || !month || !day || Number.isNaN(hour) || Number.isNaN(minute)) {
-    return "";
-  }
-
-  const initial = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
-  const firstPass = new Date(initial.getTime() - timezoneOffsetMs(initial, timeZone));
-  const secondPass = new Date(initial.getTime() - timezoneOffsetMs(firstPass, timeZone));
-
-  return secondPass.toISOString();
 }
 
 function defaultIcuDateTime() {
@@ -440,6 +435,10 @@ function IcuNumberInput({
     <label className="block">
       <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
       <input
+        type="number"
+        min={0}
+        max={label === "FiO2" ? 100 : undefined}
+        step="any"
         value={value}
         onChange={(event) => onChange(event.target.value)}
         inputMode="decimal"
@@ -587,8 +586,10 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     await signOutAndRedirect();
   };
 
-  const loadRecords = useCallback(async () => {
-    setLoading(true);
+  const loadRecords = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     setError("");
 
     const supabase = createClient();
@@ -610,8 +611,10 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setRecords((data ?? []) as unknown as IcuPatientRecord[]);
   }, [authContext.departmentId]);
 
-  const loadTodayActivity = useCallback(async () => {
-    setTodayActivityLoading(true);
+  const loadTodayActivity = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setTodayActivityLoading(true);
+    }
     setTodayActivityError("");
     const range = todayIcuDateRange();
 
@@ -643,6 +646,48 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     });
   }, [loadRecords, loadTodayActivity]);
 
+  useEffect(() => {
+    let refreshTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void loadRecords(false);
+        void loadTodayActivity(false);
+      }, 200);
+    };
+    const interval = window.setInterval(refresh, 60_000);
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`icu-command-center-${authContext.departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patients",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patient_events",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        refresh
+      )
+      .subscribe();
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [authContext.departmentId, loadRecords, loadTodayActivity]);
+
   const openAdd = () => {
     setEditingRecord(null);
     setForm(emptyForm);
@@ -667,8 +712,14 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setError("");
     setFormError("");
 
-    if (!form.bed || !form.device_type) {
+    const bed = form.bed.trim();
+    if (!bed || !form.device_type) {
       setFormError("Bed and device are required.");
+      return;
+    }
+
+    if (bed.length > 20) {
+      setFormError("Bed must be 20 characters or fewer.");
       return;
     }
 
@@ -677,9 +728,15 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       return;
     }
 
+    const numericValidationError = validateIcuNumericFields(form);
+    if (numericValidationError) {
+      setFormError(numericValidationError);
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
-    const payload = cleanPayload(form, authContext);
+    const payload = cleanPayload({ ...form, bed }, authContext);
     const result = editingRecord
       ? await supabase
           .from("icu_patients")
@@ -697,9 +754,9 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
     setSaving(false);
 
-    if (result.error) {
+    if (result.error || !result.data) {
       setFormError(
-        result.error.code === "23505"
+        result.error?.code === "23505"
           ? "That ICU bed already has an active record."
           : "Could not save ICU patient. Please try again."
       );
@@ -790,7 +847,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
     setActionSaving(false);
 
-    if (discontinueUpdateError) {
+    if (discontinueUpdateError || !data) {
       setDiscontinueError("Could not discontinue ICU device. Please try again.");
       return;
     }
@@ -851,7 +908,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
     setActionSaving(false);
 
-    if (updateError) {
+    if (updateError || !data) {
       setError("Could not update critical status. Please try again.");
       return;
     }

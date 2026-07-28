@@ -7,7 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdates, isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
-import { currentShiftType, shiftTypeLabel, todayInTimezone } from "@/lib/shift-status/utils";
+import { currentShiftStatusWindow, shiftTypeLabel } from "@/lib/shift-status/utils";
+import {
+  shiftStatusNumberValue,
+  validateShiftStatusCounts
+} from "@/lib/shift-status/validation";
 
 type ShiftUpdateForm = {
   shiftDate: string;
@@ -26,11 +30,6 @@ type ShiftUpdateForm = {
   updatedByStaffProfileId: string;
   updatedByName: string;
 };
-
-function numberValue(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
 
 function shiftSortKey(shiftDate: string, shiftType: ShiftStatusShiftType) {
   return `${shiftDate}-${shiftType === "day" ? "1" : "2"}`;
@@ -180,10 +179,11 @@ export function ShiftUpdateClient({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
+  const initialWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShiftUpdateForm>(() => ({
-    shiftDate: todayInTimezone(timezone),
-    shiftType: currentShiftType(timezone),
+    shiftDate: initialWindow.shiftDate,
+    shiftType: initialWindow.shiftType,
     rtsOn: "",
     rtsRequired: "",
     ventCount: "",
@@ -265,6 +265,12 @@ export function ShiftUpdateClient({
       return;
     }
 
+    const countValidationError = validateShiftStatusCounts(form);
+    if (countValidationError) {
+      setError(countValidationError);
+      return;
+    }
+
     setSaving(true);
     setError("");
     setMessage("");
@@ -273,15 +279,15 @@ export function ShiftUpdateClient({
       department_id: authContext.departmentId,
       shift_date: form.shiftDate,
       shift_type: form.shiftType,
-      rts_on: numberValue(form.rtsOn),
-      rts_required: numberValue(form.rtsRequired),
-      vent_count: numberValue(form.ventCount),
-      bipap_count: numberValue(form.bipapCount),
-      c_section_count: numberValue(form.cSectionCount),
-      cabg_count: numberValue(form.cabgCount),
-      bronch_count: numberValue(form.bronchCount),
-      sputum_induction_count: numberValue(form.sputumInductionCount),
-      other_procedure_count: numberValue(form.otherProcedureCount),
+      rts_on: shiftStatusNumberValue(form.rtsOn),
+      rts_required: shiftStatusNumberValue(form.rtsRequired),
+      vent_count: shiftStatusNumberValue(form.ventCount),
+      bipap_count: shiftStatusNumberValue(form.bipapCount),
+      c_section_count: shiftStatusNumberValue(form.cSectionCount),
+      cabg_count: shiftStatusNumberValue(form.cabgCount),
+      bronch_count: shiftStatusNumberValue(form.bronchCount),
+      sputum_induction_count: shiftStatusNumberValue(form.sputumInductionCount),
+      other_procedure_count: shiftStatusNumberValue(form.otherProcedureCount),
       other_procedure_note: form.otherProcedureNote.trim() || null,
       updated_by_staff_profile_id: form.updatedByStaffProfileId || null,
       updated_by_name: updatedByName
@@ -290,11 +296,13 @@ export function ShiftUpdateClient({
     const supabase = createClient();
     let { error: saveError } = await supabase.from("shift_status_updates").insert({
       ...basePayload,
-      vaginal_delivery_count: numberValue(form.vaginalDeliveryCount)
+      vaginal_delivery_count: shiftStatusNumberValue(form.vaginalDeliveryCount)
     });
 
     if (isMissingVaginalDeliveryColumn(saveError as ShiftStatusQueryError | null)) {
-      console.warn("Retrying shift update without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Retrying shift update without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      }
       const retry = await supabase.from("shift_status_updates").insert(basePayload);
       saveError = retry.error;
     }

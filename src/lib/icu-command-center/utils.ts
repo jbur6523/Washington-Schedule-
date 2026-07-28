@@ -196,8 +196,9 @@ export function formatIcuDeviceSummary(record: IcuPatientRecord) {
   return icuDeviceLabels[record.device_type];
 }
 
-export function formatIcuLastUpdated(value: string) {
+export function formatIcuLastUpdated(value: string, timezone = "America/Los_Angeles") {
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
     month: "2-digit",
     day: "2-digit",
     year: "numeric",

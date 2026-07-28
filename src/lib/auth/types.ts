@@ -16,5 +16,6 @@ export type AuthenticatedUserContext = {
 export type AuthContextResult =
   | { status: "authenticated"; context: AuthenticatedUserContext }
   | { status: "unauthenticated" }
+  | { status: "inactive"; displayName?: string }
   | { status: "unassigned"; displayName?: string }
   | { status: "error"; displayName?: string; message?: string };

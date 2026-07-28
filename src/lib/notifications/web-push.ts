@@ -69,14 +69,23 @@ function configureWebPush() {
 }
 
 function formatDateForNotification(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
-  const dateLabel = new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric" }).format(date);
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(date);
+  const dateLabel = new Intl.DateTimeFormat("en-US", { month: "numeric", day: "numeric", timeZone: "UTC" }).format(date);
   return `${weekday} ${dateLabel}`;
 }
 
-function formatTimeForQuietHours(date = new Date()) {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`;
+function formatTimeForQuietHours(date = new Date(), timezone = "America/Los_Angeles") {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "00";
+
+  return `${part("hour")}:${part("minute")}:${part("second")}`;
 }
 
 function isWithinQuietHours(preference: NotificationPreferenceRow) {

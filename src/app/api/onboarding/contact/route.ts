@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
-import { createClient, hasSupabaseServerConfig } from "@/lib/supabase/server";
+import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 
 type ContactSetupRequest = {
-  staffProfileId?: string;
   phoneNumber?: string;
   email?: string;
 };
@@ -23,29 +23,33 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as ContactSetupRequest;
-  const staffProfileId = body.staffProfileId ?? "";
   const phoneNumber = normalizeOptional(body.phoneNumber);
   const email = normalizeOptional(body.email);
 
-  if (!staffProfileId || !isValidEmail(email)) {
+  if (
+    !isValidEmail(email)
+    || (email?.length ?? 0) > 254
+    || (phoneNumber?.length ?? 0) > 50
+  ) {
     return NextResponse.json({ message: "Contact information is invalid." }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const auth = await getAuthenticatedUserContext();
 
-  if (!user) {
-    return NextResponse.json({ message: "Sign in required." }, { status: 401 });
+  if (auth.status !== "authenticated") {
+    return NextResponse.json(
+      { message: auth.status === "error" ? "Unable to verify access." : "Sign in required." },
+      { status: auth.status === "error" ? 503 : 401 }
+    );
   }
 
   const admin = createAdminClient();
   const { data: staffProfile, error: staffError } = await admin
     .from("staff_profiles")
     .select("id, auth_user_id")
-    .eq("id", staffProfileId)
-    .eq("auth_user_id", user.id)
+    .eq("id", auth.context.staffProfileId)
+    .eq("auth_user_id", auth.context.authUserId)
+    .eq("is_active", true)
     .maybeSingle();
 
   if (staffError || !staffProfile) {

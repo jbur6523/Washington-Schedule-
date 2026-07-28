@@ -15,7 +15,12 @@ function isUsablePhone(value: string) {
   const normalized = value.trim();
   const digits = normalized.replace(/\D/g, "");
 
-  return Boolean(normalized) && normalized.toUpperCase() !== "VERIFY" && digits.length >= 7;
+  return (
+    Boolean(normalized)
+    && normalized.length <= 50
+    && normalized.toUpperCase() !== "VERIFY"
+    && digits.length >= 7
+  );
 }
 
 export async function POST(request: Request) {
@@ -32,7 +37,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const rows = Array.isArray(body?.rows) ? (body.rows as PhonePreloadRow[]) : [];
 
-  if (rows.length === 0) {
+  if (rows.length === 0 || rows.length > 500) {
     return NextResponse.json({ message: "No ready phone rows were provided." }, { status: 400 });
   }
 

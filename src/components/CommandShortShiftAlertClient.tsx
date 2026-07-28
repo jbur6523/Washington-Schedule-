@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusStaffOption } from "@/lib/shift-status/types";
 import { createClient } from "@/lib/supabase/client";
-import { currentShiftType, formatShiftStatusNumber, getStaffingStatus, staffingStatusLabel, todayInTimezone } from "@/lib/shift-status/utils";
+import { currentShiftStatusWindow, formatShiftStatusNumber, getStaffingStatus, staffingStatusLabel } from "@/lib/shift-status/utils";
 
 type ShortShiftForm = {
   shiftDate: string;
@@ -30,11 +30,12 @@ export function CommandShortShiftAlertClient({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
+  const initialWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
   const [activeScheduleVersionId, setActiveScheduleVersionId] = useState("");
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShortShiftForm>(() => ({
-    shiftDate: todayInTimezone(timezone),
-    shiftType: currentShiftType(timezone) === "day" ? "day_shift" : "night_shift",
+    shiftDate: initialWindow.shiftDate,
+    shiftType: initialWindow.shiftType === "day" ? "day_shift" : "night_shift",
     rtsOn: "",
     rtsRequired: "",
     note: "",

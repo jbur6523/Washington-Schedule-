@@ -27,7 +27,7 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 - `staff_profiles.username` and `staff_profiles.username_normalized`: permanent department-assigned username.
 - `staff_profiles.account_claimed_at` and `staff_profiles.auth_user_id`: account claim/link state.
 - `staff_profiles.is_active`: roster display/filtering status. Emergency stabilization on 2026-07-07 deferred using this field as a hard login/session/protected-route access gate; inactive staff keep historical records and directory context.
-- `staff_profiles.assigned_role`: intended role for account claim. Only username `burj` may be assigned `admin`.
+- `staff_profiles.assigned_role`: administrator-assigned role inherited during account activation. Usernames do not assign or restrict roles.
 - Phone numbers are stored only in `staff_profiles.phone_number`.
 - General staff status updates are stored on `staff_profiles.status_message` and `staff_profiles.status_updated_at`.
 - Staff contact data is separate from schedule entries, requests, offers, import rows, and Cover/Switch data.
@@ -149,7 +149,7 @@ Roles are stored in `department_memberships.role`.
   - Create and cancel their own shift requests.
   - Create and cancel their own coverage offers.
 
-The app determines role and membership from `profiles`, `department_memberships`, and the linked active `staff_profiles` row. It must not trust role values sent from browser state. `burj` is the only admin username. Other lead users use the `lead` role.
+The app determines role and membership from `profiles`, `department_memberships`, and the linked active `staff_profiles` row. It must not trust role values sent from browser state. Usernames are identifiers only; they never confer Admin, Lead, Director, or other elevated access.
 
 Operational access beyond the normal app role is stored in `staff_profiles.operations_role`:
 
@@ -159,11 +159,13 @@ Operational access beyond the normal app role is stored in `staff_profiles.opera
 - `director`: read-only Director Shift Status access. Routes to `/director/shift-status` and cannot edit shift updates or rental workflows.
 - `icu_command_center`: shared ICU Command Center access. Routes to `/icu-command-center` and can edit ICU respiratory device/settings entries.
 
-Seeded special usernames:
+Pre-created operational usernames:
 
-- `sputum`: Command Center shared-device login. Temporary password target is `2000`.
-- `aloha`: Director read-only login. Password should be set through the normal password setup/reset process.
+- `sputum`: Command Center shared-device login.
+- `aloha`: Director read-only login.
 - `ventilator`: ICU Command Center shared-device login.
+
+These accounts use the same username activation flow as other pre-created staff records and inherit only the role and operations access assigned by an administrator. Passwords are never stored in source control or documentation.
 
 ## RLS Strategy
 

@@ -168,7 +168,7 @@ function applyStandardShiftTimes<T extends { shift_type: ShiftType; shift_start:
 }
 
 function dateOnly(value: string) {
-  return new Date(`${value}T12:00:00`);
+  return new Date(`${value}T12:00:00Z`);
 }
 
 function isoDate(date: Date) {
@@ -215,7 +215,7 @@ function timeToMinutes(timeValue: string) {
 
 function addDaysToIsoDate(dateValue: string, days: number) {
   const date = dateOnly(dateValue);
-  date.setDate(date.getDate() + days);
+  date.setUTCDate(date.getUTCDate() + days);
   return isoDate(date);
 }
 
@@ -244,9 +244,9 @@ function isShiftStillActionable(
 function getWeekRange(dateValue: string) {
   const date = dateOnly(dateValue);
   const start = new Date(date);
-  start.setDate(date.getDate() - date.getDay());
+  start.setUTCDate(date.getUTCDate() - date.getUTCDay());
   const end = new Date(start);
-  end.setDate(start.getDate() + 6);
+  end.setUTCDate(start.getUTCDate() + 6);
 
   return { start: isoDate(start), end: isoDate(end) };
 }
@@ -257,12 +257,22 @@ function isWithinWeek(dateValue: string, weekStart: string, weekEnd: string) {
 
 function formatDateShort(dateValue: string) {
   const date = dateOnly(dateValue);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "numeric", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "numeric",
+    day: "numeric",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 function formatManageShiftDate(dateValue: string) {
   const date = dateOnly(dateValue);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "short", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 function formatDateNumeric(dateValue: string) {
@@ -270,7 +280,8 @@ function formatDateNumeric(dateValue: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "2-digit",
     day: "2-digit",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "UTC"
   }).format(date);
 }
 
@@ -622,7 +633,7 @@ function MyStatusCard({
             maxLength={100}
             rows={2}
             disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
-            placeholder="Literally dying in the IMC"
+            placeholder="Available until 3 PM"
             className="min-h-16 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold leading-5 text-hospital-ink outline-none focus:border-cyan-300 disabled:opacity-60"
           />
           <p className="text-xs font-bold leading-5 text-slate-500">
@@ -726,9 +737,10 @@ function ScheduleScreen({
       )
       .forEach((override) => {
         const staffProfile = firstStaffProfile(override.staff_profiles);
-        const day = `${dayNameFromDate(override.shift_date)} ${new Date(`${override.shift_date}T12:00:00`).toLocaleDateString("en-US", {
+        const day = `${dayNameFromDate(override.shift_date)} ${new Date(`${override.shift_date}T12:00:00Z`).toLocaleDateString("en-US", {
           month: "numeric",
-          day: "numeric"
+          day: "numeric",
+          timeZone: "UTC"
         })}`;
         notes[shiftNoteKey(staffProfile?.display_name ?? "", day, formatShiftTime(override.shift_start, override.shift_end))] =
           override.note ?? "";
@@ -1241,28 +1253,15 @@ function ManageScheduleScreen({
     setSuccess("");
 
     const supabase = createClient();
-    const { error: offerError } = await supabase
-      .from("shift_request_offers")
-      .update({ status, responded_at: new Date().toISOString() })
-      .eq("id", offer.id);
+    const { error: offerError } = await supabase.rpc("respond_to_shift_request_offer", {
+      target_offer_id: offer.id,
+      response_status: status
+    });
 
     if (offerError) {
       setSaving(false);
       setActionError("Unable to update this offer.");
       return;
-    }
-
-    if (status === "accepted") {
-      const { error: requestError } = await supabase
-        .from("shift_requests")
-        .update({ status: "resolved", resolved_at: new Date().toISOString() })
-        .eq("id", offer.shift_request_id);
-
-      if (requestError) {
-        setSaving(false);
-        setActionError("Offer accepted, but the request could not be resolved.");
-        return;
-      }
     }
 
     await fetch("/api/notifications/offer-events", {
@@ -1421,7 +1420,6 @@ function ManageScheduleScreen({
     setSuccess("");
 
     const supabase = createClient();
-    const operations = [];
 
     if (addForm.mode === "available" && schedule) {
       const existingAvailability = schedule.overrides.find(
@@ -1442,48 +1440,27 @@ function ManageScheduleScreen({
       }
     }
 
-    if (addForm.mode === "move" && addForm.baseEntryId && schedule) {
-      const sourceEntry = schedule.entries.find((entry) => entry.id === addForm.baseEntryId);
-
-      if (sourceEntry) {
-        operations.push(
-          supabase.from("user_schedule_overrides").insert({
-            department_id: authContext.departmentId,
-            staff_profile_id: authContext.staffProfileId,
-            base_schedule_entry_id: sourceEntry.id,
-            override_type: "remove_self",
-            shift_date: sourceEntry.shift_date,
-            shift_type: sourceEntry.shift_type,
-            shift_start: sourceEntry.shift_start,
-            shift_end: sourceEntry.shift_end,
-            is_active: true
-          })
-        );
-      }
+    if (addForm.mode === "move" && (!addForm.baseEntryId || !schedule?.entries.some((entry) => entry.id === addForm.baseEntryId))) {
+      setSaving(false);
+      setActionError("Choose a current scheduled shift to move.");
+      return;
     }
 
-    operations.push(
-      supabase.from("user_schedule_overrides").insert({
-        department_id: authContext.departmentId,
-        staff_profile_id: authContext.staffProfileId,
-        base_schedule_entry_id: null,
-        override_type: addForm.mode === "available" ? "add_available" : "add_self",
-        shift_date: addForm.shift_date,
-        shift_type: addForm.shift_type,
-        shift_start: addForm.shift_start,
-        shift_end: addForm.shift_end,
-        note: addForm.note.trim() || null,
-        is_active: true
-      })
-    );
-
-    const results = await Promise.all(operations);
+    const { error: saveError } = await supabase.rpc("save_self_managed_shift", {
+      target_department_id: authContext.departmentId,
+      change_mode: addForm.mode,
+      source_schedule_entry_id: addForm.baseEntryId ?? null,
+      target_shift_date: addForm.shift_date,
+      target_shift_type: addForm.shift_type,
+      target_shift_start: addForm.shift_start,
+      target_shift_end: addForm.shift_end,
+      target_note: addForm.note.trim() || null
+    });
     setSaving(false);
 
-    if (results.some((result) => result.error)) {
-      const failed = results.find((result) => result.error)?.error;
+    if (saveError) {
       setActionError(
-        failed?.message.includes("add_available")
+        saveError.message.includes("add_available")
           ? "Unable to save availability. The self-reported availability migration may need to be applied."
           : "Unable to save your self-managed schedule change."
       );
@@ -1751,7 +1728,10 @@ function ManageScheduleScreen({
                 maxLength={140}
                 className="mt-1 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               />
-              <span className="mt-1 block text-xs font-bold text-slate-400">{addForm.note.length}/140</span>
+              <span className="mt-1 flex justify-between gap-2 text-xs font-bold text-slate-400">
+                <span>Do not include patient information.</span>
+                <span>{addForm.note.length}/140</span>
+              </span>
             </label>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2995,7 +2975,10 @@ function ShiftBoardScreen({
                 maxLength={140}
                 className="mt-1 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
               />
-              <span className="mt-1 block text-xs font-bold text-slate-400">{shortShiftForm.message.length}/140</span>
+              <span className="mt-1 flex justify-between gap-2 text-xs font-bold text-slate-400">
+                <span>Do not include patient information.</span>
+                <span>{shortShiftForm.message.length}/140</span>
+              </span>
             </label>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
@@ -3152,7 +3135,9 @@ function ShiftBoardScreen({
             className="mt-3 min-h-24 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
           />
           <div className="mt-2 flex items-center justify-between gap-2">
-            <span className="text-xs font-bold text-slate-400">{offerNote.length}/140</span>
+            <span className="text-xs font-bold text-slate-400">
+              No patient information. {offerNote.length}/140
+            </span>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -3281,7 +3266,10 @@ function ShiftBoardScreen({
                   maxLength={140}
                   className="mt-1 min-h-20 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                 />
-                <span className="mt-1 block text-xs font-bold text-slate-400">{manualSwitchForm.note.length}/140</span>
+                <span className="mt-1 flex justify-between gap-2 text-xs font-bold text-slate-400">
+                  <span>Do not include patient information.</span>
+                  <span>{manualSwitchForm.note.length}/140</span>
+                </span>
               </label>
             </div>
           )}
@@ -3350,12 +3338,14 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     return () => window.clearTimeout(timer);
   }, []);
 
-  const loadActiveSchedule = useCallback(async () => {
+  const loadActiveSchedule = useCallback(async (showLoading = true) => {
     if (developmentFallback) {
       return;
     }
 
-    setScheduleState((current) => ({ ...current, loading: true, error: "" }));
+    if (showLoading) {
+      setScheduleState((current) => ({ ...current, loading: true, error: "" }));
+    }
 
     const supabase = createClient();
     const { data: department, error: departmentError } = await supabase
@@ -3494,6 +3484,71 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
 
     return () => window.clearTimeout(timer);
   }, [loadActiveSchedule]);
+
+  useEffect(() => {
+    if (developmentFallback) {
+      return;
+    }
+
+    let refreshTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void loadActiveSchedule(false);
+      }, 250);
+    };
+    const interval = window.setInterval(refresh, 60_000);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refresh();
+      }
+    };
+    const supabase = createClient();
+    let channel = supabase
+      .channel(`schedule-coordination-${authContext.departmentId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "departments",
+          filter: `id=eq.${authContext.departmentId}`
+        },
+        refresh
+      );
+
+    for (const table of [
+      "schedule_versions",
+      "schedule_entries",
+      "shift_shortages",
+      "user_schedule_overrides",
+      "shift_requests",
+      "shift_request_offers"
+    ]) {
+      channel = channel.on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table,
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        refresh
+      );
+    }
+
+    channel.subscribe();
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", refresh);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", refresh);
+      void supabase.removeChannel(channel);
+    };
+  }, [authContext.departmentId, developmentFallback, loadActiveSchedule]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {

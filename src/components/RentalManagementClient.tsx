@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
+import { wallTimeToIso } from "@/lib/time/zoned-date-time";
 
 type RentalVendor = {
   id: string;
@@ -370,12 +371,27 @@ function rentalEventDotClass(eventType: string) {
 }
 
 function todayValue() {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "01";
+
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function timeValue() {
-  const now = new Date();
-  return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(new Date());
+  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "00";
+
+  return `${part("hour")}:${part("minute")}`;
 }
 
 function formatDateInput(value: string) {
@@ -978,12 +994,21 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return;
     }
 
+    const pendingAt = wallTimeToIso(
+      form.calledInDate,
+      form.calledInTime,
+      departmentTimezone
+    );
+    if (!pendingAt) {
+      setError("Called In Date and Time are not valid for Pacific time.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setDuplicateRental(null);
 
     const supabase = createClient();
-    const pendingAt = new Date(`${form.calledInDate}T${form.calledInTime}:00`).toISOString();
     const { data: pendingRecords, error: pendingError } = await supabase.rpc("create_pending_rental_delivery", {
       target_department_id: authContext.departmentId,
       target_vendor_id: form.vendorId,
@@ -1029,6 +1054,16 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return false;
     }
 
+    const deliveredAt = wallTimeToIso(
+      form.deliveredDate,
+      form.deliveredTime,
+      departmentTimezone
+    );
+    if (!deliveredAt) {
+      setError("Delivered Date and Time are not valid for Pacific time.");
+      return false;
+    }
+
     setSaving(true);
     setError("");
     setDuplicateRental(null);
@@ -1037,7 +1072,6 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
     const barcodeNumber = form.barcodeNumber.trim();
     const serialNumber = form.serialNumber.trim() || null;
     const location = currentLocation || "RT Equipment Room";
-    const deliveredAt = new Date(`${form.deliveredDate}T${form.deliveredTime}:00`).toISOString();
     const { data: existingRentals, error: existingRentalError } = await supabase
       .from("rental_records")
       .select(rentalRecordSelect)
@@ -1219,11 +1253,20 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return;
     }
 
+    const eventAt = wallTimeToIso(
+      returnForm.date,
+      returnForm.time,
+      departmentTimezone
+    );
+    if (!eventAt) {
+      setError("Pickup Call Date and Time are not valid for Pacific time.");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
     const supabase = createClient();
-    const eventAt = new Date(`${returnForm.date}T${returnForm.time}:00`).toISOString();
     const note = returnForm.note.trim() || null;
     const confirmationNumber = returnForm.confirmationNumber.trim() || null;
     const { error: transitionError } = await supabase.rpc("call_rental_pickup", {
@@ -1272,11 +1315,20 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
       return;
     }
 
+    const eventAt = wallTimeToIso(
+      pickupDateDraft,
+      pickupTimeDraft,
+      departmentTimezone
+    );
+    if (!eventAt) {
+      setError("Picked Up Date and Time are not valid for Pacific time.");
+      return;
+    }
+
     setSaving(true);
     setError("");
 
     const supabase = createClient();
-    const eventAt = new Date(`${pickupDateDraft}T${pickupTimeDraft}:00`).toISOString();
     const note = pickupNoteDraft.trim() || null;
     const { error: transitionError } = await supabase.rpc("confirm_rental_picked_up", {
       target_record_id: pendingPickupConfirmation.id,

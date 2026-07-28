@@ -21,7 +21,7 @@ export async function POST(_request: Request, context: RouteContext) {
   const supabase = createAdminClient();
   const { data: staffProfile, error: readError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, auth_user_id")
+    .select("id, department_id, profile_id, auth_user_id")
     .eq("id", id)
     .eq("department_id", auth.context.departmentId)
     .maybeSingle();
@@ -30,23 +30,24 @@ export async function POST(_request: Request, context: RouteContext) {
     return NextResponse.json({ message: "Unable to reset account." }, { status: 404 });
   }
 
-  if (staffProfile.auth_user_id) {
-    await supabase.auth.admin.deleteUser(staffProfile.auth_user_id);
+  if (staffProfile.id === auth.context.staffProfileId || staffProfile.profile_id === auth.context.profileId) {
+    return NextResponse.json({ message: "You cannot reset your own administrator account." }, { status: 400 });
   }
 
-  const { error: updateError } = await supabase
-    .from("staff_profiles")
-    .update({
-      profile_id: null,
-      auth_user_id: null,
-      account_claimed_at: null,
-      password_reset_required: true
-    })
-    .eq("id", id)
-    .eq("department_id", auth.context.departmentId);
+  if (staffProfile.auth_user_id) {
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(staffProfile.auth_user_id);
+    if (deleteError) {
+      return NextResponse.json({ message: "Unable to reset account." }, { status: 400 });
+    }
+  }
 
-  if (updateError) {
-    return NextResponse.json({ message: "Unable to reset account." }, { status: 400 });
+  const { error: resetError } = await supabase.rpc("reset_staff_account_link", {
+    target_staff_profile_id: staffProfile.id,
+    requested_actor_profile_id: auth.context.profileId
+  });
+
+  if (resetError) {
+    return NextResponse.json({ message: "Unable to finish resetting the account." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

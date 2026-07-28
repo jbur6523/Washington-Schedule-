@@ -1,6 +1,6 @@
 do $$
 begin
-  create type public.user_schedule_override_type as enum ('remove_self', 'add_self', 'move_self');
+  create type public.user_schedule_override_type as enum ('remove_self', 'add_self', 'move_self', 'add_available');
 exception
   when duplicate_object then null;
 end $$;

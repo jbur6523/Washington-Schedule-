@@ -221,7 +221,11 @@ function staffInitials(displayName: string | null | undefined) {
 
 function escapeCsvCell(value: unknown) {
   const stringValue = value === null || value === undefined ? "" : String(value);
-  return `"${stringValue.replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
+  const singleLineValue = stringValue.replace(/\r?\n/g, " ");
+  const spreadsheetSafeValue = /^[=+\-@\t\r]/.test(singleLineValue)
+    ? `'${singleLineValue}`
+    : singleLineValue;
+  return `"${spreadsheetSafeValue.replace(/"/g, '""')}"`;
 }
 
 function csvFromRows(rows: Array<Record<string, string>>) {

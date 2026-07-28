@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { authEmailForUsername, normalizeUsername } from "@/lib/auth/username";
-import type { AppRole } from "@/lib/auth/types";
+import type { AppRole, OperationsRole } from "@/lib/auth/types";
+
+export const dynamic = "force-dynamic";
 
 type ClaimRequest = {
   username?: string;
@@ -9,17 +11,31 @@ type ClaimRequest = {
   confirmPassword?: string;
 };
 
-function roleForClaim(username: string, assignedRole: AppRole | null): AppRole {
-  if (username === "burj") {
-    return "admin";
-  }
+type ClaimedStaffProfile = {
+  staff_profile_id: string;
+  department_id: string;
+  username: string;
+  display_name: string;
+  assigned_role: AppRole;
+  operations_role: OperationsRole;
+  phone_number: string | null;
+};
 
-  return assignedRole === "lead" ? "lead" : "staff";
+const noStoreHeaders = {
+  "Cache-Control": "no-store, max-age=0"
+};
+
+function claimError(
+  code: "not_found" | "already_claimed" | "invalid_request" | "unavailable",
+  message: string,
+  status: number
+) {
+  return NextResponse.json({ code, message }, { status, headers: noStoreHeaders });
 }
 
 export async function POST(request: Request) {
   if (!hasSupabaseAdminConfig()) {
-    return NextResponse.json({ message: "Account setup is not available." }, { status: 503 });
+    return claimError("unavailable", "Account activation is not available.", 503);
   }
 
   const body = (await request.json().catch(() => ({}))) as ClaimRequest;
@@ -27,26 +43,42 @@ export async function POST(request: Request) {
   const password = body.password ?? "";
   const confirmPassword = body.confirmPassword ?? "";
 
-  const minimumPasswordLength = username === "sputum" || username === "ventilator" ? 4 : 8;
-
-  if (!username || password.length < minimumPasswordLength || password !== confirmPassword) {
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
+  if (
+    !username
+    || password.length < 12
+    || password.length > 128
+    || password !== confirmPassword
+  ) {
+    return claimError("invalid_request", "Check the username and password requirements.", 400);
   }
 
   const supabase = createAdminClient();
   const { data: staffProfile, error: staffError } = await supabase
     .from("staff_profiles")
-    .select("id, department_id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, assigned_role, operations_role, phone_number")
+    .select(
+      "id, display_name, username, username_normalized, is_active, account_claimed_at, auth_user_id, profile_id"
+    )
     .eq("username_normalized", username)
     .maybeSingle();
 
+  if (staffError || !staffProfile || !staffProfile.is_active) {
+    return claimError(
+      "not_found",
+      "We could not find an available account with that username.",
+      404
+    );
+  }
+
   if (
-    staffError ||
-    !staffProfile ||
-    staffProfile.account_claimed_at ||
-    staffProfile.auth_user_id
+    staffProfile.account_claimed_at
+    || staffProfile.auth_user_id
+    || staffProfile.profile_id
   ) {
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
+    return claimError(
+      "already_claimed",
+      "This account has already been activated.",
+      409
+    );
   }
 
   const authEmail = authEmailForUsername(username);
@@ -61,62 +93,61 @@ export async function POST(request: Request) {
   });
 
   if (createUserError || !createdUser.user) {
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
+    // The deterministic auth email is unique. Confirm that another request
+    // actually completed the claim before presenting an already-activated
+    // message; transient Auth failures must not be mislabeled as success.
+    const { data: latestStaffProfile } = await supabase
+      .from("staff_profiles")
+      .select("account_claimed_at, auth_user_id, profile_id")
+      .eq("id", staffProfile.id)
+      .maybeSingle();
+
+    if (
+      latestStaffProfile?.account_claimed_at
+      || latestStaffProfile?.auth_user_id
+      || latestStaffProfile?.profile_id
+    ) {
+      return claimError(
+        "already_claimed",
+        "This account has already been activated.",
+        409
+      );
+    }
+
+    return claimError(
+      "unavailable",
+      "Unable to activate this account. Try again.",
+      503
+    );
   }
 
-  const authUserId = createdUser.user.id;
-  const role = roleForClaim(username, staffProfile.assigned_role as AppRole | null);
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .insert({
-      auth_user_id: authUserId,
-      display_name: staffProfile.display_name,
-      email: authEmail
+  const { data: claimedProfile, error: claimRpcError } = await supabase
+    .rpc("claim_staff_profile", {
+      requested_username: username,
+      requested_auth_user_id: createdUser.user.id
     })
-    .select("id")
-    .single();
+    .single<ClaimedStaffProfile>();
 
-  if (profileError || !profile) {
-    await supabase.auth.admin.deleteUser(authUserId);
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
+  if (claimRpcError || !claimedProfile) {
+    await supabase.auth.admin.deleteUser(createdUser.user.id);
+
+    const alreadyClaimed = claimRpcError?.message?.includes("claim_already_completed");
+    return claimError(
+      alreadyClaimed ? "already_claimed" : "unavailable",
+      alreadyClaimed
+        ? "This account has already been activated."
+        : "Unable to activate this account. Try again.",
+      alreadyClaimed ? 409 : 400
+    );
   }
 
-  const { error: membershipError } = await supabase.from("department_memberships").insert({
-    department_id: staffProfile.department_id,
-    profile_id: profile.id,
-    role
-  });
-
-  if (membershipError) {
-    await supabase.auth.admin.deleteUser(authUserId);
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
-  }
-
-  const { error: updateError } = await supabase
-    .from("staff_profiles")
-    .update({
-      profile_id: profile.id,
-      auth_user_id: authUserId,
-      account_claimed_at: new Date().toISOString(),
-      password_reset_required: false,
-      assigned_role: role
-    })
-    .eq("id", staffProfile.id)
-    .is("account_claimed_at", null);
-
-  if (updateError) {
-    await supabase.auth.admin.deleteUser(authUserId);
-    return NextResponse.json({ message: "Unable to create account." }, { status: 400 });
-  }
-
-  return NextResponse.json({
-    authEmail,
-    username: staffProfile.username ?? username,
-    staffProfileId: staffProfile.id,
-    departmentId: staffProfile.department_id,
-    role,
-    operationsRole: staffProfile.operations_role ?? "none",
-    displayName: staffProfile.display_name,
-    phoneNumber: staffProfile.phone_number ?? ""
-  });
+  return NextResponse.json(
+    {
+      authEmail,
+      username: claimedProfile.username,
+      displayName: claimedProfile.display_name,
+      phoneNumber: claimedProfile.phone_number ?? ""
+    },
+    { headers: noStoreHeaders }
+  );
 }

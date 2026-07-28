@@ -16,6 +16,13 @@ const migration = readFileSync(
   ),
   "utf8"
 );
+const hardeningMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/202607270002_production_readiness_hardening.sql"
+  ),
+  "utf8"
+);
 const directorClient = readFileSync(
   resolve(process.cwd(), "src/components/DirectorShiftStatusClient.tsx"),
   "utf8"
@@ -88,17 +95,22 @@ describe("official vent count", () => {
   });
 
   it("publishes Lead updates only when the saved vent field genuinely changes", () => {
-    const leadTrigger = migration.match(
-      /create or replace function public\.publish_lead_official_vent_count\(\)[\s\S]+?create trigger shift_status_updates_publish_official_vent/
+    const leadPublisher = hardeningMigration.match(
+      /create or replace function public\.publish_lead_official_vent_count\(\)[\s\S]+?revoke all on function public\.publish_lead_official_vent_count/
     )?.[0] ?? "";
 
-    expect(leadTrigger).toContain(
+    expect(leadPublisher).toContain(
       "previous_vent_count is distinct from new.vent_count"
     );
-    expect(leadTrigger).toContain("prior.shift_date = new.shift_date");
-    expect(leadTrigger).toContain("prior.shift_type = new.shift_type");
-    expect(leadTrigger).not.toContain("new.updated_at");
-    expect(leadTrigger).not.toContain("new.bipap_count");
+    expect(leadPublisher).toContain(
+      "from public.official_vent_count_updates update_row"
+    );
+    expect(leadPublisher).toContain(
+      "update_row.source = 'lead_command_center'"
+    );
+    expect(leadPublisher).not.toContain("from public.shift_status_updates");
+    expect(leadPublisher).not.toContain("new.updated_at");
+    expect(leadPublisher).not.toContain("new.bipap_count");
     expect(migration).toContain("after insert on public.shift_status_updates");
   });
 
@@ -123,6 +135,20 @@ describe("official vent count", () => {
     expect(icuPublisher).toContain("from public.icu_patients patient");
     expect(icuPublisher).toContain("patient.is_active = true");
     expect(icuPublisher).toContain("patient.device_type = 'vent'");
+  });
+
+  it("assigns post-midnight ICU updates to the night shift's prior operational date", () => {
+    const hardenedPublisher = hardeningMigration.match(
+      /create or replace function public\.insert_icu_official_vent_count\([\s\S]+?revoke all on function public\.insert_icu_official_vent_count/
+    )?.[0] ?? "";
+
+    expect(hardenedPublisher).toContain(
+      "when local_now::time < time '08:00' then local_now::date - 1"
+    );
+    expect(hardenedPublisher).toContain(
+      "else 'night'::public.shift_status_shift_type"
+    );
+    expect(hardenedPublisher).not.toContain("local_now::date,\n    current_shift");
   });
 
   it("uses one official state value for both Director vent cards and the Schedule", () => {

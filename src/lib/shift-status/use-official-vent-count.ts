@@ -41,7 +41,9 @@ export function useOfficialVentCount(departmentId: string, timezone = "America/L
       setLoading(false);
 
       if (loadError) {
-        console.error("Official vent count load failed", loadError);
+        if (process.env.NODE_ENV !== "production") {
+          console.error("Official vent count load failed", loadError);
+        }
         setLoadedUpdate(null);
         setError("Official vent count unavailable.");
         return;

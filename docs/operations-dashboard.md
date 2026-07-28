@@ -23,7 +23,7 @@ Roster deactivation preserves history, but emergency stabilization on 2026-07-07
 
 ## Admin Staff Access Control
 
-Admin roster management includes an `Active` status for staff profiles. The status is currently roster/display state only; hard access lockout is deferred pending safer management/IT approval and production testing. Historical records remain intact. Admins cannot deactivate their own active account from the roster editor.
+Admin roster management includes an `Active` status for staff profiles. An inactive linked staff profile is denied by both server authorization and database RLS helpers while historical records remain intact. Administrators cannot deactivate or demote themselves, and the database prevents removal of the final active administrator.
 
 ## Header Entry Point
 

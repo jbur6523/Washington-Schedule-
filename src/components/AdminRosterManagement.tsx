@@ -156,21 +156,6 @@ const roleLabels: Record<StaffRole, string> = {
   staff: "Staff"
 };
 
-const leadDisplayNames = new Set([
-  "allantimbang",
-  "jonathanburdick",
-  "heatherheath",
-  "tomnguyen",
-  "winhlaing",
-  "beiyi",
-  "katrynavuong",
-  "joanndevera",
-  "victordavis",
-  "jeanrodrillo",
-  "genebenoza",
-  "stephanieortiz"
-]);
-
 function normalizeName(value: string) {
   return normalizeUsername(value);
 }
@@ -185,16 +170,6 @@ function isValidPreloadPhone(value: string) {
   const digits = trimmed.replace(/\D/g, "");
 
   return Boolean(trimmed) && trimmed.toUpperCase() !== "VERIFY" && digits.length >= 7;
-}
-
-function roleForStaff(displayName: string, username: string): StaffRole {
-  const normalizedName = normalizeName(displayName);
-
-  if (username === "burj" && normalizedName === "jonathanburdick") {
-    return "admin";
-  }
-
-  return leadDisplayNames.has(normalizedName) ? "lead" : "staff";
 }
 
 function visibleRoleForProfile(profile: Pick<StaffProfile, "assigned_role" | "operations_role">): VisibleRole {
@@ -277,7 +252,6 @@ function StaffProfileEditor({
   onRegenerateUsername: () => void;
 }) {
   const dialogRef = useRef<HTMLFormElement>(null);
-  const isBurj = form.username_normalized === "burj";
   const canRegenerateUsername = !form.account_claimed_at;
   const canSave = Boolean(form.display_name.trim() && form.username_normalized && form.employment_type && form.home_assignment);
   const closeEditor = useCallback(() => {
@@ -432,40 +406,33 @@ function StaffProfileEditor({
 
           <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">Role</span>
-            {isBurj ? (
-              <input
-                value="Admin"
-                readOnly
-                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-black text-hospital-ink outline-none"
-              />
-            ) : (
-              <select
-                value={visibleRoleForForm(form) === "admin" ? "staff" : visibleRoleForForm(form)}
-                onChange={(event) => {
-                  const nextRole = event.target.value as Exclude<VisibleRole, "admin">;
+            <select
+              value={visibleRoleForForm(form)}
+              onChange={(event) => {
+                const nextRole = event.target.value as VisibleRole;
 
-                  if (
-                    nextRole === "aide" ||
-                    nextRole === "command_center" ||
-                    nextRole === "director" ||
-                    nextRole === "icu_command_center"
-                  ) {
-                    onChange({ ...form, assigned_role: "staff", operations_role: nextRole });
-                    return;
-                  }
+                if (
+                  nextRole === "aide" ||
+                  nextRole === "command_center" ||
+                  nextRole === "director" ||
+                  nextRole === "icu_command_center"
+                ) {
+                  onChange({ ...form, assigned_role: "staff", operations_role: nextRole });
+                  return;
+                }
 
-                  onChange({ ...form, assigned_role: nextRole, operations_role: "none" });
-                }}
-                className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-              >
-                <option value="staff">Staff</option>
-                <option value="lead">Lead</option>
-                <option value="aide">Aide</option>
-                <option value="command_center">Command Center</option>
-                <option value="director">Director</option>
-                <option value="icu_command_center">ICU Command Center</option>
-              </select>
-            )}
+                onChange({ ...form, assigned_role: nextRole, operations_role: "none" });
+              }}
+              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+            >
+              <option value="staff">Staff</option>
+              <option value="lead">Lead</option>
+              <option value="admin">Admin</option>
+              <option value="aide">Aide</option>
+              <option value="command_center">Command Center</option>
+              <option value="director">Director</option>
+              <option value="icu_command_center">ICU Command Center</option>
+            </select>
             <span className="mt-1 block text-xs font-bold text-slate-400">
               Aide gives dashboard access. Command Center, ICU Command Center, and Director route to simplified operational views.
             </span>
@@ -708,8 +675,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     setForm({
       ...nextForm,
       username,
-      username_normalized: normalizeUsername(username),
-      assigned_role: roleForStaff(nextForm.display_name, username)
+      username_normalized: normalizeUsername(username)
     });
   };
 
@@ -750,8 +716,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     setForm({
       ...form,
       username,
-      username_normalized: normalizeUsername(username),
-      assigned_role: roleForStaff(form.display_name, username)
+      username_normalized: normalizeUsername(username)
     });
   };
 
@@ -829,7 +794,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
             : "",
           username,
           username_normalized: usernameNormalized,
-          assigned_role: roleForStaff(displayName, username),
+          assigned_role: "staff",
           status: issues.length ? "needs_review" : "ready",
           issue: issues.join("; ")
         } satisfies BatchRosterRow;
@@ -1027,18 +992,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
       ? form.username
       : nextAvailableUsername(form.display_name, profiles, form.id);
     const finalUsernameNormalized = normalizeUsername(finalUsername);
-    const assignedRole: StaffRole =
-      finalUsernameNormalized === "burj"
-        ? "admin"
-        : form.operations_role === "aide"
-          ? "staff"
-        : form.assigned_role === "admin"
-          ? "staff"
-          : form.id
-            ? form.assigned_role
-            : form.assigned_role !== "staff"
-              ? form.assigned_role
-              : roleForStaff(form.display_name, finalUsernameNormalized);
+    const assignedRole: StaffRole = form.operations_role === "none" ? form.assigned_role : "staff";
     const payload = {
       department_id: authContext.departmentId,
       display_name: form.display_name.trim(),
@@ -1087,6 +1041,15 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
       return;
     }
 
+    if (
+      form.account_claimed_at &&
+      !window.confirm(
+        "Reset this account?\n\nThe current password and signed-in sessions will stop working. The staff member can activate it again using the assigned username."
+      )
+    ) {
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccess("");
@@ -1104,7 +1067,7 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
     }
 
     setForm(null);
-    setSuccess("Account reset. The assigned username can be claimed again.");
+    setSuccess("Account reset. The assigned username can be activated again.");
     await loadProfiles();
   };
 
@@ -1165,7 +1128,6 @@ export function AdminRosterManagement({ authContext }: AdminRosterManagementProp
             {success}
           </p>
         )}
-
         {form && (
           <StaffProfileEditor
             form={form}

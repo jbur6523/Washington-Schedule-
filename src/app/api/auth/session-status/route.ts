@@ -45,8 +45,6 @@ export async function GET() {
   return NextResponse.json(
     {
       status: "active",
-      role: auth.context.role,
-      operationsRole: auth.context.operationsRole,
       redirectTo: appLandingPath(auth.context)
     },
     { headers: noStoreHeaders }

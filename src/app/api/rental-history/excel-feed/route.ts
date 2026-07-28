@@ -135,7 +135,8 @@ function staffInitials(displayName: string | null | undefined) {
 }
 
 function escapeCsvCell(value: unknown) {
-  const stringValue = value === null || value === undefined ? "" : String(value);
+  const rawValue = value === null || value === undefined ? "" : String(value);
+  const stringValue = /^[=+\-@\t\r]/.test(rawValue) ? `'${rawValue}` : rawValue;
   return `"${stringValue.replace(/"/g, '""').replace(/\r?\n/g, " ")}"`;
 }
 
@@ -172,8 +173,28 @@ export async function GET(request: Request) {
   }
 
   const supabase = createAdminClient();
-  const { data: departments } = await supabase.from("departments").select("id, timezone").limit(1);
-  const timezone = departments?.[0]?.timezone || fallbackTimezone;
+  const configuredDepartmentId = process.env.RENTAL_EXCEL_SYNC_DEPARTMENT_ID?.trim();
+  let departmentQuery = supabase.from("departments").select("id, timezone").limit(configuredDepartmentId ? 1 : 2);
+
+  if (configuredDepartmentId) {
+    departmentQuery = departmentQuery.eq("id", configuredDepartmentId);
+  }
+
+  const { data: departments, error: departmentError } = await departmentQuery;
+
+  if (departmentError || !departments || departments.length !== 1) {
+    return NextResponse.json(
+      {
+        error: configuredDepartmentId
+          ? "Configured rental feed department is unavailable"
+          : "RENTAL_EXCEL_SYNC_DEPARTMENT_ID is required when more than one department exists"
+      },
+      { status: 503 }
+    );
+  }
+
+  const department = departments[0];
+  const timezone = department.timezone || fallbackTimezone;
   const rentalRecordSelect = [
     "id",
     "equipment_type",
@@ -193,6 +214,7 @@ export async function GET(request: Request) {
   const { data: records, error: recordsError } = await supabase
     .from("rental_records")
     .select(rentalRecordSelect)
+    .eq("department_id", department.id)
     .order("called_in_at", { ascending: true, nullsFirst: false })
     .returns<RentalRecord[]>();
 
@@ -206,6 +228,7 @@ export async function GET(request: Request) {
       ? await supabase
           .from("rental_events")
           .select("id, rental_record_id, event_type, event_at, staff_profiles(display_name)")
+          .eq("department_id", department.id)
           .in("rental_record_id", recordIds)
           .order("event_at", { ascending: true })
           .returns<RentalEvent[]>()
@@ -264,7 +287,9 @@ export async function GET(request: Request) {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": 'attachment; filename="whhs-rental-equipment-log-feed.csv"',
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff"
     }
   });
 }

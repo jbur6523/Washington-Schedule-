@@ -18,7 +18,7 @@ export default async function LoginPage() {
   if (hasSupabaseServerConfig()) {
     const auth = await getAuthenticatedUserContext();
 
-    if (auth.status === "authenticated" || auth.status === "unassigned") {
+    if (auth.status === "authenticated" || auth.status === "unassigned" || auth.status === "inactive") {
       redirect("/");
     }
     if (auth.status === "error") {

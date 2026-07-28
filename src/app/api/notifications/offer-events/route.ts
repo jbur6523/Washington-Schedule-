@@ -39,6 +39,7 @@ type ShiftRequestOffer = {
   id: string;
   department_id: string;
   offer_type: "coverage" | "switch";
+  status: "offered" | "accepted" | "declined" | "cancelled";
   offered_by_staff_profile_id: string;
   offered_date: string | null;
   offered_shift_type: ShiftType | null;
@@ -66,8 +67,13 @@ function firstRelatedRow<T>(value?: T | T[] | null) {
 }
 
 function formatDateShort(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  return new Intl.DateTimeFormat("en-US", { weekday: "long", month: "numeric", day: "numeric" }).format(date);
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "numeric",
+    day: "numeric",
+    timeZone: "UTC"
+  }).format(date);
 }
 
 function getShiftTargetSummary(shift: ShiftTarget) {
@@ -159,7 +165,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Notification service is not configured" }, { status: 503 });
   }
 
-  const body = (await request.json()) as OfferEventBody;
+  const body = (await request.json().catch(() => ({}))) as OfferEventBody;
 
   if (!body.offer_id || !body.event_type || !eventTypes.has(body.event_type)) {
     return NextResponse.json({ error: "Invalid notification event" }, { status: 400 });
@@ -169,7 +175,7 @@ export async function POST(request: Request) {
   const { data: offer, error } = await supabase
     .from("shift_request_offers")
     .select(
-      "id, department_id, offer_type, offered_by_staff_profile_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, staff_profiles(id, display_name), shift_requests(id, department_id, staff_profile_id, request_type, staff_profiles(id, display_name), schedule_entries(shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(shift_date, shift_type, shift_start, shift_end)), schedule_entries(shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(shift_date, shift_type, shift_start, shift_end)"
+      "id, department_id, offer_type, status, offered_by_staff_profile_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, staff_profiles(id, display_name), shift_requests(id, department_id, staff_profile_id, request_type, staff_profiles(id, display_name), schedule_entries(shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(shift_date, shift_type, shift_start, shift_end)), schedule_entries(shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(shift_date, shift_type, shift_start, shift_end)"
     )
     .eq("id", body.offer_id)
     .eq("department_id", auth.context.departmentId)
@@ -188,6 +194,17 @@ export async function POST(request: Request) {
 
   if (!actorCanSend) {
     return NextResponse.json({ error: "Permission denied" }, { status: 403 });
+  }
+
+  const expectedStatus =
+    body.event_type === "offer_accepted"
+      ? "accepted"
+      : body.event_type === "offer_declined"
+        ? "declined"
+        : "offered";
+
+  if (offer.status !== expectedStatus) {
+    return NextResponse.json({ error: "Offer state mismatch" }, { status: 409 });
   }
 
   if (body.event_type === "coverage_offer_created" && offer.offer_type !== "coverage") {

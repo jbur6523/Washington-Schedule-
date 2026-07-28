@@ -2,11 +2,9 @@
 
 WHHS RT Schedule uses Supabase Auth for sign-in and session management.
 
-## Keep Me Signed In
+## Session and Remembered Username
 
-The login screen includes `Keep me signed in on this device`, checked by default.
-
-This means the app persists the authenticated Supabase session on the current browser/PWA install using the normal Supabase browser auth mechanism. It is not password storage.
+Supabase persists and refreshes the authenticated browser session using its managed cookie flow. The login screen separately offers `Remember my username on this device`; that option stores only the normalized username and does not control or store the authenticated session.
 
 Users should stay signed in after:
 
@@ -39,13 +37,13 @@ Password inputs are never prefilled from app storage.
 
 ## Remembered Username
 
-When `Keep me signed in on this device` is enabled, the login screen can also remember the assigned username.
+When `Remember my username on this device` is enabled, the login screen remembers the assigned username.
 
 Local key:
 
 `whhs-remembered-username`
 
-This stores the username on the device so the username field can be prefilled later. It does not store the password or any auth token. Users can clear the remembered username from the login screen. The app does not show a separate `Remember username only` option because keeping the device signed in already covers the username convenience.
+This stores the username on the device so the username field can be prefilled later. It does not store the password or any auth token. Users can clear the remembered username from the login screen.
 
 ## Supabase Session Settings
 
@@ -86,13 +84,9 @@ On sign out, app-level transient session state is cleared before redirecting to 
 
 ## Staff Deactivation Access
 
-Emergency stabilization on 2026-07-07 deferred staff deactivation lockout because the Phase 1 active-user hardening caused unstable login/access behavior in production deployments.
+`staff_profiles.is_active` is a server and database authorization gate. Inactive users cannot claim an account, authenticated context returns an inactive state, and RLS helper functions require a linked active staff profile.
 
-`staff_profiles.is_active` remains available for roster display/filtering, but the app no longer uses it as a hard login/session/protected-route gate.
-
-Inactive-user enforcement should be redesigned later with safer management/IT approval, production schema verification, and role-by-role smoke testing. This phase does not implement tokenized invite/reset flows or global Supabase refresh-token revocation.
-
-Deactivation preserves historical records such as schedules, rental history, orders, ICU events, shift updates, and visible staff attribution. Admin roster management may still show Active/Inactive state, but it is not currently an access revocation mechanism.
+Deactivation preserves historical records such as schedules, rental history, orders, ICU events, shift updates, and visible staff attribution while revoking current application data access.
 
 ## Command Center Phone
 

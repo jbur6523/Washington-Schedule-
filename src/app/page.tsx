@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import AppClient from "@/app/app-client";
+import { AccountAccessNotice } from "@/components/AccountAccessNotice";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
@@ -35,32 +36,9 @@ function ConfigurationRequired() {
   );
 }
 
-function UnassignedAccount({ displayName }: { displayName?: string }) {
-  return (
-    <main className="min-h-screen px-4 py-8">
-      <section className="mx-auto max-w-xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-          WHHS RT Schedule
-        </p>
-        <h1 className="mt-2 text-2xl font-black text-hospital-ink">
-          Department assignment needed
-        </h1>
-        {displayName && (
-          <p className="mt-2 text-sm font-bold text-slate-500">
-            Signed in as {displayName}
-          </p>
-        )}
-        <p className="mt-4 text-sm font-bold leading-6 text-slate-600">
-          Your account has not been assigned to a department. Please contact the schedule administrator.
-        </p>
-      </section>
-    </main>
-  );
-}
-
 export default async function Home() {
   if (!hasSupabaseServerConfig()) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_AUTH_FALLBACK !== "true") {
       return <ConfigurationRequired />;
     }
 
@@ -74,7 +52,11 @@ export default async function Home() {
   }
 
   if (auth.status === "unassigned") {
-    return <UnassignedAccount displayName={auth.displayName} />;
+    return <AccountAccessNotice displayName={auth.displayName} />;
+  }
+
+  if (auth.status === "inactive") {
+    return <AccountAccessNotice displayName={auth.displayName} inactive />;
   }
 
 

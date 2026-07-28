@@ -7,21 +7,17 @@ import { createClient } from "@/lib/supabase/client";
 import { authEmailForUsername, normalizeUsername } from "@/lib/auth/username";
 
 type UsernameMode = "lookup" | "claimed" | "unclaimed" | "contact" | "notifications";
-type AppRole = "admin" | "lead" | "staff";
 
 type UsernameStatusResponse = {
   status: "claimed" | "unclaimed" | "not_found" | "configuration_required";
   username?: string;
-  displayName?: string;
 };
 
 type ClaimResponse = {
+  code?: "not_found" | "already_claimed" | "invalid_request" | "unavailable";
+  message?: string;
   authEmail?: string;
   username?: string;
-  staffProfileId?: string;
-  departmentId?: string;
-  role?: AppRole;
-  operationsRole?: "none" | "aide" | "command_center" | "director" | "icu_command_center";
   displayName?: string;
   phoneNumber?: string;
 };
@@ -35,13 +31,6 @@ type SessionStatusResponse = {
 type SessionVerification =
   | { state: "active"; redirectTo: string }
   | { state: "unavailable" };
-
-type OnboardingContext = {
-  staffProfileId: string;
-  departmentId: string;
-  displayName: string;
-  role: AppRole;
-};
 
 type NotificationPreferences = {
   short_shift_alerts: boolean;
@@ -99,22 +88,22 @@ async function getServiceWorkerRegistration() {
 }
 
 function TrustedDeviceOptions({
-  keepSignedIn,
-  setKeepSignedIn
+  rememberUsername,
+  setRememberUsername
 }: {
-  keepSignedIn: boolean;
-  setKeepSignedIn: (value: boolean) => void;
+  rememberUsername: boolean;
+  setRememberUsername: (value: boolean) => void;
 }) {
   return (
     <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-3">
       <label className="flex items-center gap-3 text-sm font-extrabold text-hospital-ink">
         <input
           type="checkbox"
-          checked={keepSignedIn}
-          onChange={(event) => setKeepSignedIn(event.target.checked)}
+          checked={rememberUsername}
+          onChange={(event) => setRememberUsername(event.target.checked)}
           className="h-5 w-5 shrink-0 accent-cyan-700"
         />
-        <span>Keep me signed in on this device</span>
+        <span>Remember my username on this device</span>
       </label>
     </div>
   );
@@ -136,8 +125,8 @@ export function LoginForm() {
   const [notificationSupported, setNotificationSupported] = useState<boolean | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>("default");
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-  const [onboardingContext, setOnboardingContext] = useState<OnboardingContext | null>(null);
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
+  const [onboardingReady, setOnboardingReady] = useState(false);
+  const [rememberUsername, setRememberUsername] = useState(true);
   const [hasRememberedUsername, setHasRememberedUsername] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -157,7 +146,7 @@ export function LoginForm() {
   }, []);
 
   const saveRememberedUsername = (nextUsername: string) => {
-    if (!keepSignedIn) {
+    if (!rememberUsername) {
       window.localStorage.removeItem(rememberedUsernameKey);
       setHasRememberedUsername(false);
       return;
@@ -226,10 +215,18 @@ export function LoginForm() {
     setNotificationSupported(supported);
     setNotificationPermission(supported ? Notification.permission : "denied");
 
-    if (supported) {
+    if (!supported) {
+      return;
+    }
+
+    try {
       const registration = await getServiceWorkerRegistration();
       const subscription = await registration?.pushManager.getSubscription();
       setNotificationsEnabled(Boolean(subscription));
+    } catch {
+      setNotificationSupported(false);
+      setNotificationPermission("denied");
+      setNotificationsEnabled(false);
     }
   };
 
@@ -239,23 +236,31 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    const response = await fetch("/api/auth/username-status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username })
-    });
-    const result = (await response.json().catch(() => ({}))) as UsernameStatusResponse;
+    try {
+      const response = await fetch("/api/auth/username-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username })
+      });
+      const result = (await response.json().catch(() => ({}))) as UsernameStatusResponse;
 
-    setLoading(false);
+      if (!response.ok || (result.status !== "claimed" && result.status !== "unclaimed")) {
+        setError(
+          "We could not find an available account with that username. Confirm the spelling or contact an administrator."
+        );
+        return;
+      }
 
-    if (!response.ok || (result.status !== "claimed" && result.status !== "unclaimed")) {
-      setError("We could not find an active assigned username.");
-      return;
+      setAssignedUsername(result.username ?? normalizeUsername(username));
+      setDisplayName("");
+      setMode(result.status);
+    } catch {
+      setError(
+        "Unable to check this username right now. Check your connection and try again."
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setAssignedUsername(result.username ?? normalizeUsername(username));
-    setDisplayName(result.displayName ?? "");
-    setMode(result.status === "claimed" ? "claimed" : "unclaimed");
   };
 
   const handleSignIn = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -272,7 +277,7 @@ export function LoginForm() {
 
     if (signInError) {
       setLoading(false);
-      setError(signInError.message || "Your session expired. Please sign in again.");
+      setError("Incorrect username or password, or this account is unavailable.");
       return;
     }
 
@@ -294,11 +299,8 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    const isSharedOperationsSetup = assignedUsername === "sputum" || assignedUsername === "ventilator";
-    const minimumPasswordLength = isSharedOperationsSetup ? 4 : 8;
-
-    if (password.length < minimumPasswordLength) {
-      setError(`Use a password with at least ${minimumPasswordLength} characters.`);
+    if (password.length < 12) {
+      setError("Use a password with at least 12 characters.");
       return;
     }
 
@@ -308,23 +310,38 @@ export function LoginForm() {
     }
 
     setLoading(true);
-    const response = await fetch("/api/auth/claim", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: assignedUsername,
-        password,
-        confirmPassword
-      })
-    });
+    let response: Response;
+    let result: ClaimResponse;
 
-    if (!response.ok) {
+    try {
+      response = await fetch("/api/auth/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: assignedUsername,
+          password,
+          confirmPassword
+        })
+      });
+      result = (await response.json().catch(() => ({}))) as ClaimResponse;
+    } catch {
       setLoading(false);
-      setError("Unable to create account.");
+      setError("Unable to activate this account right now. Check your connection and try again.");
       return;
     }
 
-    const result = (await response.json().catch(() => ({}))) as ClaimResponse;
+    if (!response.ok) {
+      setLoading(false);
+      setError(
+        result.code === "already_claimed"
+          ? "This account has already been activated. Sign in using the account previously connected to it or contact an administrator."
+          : result.code === "not_found"
+            ? "We could not find an available account with that username. Confirm the spelling or contact an administrator."
+            : result.message ?? "Unable to activate this account. Try again."
+      );
+      return;
+    }
+
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: result.authEmail ?? authEmailForUsername(assignedUsername),
@@ -349,26 +366,12 @@ export function LoginForm() {
 
     saveRememberedUsername(result.username ?? assignedUsername);
 
-    if (!result.staffProfileId || !result.departmentId) {
+    if (sessionStatus.redirectTo !== "/") {
       enterApp(sessionStatus.redirectTo);
       return;
     }
 
-    if (
-      result.operationsRole === "command_center" ||
-      result.operationsRole === "director" ||
-      result.operationsRole === "icu_command_center"
-    ) {
-      enterApp(sessionStatus.redirectTo);
-      return;
-    }
-
-    setOnboardingContext({
-      staffProfileId: result.staffProfileId,
-      departmentId: result.departmentId,
-      displayName: result.displayName ?? displayName,
-      role: result.role ?? "staff"
-    });
+    setOnboardingReady(true);
     setPhoneNumber(result.phoneNumber ?? "");
     setContactEmail("");
     setPassword("");
@@ -377,7 +380,7 @@ export function LoginForm() {
   };
 
   const saveContactInfo = async () => {
-    if (!onboardingContext) {
+    if (!onboardingReady) {
       return false;
     }
 
@@ -390,24 +393,28 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    const response = await fetch("/api/onboarding/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        staffProfileId: onboardingContext.staffProfileId,
-        phoneNumber: phoneNumber.trim(),
-        email: contactEmail.trim()
-      })
-    });
+    try {
+      const response = await fetch("/api/onboarding/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: phoneNumber.trim(),
+          email: contactEmail.trim()
+        })
+      });
 
-    setLoading(false);
+      if (!response.ok) {
+        setError("Unable to save contact information.");
+        return false;
+      }
 
-    if (!response.ok) {
+      return true;
+    } catch {
       setError("Unable to save contact information.");
       return false;
+    } finally {
+      setLoading(false);
     }
-
-    return true;
   };
 
   const continueFromContact = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -430,7 +437,7 @@ export function LoginForm() {
   };
 
   const saveNotificationPreferences = async () => {
-    if (!onboardingContext) {
+    if (!onboardingReady) {
       return false;
     }
 
@@ -438,25 +445,15 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    const supabase = createClient();
-    const { error: saveError } = await supabase.from("notification_preferences").upsert(
-      {
-        department_id: onboardingContext.departmentId,
-        staff_profile_id: onboardingContext.staffProfileId,
-        short_shift_alerts: notificationPreferences.short_shift_alerts,
-        coverage_request_alerts: notificationPreferences.coverage_request_alerts,
-        switch_request_alerts: notificationPreferences.switch_request_alerts,
-        coverage_offer_alerts: notificationPreferences.coverage_offer_alerts,
-        quiet_hours_enabled: false,
-        quiet_hours_start: null,
-        quiet_hours_end: null
-      },
-      { onConflict: "staff_profile_id" }
-    );
+    const response = await fetch("/api/onboarding/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferences: notificationPreferences })
+    }).catch(() => null);
 
     setLoading(false);
 
-    if (saveError) {
+    if (!response?.ok) {
       setError("Unable to save notification preferences.");
       return false;
     }
@@ -465,7 +462,7 @@ export function LoginForm() {
   };
 
   const enableNotifications = async () => {
-    if (!onboardingContext) {
+    if (!onboardingReady) {
       return;
     }
 
@@ -514,32 +511,30 @@ export function LoginForm() {
       return;
     }
 
-    const supabase = createClient();
-    const { error: saveError } = await supabase.from("push_subscriptions").upsert(
-      {
-        department_id: onboardingContext.departmentId,
-        staff_profile_id: onboardingContext.staffProfileId,
+    const saveResponse = await fetch("/api/onboarding/notifications", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        preferences: notificationPreferences,
+        subscription: {
         endpoint: subscription.endpoint,
         p256dh: subscriptionJson.keys.p256dh,
         auth: subscriptionJson.keys.auth,
-        user_agent: navigator.userAgent,
-        platform: getPlatform(),
-        is_active: true,
-        revoked_at: null
-      },
-      { onConflict: "staff_profile_id,endpoint" }
-    );
+          userAgent: navigator.userAgent,
+          platform: getPlatform()
+        }
+      })
+    }).catch(() => null);
 
     setLoading(false);
 
-    if (saveError) {
+    if (!saveResponse?.ok) {
       setError("Unable to save this device for notifications.");
       return;
     }
 
     setNotificationsEnabled(true);
     setMessage("Notifications enabled on this device.");
-    await saveNotificationPreferences();
   };
 
   const finishNotificationSetup = async () => {
@@ -558,7 +553,7 @@ export function LoginForm() {
     setConfirmPassword("");
     setPhoneNumber("");
     setContactEmail("");
-    setOnboardingContext(null);
+    setOnboardingReady(false);
     setNotificationPreferences(defaultNotificationPreferences);
     setNotificationSupported(null);
     setNotificationPermission("default");
@@ -576,10 +571,7 @@ export function LoginForm() {
               Enter your username
             </span>
             <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-              Username format: first 3 letters of your last name + first letter of your first name.
-            </span>
-            <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-slate-400">
-              Example: Michael Scott = scom
+              Enter the username assigned to you by your department to activate your account or sign in.
             </span>
             <input
               value={username}
@@ -632,8 +624,8 @@ export function LoginForm() {
             />
           </label>
           <TrustedDeviceOptions
-            keepSignedIn={keepSignedIn}
-            setKeepSignedIn={setKeepSignedIn}
+            rememberUsername={rememberUsername}
+            setRememberUsername={setRememberUsername}
           />
           <button
             type="submit"
@@ -654,6 +646,9 @@ export function LoginForm() {
               Username: {assignedUsername}
             </p>
           </div>
+          <p className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-2 text-sm font-bold leading-6 text-cyan-900">
+            This username has not been activated yet. Create the password you will use to sign in.
+          </p>
           <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Password</span>
             <input
@@ -661,15 +656,11 @@ export function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={assignedUsername === "sputum" ? 4 : 8}
+              minLength={12}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
-            {assignedUsername === "sputum" && (
-              <span className="mt-1 block text-xs font-bold text-slate-400">
-                Use the department command-center setup password provided by the administrator.
-              </span>
-            )}
+            <span className="mt-1 block text-xs font-bold text-slate-400">Use at least 12 characters.</span>
           </label>
           <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -680,14 +671,14 @@ export function LoginForm() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               required
-              minLength={assignedUsername === "sputum" ? 4 : 8}
+              minLength={12}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
           </label>
           <TrustedDeviceOptions
-            keepSignedIn={keepSignedIn}
-            setKeepSignedIn={setKeepSignedIn}
+            rememberUsername={rememberUsername}
+            setRememberUsername={setRememberUsername}
           />
           <button
             type="submit"
@@ -838,12 +829,19 @@ export function LoginForm() {
       )}
 
       {error && (
-        <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
+        <p
+          role="alert"
+          className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700"
+        >
           {error}
         </p>
       )}
       {message && (
-        <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
+        <p
+          role="status"
+          aria-live="polite"
+          className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700"
+        >
           {message}
         </p>
       )}

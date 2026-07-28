@@ -63,23 +63,23 @@ const scheduleOverrideSelect =
   "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
 
 function previousDate(dateValue: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  date.setDate(date.getDate() - 1);
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 1);
   return date.toISOString().slice(0, 10);
 }
 
-function formatDateLabel(dateValue: string, timezone: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
+function formatDateLabel(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: "UTC",
     month: "2-digit",
     day: "2-digit",
     year: "numeric"
   }).format(date);
 }
 
-function formatReportDate(dateValue: string, timezone: string) {
-  return formatDateLabel(dateValue, timezone);
+function formatReportDate(dateValue: string) {
+  return formatDateLabel(dateValue);
 }
 
 function formatReportTime(value: string | null | undefined, timezone: string) {
@@ -104,7 +104,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
       : [`Status: ${staffingStatusLabel(staffing.status)}`];
 
   return [
-    `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date, timezone)}`,
+    `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date)}`,
     "",
     `RTs scheduled: ${formatShiftStatusNumber(update.rts_on)}`,
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
@@ -190,10 +190,10 @@ function ProcedureCard({ icon, label, value }: { icon: ReactNode; label: string;
   );
 }
 
-function shortScheduleDateLabel(dateValue: string, timezone: string) {
-  const date = new Date(`${dateValue}T12:00:00`);
+function shortScheduleDateLabel(dateValue: string) {
+  const date = new Date(`${dateValue}T12:00:00Z`);
   return new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
+    timeZone: "UTC",
     month: "2-digit",
     day: "2-digit"
   }).format(date);
@@ -433,14 +433,18 @@ export function DirectorShiftStatusClient({
     setActiveRentalCount(rentalCountError ? null : rentalCount ?? 0);
 
     if (loadError) {
-      console.error("Director shift status load failed", loadError);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Director shift status load failed", loadError);
+      }
       setError("Could not load shift status. Please try again.");
       setUpdates([]);
       return;
     }
 
     if (usedLegacyProcedureSelect) {
-      console.warn("Director shift status loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("Director shift status loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      }
     }
 
     setUpdates(data);
@@ -619,15 +623,14 @@ export function DirectorShiftStatusClient({
     [selectedChoice.shiftDate, selectedChoice.shiftType, updates]
   );
   const selectedLatest = useMemo(() => latestShiftStatus(selectedUpdates), [selectedUpdates]);
-  const fallbackLatest = useMemo(() => latestShiftStatus(updates), [updates]);
   const currentStatusDisplay = useMemo(
     () => resolveCurrentShiftStatus(updates, timezone, new Date(nowTick)),
     [nowTick, timezone, updates]
   );
   const latest = isSelectedCurrentShift ? currentStatusDisplay.latest : selectedLatest;
   const showingFallback = isSelectedCurrentShift ? currentStatusDisplay.showingFallback : false;
-  const snapshotLatest = fallbackLatest;
-  const latestProcedureUpdate = fallbackLatest;
+  const snapshotLatest = currentStatusDisplay.currentLatest;
+  const latestProcedureUpdate = currentStatusDisplay.currentLatest;
   const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
   const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
   const currentProcedureCounts = procedureCounts(procedureLatest);
@@ -1123,12 +1126,12 @@ export function DirectorShiftStatusClient({
                       {defaultScheduleDateOptions.length === 0 && <option value="">Select date</option>}
                       {selectedScheduleDate && !defaultScheduleDateOptions.includes(selectedScheduleDate) && (
                         <option value={selectedScheduleDate}>
-                          Manual: {shortScheduleDateLabel(selectedScheduleDate, timezone)}
+                          Manual: {shortScheduleDateLabel(selectedScheduleDate)}
                         </option>
                       )}
                       {defaultScheduleDateOptions.map((dateValue) => (
                         <option key={dateValue} value={dateValue}>
-                          {shortScheduleDateLabel(dateValue, timezone)}
+                          {shortScheduleDateLabel(dateValue)}
                         </option>
                       ))}
                     </select>
@@ -1200,7 +1203,7 @@ export function DirectorShiftStatusClient({
                         Scheduled: {selectedScheduleEntries.length}
                       </p>
                       <p className="text-xs font-bold text-slate-500">
-                        {selectedScheduleDate ? formatDateLabel(selectedScheduleDate, timezone) : ""}
+                        {selectedScheduleDate ? formatDateLabel(selectedScheduleDate) : ""}
                       </p>
                     </div>
 

@@ -82,7 +82,9 @@ export function CurrentShiftStatusSummary({
     );
 
     if (loadError) {
-      console.error("Staff current shift status load failed", loadError);
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Staff current shift status load failed", loadError);
+      }
       setError("Shift status unavailable.");
       setUpdates([]);
       return;
