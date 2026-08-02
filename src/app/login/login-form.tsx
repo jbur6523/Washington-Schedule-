@@ -571,7 +571,12 @@ export function LoginForm() {
               Enter your username
             </span>
             <span className="mt-1 block text-xs font-bold leading-5 text-slate-500">
-              Enter the username assigned to you by your department to activate your account or sign in.
+              Your username is the first 3 letters of your last name, followed by the first letter of your
+              first name.
+            </span>
+            <span className="mt-2 block rounded-xl border border-cyan-100 bg-cyan-50/70 px-3 py-2 text-xs leading-5 text-slate-600">
+              <span className="font-semibold">Example: Michael Scott</span>
+              <span className="block font-extrabold text-cyan-800">Username: scom</span>
             </span>
             <input
               value={username}
@@ -590,9 +595,6 @@ export function LoginForm() {
               Clear remembered username
             </button>
           )}
-          <p className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
-            Your username is assigned by the department.
-          </p>
           <button
             type="submit"
             disabled={loading}
