@@ -24,13 +24,14 @@ describe("admin navigation", () => {
     expect(getProfileDashboardShortcut({ role: "staff", operationsRole: "none" })).toBeNull();
   });
 
-  it("shows only the six approved admin dashboard areas", () => {
+  it("shows only the seven approved admin dashboard areas", () => {
     expect(adminDashboardAreas.map((area) => area.title)).toEqual([
       "Lead Command Board",
       "Director Dashboard",
       "ICU Command Center",
       "Rental Management",
       "Order Management",
+      "Staff Management",
       "Import Schedule"
     ]);
   });

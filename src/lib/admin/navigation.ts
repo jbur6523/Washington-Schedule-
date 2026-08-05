@@ -37,6 +37,13 @@ export const adminDashboardAreas = [
     className: "border-rose-100 bg-rose-50/80 text-rose-700"
   },
   {
+    title: "Staff Management",
+    description: "Manage staff profiles, roles, and access.",
+    href: "/admin/roster",
+    buttonLabel: "Open Staff Management",
+    className: "border-slate-200 bg-white text-slate-700"
+  },
+  {
     title: "Import Schedule",
     description: "Upload, review, match roster names, and create a schedule version.",
     href: "/admin/import-schedule",

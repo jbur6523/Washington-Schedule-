@@ -33,7 +33,7 @@ describe("admin dashboard", () => {
     });
   });
 
-  it("renders only the six approved admin shortcuts in a responsive grid", async () => {
+  it("renders only the seven approved admin shortcuts in a responsive grid", async () => {
     const view = render(await AdminPage());
     const expectedLinks = [
       ["Lead Command Board", "/command-center"],
@@ -41,15 +41,30 @@ describe("admin dashboard", () => {
       ["ICU Command Center", "/icu-command-center"],
       ["Rental Management", "/operations/rental-management"],
       ["Order Management", "/operations/order-management"],
+      ["Staff Management", "/admin/roster"],
       ["Import Schedule", "/admin/import-schedule"]
     ] as const;
+    const removedCards = [
+      "Schedule",
+      "Manage Schedule",
+      "Staff Directory",
+      "Cover/Switch",
+      "Gossip",
+      "ICU Snapshot",
+      "Communication Boards",
+      "Short Shift Alert",
+      "Schedule Versions"
+    ];
 
     for (const [name, href] of expectedLinks) {
       expect(screen.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
     }
 
-    expect(screen.getAllByRole("link")).toHaveLength(7);
-    expect(screen.queryByRole("link", { name: /Staff Management/ })).not.toBeInTheDocument();
+    for (const name of removedCards) {
+      expect(screen.queryByRole("link", { name: new RegExp(`^${name}`) })).not.toBeInTheDocument();
+    }
+
+    expect(screen.getAllByRole("link")).toHaveLength(8);
     expect(view.container.querySelector(".grid")).toHaveClass("grid", "gap-3", "sm:grid-cols-2");
   });
 });
