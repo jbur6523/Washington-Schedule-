@@ -26,6 +26,7 @@ import {
   Wind
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
+import { DepartmentAnnouncementEditor } from "@/components/DepartmentAnnouncement";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
@@ -58,9 +59,9 @@ import {
 
 const activeRentalStatuses = ["active", "delivered"];
 const scheduleEntrySelect =
-  "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
+  "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)";
 const scheduleOverrideSelect =
-  "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)";
+  "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)";
 
 function previousDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00Z`);
@@ -808,6 +809,8 @@ export function DirectorShiftStatusClient({
             </button>
           </div>
         </section>
+
+        <DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-2">

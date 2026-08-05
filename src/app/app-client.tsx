@@ -6,10 +6,8 @@ import {
   ArrowLeftRight,
   Ban,
   CalendarDays,
-  ChevronDown,
   Clock3,
   LogOut,
-  Pencil,
   Plus,
   Settings,
   ShieldCheck,
@@ -20,6 +18,7 @@ import {
 import { BottomNavigation, type TabId } from "@/components/BottomNavigation";
 import { CurrentShiftStatusSummary } from "@/components/CurrentShiftStatusSummary";
 import { DayScheduleCard, type AvailabilityTarget, type ScheduleShiftFilter } from "@/components/DayScheduleCard";
+import { DepartmentAnnouncementBoard } from "@/components/DepartmentAnnouncement";
 import { GossipBoard } from "@/components/GossipBoard";
 import { MySettings } from "@/components/MySettings";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -431,234 +430,6 @@ function ScheduleViewSummaryCard({
   );
 }
 
-function MyStatusCard({
-  authContext,
-  developmentFallback,
-  onSaved,
-  onStatusChange
-}: {
-  authContext: AuthenticatedUserContext;
-  developmentFallback?: boolean;
-  onSaved: () => Promise<void>;
-  onStatusChange: (statusMessage: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [initialStatusMessage, setInitialStatusMessage] = useState("");
-  const [loading, setLoading] = useState(!developmentFallback && Boolean(authContext.staffProfileId));
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  const loadStatus = useCallback(async () => {
-    if (developmentFallback || !authContext.staffProfileId) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-
-    const supabase = createClient();
-    const { data, error: loadError } = await supabase
-      .from("staff_profiles")
-      .select("status_message")
-      .eq("id", authContext.staffProfileId)
-      .eq("department_id", authContext.departmentId)
-      .maybeSingle();
-
-    if (loadError) {
-      setError("Unable to load your status.");
-    } else {
-      const nextStatus = ((data?.status_message as string | null) ?? "").slice(0, 100);
-      setStatusMessage(nextStatus);
-      setInitialStatusMessage(nextStatus);
-      onStatusChange(nextStatus);
-    }
-
-    setLoading(false);
-  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback, onStatusChange]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadStatus();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [loadStatus]);
-
-  const saveStatus = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (developmentFallback) {
-      setError("Status updates are unavailable until the app configuration is complete.");
-      return;
-    }
-
-    if (!authContext.staffProfileId) {
-      setError("Your account is not linked to a staff profile yet.");
-      return;
-    }
-
-    const trimmed = statusMessage.trim();
-
-    if (trimmed.length > 100) {
-      setError("Status must be 100 characters or fewer.");
-      return;
-    }
-
-    setSaving(true);
-    setMessage("");
-    setError("");
-
-    const response = await fetch("/api/settings/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ statusMessage: trimmed })
-    });
-    const result = await response.json().catch(() => null);
-
-    setSaving(false);
-
-    if (!response.ok) {
-      setError(result?.message ?? "Unable to save status.");
-      return;
-    }
-
-    setStatusMessage(trimmed);
-    setInitialStatusMessage(trimmed);
-    onStatusChange(trimmed);
-    setMessage(trimmed ? "Status updated." : "Status cleared.");
-    setExpanded(false);
-    await onSaved();
-  };
-
-  const clearStatus = async () => {
-    setStatusMessage("");
-    setMessage("");
-    setError("");
-
-    if (!initialStatusMessage) {
-      return;
-    }
-
-    setSaving(true);
-
-    const response = await fetch("/api/settings/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ statusMessage: "" })
-    });
-    const result = await response.json().catch(() => null);
-
-    setSaving(false);
-
-    if (!response.ok) {
-      setError(result?.message ?? "Unable to clear status.");
-      return;
-    }
-
-    setInitialStatusMessage("");
-    onStatusChange("");
-    setMessage("Status cleared.");
-    setExpanded(false);
-    await onSaved();
-  };
-
-  const preview = initialStatusMessage || "Add status";
-
-  return (
-    <section className="rounded-2xl border border-white bg-white/95 shadow-soft">
-      <button
-        type="button"
-        onClick={() => {
-          setExpanded((current) => !current);
-          setMessage("");
-          setError("");
-        }}
-        className="flex min-h-14 w-full items-center justify-between gap-3 px-3.5 py-3 text-left"
-        aria-expanded={expanded}
-      >
-        <div className="min-w-0">
-          <h2 className="text-sm font-black text-hospital-ink">My Status</h2>
-          <p
-            className={`mt-0.5 truncate text-sm font-bold ${
-              initialStatusMessage ? "text-slate-600" : "text-cyan-700"
-            }`}
-          >
-            {loading ? "Loading status..." : preview}
-          </p>
-        </div>
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-700">
-          {initialStatusMessage ? <Pencil size={16} /> : <ChevronDown size={17} />}
-        </span>
-      </button>
-
-      {message && !expanded && (
-        <p role="status" className="mx-3.5 mb-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-          {message}
-        </p>
-      )}
-      {error && !expanded && (
-        <p role="alert" className="mx-3.5 mb-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-          {error}
-        </p>
-      )}
-
-      {expanded && (
-        <form onSubmit={saveStatus} className="grid gap-2 border-t border-slate-100 px-3.5 pb-3.5 pt-3">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-xs font-bold leading-5 text-slate-500">
-              Optional. Shows under your name on the schedule until you change it.
-            </p>
-            <span className="shrink-0 rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-700">
-              {statusMessage.length}/100
-            </span>
-          </div>
-          <textarea
-            value={statusMessage}
-            onChange={(event) => {
-              setStatusMessage(event.target.value.slice(0, 100));
-              setMessage("");
-              setError("");
-            }}
-            maxLength={100}
-            rows={2}
-            disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
-            placeholder="Available until 3 PM"
-            className="min-h-16 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold leading-5 text-hospital-ink outline-none focus:border-cyan-300 disabled:opacity-60"
-          />
-          <p className="text-xs font-bold leading-5 text-slate-500">
-            Do not include patient information.
-          </p>
-          {error && (
-            <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
-              {error}
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="submit"
-              disabled={loading || saving || developmentFallback || !authContext.staffProfileId}
-              className="min-h-11 rounded-2xl bg-cyan-700 px-3 text-sm font-extrabold text-white shadow-sm disabled:opacity-60"
-            >
-              {saving ? "Saving..." : "Save"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void clearStatus()}
-              disabled={loading || saving || developmentFallback || !authContext.staffProfileId || (!statusMessage && !initialStatusMessage)}
-              className="min-h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-extrabold text-slate-600 disabled:opacity-60"
-            >
-              Clear
-            </button>
-          </div>
-        </form>
-      )}
-    </section>
-  );
-}
-
 function shiftNoteKey(staffName: string, day: string, shiftTime: string) {
   return `${staffName}-${day}-${shiftTime}`;
 }
@@ -683,7 +454,6 @@ function ScheduleScreen({
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
-  const [currentUserStatusMessage, setCurrentUserStatusMessage] = useState<string | null>(null);
   const [showPastDays, setShowPastDays] = useState(false);
   const [todayValue, setTodayValue] = useState(() => todayInTimezone(timezone));
   const days = useMemo(
@@ -764,9 +534,6 @@ function ScheduleScreen({
   const [shiftFilter, setShiftFilter] = useState<ScheduleShiftFilter>("day");
   const [selectedDay, setSelectedDay] = useState("");
   const [expandedDay, setExpandedDay] = useState("");
-  const handleStatusChange = useCallback((nextStatusMessage: string) => {
-    setCurrentUserStatusMessage(nextStatusMessage);
-  }, []);
   useEffect(() => {
     const updateToday = () => setTodayValue(todayInTimezone(timezone));
     updateToday();
@@ -793,50 +560,70 @@ function ScheduleScreen({
 
     return () => window.clearTimeout(timer);
   }, [days, defaultDay, selectedDay, showPastDays, todayValue, visibleDays]);
+  const announcementBoard = (
+    <DepartmentAnnouncementBoard
+      departmentId={authContext.departmentId}
+      timezone={timezone}
+      enabled={!developmentFallback}
+    />
+  );
+
   if (loading) {
     return (
-      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <p className="text-sm font-bold text-slate-500">Loading schedule...</p>
-      </section>
+      <div className="space-y-3">
+        {announcementBoard}
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <p className="text-sm font-bold text-slate-500">Loading schedule...</p>
+        </section>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
-        <h2 className="text-lg font-black text-rose-950">Failed to load schedule</h2>
-        <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
-      </section>
+      <div className="space-y-3">
+        {announcementBoard}
+        <section className="rounded-3xl border border-rose-100 bg-rose-50 p-4 shadow-soft">
+          <h2 className="text-lg font-black text-rose-950">Failed to load schedule</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-rose-800">{error}</p>
+        </section>
+      </div>
     );
   }
 
   if (!developmentFallback && !schedule) {
     return (
-      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <h2 className="text-xl font-black text-hospital-ink">No published schedule is active yet.</h2>
-        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-          An admin needs to create and publish a schedule version before staff can view the baseline schedule.
-        </p>
-        {authContext.role === "admin" && (
-          <Link
-            href="/admin/schedule-versions"
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white"
-          >
-            Create Schedule Version
-          </Link>
-        )}
-      </section>
+      <div className="space-y-3">
+        {announcementBoard}
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h2 className="text-xl font-black text-hospital-ink">No published schedule is active yet.</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            An admin needs to create and publish a schedule version before staff can view the baseline schedule.
+          </p>
+          {authContext.role === "admin" && (
+            <Link
+              href="/admin/schedule-versions"
+              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-extrabold text-white"
+            >
+              Create Schedule Version
+            </Link>
+          )}
+        </section>
+      </div>
     );
   }
 
   if (visibleDays.length === 0) {
     return (
-      <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-        <h2 className="text-xl font-black text-hospital-ink">No schedule entries.</h2>
-        <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-          The active schedule version exists, but no schedule rows have been added yet.
-        </p>
-      </section>
+      <div className="space-y-3">
+        {announcementBoard}
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <h2 className="text-xl font-black text-hospital-ink">No schedule entries.</h2>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+            The active schedule version exists, but no schedule rows have been added yet.
+          </p>
+        </section>
+      </div>
     );
   }
 
@@ -921,12 +708,7 @@ function ScheduleScreen({
           <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} />
         )}
       </ScheduleViewSummaryCard>
-      <MyStatusCard
-        authContext={authContext}
-        developmentFallback={developmentFallback}
-        onSaved={onChanged}
-        onStatusChange={handleStatusChange}
-      />
+      {announcementBoard}
       {availabilityError && (
         <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">
           {availabilityError}
@@ -958,8 +740,6 @@ function ScheduleScreen({
             day={day}
             expanded={expandedDay === day.day}
             shiftFilter={shiftFilter}
-            currentStaffProfileId={authContext.staffProfileId}
-            currentStaffStatusMessage={currentUserStatusMessage}
             shiftNotes={shiftNotes}
             availabilityByShift={availabilityByShift}
             availabilitySaving={availabilitySaving}
@@ -3394,7 +3174,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       supabase
         .from("schedule_entries")
         .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)"
+          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("schedule_version_id", activeVersionId)
         .order("shift_date", { ascending: true })
@@ -3409,7 +3189,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       supabase
         .from("user_schedule_overrides")
         .select(
-          "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active, status_message, status_updated_at)"
+          "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)

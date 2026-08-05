@@ -16,8 +16,6 @@ type DayScheduleCardProps = {
   day: ScheduleDay;
   expanded: boolean;
   shiftFilter: ScheduleShiftFilter;
-  currentStaffProfileId?: string | null;
-  currentStaffStatusMessage?: string | null;
   shiftNotes?: Record<string, string>;
   availabilityByShift?: Record<string, string>;
   availabilitySaving?: boolean;
@@ -49,16 +47,12 @@ function isCountableRtStaffEntry(entry: ScheduleEntry) {
 function StaffScheduleRow({
   entry,
   variant,
-  currentStaffProfileId,
-  currentStaffStatusMessage,
   coverageRequested,
   posts,
   note
 }: {
   entry: ScheduleEntry;
   variant: "scheduled" | "available";
-  currentStaffProfileId?: string | null;
-  currentStaffStatusMessage?: string | null;
   coverageRequested?: boolean;
   posts?: ShiftPost[];
   note?: string;
@@ -71,13 +65,6 @@ function StaffScheduleRow({
       ? "border-sky-100 bg-sky-50/90"
       : "border-emerald-100 bg-emerald-50/90";
   const showChips = coverageRequested || Boolean(posts?.length) || variant === "available" || entry.selfAdded;
-  const statusMessage =
-    entry.staffProfileId &&
-    entry.staffProfileId === currentStaffProfileId &&
-    currentStaffStatusMessage !== null &&
-    currentStaffStatusMessage !== undefined
-      ? currentStaffStatusMessage
-      : entry.statusMessage;
 
   return (
     <div className={`rounded-2xl border px-3 py-2 ${background}`}>
@@ -105,11 +92,6 @@ function StaffScheduleRow({
               </span>
             ))}
           </p>
-          {statusMessage && (
-            <p className="mt-1 text-xs font-semibold italic leading-4 text-slate-500">
-              {statusMessage}
-            </p>
-          )}
           <p className="mt-0.5 text-xs font-semibold text-slate-500">{entry.shiftTime}</p>
         </div>
         <StaffTypeBadge staffType={entry.staffType} compact isAide={isAide} />
@@ -178,8 +160,6 @@ function ShiftGroup({
   shiftCategory,
   scheduled,
   available,
-  currentStaffProfileId,
-  currentStaffStatusMessage,
   coverageRequestEntries,
   posts,
   shiftNotes,
@@ -193,8 +173,6 @@ function ShiftGroup({
   shiftCategory: "day" | "night";
   scheduled: ScheduleEntry[];
   available: ScheduleEntry[];
-  currentStaffProfileId?: string | null;
-  currentStaffStatusMessage?: string | null;
   coverageRequestEntries: ScheduleEntry[];
   posts: ShiftPost[];
   shiftNotes?: Record<string, string>;
@@ -239,8 +217,6 @@ function ShiftGroup({
               key={`${entry.staffName}-${entry.shiftTime}-scheduled`}
               entry={entry}
               variant="scheduled"
-              currentStaffProfileId={currentStaffProfileId}
-              currentStaffStatusMessage={currentStaffStatusMessage}
               coverageRequested={coverageRequested}
               posts={employeePosts}
               note={note}
@@ -253,8 +229,6 @@ function ShiftGroup({
             key={`${entry.id}-available`}
             entry={entry}
             variant="available"
-            currentStaffProfileId={currentStaffProfileId}
-            currentStaffStatusMessage={currentStaffStatusMessage}
           />
         ))}
       </div>
@@ -353,8 +327,6 @@ export function DayScheduleCard({
   day,
   expanded,
   shiftFilter,
-  currentStaffProfileId,
-  currentStaffStatusMessage,
   shiftNotes,
   availabilityByShift,
   availabilitySaving,
@@ -436,8 +408,6 @@ export function DayScheduleCard({
               shiftCategory="day"
               scheduled={dayScheduled}
               available={dayAvailable}
-              currentStaffProfileId={currentStaffProfileId}
-              currentStaffStatusMessage={currentStaffStatusMessage}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}
@@ -454,8 +424,6 @@ export function DayScheduleCard({
               shiftCategory="night"
               scheduled={nightScheduled}
               available={nightAvailable}
-              currentStaffProfileId={currentStaffProfileId}
-              currentStaffStatusMessage={currentStaffStatusMessage}
               coverageRequestEntries={day.coverageRequests}
               posts={day.shiftPosts}
               shiftNotes={shiftNotes}

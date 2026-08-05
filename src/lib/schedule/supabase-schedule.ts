@@ -25,8 +25,6 @@ export type StaffProfileSummary = {
   home_assignment: HomeAssignment;
   operations_role?: StaffOperationsRole | null;
   is_active?: boolean;
-  status_message?: string | null;
-  status_updated_at?: string | null;
 };
 
 export type ScheduleVersionRow = {
@@ -311,7 +309,6 @@ function entryToScheduleEntry(
     status: entry.entry_status === "scheduled" ? "Scheduled" : "Available",
     selfAdded: entry.id.startsWith("override-"),
     isShiftLead: Boolean(entry.is_shift_lead),
-    statusMessage: firstStaffProfile(entry.staff_profiles)?.status_message ?? null,
     coworkerTitles: titleIconsForStaff(entry, coworkerTitlesByStaffProfileId)
   };
 }

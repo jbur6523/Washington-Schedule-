@@ -4,6 +4,7 @@ import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { CommandCenterClient } from "@/components/CommandCenterClient";
 import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -43,5 +44,17 @@ export default async function CommandCenterPage() {
     return <AccessDenied />;
   }
 
-  return <CommandCenterClient authContext={auth.context} />;
+  const supabase = await createClient();
+  const { data: department } = await supabase
+    .from("departments")
+    .select("timezone")
+    .eq("id", auth.context.departmentId)
+    .maybeSingle();
+
+  return (
+    <CommandCenterClient
+      authContext={auth.context}
+      timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
+    />
+  );
 }

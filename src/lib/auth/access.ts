@@ -32,6 +32,12 @@ export function canViewDirectorShiftStatus(context: Pick<AuthenticatedUserContex
   return context.role === "admin" || context.role === "lead" || isDirector(context);
 }
 
+export function canManageDepartmentAnnouncement(
+  context: Pick<AuthenticatedUserContext, "role" | "operationsRole">
+) {
+  return canManageShiftStatus(context) || canViewDirectorShiftStatus(context);
+}
+
 export function canEditIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
   return context.role === "admin" || isIcuCommandCenter(context);
 }

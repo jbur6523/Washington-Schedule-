@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, Phone, RefreshCcw } from "lucide-react";
+import { DepartmentAnnouncementEditor } from "@/components/DepartmentAnnouncement";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
@@ -10,9 +11,10 @@ import { RtAideNotesModal } from "@/components/RtAideNotesModal";
 
 type CommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
+  timezone: string;
 };
 
-export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
+export function CommandCenterClient({ authContext, timezone }: CommandCenterClientProps) {
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
   const [leadNewNoteCount, setLeadNewNoteCount] = useState(0);
@@ -44,6 +46,8 @@ export function CommandCenterClient({ authContext }: CommandCenterClientProps) {
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Lead Command Board</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Lead shift operations</p>
         </section>
+
+        <DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />
 
         <div className="grid gap-3">
           <Link

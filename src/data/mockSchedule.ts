@@ -44,7 +44,6 @@ export type ScheduleEntry = {
   status: Extract<ScheduleStatus, "Scheduled" | "Available">;
   selfAdded?: boolean;
   isShiftLead?: boolean;
-  statusMessage?: string | null;
   coworkerTitles?: Array<{ title: string; label: string; icon: string }>;
 };
 
