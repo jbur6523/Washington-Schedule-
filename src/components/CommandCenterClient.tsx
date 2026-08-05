@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, Phone, RefreshCcw } from "lucide-react";
-import { DepartmentAnnouncementEditor } from "@/components/DepartmentAnnouncement";
+import { DepartmentAnnouncementManagerCard } from "@/components/DepartmentAnnouncement";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
@@ -47,9 +47,9 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Lead shift operations</p>
         </section>
 
-        <DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />
-
         <div className="grid gap-3">
+          <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
+
           <Link
             href="/command-center/shift-update"
             className={`${cardBaseClass} border-sky-100 bg-sky-50/90`}

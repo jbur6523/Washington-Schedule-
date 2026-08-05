@@ -26,7 +26,7 @@ import {
   Wind
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
-import { DepartmentAnnouncementEditor } from "@/components/DepartmentAnnouncement";
+import { DepartmentAnnouncementManagerCard } from "@/components/DepartmentAnnouncement";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
@@ -810,7 +810,7 @@ export function DirectorShiftStatusClient({
           </div>
         </section>
 
-        <DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />
+        <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-2">

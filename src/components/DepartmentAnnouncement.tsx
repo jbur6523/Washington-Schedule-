@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Megaphone } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode
+} from "react";
+import { Megaphone, X } from "lucide-react";
 import {
   announcementMessageLimit,
   announcementTitleLimit,
@@ -13,6 +20,9 @@ import { createClient } from "@/lib/supabase/client";
 
 const announcementSelect =
   "id, department_id, title, message, updated_by_staff_profile_id, updated_by_name, created_at, updated_at";
+
+const focusableSelector =
+  "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 function isDepartmentAnnouncement(value: unknown): value is DepartmentAnnouncement {
   if (!value || typeof value !== "object") {
@@ -107,6 +117,115 @@ export function useDepartmentAnnouncement(departmentId: string, enabled = true) 
   };
 }
 
+function AnnouncementModal({
+  open,
+  titleId,
+  closeLabel,
+  onClose,
+  children
+}: {
+  open: boolean;
+  titleId: string;
+  closeLabel: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(focusableSelector)
+      );
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [onClose, open]);
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/50 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-center sm:p-6"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="flex max-h-[88dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+      >
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <div className="inline-flex min-w-0 items-center gap-2 text-amber-700">
+            <Megaphone size={18} aria-hidden="true" />
+            <span className="text-xs font-extrabold uppercase tracking-wide">Department-wide</span>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+            aria-label={closeLabel}
+          >
+            <X size={16} aria-hidden="true" />
+            Close
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AnnouncementBoardCard({
   announcement,
   loading = false,
@@ -118,50 +237,85 @@ export function AnnouncementBoardCard({
   error?: string;
   timezone?: string;
 }) {
+  const [detailsAnnouncementId, setDetailsAnnouncementId] = useState<string | null>(null);
+  const closeDetails = useCallback(() => setDetailsAnnouncementId(null), []);
+
   return (
-    <section
-      aria-labelledby="department-announcement-heading"
-      className="rounded-2xl border border-amber-100 bg-amber-50/90 px-3.5 py-3 shadow-soft"
-    >
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-amber-700 shadow-sm">
-          <Megaphone size={17} aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 id="department-announcement-heading" className="text-sm font-black text-hospital-ink">
-            Announcement Board
-          </h2>
+    <>
+      <section
+        aria-labelledby="department-announcement-heading"
+        className="rounded-2xl border border-amber-100 bg-amber-50/90 px-3.5 py-3 shadow-soft"
+      >
+        <div className="flex items-start gap-3">
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-amber-700 shadow-sm">
+            <Megaphone size={17} aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 id="department-announcement-heading" className="text-sm font-black text-hospital-ink">
+              Announcement Board
+            </h2>
 
-          {loading && <p className="mt-1 text-sm font-bold text-slate-500">Loading announcement...</p>}
+            {loading && <p className="mt-1 text-sm font-bold text-slate-500">Loading announcement...</p>}
 
-          {!loading && error && (
-            <p role="alert" className="mt-2 text-sm font-bold leading-5 text-rose-700">
-              {error}
-            </p>
-          )}
-
-          {!loading && !error && !announcement && (
-            <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
-              There are no current announcements.
-            </p>
-          )}
-
-          {!loading && !error && announcement && (
-            <div className="mt-2">
-              <h3 className="break-words text-lg font-black leading-6 text-hospital-ink">
-                {announcement.title}
-              </h3>
-              <p className="mt-2 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-700">
-                {announcement.message}
+            {!loading && error && (
+              <p role="alert" className="mt-2 text-sm font-bold leading-5 text-rose-700">
+                {error}
               </p>
-              <p className="mt-3 text-xs font-bold leading-5 text-slate-500">
-                Updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}
+            )}
+
+            {!loading && !error && !announcement && (
+              <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
+                There are no current announcements.
               </p>
-            </div>
-          )}
+            )}
+
+            {!loading && !error && announcement && (
+              <div className="mt-1.5">
+                <h3 className="break-words text-base font-black leading-5 text-hospital-ink [overflow-wrap:anywhere]">
+                  {announcement.title}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-bold leading-5 text-slate-500">
+                    Updated {formatShiftStatusTime(announcement.updated_at, timezone)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setDetailsAnnouncementId(announcement.id)}
+                    className="inline-flex min-h-9 items-center justify-center rounded-xl bg-amber-600 px-3 text-xs font-extrabold text-white shadow-sm"
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <AnnouncementModal
+        open={Boolean(announcement && detailsAnnouncementId === announcement.id)}
+        titleId="announcement-details-title"
+        closeLabel="Close announcement details"
+        onClose={closeDetails}
+      >
+        {announcement && (
+          <article>
+            <h2
+              id="announcement-details-title"
+              className="break-words text-xl font-black leading-7 text-hospital-ink [overflow-wrap:anywhere]"
+            >
+              {announcement.title}
+            </h2>
+            <p className="mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-700 [overflow-wrap:anywhere]">
+              {announcement.message}
+            </p>
+            <p className="mt-4 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+              Last updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}
+            </p>
+          </article>
+        )}
+      </AnnouncementModal>
+    </>
   );
 }
 
@@ -210,6 +364,57 @@ export function DepartmentAnnouncementEditor({
       setSuccess={setSuccess}
       setActionError={setActionError}
     />
+  );
+}
+
+export function DepartmentAnnouncementManagerCard({
+  departmentId,
+  timezone
+}: {
+  departmentId: string;
+  timezone: string;
+}) {
+  const [editorOpen, setEditorOpen] = useState(false);
+  const closeEditor = useCallback(() => setEditorOpen(false), []);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setEditorOpen(true)}
+        className="h-36 w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+      >
+        <span className="flex h-full items-start gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700">
+            <Megaphone size={24} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xl font-black text-hospital-ink">Announcement Board</span>
+            <span className="mt-1 block text-sm font-bold leading-5 text-slate-600">
+              Create or update the department-wide employee announcement.
+            </span>
+            <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
+          </span>
+        </span>
+      </button>
+
+      <AnnouncementModal
+        open={editorOpen}
+        titleId="announcement-editor-title"
+        closeLabel="Close announcement editor"
+        onClose={closeEditor}
+      >
+        <h2 id="announcement-editor-title" className="text-xl font-black text-hospital-ink">
+          Manage Announcement
+        </h2>
+        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+          This announcement appears on every employee schedule.
+        </p>
+        <div className="mt-4">
+          <DepartmentAnnouncementEditor departmentId={departmentId} timezone={timezone} />
+        </div>
+      </AnnouncementModal>
+    </>
   );
 }
 
@@ -295,27 +500,14 @@ function DepartmentAnnouncementEditorForm({
   const busy = loading || saving || clearing;
 
   return (
-    <section className="rounded-[2rem] border border-amber-100 bg-amber-50/90 p-4 shadow-soft">
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
-          <Megaphone size={21} aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-amber-700">Department-wide</p>
-          <h2 className="mt-1 text-xl font-black leading-tight text-hospital-ink">Announcement Board</h2>
-          <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-            This announcement appears on every employee schedule.
-          </p>
-        </div>
-      </div>
-
+    <section aria-label="Announcement editor">
       {announcement && (
-        <p className="mt-3 rounded-2xl bg-white/80 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
+        <p className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
           Last updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}
         </p>
       )}
 
-      <form onSubmit={saveAnnouncement} className="mt-4 grid gap-3">
+      <form onSubmit={saveAnnouncement} className={`${announcement ? "mt-4" : ""} grid gap-3`}>
         <label className="block">
           <span className="text-xs font-extrabold text-slate-700">Announcement title</span>
           <input

@@ -46,11 +46,13 @@ describe("department announcement migration and integration contract", () => {
 
   it("uses the shared editor in both management locations", () => {
     expect(commandCenter).toContain(
-      '<DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />'
+      '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
     );
     expect(directorDashboard).toContain(
-      '<DepartmentAnnouncementEditor departmentId={authContext.departmentId} timezone={timezone} />'
+      '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
     );
+    expect(commandCenter).not.toContain("<DepartmentAnnouncementEditor");
+    expect(directorDashboard).not.toContain("<DepartmentAnnouncementEditor");
   });
 
   it("replaces only personal status while preserving Current Shift Status and filter independence", () => {

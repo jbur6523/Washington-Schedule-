@@ -2,9 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DepartmentAnnouncementBoard,
-  DepartmentAnnouncementEditor
+  DepartmentAnnouncementEditor,
+  DepartmentAnnouncementManagerCard
 } from "@/components/DepartmentAnnouncement";
-import type { DepartmentAnnouncement } from "@/lib/announcements/types";
+import {
+  announcementMessageLimit,
+  announcementTitleLimit,
+  type DepartmentAnnouncement
+} from "@/lib/announcements/types";
 
 const mocks = vi.hoisted(() => ({
   loadResult: { data: null as unknown, error: null as unknown },
@@ -83,7 +88,7 @@ describe("department announcement UI", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("displays the title, full line-broken message, updater, and update time", async () => {
+  it("shows a compact summary and opens the full announcement in an accessible dialog", async () => {
     mocks.loadResult = { data: activeAnnouncement, error: null };
     render(
       <DepartmentAnnouncementBoard
@@ -93,10 +98,27 @@ describe("department announcement UI", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Department meeting" })).toBeInTheDocument();
-    const message = screen.getByText((_, element) => element?.textContent === "First line\nSecond line");
-    expect(message).toHaveClass("whitespace-pre-wrap", "break-words");
-    expect(screen.getByText(/by Lead User/)).toBeInTheDocument();
     expect(screen.getByText(/08\/05\/2026/)).toBeInTheDocument();
+    expect(screen.queryByText((_, element) => element?.textContent === "First line\nSecond line")).not.toBeInTheDocument();
+    expect(screen.queryByText(/by Lead User/)).not.toBeInTheDocument();
+
+    const trigger = screen.getByRole("button", { name: "View Details" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Department meeting" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    const message = screen.getByText((_, element) => element?.textContent === "First line\nSecond line");
+    expect(message).toHaveClass("whitespace-pre-wrap", "break-words", "[overflow-wrap:anywhere]");
+    expect(screen.getByText(/by Lead User/)).toBeInTheDocument();
+    const closeButton = screen.getByRole("button", { name: "Close announcement details" });
+    await waitFor(() => expect(closeButton).toHaveFocus());
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(closeButton).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("applies realtime replacements and clears without a manual refresh", async () => {
@@ -176,6 +198,32 @@ describe("department announcement UI", () => {
     expect(window.confirm).toHaveBeenCalledWith("Clear the current department announcement?");
     expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/announcements", { method: "DELETE" });
     expect(screen.getByRole("button", { name: "Save Announcement" })).toBeInTheDocument();
+  });
+
+  it("uses the compact management card to open the shared editor modal", async () => {
+    render(
+      <DepartmentAnnouncementManagerCard
+        departmentId="department-1"
+        timezone="America/Los_Angeles"
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: /Announcement Board/ });
+    expect(trigger).toHaveTextContent("Create or update the department-wide employee announcement.");
+    expect(trigger).toHaveTextContent("Manage Announcement");
+    expect(screen.queryByLabelText(/Announcement title/)).not.toBeInTheDocument();
+
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(await screen.findByRole("dialog", { name: "Manage Announcement" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Announcement title/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Announcement message/)).toBeInTheDocument();
+    expect(screen.getByText(`0/${announcementTitleLimit}`)).toBeInTheDocument();
+    expect(screen.getByText(`0/${announcementMessageLimit.toLocaleString()}`)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Close announcement editor" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it("requires both fields before saving", async () => {
