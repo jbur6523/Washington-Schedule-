@@ -41,6 +41,47 @@ function isDepartmentAnnouncement(value: unknown): value is DepartmentAnnounceme
   );
 }
 
+function AnnouncementMessage({ message }: { message: string }) {
+  const urlPattern = /(?:https?:\/\/|www\.)[^\s<]+/gi;
+  const trailingPunctuationPattern = /[.,!?;:)}\]]+$/;
+  const content: ReactNode[] = [];
+  let lastIndex = 0;
+
+  let match: RegExpExecArray | null;
+
+  while ((match = urlPattern.exec(message)) !== null) {
+    const matchIndex = match.index ?? 0;
+    const matchedText = match[0];
+    const trailingPunctuation = matchedText.match(trailingPunctuationPattern)?.[0] ?? "";
+    const linkText = trailingPunctuation
+      ? matchedText.slice(0, -trailingPunctuation.length)
+      : matchedText;
+
+    content.push(message.slice(lastIndex, matchIndex));
+    content.push(
+      <a
+        key={`${matchIndex}-${linkText}`}
+        href={linkText.startsWith("www.") ? `https://${linkText}` : linkText}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-extrabold text-sky-700 underline decoration-sky-300 underline-offset-2 [overflow-wrap:anywhere]"
+      >
+        {linkText}
+      </a>
+    );
+    content.push(trailingPunctuation);
+    lastIndex = matchIndex + matchedText.length;
+  }
+
+  content.push(message.slice(lastIndex));
+
+  return (
+    <p className="mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-700 [overflow-wrap:anywhere]">
+      {content}
+    </p>
+  );
+}
+
 export function useDepartmentAnnouncement(departmentId: string, enabled = true) {
   const [announcement, setAnnouncement] = useState<DepartmentAnnouncement | null>(null);
   const [loading, setLoading] = useState(enabled);
@@ -306,9 +347,7 @@ export function AnnouncementBoardCard({
             >
               {announcement.title}
             </h2>
-            <p className="mt-3 whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-slate-700 [overflow-wrap:anywhere]">
-              {announcement.message}
-            </p>
+            <AnnouncementMessage message={announcement.message} />
             <p className="mt-4 rounded-2xl bg-slate-50 px-3 py-2 text-xs font-bold leading-5 text-slate-500">
               Last updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}
             </p>
@@ -369,10 +408,12 @@ export function DepartmentAnnouncementEditor({
 
 export function DepartmentAnnouncementManagerCard({
   departmentId,
-  timezone
+  timezone,
+  variant = "card"
 }: {
   departmentId: string;
   timezone: string;
+  variant?: "card" | "compact";
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const closeEditor = useCallback(() => setEditorOpen(false), []);
@@ -382,18 +423,38 @@ export function DepartmentAnnouncementManagerCard({
       <button
         type="button"
         onClick={() => setEditorOpen(true)}
-        className="h-36 w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+        className={
+          variant === "compact"
+            ? "flex min-h-16 w-full items-center gap-3 rounded-3xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
+            : "h-36 w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+        }
       >
-        <span className="flex h-full items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700">
-            <Megaphone size={24} aria-hidden="true" />
+        <span
+          className={
+            variant === "compact"
+              ? "flex w-full items-center gap-3"
+              : "flex h-full items-start gap-3"
+          }
+        >
+          <span
+            className={
+              variant === "compact"
+                ? "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm"
+                : "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700"
+            }
+          >
+            <Megaphone size={variant === "compact" ? 20 : 24} aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-xl font-black text-hospital-ink">Announcement Board</span>
-            <span className="mt-1 block text-sm font-bold leading-5 text-slate-600">
+            <span className={`block font-black text-hospital-ink ${variant === "compact" ? "text-sm" : "text-xl"}`}>
+              Announcement Board
+            </span>
+            <span className={`block font-bold text-slate-500 ${variant === "compact" ? "mt-0.5 text-xs" : "mt-1 text-sm leading-5"}`}>
               Create or update the department-wide employee announcement.
             </span>
-            <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
+            {variant === "card" && (
+              <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
+            )}
           </span>
         </span>
       </button>

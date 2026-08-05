@@ -807,10 +807,14 @@ export function DirectorShiftStatusClient({
                 <span className="mt-0.5 block text-xs font-bold text-slate-500">Shared notes for RT leads.</span>
               </span>
             </button>
+
+            <DepartmentAnnouncementManagerCard
+              departmentId={authContext.departmentId}
+              timezone={timezone}
+              variant="compact"
+            />
           </div>
         </section>
-
-        <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-2">

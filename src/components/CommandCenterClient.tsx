@@ -48,8 +48,6 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
         </section>
 
         <div className="grid gap-3">
-          <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
-
           <Link
             href="/command-center/shift-update"
             className={`${cardBaseClass} border-sky-100 bg-sky-50/90`}
@@ -68,17 +66,17 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
           </Link>
 
           <Link
-            href="/command-center/phone-list"
-            className={`${cardBaseClass} border-cyan-100 bg-cyan-50/90`}
+            href="/command-center/icu-snapshot"
+            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
           >
             <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
-                <Phone size={24} />
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
+                <Activity size={24} />
               </span>
               <div>
-                <h2 className="text-xl font-black text-hospital-ink">Phone List</h2>
+                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  Assign scheduled staff to department extensions.
+                  View ICU respiratory devices and settings.
                 </p>
               </div>
             </div>
@@ -108,17 +106,17 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
           </button>
 
           <Link
-            href="/command-center/icu-snapshot"
-            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
+            href="/command-center/phone-list"
+            className={`${cardBaseClass} border-cyan-100 bg-cyan-50/90`}
           >
             <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
-                <Activity size={24} />
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
+                <Phone size={24} />
               </span>
               <div>
-                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
+                <h2 className="text-xl font-black text-hospital-ink">Phone List</h2>
                 <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  View ICU respiratory devices and settings.
+                  Assign scheduled staff to department extensions.
                 </p>
               </div>
             </div>
@@ -175,6 +173,8 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               </div>
             </div>
           </Link>
+
+          <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
         </div>
 
         <button

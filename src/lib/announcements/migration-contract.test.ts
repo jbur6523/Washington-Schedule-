@@ -48,11 +48,38 @@ describe("department announcement migration and integration contract", () => {
     expect(commandCenter).toContain(
       '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
     );
-    expect(directorDashboard).toContain(
-      '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
-    );
+    expect(directorDashboard).toContain("<DepartmentAnnouncementManagerCard");
+    expect(directorDashboard).toContain('variant="compact"');
     expect(commandCenter).not.toContain("<DepartmentAnnouncementEditor");
     expect(directorDashboard).not.toContain("<DepartmentAnnouncementEditor");
+  });
+
+  it("keeps the requested Lead card order and nests the compact Director action in the header card", () => {
+    const leadCardLabels = [
+      "Shift Update",
+      "ICU Snapshot",
+      "Lead Communication Board",
+      "Phone List",
+      "Aide Communication Board",
+      "Rental Management",
+      "Short Shift Alert",
+      "<DepartmentAnnouncementManagerCard"
+    ];
+    const leadCardPositions = leadCardLabels.map((label) => commandCenter.indexOf(label));
+    expect(leadCardPositions.every((position) => position >= 0)).toBe(true);
+    expect(leadCardPositions).toEqual([...leadCardPositions].sort((left, right) => left - right));
+
+    const headerEnd = directorDashboard.indexOf(
+      '<section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">',
+      directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")
+    );
+    expect(directorDashboard.indexOf("Lead Communication Board")).toBeLessThan(
+      directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")
+    );
+    expect(directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")).toBeLessThan(headerEnd);
+    expect(directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")).toBeLessThan(
+      directorDashboard.indexOf("Current Shift Status")
+    );
   });
 
   it("replaces only personal status while preserving Current Shift Status and filter independence", () => {

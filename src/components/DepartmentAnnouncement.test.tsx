@@ -121,6 +121,34 @@ describe("department announcement UI", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("turns announcement URLs into wrapped links that open in a new window", async () => {
+    mocks.loadResult = {
+      data: {
+        ...activeAnnouncement,
+        message: "Join https://zoom.us/j/123456789?pwd=meeting.\nBackup: www.example.com/guide"
+      },
+      error: null
+    };
+    render(
+      <DepartmentAnnouncementBoard
+        departmentId="department-1"
+        timezone="America/Los_Angeles"
+      />
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "View Details" }));
+
+    const zoomLink = screen.getByRole("link", { name: "https://zoom.us/j/123456789?pwd=meeting" });
+    expect(zoomLink).toHaveAttribute("href", "https://zoom.us/j/123456789?pwd=meeting");
+    expect(zoomLink).toHaveAttribute("target", "_blank");
+    expect(zoomLink).toHaveAttribute("rel", "noopener noreferrer");
+    expect(zoomLink).toHaveClass("[overflow-wrap:anywhere]");
+
+    const backupLink = screen.getByRole("link", { name: "www.example.com/guide" });
+    expect(backupLink).toHaveAttribute("href", "https://www.example.com/guide");
+    expect(backupLink).toHaveAttribute("target", "_blank");
+  });
+
   it("applies realtime replacements and clears without a manual refresh", async () => {
     render(
       <DepartmentAnnouncementBoard
