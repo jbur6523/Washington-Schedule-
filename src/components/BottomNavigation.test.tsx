@@ -20,7 +20,7 @@ describe("BottomNavigation", () => {
     expect(screen.queryByText("Gossip")).not.toBeInTheDocument();
 
     const emailLink = screen.getByRole("link", { name: "Email" });
-    expect(emailLink).toHaveAttribute("href", "https://mail.whhs.com");
+    expect(emailLink).toHaveAttribute("href", "https://mail.whhs.com/owa/");
     expect(emailLink).toHaveAttribute("target", "_blank");
     expect(emailLink).toHaveAttribute("rel", "noopener noreferrer");
     expect(emailLink).toHaveClass("text-slate-500", "hover:bg-slate-50");

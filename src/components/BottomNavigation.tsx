@@ -26,7 +26,7 @@ type NavigationItem = InternalNavigationItem | ExternalNavigationItem;
 const navigationItems: NavigationItem[] = [
   { kind: "internal", id: "schedule", label: "Schedule", icon: CalendarDays },
   { kind: "internal", id: "manage-schedule", label: "Manage Schedule", icon: UserCog },
-  { kind: "external", href: "https://mail.whhs.com", label: "Email", icon: Mail },
+  { kind: "external", href: "https://mail.whhs.com/owa/", label: "Email", icon: Mail },
   { kind: "internal", id: "shift-board", label: "Cover/Switch", icon: ClipboardList },
   { kind: "internal", id: "staff", label: "Staff", icon: Users }
 ];
