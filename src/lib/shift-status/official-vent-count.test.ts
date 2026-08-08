@@ -187,8 +187,7 @@ describe("official vent count", () => {
     );
   });
 
-  it("uses a neutral first-ever empty state everywhere the shared count is shown", () => {
-    expect(directorClient).toContain("No vent count recorded yet.");
+  it("uses a neutral first-ever empty state in the Director ICU snapshot", () => {
     expect(directorIcuView).toContain("No vent count recorded yet.");
     expect(`${directorClient}\n${directorIcuView}`).not.toContain(
       "No official vent update for this shift."

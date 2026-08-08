@@ -459,23 +459,44 @@ export function DepartmentAnnouncementManagerCard({
         </span>
       </button>
 
-      <AnnouncementModal
+      <DepartmentAnnouncementManagerDialog
+        departmentId={departmentId}
+        timezone={timezone}
         open={editorOpen}
-        titleId="announcement-editor-title"
-        closeLabel="Close announcement editor"
         onClose={closeEditor}
-      >
-        <h2 id="announcement-editor-title" className="text-xl font-black text-hospital-ink">
-          Manage Announcement
-        </h2>
-        <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-          This announcement appears on every employee schedule.
-        </p>
-        <div className="mt-4">
-          <DepartmentAnnouncementEditor departmentId={departmentId} timezone={timezone} />
-        </div>
-      </AnnouncementModal>
+      />
     </>
+  );
+}
+
+export function DepartmentAnnouncementManagerDialog({
+  departmentId,
+  timezone,
+  open,
+  onClose
+}: {
+  departmentId: string;
+  timezone: string;
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <AnnouncementModal
+      open={open}
+      titleId="announcement-editor-title"
+      closeLabel="Close announcement editor"
+      onClose={onClose}
+    >
+      <h2 id="announcement-editor-title" className="text-xl font-black text-hospital-ink">
+        Manage Announcement
+      </h2>
+      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+        This announcement appears on every employee schedule.
+      </p>
+      <div className="mt-4">
+        <DepartmentAnnouncementEditor departmentId={departmentId} timezone={timezone} />
+      </div>
+    </AnnouncementModal>
   );
 }
 

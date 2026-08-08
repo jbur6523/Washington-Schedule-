@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   Baby,
@@ -17,16 +17,19 @@ import {
   FileText,
   Heart,
   LogOut,
+  Megaphone,
+  Menu as MenuIcon,
   MessageSquareText,
   Phone,
   Search,
   Stethoscope,
   User,
   Users,
-  Wind
+  Wind,
+  X
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
-import { DepartmentAnnouncementManagerCard } from "@/components/DepartmentAnnouncement";
+import { DepartmentAnnouncementManagerDialog } from "@/components/DepartmentAnnouncement";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
@@ -66,6 +69,8 @@ const scheduleEntrySelect =
   "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)";
 const scheduleOverrideSelect =
   "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)";
+const directorMenuFocusableSelector =
+  "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 function previousDate(dateValue: string) {
   const date = new Date(`${dateValue}T12:00:00Z`);
@@ -388,8 +393,10 @@ export function DirectorShiftStatusClient({
   const [activeRentalCount, setActiveRentalCount] = useState<number | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const [utilityMenuOpen, setUtilityMenuOpen] = useState(false);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
+  const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [directorySearch, setDirectorySearch] = useState("");
@@ -402,6 +409,8 @@ export function DirectorShiftStatusClient({
   const [selectedScheduleShift, setSelectedScheduleShift] = useState<"day" | "night">(() => directorViewShiftDefaultShift(timezone));
   const [manualScheduleDate, setManualScheduleDate] = useState("");
   const [manualScheduleError, setManualScheduleError] = useState("");
+  const utilityMenuDialogRef = useRef<HTMLElement | null>(null);
+  const utilityMenuCloseRef = useRef<HTMLButtonElement | null>(null);
   const {
     update: officialVent,
     loading: officialVentLoading,
@@ -598,6 +607,55 @@ export function DirectorShiftStatusClient({
   }, [directoryOpen, shiftPreviewOpen]);
 
   useEffect(() => {
+    if (!utilityMenuOpen) {
+      return;
+    }
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    utilityMenuCloseRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setUtilityMenuOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !utilityMenuDialogRef.current) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        utilityMenuDialogRef.current.querySelectorAll<HTMLElement>(directorMenuFocusableSelector)
+      );
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!firstElement || !lastElement) {
+        event.preventDefault();
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [utilityMenuOpen]);
+
+  useEffect(() => {
     if (!directoryOpen || directoryProfiles.length > 0 || directoryLoading) {
       return;
     }
@@ -765,66 +823,33 @@ export function DirectorShiftStatusClient({
     <main className="min-h-screen px-4 py-6">
       <div className="mx-auto max-w-xl space-y-4">
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
-                <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink">
-                  Director Dashboard
-                </h1>
-                <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold leading-5 text-slate-500">
-                  <span>Live department numbers from the Command Center</span>
-                  {latest && (
-                    <>
-                      <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
-                      <span className="font-black text-slate-600">Live</span>
-                    </>
-                  )}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void signOut()}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 shadow-sm"
-              >
-                <LogOut size={15} />
-                Sign Out
-              </button>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+              <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink">
+                Director Dashboard
+              </h1>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold leading-5 text-slate-500">
+                <span>Live department numbers from the Command Center</span>
+                {latest && (
+                  <>
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                    <span className="font-black text-slate-600">Live</span>
+                  </>
+                )}
+              </p>
             </div>
-
             <button
               type="button"
-              onClick={() => setDirectoryOpen(true)}
-              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 text-left shadow-sm"
+              onClick={() => setUtilityMenuOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={utilityMenuOpen}
+              aria-controls="director-utility-menu"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 shadow-sm outline-none transition hover:bg-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
             >
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
-                <Phone size={20} />
-              </span>
-              <span>
-                <span className="block text-sm font-black text-hospital-ink">Respiratory Directory</span>
-                <span className="mt-0.5 block text-xs font-bold text-slate-500">View RT staff phone numbers.</span>
-              </span>
+              <MenuIcon size={17} aria-hidden="true" />
+              Menu
             </button>
-
-            <button
-              type="button"
-              onClick={() => setLeadNotesOpen(true)}
-              className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-purple-200 bg-purple-100/80 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
-            >
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
-                <MessageSquareText size={20} />
-              </span>
-              <span>
-                <span className="block text-sm font-black text-hospital-ink">Lead Communication Board</span>
-                <span className="mt-0.5 block text-xs font-bold text-slate-500">Shared notes for RT leads.</span>
-              </span>
-            </button>
-
-            <DepartmentAnnouncementManagerCard
-              departmentId={authContext.departmentId}
-              timezone={timezone}
-              variant="compact"
-            />
           </div>
         </section>
 
@@ -1018,6 +1043,105 @@ export function DirectorShiftStatusClient({
           </>
         )}
 
+        {utilityMenuOpen && (
+          <div
+            data-testid="director-menu-backdrop"
+            className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-start sm:justify-end sm:p-4"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setUtilityMenuOpen(false);
+              }
+            }}
+          >
+            <section
+              id="director-utility-menu"
+              ref={utilityMenuDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="director-utility-menu-title"
+              className="w-full max-w-xl rounded-t-[2rem] border border-white bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm sm:rounded-[2rem]"
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
+                <div>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                  <h2 id="director-utility-menu-title" className="mt-1 text-xl font-black text-hospital-ink">
+                    Director Menu
+                  </h2>
+                </div>
+                <button
+                  ref={utilityMenuCloseRef}
+                  type="button"
+                  onClick={() => setUtilityMenuOpen(false)}
+                  aria-label="Close Director menu"
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
+                >
+                  <X size={16} aria-hidden="true" />
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-3 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUtilityMenuOpen(false);
+                    setDirectoryOpen(true);
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/70 px-3 py-2.5 text-left outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
+                >
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
+                    <Phone size={19} aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-black text-hospital-ink">Respiratory Directory</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUtilityMenuOpen(false);
+                    setLeadNotesOpen(true);
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-purple-100 bg-purple-50/80 px-3 py-2.5 text-left outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2"
+                >
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
+                    <MessageSquareText size={19} aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-black text-hospital-ink">Lead Communication Board</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUtilityMenuOpen(false);
+                    setAnnouncementOpen(true);
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50/80 px-3 py-2.5 text-left outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+                >
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm">
+                    <Megaphone size={19} aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-black text-hospital-ink">Announcement Board</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUtilityMenuOpen(false);
+                    void signOut();
+                  }}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2"
+                >
+                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+                    <LogOut size={19} aria-hidden="true" />
+                  </span>
+                  <span className="text-sm font-black text-hospital-ink">Sign Out</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
+
         {directoryOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
             <section
@@ -1094,6 +1218,13 @@ export function DirectorShiftStatusClient({
           open={leadNotesOpen}
           onClose={() => setLeadNotesOpen(false)}
           context="director"
+        />
+
+        <DepartmentAnnouncementManagerDialog
+          departmentId={authContext.departmentId}
+          timezone={timezone}
+          open={announcementOpen}
+          onClose={() => setAnnouncementOpen(false)}
         />
 
         {shiftPreviewOpen && (
