@@ -1,6 +1,5 @@
 import type {
   OfficialVentCountSource,
-  OfficialVentCountUpdate,
   ShiftStatusShiftType,
   ShiftStatusUpdate
 } from "@/lib/shift-status/types";
@@ -164,18 +163,6 @@ export function formatShiftStatusTime(value: string | null | undefined, timezone
 
 export function officialVentSourceLabel(source: OfficialVentCountSource) {
   return source === "lead_command_center" ? "Lead Command Center" : "ICU Command Center";
-}
-
-export function officialVentForWindow(
-  update: OfficialVentCountUpdate | null,
-  shiftDate: string,
-  shiftType: ShiftStatusShiftType
-) {
-  if (!update || update.shift_date !== shiftDate || update.shift_type !== shiftType) {
-    return null;
-  }
-
-  return update;
 }
 
 export function latestShiftStatus(updates: ShiftStatusUpdate[]) {

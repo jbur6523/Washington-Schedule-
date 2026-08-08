@@ -53,10 +53,11 @@ Route checks and RLS/database checks are both required; hiding a control is not 
 - server-generated creation time
 - updater identity and display attribution when available
 
-The current value is selected deterministically by `created_at desc, id desc` within the current
-operational date and shift.
+The current value is selected deterministically by the Vent event's field-specific
+`created_at desc, id desc` across all operational dates and shifts.
 
 - A genuine Lead vent change publishes after the Lead row is saved.
+- A blank or omitted Lead vent value publishes nothing; zero remains a genuine value.
 - An unrelated Lead save does not publish.
 - A genuine ICU tracked-count change publishes after persisted ICU rows are recalculated.
 - An unrelated ICU edit that leaves the tracked total unchanged does not publish.
@@ -121,7 +122,7 @@ Protections retained:
 - Wall-clock timestamp conversion handles daylight-saving transitions explicitly.
 - Nonexistent spring-forward times are rejected.
 - Repeated fall-back times resolve deterministically.
-- Canonical vent queries are scoped to operational date and shift, preventing prior-shift inheritance.
+- Canonical vent queries are department-scoped and intentionally retain the last valid value across shift and date boundaries.
 
 ## Security and Privacy
 

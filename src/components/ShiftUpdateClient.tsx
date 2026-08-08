@@ -9,6 +9,7 @@ import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } 
 import { fetchShiftStatusUpdates, isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
 import { currentShiftStatusWindow, shiftTypeLabel } from "@/lib/shift-status/utils";
 import {
+  optionalShiftStatusNumberValue,
   shiftStatusNumberValue,
   validateShiftStatusCounts
 } from "@/lib/shift-status/validation";
@@ -252,7 +253,6 @@ export function ShiftUpdateClient({
       form.shiftType &&
       form.rtsOn !== "" &&
       form.rtsRequired !== "" &&
-      form.ventCount !== "" &&
       form.bipapCount !== "" &&
       updatedByName
   );
@@ -281,7 +281,7 @@ export function ShiftUpdateClient({
       shift_type: form.shiftType,
       rts_on: shiftStatusNumberValue(form.rtsOn),
       rts_required: shiftStatusNumberValue(form.rtsRequired),
-      vent_count: shiftStatusNumberValue(form.ventCount),
+      vent_count: optionalShiftStatusNumberValue(form.ventCount),
       bipap_count: shiftStatusNumberValue(form.bipapCount),
       c_section_count: shiftStatusNumberValue(form.cSectionCount),
       cabg_count: shiftStatusNumberValue(form.cabgCount),
@@ -386,7 +386,7 @@ export function ShiftUpdateClient({
                 icon={<Wind size={18} />}
                 label="Vents"
                 value={form.ventCount}
-                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vent_count, timezone)}
+                helperText={`${lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vent_count, timezone)} · Blank = no change`}
                 onChange={(value) => setForm((current) => ({ ...current, ventCount: value }))}
               />
               <CountInputCard

@@ -16,6 +16,16 @@ Apply this migration next:
 202607270002_production_readiness_hardening.sql
 ```
 
+After the hardening migration, apply:
+
+```text
+202608070001_persistent_icu_snapshot_vent_precedence.sql
+```
+
+This forward-only migration makes the canonical Vent read persistent across shifts,
+adds the department-wide latest-event index, and makes a null Lead Vent field mean
+"no change" while preserving a real zero.
+
 Do not rerun or manually replay older migrations against production. The hardening migration is the
 forward migration for existing environments and does not require a setup-code cleanup migration because
 no setup-code table, column, token, or expiration schema exists in the tracked database history.

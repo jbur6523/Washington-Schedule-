@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  optionalShiftStatusNumberValue,
   shiftStatusNumberValue,
   validateShiftStatusCounts,
   type ShiftStatusCountInput
@@ -23,6 +24,14 @@ describe("shift status count validation", () => {
     expect(validateShiftStatusCounts(validCounts)).toBeNull();
     expect(shiftStatusNumberValue("")).toBe(0);
     expect(shiftStatusNumberValue("0")).toBe(0);
+    expect(optionalShiftStatusNumberValue("")).toBeNull();
+    expect(optionalShiftStatusNumberValue("0")).toBe(0);
+  });
+
+  it("treats a blank Vent field as no update while preserving a real zero", () => {
+    expect(validateShiftStatusCounts({ ...validCounts, ventCount: "" })).toBeNull();
+    expect(optionalShiftStatusNumberValue(" ")).toBeNull();
+    expect(optionalShiftStatusNumberValue("0")).toBe(0);
   });
 
   it("rejects negative operational values instead of coercing them to zero", () => {

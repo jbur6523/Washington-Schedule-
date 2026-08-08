@@ -13,7 +13,7 @@ export type ShiftStatusCountInput = {
 
 const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> = [
   ["rtsOn", "RTs Scheduled", true],
-  ["ventCount", "Vents", true],
+  ["ventCount", "Vents", false],
   ["bipapCount", "BiPAPs", true],
   ["cSectionCount", "C-Sections", false],
   ["vaginalDeliveryCount", "Vaginal Deliveries", false],
@@ -51,4 +51,8 @@ export function validateShiftStatusCounts(input: ShiftStatusCountInput) {
 
 export function shiftStatusNumberValue(value: string) {
   return value.trim() ? Number(value) : 0;
+}
+
+export function optionalShiftStatusNumberValue(value: string) {
+  return value.trim() ? Number(value) : null;
 }
