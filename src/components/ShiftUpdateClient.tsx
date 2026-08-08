@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Stethoscope, User, Users, Wind } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -180,6 +181,7 @@ export function ShiftUpdateClient({
   authContext: AuthenticatedUserContext;
   timezone: string;
 }) {
+  const router = useRouter();
   const initialWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShiftUpdateForm>(() => ({
@@ -203,6 +205,17 @@ export function ShiftUpdateClient({
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const submissionInFlightRef = useRef(false);
+  const redirectTimerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (redirectTimerRef.current !== null) {
+        window.clearTimeout(redirectTimerRef.current);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -260,6 +273,10 @@ export function ShiftUpdateClient({
   const saveShiftUpdate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (submissionInFlightRef.current) {
+      return;
+    }
+
     if (!canSave) {
       setError("Select lead and enter shift numbers to continue.");
       return;
@@ -271,6 +288,7 @@ export function ShiftUpdateClient({
       return;
     }
 
+    submissionInFlightRef.current = true;
     setSaving(true);
     setError("");
     setMessage("");
@@ -293,29 +311,41 @@ export function ShiftUpdateClient({
       updated_by_name: updatedByName
     };
 
-    const supabase = createClient();
-    let { error: saveError } = await supabase.from("shift_status_updates").insert({
-      ...basePayload,
-      vaginal_delivery_count: shiftStatusNumberValue(form.vaginalDeliveryCount)
-    });
+    try {
+      const supabase = createClient();
+      let { error: saveError } = await supabase.from("shift_status_updates").insert({
+        ...basePayload,
+        vaginal_delivery_count: shiftStatusNumberValue(form.vaginalDeliveryCount)
+      });
 
-    if (isMissingVaginalDeliveryColumn(saveError as ShiftStatusQueryError | null)) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Retrying shift update without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+      if (isMissingVaginalDeliveryColumn(saveError as ShiftStatusQueryError | null)) {
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("Retrying shift update without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
+        }
+        const retry = await supabase.from("shift_status_updates").insert(basePayload);
+        saveError = retry.error;
       }
-      const retry = await supabase.from("shift_status_updates").insert(basePayload);
-      saveError = retry.error;
-    }
 
-    setSaving(false);
+      if (saveError) {
+        submissionInFlightRef.current = false;
+        setSaving(false);
+        setError("Unable to save shift update.");
+        return;
+      }
 
-    if (saveError) {
+      setMessage("Update Submitted");
+      redirectTimerRef.current = window.setTimeout(() => {
+        router.replace("/command-center");
+        router.refresh();
+      }, 1_500);
+    } catch (saveException) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Shift update submission failed", saveException);
+      }
+      submissionInFlightRef.current = false;
+      setSaving(false);
       setError("Unable to save shift update.");
-      return;
     }
-
-    setMessage("Shift update saved.");
-    await loadLastKnownUpdate();
   };
 
   return (
@@ -504,8 +534,8 @@ export function ShiftUpdateClient({
             </label>
           </section>
 
-          {error && <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>}
-          {message && <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{message}</p>}
+          {error && <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>}
+          {message && <p role="status" aria-live="polite" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{message}</p>}
 
           <button
             type="submit"
