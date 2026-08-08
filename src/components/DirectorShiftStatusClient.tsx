@@ -48,12 +48,12 @@ import {
   resolveDirectorCurrentShiftStatus,
   resolveDirectorDepartmentSnapshot
 } from "@/lib/director-dashboard/shift-status";
+import { latestDirectorCardUpdate } from "@/lib/director-dashboard/update-metadata";
 import {
   currentShiftStatusWindow,
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
-  officialVentSourceLabel,
   resolveCurrentShiftStatus,
   shiftTypeLabel,
   staffingStatusLabel,
@@ -626,7 +626,6 @@ export function DirectorShiftStatusClient({
   const latest = directorStatusDisplay.latest;
   const showingFallback = directorStatusDisplay.showingFallback;
   const snapshotLatest = directorSnapshotDisplay.latest;
-  const snapshotShowingFallback = directorSnapshotDisplay.showingFallback;
   const latestProcedureUpdate = strictCurrentShiftDisplay.currentLatest;
   const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
   const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
@@ -641,6 +640,20 @@ export function DirectorShiftStatusClient({
     snapshotProcedureCounts.other;
   const statusSourceShift = formatDirectorSourceShift(latest);
   const snapshotSourceShift = formatDirectorSourceShift(snapshotLatest);
+  const departmentSnapshotUpdate = latestDirectorCardUpdate(
+    snapshotLatest
+      ? {
+          updatedAt: snapshotLatest.updated_at,
+          updatedBy: updatedByName(snapshotLatest)
+        }
+      : null,
+    officialVent
+      ? {
+          updatedAt: officialVent.created_at,
+          updatedBy: officialVent.updated_by_name
+        }
+      : null
+  );
   const status = directorStatus(latest);
   const displayedVentCount = officialVent?.vent_count ?? null;
   const textReport = latest ? reportText(latest, timezone, displayedVentCount ?? "No Update") : "";
@@ -912,35 +925,10 @@ export function DirectorShiftStatusClient({
             </div>
           )}
 
-          {snapshotShowingFallback && (
-            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-              Showing the most recent submitted department snapshot until this shift is updated.
-            </p>
-          )}
-
-          {(snapshotLatest || officialVent) && (
+          {departmentSnapshotUpdate && (
             <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              {snapshotLatest && (
-                <>
-                  <p>Department details updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
-                  <p>Department details updated by: {updatedByName(snapshotLatest)}</p>
-                </>
-              )}
-              {officialVent ? (
-                <>
-                  <p>
-                    Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
-                    {formatShiftStatusTime(officialVent.created_at, timezone)}
-                  </p>
-                  <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
-                </>
-              ) : (
-                <p className="text-rose-700">
-                  {officialVentLoading
-                    ? "Loading official vent count..."
-                    : officialVentError || "No vent count recorded yet."}
-                </p>
-              )}
+              <p>Last updated: {formatShiftStatusTime(departmentSnapshotUpdate.updatedAt, timezone)}</p>
+              <p>Updated by: {departmentSnapshotUpdate.updatedBy}</p>
             </div>
           )}
 

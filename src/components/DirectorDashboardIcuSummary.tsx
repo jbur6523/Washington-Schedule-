@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw, Wind, X } from "lucide-react";
 import {
-  formatIcuSnapshotDateTime,
   IcuReadOnlyCard,
   IcuSnapshotCard,
   latestIcuSnapshotRecord,
@@ -15,11 +14,9 @@ import {
   composeDirectorDashboardIcuSummary,
   type DirectorDashboardIcuSummaryModel
 } from "@/lib/director-dashboard/icu-summary";
+import { latestDirectorCardUpdate } from "@/lib/director-dashboard/update-metadata";
 import type { OfficialVentCountUpdate } from "@/lib/shift-status/types";
-import {
-  formatShiftStatusTime,
-  officialVentSourceLabel
-} from "@/lib/shift-status/utils";
+import { formatShiftStatusTime } from "@/lib/shift-status/utils";
 
 type DirectorIcuRecord = IcuPatientRecord & {
   updated_by_name?: string | null;
@@ -54,6 +51,24 @@ export function DirectorDashboardIcuSummaryView({
   const latestSnapshotRecord = useMemo(
     () => latestIcuSnapshotRecord(records),
     [records]
+  );
+  const effectiveUpdate = useMemo(
+    () =>
+      latestDirectorCardUpdate(
+        latestSnapshotRecord
+          ? {
+              updatedAt: latestSnapshotRecord.updated_at || latestSnapshotRecord.created_at,
+              updatedBy: latestSnapshotRecord.updated_by_name
+            }
+          : null,
+        officialVent
+          ? {
+              updatedAt: officialVent.created_at,
+              updatedBy: officialVent.updated_by_name
+            }
+          : null
+      ),
+    [latestSnapshotRecord, officialVent]
   );
 
   useEffect(() => {
@@ -134,32 +149,20 @@ export function DirectorDashboardIcuSummaryView({
         <IcuSnapshotCard label="Critical Vents" value={summary.criticalVents} />
       </div>
 
-      <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-        {officialVent ? (
-          <>
-            <p>
-              Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
-              {formatShiftStatusTime(officialVent.created_at, timezone)}
-            </p>
-            <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
-          </>
-        ) : (
-          <p className="text-rose-700">
-            {officialVentLoading
-              ? "Loading official vent count..."
-              : officialVentError || "No vent count recorded yet."}
-          </p>
-        )}
-        <p>
-          ICU details updated:{" "}
-          {formatIcuSnapshotDateTime(
-            latestSnapshotRecord?.updated_at ?? latestSnapshotRecord?.created_at
-          )}
+      {!officialVent && (
+        <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-center text-xs font-bold text-slate-500">
+          {officialVentLoading
+            ? "Loading official vent count..."
+            : officialVentError || "No vent count recorded yet."}
         </p>
-        <p>
-          ICU details updated by: {latestSnapshotRecord?.updated_by_name ?? "Unknown"}
-        </p>
-      </div>
+      )}
+
+      {effectiveUpdate && (
+        <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+          <p>Last updated: {formatShiftStatusTime(effectiveUpdate.updatedAt, timezone)}</p>
+          <p>Updated by: {effectiveUpdate.updatedBy}</p>
+        </div>
+      )}
 
       <button
         type="button"

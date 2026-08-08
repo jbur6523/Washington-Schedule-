@@ -2,11 +2,12 @@ import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DirectorShiftStatusClient } from "@/components/DirectorShiftStatusClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type { OfficialVentCountUpdate, ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
   fetchDirector: vi.fn(),
-  realtimeHandler: null as (() => void) | null
+  realtimeHandler: null as (() => void) | null,
+  officialVent: null as OfficialVentCountUpdate | null
 }));
 
 vi.mock("@/lib/shift-status/client-queries", () => ({
@@ -14,7 +15,7 @@ vi.mock("@/lib/shift-status/client-queries", () => ({
 }));
 
 vi.mock("@/lib/shift-status/use-official-vent-count", () => ({
-  useOfficialVentCount: () => ({ update: null, loading: false, error: "" })
+  useOfficialVentCount: () => ({ update: mocks.officialVent, loading: false, error: "" })
 }));
 
 vi.mock("@/components/DirectorDashboardIcuSummary", () => ({
@@ -103,6 +104,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-09T16:00:00.000Z"));
     mocks.realtimeHandler = null;
+    mocks.officialVent = null;
     mocks.fetchDirector.mockReset();
     mocks.fetchDirector.mockImplementation(async () => ({
       data: [{ ...prior }],
@@ -144,5 +146,37 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(within(statusCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");
     view.unmount();
+  });
+
+  it("shows only the newest effective Department Snapshot timestamp and employee", async () => {
+    mocks.officialVent = {
+      id: 2,
+      department_id: "department-1",
+      shift_date: "2026-08-08",
+      shift_type: "night",
+      vent_count: 4,
+      source: "icu_command_center",
+      updated_by_staff_profile_id: "icu-1",
+      updated_by_name: "Vent RT",
+      created_at: "2026-08-09T04:15:00.000Z"
+    };
+
+    render(<DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const snapshotCard = screen.getByRole("heading", { name: "Department Snapshot" }).closest("section");
+    expect(snapshotCard).not.toBeNull();
+    const card = within(snapshotCard as HTMLElement);
+    const lastUpdated = card.getByText("Last updated: 08/08/2026 21:15");
+    const footer = lastUpdated.parentElement;
+
+    expect(footer).not.toBeNull();
+    expect(footer?.children).toHaveLength(2);
+    expect(card.getByText("Updated by: Vent RT")).toBeInTheDocument();
+    expect(card.queryByText(/Vents source:/)).not.toBeInTheDocument();
+    expect(card.queryByText(/Department details updated:/)).not.toBeInTheDocument();
+    expect(card.queryByText(/Vents updated by:/)).not.toBeInTheDocument();
   });
 });
