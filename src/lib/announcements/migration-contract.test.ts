@@ -48,13 +48,12 @@ describe("department announcement migration and integration contract", () => {
     expect(commandCenter).toContain(
       '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
     );
-    expect(directorDashboard).toContain("<DepartmentAnnouncementManagerCard");
-    expect(directorDashboard).toContain('variant="compact"');
+    expect(directorDashboard).toContain("<DepartmentAnnouncementManagerDialog");
     expect(commandCenter).not.toContain("<DepartmentAnnouncementEditor");
     expect(directorDashboard).not.toContain("<DepartmentAnnouncementEditor");
   });
 
-  it("keeps the requested Lead card order and nests the compact Director action in the header card", () => {
+  it("keeps the requested Lead card order and moves the Director action into its compact menu", () => {
     const leadCardLabels = [
       "Shift Update",
       "ICU Snapshot",
@@ -69,17 +68,18 @@ describe("department announcement migration and integration contract", () => {
     expect(leadCardPositions.every((position) => position >= 0)).toBe(true);
     expect(leadCardPositions).toEqual([...leadCardPositions].sort((left, right) => left - right));
 
-    const headerEnd = directorDashboard.indexOf(
-      '<section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">',
-      directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")
-    );
-    expect(directorDashboard.indexOf("Lead Communication Board")).toBeLessThan(
-      directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")
-    );
-    expect(directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")).toBeLessThan(headerEnd);
-    expect(directorDashboard.indexOf("<DepartmentAnnouncementManagerCard")).toBeLessThan(
+    const directorHeader = directorDashboard.slice(
+      directorDashboard.indexOf("Director View"),
       directorDashboard.indexOf("Current Shift Status")
     );
+    expect(directorHeader).toContain("<MenuIcon");
+    expect(directorHeader).toContain("Menu");
+    expect(directorHeader).not.toContain("Announcement Board");
+    expect(directorHeader).not.toContain("Respiratory Directory");
+    expect(directorHeader).not.toContain("Lead Communication Board");
+    expect(directorHeader).not.toContain("Sign Out");
+    expect(directorDashboard).toContain("setAnnouncementOpen(true)");
+    expect(directorDashboard).not.toContain("<DepartmentAnnouncementManagerCard");
   });
 
   it("replaces only personal status while preserving Current Shift Status and filter independence", () => {

@@ -109,7 +109,11 @@ describe("DirectorDashboardIcuSummary", () => {
     expect(metricValue(region, "HFNC")).toContain("1");
     expect(metricValue(region, "BiPAP")).toContain("2");
     expect(metricValue(region, "Critical Vents")).toContain("0");
-    expect(region).toHaveTextContent("Vents source: Lead Command Center");
+    expect(region).toHaveTextContent("Last updated: 07/27/2026 15:08");
+    expect(region).toHaveTextContent("Updated by: Lead RT");
+    expect(region).not.toHaveTextContent("Vents source:");
+    expect(region).not.toHaveTextContent("ICU details updated:");
+    expect(region).not.toHaveTextContent("Vents updated by:");
   });
 
   it("keeps a valid zero from a prior date after refresh and unrelated ICU detail updates", () => {
@@ -144,11 +148,18 @@ describe("DirectorDashboardIcuSummary", () => {
       name: "Director ICU Summary"
     });
     expect(metricValue(region, "Vents")).toContain("0");
-    expect(region).toHaveTextContent("Vents source: ICU Command Center");
+    expect(region).toHaveTextContent("Last updated: 07/27/2026 14:00");
+    expect(region).toHaveTextContent("Updated by: Unknown");
+    expect(region).not.toHaveTextContent("Vents source:");
 
     const refreshedRecords = rawRecords.map((icuRecord, index) =>
       index === 0
-        ? { ...icuRecord, fio2: 45, updated_at: "2026-07-28T17:00:00.000Z" }
+        ? {
+            ...icuRecord,
+            fio2: 45,
+            updated_at: "2026-07-28T17:00:00.000Z",
+            updated_by_name: "ICU RT"
+          }
         : icuRecord
     );
     rerender(
@@ -160,7 +171,9 @@ describe("DirectorDashboardIcuSummary", () => {
 
     region = screen.getByRole("region", { name: "Director ICU Summary" });
     expect(metricValue(region, "Vents")).toContain("0");
-    expect(region).toHaveTextContent("Vents source: ICU Command Center");
+    expect(region).toHaveTextContent("Last updated: 07/28/2026 10:00");
+    expect(region).toHaveTextContent("Updated by: ICU RT");
+    expect(region).not.toHaveTextContent("Vents source:");
   });
 
   it("uses a neutral empty state only when no Vent count has ever been recorded", () => {
