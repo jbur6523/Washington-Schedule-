@@ -41,14 +41,18 @@ import {
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { fetchShiftStatusUpdates } from "@/lib/shift-status/client-queries";
+import { fetchDirectorShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
+import {
+  formatDirectorSourceShift,
+  resolveDirectorCurrentShiftStatus,
+  resolveDirectorDepartmentSnapshot
+} from "@/lib/director-dashboard/shift-status";
 import {
   currentShiftStatusWindow,
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
-  latestShiftStatus,
   officialVentSourceLabel,
   resolveCurrentShiftStatus,
   shiftTypeLabel,
@@ -378,14 +382,6 @@ export function DirectorShiftStatusClient({
   timezone: string;
 }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
-  const currentWindow = useMemo(() => currentShiftStatusWindow(timezone, new Date(nowTick)), [nowTick, timezone]);
-  const selectedChoice = useMemo(
-    () => ({
-      shiftDate: currentWindow.shiftDate,
-      shiftType: currentWindow.shiftType
-    }),
-    [currentWindow.shiftDate, currentWindow.shiftType]
-  );
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -411,8 +407,6 @@ export function DirectorShiftStatusClient({
     loading: officialVentLoading,
     error: officialVentError
   } = useOfficialVentCount(authContext.departmentId);
-  const isSelectedCurrentShift = true;
-
   const loadShiftStatus = useCallback(async (showLoading = true) => {
     if (showLoading) {
       setLoading(true);
@@ -421,8 +415,9 @@ export function DirectorShiftStatusClient({
     setCopyMessage("");
 
     const supabase = createClient();
+    const maximumShiftDate = currentShiftStatusWindow(timezone).shiftDate;
     const [{ data, error: loadError, usedLegacyProcedureSelect }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
-      fetchShiftStatusUpdates(supabase, authContext.departmentId, 30),
+      fetchDirectorShiftStatusUpdates(supabase, authContext.departmentId, maximumShiftDate),
       supabase
         .from("rental_records")
         .select("id", { count: "exact", head: true })
@@ -449,7 +444,7 @@ export function DirectorShiftStatusClient({
     }
 
     setUpdates(data);
-  }, [authContext.departmentId]);
+  }, [authContext.departmentId, timezone]);
 
   const loadSchedulePreview = async () => {
     setSchedulePreviewLoading(true);
@@ -616,32 +611,36 @@ export function DirectorShiftStatusClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [directoryLoading, directoryOpen, directoryProfiles.length]);
 
-  const selectedUpdates = useMemo(
-    () =>
-      updates.filter(
-        (update) => update.shift_date === selectedChoice.shiftDate && update.shift_type === selectedChoice.shiftType
-      ),
-    [selectedChoice.shiftDate, selectedChoice.shiftType, updates]
+  const directorStatusDisplay = useMemo(
+    () => resolveDirectorCurrentShiftStatus(updates, timezone, new Date(nowTick)),
+    [nowTick, timezone, updates]
   );
-  const selectedLatest = useMemo(() => latestShiftStatus(selectedUpdates), [selectedUpdates]);
-  const currentStatusDisplay = useMemo(
+  const directorSnapshotDisplay = useMemo(
+    () => resolveDirectorDepartmentSnapshot(updates, timezone, new Date(nowTick)),
+    [nowTick, timezone, updates]
+  );
+  const strictCurrentShiftDisplay = useMemo(
     () => resolveCurrentShiftStatus(updates, timezone, new Date(nowTick)),
     [nowTick, timezone, updates]
   );
-  const latest = isSelectedCurrentShift ? currentStatusDisplay.latest : selectedLatest;
-  const showingFallback = isSelectedCurrentShift ? currentStatusDisplay.showingFallback : false;
-  const snapshotLatest = currentStatusDisplay.currentLatest;
-  const latestProcedureUpdate = currentStatusDisplay.currentLatest;
+  const latest = directorStatusDisplay.latest;
+  const showingFallback = directorStatusDisplay.showingFallback;
+  const snapshotLatest = directorSnapshotDisplay.latest;
+  const snapshotShowingFallback = directorSnapshotDisplay.showingFallback;
+  const latestProcedureUpdate = strictCurrentShiftDisplay.currentLatest;
   const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
   const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
   const currentProcedureCounts = procedureCounts(procedureLatest);
-  const procedureTotal =
-    currentProcedureCounts.cSections +
-    currentProcedureCounts.vaginalDelivery +
-    currentProcedureCounts.cabg +
-    currentProcedureCounts.bronchs +
-    currentProcedureCounts.sputumInductions +
-    currentProcedureCounts.other;
+  const snapshotProcedureCounts = procedureCounts(snapshotLatest);
+  const snapshotProcedureTotal =
+    snapshotProcedureCounts.cSections +
+    snapshotProcedureCounts.vaginalDelivery +
+    snapshotProcedureCounts.cabg +
+    snapshotProcedureCounts.bronchs +
+    snapshotProcedureCounts.sputumInductions +
+    snapshotProcedureCounts.other;
+  const statusSourceShift = formatDirectorSourceShift(latest);
+  const snapshotSourceShift = formatDirectorSourceShift(snapshotLatest);
   const status = directorStatus(latest);
   const displayedVentCount = officialVent?.vent_count ?? null;
   const textReport = latest ? reportText(latest, timezone, displayedVentCount ?? "No Update") : "";
@@ -817,9 +816,15 @@ export function DirectorShiftStatusClient({
         </section>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-2xl font-black leading-tight text-hospital-ink">Current Shift Status</h2>
-            <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-black ${status.className}`}>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
+            <span aria-hidden="true" />
+            <div className="text-center">
+              <h2 className="text-2xl font-black leading-tight text-hospital-ink">Current Shift Status</h2>
+              {statusSourceShift && (
+                <p className="mt-1 text-xs font-black text-slate-500">{statusSourceShift}</p>
+              )}
+            </div>
+            <span className={`inline-flex items-center gap-1.5 justify-self-end rounded-full border px-3 py-1.5 text-xs font-black ${status.className}`}>
               {status.icon}
               {status.label}
             </span>
@@ -840,7 +845,7 @@ export function DirectorShiftStatusClient({
 
           {showingFallback && (
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-              No update was submitted for the current shift. Showing the most recent Command Center update.
+              Showing the most recent submitted status until this shift is updated.
             </p>
           )}
 
@@ -858,7 +863,7 @@ export function DirectorShiftStatusClient({
 
           {!loading && !latest && !error && (
             <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
-              No update has been submitted for the current shift yet.
+              No shift status has been submitted yet.
             </p>
           )}
 
@@ -880,57 +885,69 @@ export function DirectorShiftStatusClient({
         </section>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="flex items-start gap-3">
+          <div className="grid grid-cols-[2.75rem_1fr_2.75rem] items-start gap-3">
             <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
               <Building2 size={22} />
             </span>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 text-center">
               <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
-            </div>
-          </div>
-          {snapshotLatest || officialVent ? (
-            <>
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? "—"} />
-                <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest?.bipap_count ?? 0} />
-                <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={procedureTotal} />
-                <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
-              </div>
-              <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-                {snapshotLatest && (
-                  <>
-                    <p>Department details updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
-                    <p>Department details updated by: {updatedByName(snapshotLatest)}</p>
-                  </>
-                )}
-                {officialVent ? (
-                  <>
-                    <p>
-                      Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
-                      {formatShiftStatusTime(officialVent.created_at, timezone)}
-                    </p>
-                    <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
-                  </>
-                ) : (
-                  <p className="text-rose-700">
-                    {officialVentLoading
-                      ? "Loading official vent count..."
-                      : officialVentError || "No vent count recorded yet."}
-                  </p>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="mt-4 space-y-3">
-              {activeRentalCount !== null && (
-                <div className="grid grid-cols-2 gap-3">
-                  <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount} />
-                </div>
+              {snapshotSourceShift && (
+                <p className="mt-1 text-xs font-black text-slate-500">{snapshotSourceShift}</p>
               )}
-              <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
-                No department snapshot has been submitted yet.
-              </p>
             </div>
+            <span aria-hidden="true" />
+          </div>
+          {(snapshotLatest || officialVent || activeRentalCount !== null) && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {(snapshotLatest || officialVent) && (
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? "—"} />
+              )}
+              {snapshotLatest && (
+                <>
+                  <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
+                  <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={snapshotProcedureTotal} />
+                </>
+              )}
+              <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
+            </div>
+          )}
+
+          {snapshotShowingFallback && (
+            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+              Showing the most recent submitted department snapshot until this shift is updated.
+            </p>
+          )}
+
+          {(snapshotLatest || officialVent) && (
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+              {snapshotLatest && (
+                <>
+                  <p>Department details updated: {formatShiftStatusTime(snapshotLatest.updated_at, timezone)}</p>
+                  <p>Department details updated by: {updatedByName(snapshotLatest)}</p>
+                </>
+              )}
+              {officialVent ? (
+                <>
+                  <p>
+                    Vents source: {officialVentSourceLabel(officialVent.source)} {"\u00b7"}{" "}
+                    {formatShiftStatusTime(officialVent.created_at, timezone)}
+                  </p>
+                  <p>Vents updated by: {officialVent.updated_by_name ?? "Unknown"}</p>
+                </>
+              ) : (
+                <p className="text-rose-700">
+                  {officialVentLoading
+                    ? "Loading official vent count..."
+                    : officialVentError || "No vent count recorded yet."}
+                </p>
+              )}
+            </div>
+          )}
+
+          {!loading && !snapshotLatest && !error && (
+            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+              No department snapshot has been submitted yet.
+            </p>
           )}
         </section>
 

@@ -2,8 +2,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { fetchOfficialVentCount } from "@/lib/shift-status/client-queries";
-import type { OfficialVentCountUpdate } from "@/lib/shift-status/types";
+import {
+  fetchDirectorShiftStatusUpdates,
+  fetchOfficialVentCount
+} from "@/lib/shift-status/client-queries";
+import type { OfficialVentCountUpdate, ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 type QueryCall = {
   column: string;
@@ -137,5 +140,120 @@ describe("fetchOfficialVentCount", () => {
 
     expect(withZero.data?.vent_count).toBe(0);
     expect(empty.data).toBeNull();
+  });
+});
+
+function shiftStatus(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
+  return {
+    id: "status-1",
+    department_id: "department-1",
+    shift_date: "2026-08-08",
+    shift_type: "night",
+    rts_on: 8,
+    rts_required: 8,
+    vent_count: 5,
+    bipap_count: 2,
+    c_section_count: 0,
+    vaginal_delivery_count: 0,
+    cabg_count: 0,
+    bronch_count: 0,
+    sputum_induction_count: 0,
+    other_procedure_count: 0,
+    other_procedure_note: null,
+    updated_by_staff_profile_id: "lead-1",
+    updated_by_name: "Lead RT",
+    created_at: "2026-08-09T03:00:00.000Z",
+    updated_at: "2026-08-09T03:00:00.000Z",
+    ...overrides
+  };
+}
+
+function fakeDirectorSupabase(rows: ShiftStatusUpdate[]) {
+  const filters: QueryCall[] = [];
+  const ranges: Array<{ from: number; to: number }> = [];
+  const orders: QueryCall[] = [];
+  let selectedTable = "";
+
+  const query = {
+    select() {
+      return query;
+    },
+    eq(column: string, value: unknown) {
+      filters.push({ column, value });
+      return query;
+    },
+    lte(column: string, value: unknown) {
+      filters.push({ column, value });
+      return query;
+    },
+    order(column: string, options: { ascending: boolean }) {
+      orders.push({ column, ascending: options.ascending });
+      return query;
+    },
+    async range(from: number, to: number) {
+      ranges.push({ from, to });
+      const maximumShiftDate = filters.find(({ column }) => column === "shift_date")?.value as string;
+      const matching = rows
+        .filter((row) => row.department_id === "department-1" && row.shift_date <= maximumShiftDate)
+        .sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime())
+        .slice(from, to + 1);
+
+      return { data: matching, error: null };
+    }
+  };
+
+  return {
+    client: {
+      from(table: string) {
+        selectedTable = table;
+        return query;
+      }
+    } as unknown as SupabaseClient,
+    calls: {
+      filters,
+      orders,
+      ranges,
+      get table() {
+        return selectedTable;
+      }
+    }
+  };
+}
+
+describe("fetchDirectorShiftStatusUpdates", () => {
+  it("loads all eligible history through a Director-only, future-bounded query", async () => {
+    const prior = shiftStatus();
+    const current = shiftStatus({
+      id: "status-2",
+      shift_date: "2026-08-09",
+      shift_type: "day",
+      updated_at: "2026-08-09T16:00:00.000Z"
+    });
+    const future = shiftStatus({
+      id: "status-3",
+      shift_date: "2026-08-10",
+      shift_type: "day",
+      updated_at: "2026-08-10T16:00:00.000Z"
+    });
+    const { client, calls } = fakeDirectorSupabase([prior, current, future]);
+
+    const result = await fetchDirectorShiftStatusUpdates(client, "department-1", "2026-08-09");
+
+    expect(result).toEqual({
+      data: [current, prior],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+    expect(calls.table).toBe("shift_status_updates");
+    expect(calls.filters).toEqual([
+      { column: "department_id", value: "department-1" },
+      { column: "shift_date", value: "2026-08-09" }
+    ]);
+    expect(calls.orders).toEqual([
+      { column: "updated_at", ascending: false },
+      { column: "created_at", ascending: false },
+      { column: "id", ascending: false }
+    ]);
+    expect(calls.ranges).toEqual([{ from: 0, to: 999 }]);
   });
 });

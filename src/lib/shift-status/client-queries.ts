@@ -74,6 +74,47 @@ async function queryShiftStatusUpdates(supabase: SupabaseClient, departmentId: s
   };
 }
 
+async function queryDirectorShiftStatusUpdates(
+  supabase: SupabaseClient,
+  departmentId: string,
+  selectColumns: string,
+  maximumShiftDate: string
+) {
+  const pageSize = 1_000;
+  const rows: ShiftStatusRow[] = [];
+
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await supabase
+      .from("shift_status_updates")
+      .select(selectColumns)
+      .eq("department_id", departmentId)
+      .lte("shift_date", maximumShiftDate)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(start, start + pageSize - 1);
+
+    if (error) {
+      return {
+        data: [] as ShiftStatusUpdate[],
+        error: error as ShiftStatusQueryError
+      };
+    }
+
+    const page = (data ?? []) as unknown as ShiftStatusRow[];
+    rows.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return {
+    data: normalizeShiftStatusRows(rows),
+    error: null
+  };
+}
+
 export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departmentId: string, limit = 30) {
   const primary = await queryShiftStatusUpdates(supabase, departmentId, shiftStatusSelect, limit);
 
@@ -92,6 +133,45 @@ export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departme
   }
 
   const legacy = await queryShiftStatusUpdates(supabase, departmentId, legacyShiftStatusSelect, limit);
+
+  return {
+    ...legacy,
+    usedLegacyProcedureSelect: !legacy.error
+  };
+}
+
+export async function fetchDirectorShiftStatusUpdates(
+  supabase: SupabaseClient,
+  departmentId: string,
+  maximumShiftDate: string
+) {
+  const primary = await queryDirectorShiftStatusUpdates(
+    supabase,
+    departmentId,
+    shiftStatusSelect,
+    maximumShiftDate
+  );
+
+  if (!primary.error) {
+    return {
+      ...primary,
+      usedLegacyProcedureSelect: false
+    };
+  }
+
+  if (!isMissingVaginalDeliveryColumn(primary.error)) {
+    return {
+      ...primary,
+      usedLegacyProcedureSelect: false
+    };
+  }
+
+  const legacy = await queryDirectorShiftStatusUpdates(
+    supabase,
+    departmentId,
+    legacyShiftStatusSelect,
+    maximumShiftDate
+  );
 
   return {
     ...legacy,
