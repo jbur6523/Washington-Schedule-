@@ -1,7 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   OfficialVentCountUpdate,
-  ShiftStatusShiftType,
   ShiftStatusUpdate
 } from "@/lib/shift-status/types";
 
@@ -102,9 +101,7 @@ export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departme
 
 export async function fetchOfficialVentCount(
   supabase: SupabaseClient,
-  departmentId: string,
-  shiftDate: string,
-  shiftType: ShiftStatusShiftType
+  departmentId: string
 ) {
   const { data, error } = await supabase
     .from("official_vent_count_updates")
@@ -112,8 +109,6 @@ export async function fetchOfficialVentCount(
       "id, department_id, shift_date, shift_type, vent_count, source, updated_by_staff_profile_id, updated_by_name, created_at"
     )
     .eq("department_id", departmentId)
-    .eq("shift_date", shiftDate)
-    .eq("shift_type", shiftType)
     .order("created_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(1)

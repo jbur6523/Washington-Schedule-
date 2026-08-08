@@ -7,7 +7,7 @@ export type ShiftStatusUpdate = {
   shift_type: ShiftStatusShiftType;
   rts_on: number;
   rts_required: number;
-  vent_count: number;
+  vent_count: number | null;
   bipap_count: number;
   c_section_count: number;
   vaginal_delivery_count: number;

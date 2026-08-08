@@ -358,7 +358,7 @@ export function IcuReadOnlyPage({
     update: officialVent,
     loading: officialVentLoading,
     error: officialVentError
-  } = useOfficialVentCount(departmentId, timezone);
+  } = useOfficialVentCount(departmentId);
 
   return (
     <main className="min-h-screen px-4 py-8">
@@ -403,7 +403,7 @@ export function IcuReadOnlyPage({
               <p className="text-rose-700">
                 {officialVentLoading
                   ? "Loading official vent count..."
-                  : officialVentError || "No official vent update for this shift."}
+                  : officialVentError || "No vent count recorded yet."}
               </p>
             )}
           </div>

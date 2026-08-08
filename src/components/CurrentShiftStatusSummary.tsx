@@ -69,8 +69,7 @@ export function CurrentShiftStatusSummary({
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [error, setError] = useState("");
   const { update: officialVent, error: officialVentError } = useOfficialVentCount(
-    authContext.departmentId,
-    timezone
+    authContext.departmentId
   );
 
   const loadStatus = useCallback(async () => {

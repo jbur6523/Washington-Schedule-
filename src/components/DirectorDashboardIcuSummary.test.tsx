@@ -112,6 +112,82 @@ describe("DirectorDashboardIcuSummary", () => {
     expect(region).toHaveTextContent("Vents source: Lead Command Center");
   });
 
+  it("keeps a valid zero from a prior date after refresh and unrelated ICU detail updates", () => {
+    const priorZero: OfficialVentCountUpdate = {
+      ...officialVent,
+      shift_date: "2026-07-26",
+      shift_type: "night",
+      vent_count: 0,
+      source: "icu_command_center",
+      created_at: "2026-07-27T03:00:00.000Z"
+    };
+    const summary = composeDirectorDashboardIcuSummary({
+      officialVentCount: priorZero.vent_count,
+      rawIcuCounts: getIcuSnapshotCounts(rawRecords)
+    });
+    const viewProps = {
+      summary,
+      officialVent: priorZero,
+      officialVentLoading: false,
+      officialVentError: "",
+      timezone: "America/Los_Angeles",
+      records: rawRecords,
+      rawIcuLoading: false,
+      rawIcuError: "",
+      onReload: vi.fn()
+    };
+    const { rerender } = render(
+      <DirectorDashboardIcuSummaryView {...viewProps} />
+    );
+
+    let region = screen.getByRole("region", {
+      name: "Director ICU Summary"
+    });
+    expect(metricValue(region, "Vents")).toContain("0");
+    expect(region).toHaveTextContent("Vents source: ICU Command Center");
+
+    const refreshedRecords = rawRecords.map((icuRecord, index) =>
+      index === 0
+        ? { ...icuRecord, fio2: 45, updated_at: "2026-07-28T17:00:00.000Z" }
+        : icuRecord
+    );
+    rerender(
+      <DirectorDashboardIcuSummaryView
+        {...viewProps}
+        records={refreshedRecords}
+      />
+    );
+
+    region = screen.getByRole("region", { name: "Director ICU Summary" });
+    expect(metricValue(region, "Vents")).toContain("0");
+    expect(region).toHaveTextContent("Vents source: ICU Command Center");
+  });
+
+  it("uses a neutral empty state only when no Vent count has ever been recorded", () => {
+    render(
+      <DirectorDashboardIcuSummaryView
+        summary={composeDirectorDashboardIcuSummary({
+          officialVentCount: null,
+          rawIcuCounts: getIcuSnapshotCounts([])
+        })}
+        officialVent={null}
+        officialVentLoading={false}
+        officialVentError=""
+        timezone="America/Los_Angeles"
+        records={[]}
+        rawIcuLoading={false}
+        rawIcuError=""
+        onReload={vi.fn()}
+      />
+    );
+
+    const region = screen.getByRole("region", {
+      name: "Director ICU Summary"
+    });
+    expect(region).toHaveTextContent("No vent count recorded yet.");
+    expect(region).not.toHaveTextContent("No official vent update for this shift.");
+  });
+
   it("never falls back to the raw ICU Vent count while the official value is loading", () => {
     const rawIcuCounts = getIcuSnapshotCounts(rawRecords);
     const summary = composeDirectorDashboardIcuSummary({

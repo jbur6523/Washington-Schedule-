@@ -147,7 +147,7 @@ export function DirectorDashboardIcuSummaryView({
           <p className="text-rose-700">
             {officialVentLoading
               ? "Loading official vent count..."
-              : officialVentError || "No official vent update for this shift."}
+              : officialVentError || "No vent count recorded yet."}
           </p>
         )}
         <p>

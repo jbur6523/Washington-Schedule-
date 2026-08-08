@@ -3,11 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OfficialVentCountUpdate } from "@/lib/shift-status/types";
-import {
-  officialVentForWindow,
-  officialVentSourceLabel
-} from "@/lib/shift-status/utils";
+import { officialVentSourceLabel } from "@/lib/shift-status/utils";
 
 const migration = readFileSync(
   resolve(
@@ -21,6 +17,21 @@ const hardeningMigration = readFileSync(
     process.cwd(),
     "supabase/migrations/202607270002_production_readiness_hardening.sql"
   ),
+  "utf8"
+);
+const persistenceMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "supabase/migrations/202608070001_persistent_icu_snapshot_vent_precedence.sql"
+  ),
+  "utf8"
+);
+const clientQueries = readFileSync(
+  resolve(process.cwd(), "src/lib/shift-status/client-queries.ts"),
+  "utf8"
+);
+const officialVentHook = readFileSync(
+  resolve(process.cwd(), "src/lib/shift-status/use-official-vent-count.ts"),
   "utf8"
 );
 const directorClient = readFileSync(
@@ -40,30 +51,15 @@ const scheduleSummary = readFileSync(
   "utf8"
 );
 
-function officialVent(
-  overrides: Partial<OfficialVentCountUpdate> = {}
-): OfficialVentCountUpdate {
-  return {
-    id: 1,
-    department_id: "department-1",
-    shift_date: "2026-07-27",
-    shift_type: "day",
-    vent_count: 7,
-    source: "lead_command_center",
-    updated_by_staff_profile_id: "staff-1",
-    updated_by_name: "Lead RT",
-    created_at: "2026-07-27T16:00:00.000Z",
-    ...overrides
-  };
-}
-
 describe("official vent count", () => {
-  it("does not allow another operational shift's value to render", () => {
-    const update = officialVent();
-
-    expect(officialVentForWindow(update, "2026-07-27", "day")).toBe(update);
-    expect(officialVentForWindow(update, "2026-07-27", "night")).toBeNull();
-    expect(officialVentForWindow(update, "2026-07-28", "day")).toBeNull();
+  it("keeps shift metadata as audit context instead of a current-value boundary", () => {
+    expect(clientQueries).toContain('.eq("department_id", departmentId)');
+    expect(clientQueries).not.toContain('.eq("shift_date", shiftDate)');
+    expect(clientQueries).not.toContain('.eq("shift_type", shiftType)');
+    expect(clientQueries).toContain('.order("created_at", { ascending: false })');
+    expect(officialVentHook).toContain("update: loadedUpdate");
+    expect(officialVentHook).not.toContain("currentShiftStatusWindow");
+    expect(officialVentHook).not.toContain("officialVentForWindow");
   });
 
   it("labels the actual latest source", () => {
@@ -75,7 +71,7 @@ describe("official vent count", () => {
     );
   });
 
-  it("stores an append-only shift-scoped value ordered by a server timestamp", () => {
+  it("stores append-only field updates with a server timestamp and audit metadata", () => {
     expect(migration).toContain(
       "create table if not exists public.official_vent_count_updates"
     );
@@ -95,10 +91,17 @@ describe("official vent count", () => {
   });
 
   it("publishes Lead updates only when the saved vent field genuinely changes", () => {
-    const leadPublisher = hardeningMigration.match(
+    const leadPublisher = persistenceMigration.match(
       /create or replace function public\.publish_lead_official_vent_count\(\)[\s\S]+?revoke all on function public\.publish_lead_official_vent_count/
     )?.[0] ?? "";
 
+    expect(persistenceMigration).toContain(
+      "alter column vent_count drop default"
+    );
+    expect(persistenceMigration).toContain(
+      "alter column vent_count drop not null"
+    );
+    expect(leadPublisher).toContain("if new.vent_count is null then");
     expect(leadPublisher).toContain(
       "previous_vent_count is distinct from new.vent_count"
     );
@@ -107,6 +110,12 @@ describe("official vent count", () => {
     );
     expect(leadPublisher).toContain(
       "update_row.source = 'lead_command_center'"
+    );
+    expect(leadPublisher).not.toContain(
+      "update_row.shift_date = new.shift_date"
+    );
+    expect(leadPublisher).not.toContain(
+      "update_row.shift_type = new.shift_type"
     );
     expect(leadPublisher).not.toContain("from public.shift_status_updates");
     expect(leadPublisher).not.toContain("new.updated_at");
@@ -153,7 +162,7 @@ describe("official vent count", () => {
 
   it("uses one official state value for both Director vent cards and the Schedule", () => {
     expect(directorClient).toContain(
-      "useOfficialVentCount(authContext.departmentId, timezone)"
+      "useOfficialVentCount(authContext.departmentId)"
     );
     expect(directorClient).toContain("officialVent={officialVent}");
     expect(directorClient).toContain(
@@ -175,6 +184,14 @@ describe("official vent count", () => {
     );
     expect(icuCommandCenter).toContain(
       '<StatCard label="Vents" value={counts.vents} />'
+    );
+  });
+
+  it("uses a neutral first-ever empty state everywhere the shared count is shown", () => {
+    expect(directorClient).toContain("No vent count recorded yet.");
+    expect(directorIcuView).toContain("No vent count recorded yet.");
+    expect(`${directorClient}\n${directorIcuView}`).not.toContain(
+      "No official vent update for this shift."
     );
   });
 });
