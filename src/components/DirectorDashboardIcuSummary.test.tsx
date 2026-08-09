@@ -36,6 +36,7 @@ function record(id: string, deviceType: IcuDeviceType): IcuPatientRecord {
     cpap: null,
     flow: null,
     is_critical_vent: false,
+    is_standby: false,
     ventilator_outcome: null,
     discontinued_at: null,
     discontinued_by_staff_profile_id: null,

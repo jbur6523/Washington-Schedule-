@@ -182,6 +182,7 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecor
     cpap: record.cpap ?? null,
     flow: record.flow ?? null,
     is_critical_vent: Boolean(record.is_critical_vent),
+    is_standby: Boolean(record.is_standby),
     ventilator_outcome: record.ventilator_outcome ?? null,
     discontinued_at: record.discontinued_at ?? null,
     discontinued_by_staff_profile_id: record.discontinued_by_staff_profile_id ?? null,

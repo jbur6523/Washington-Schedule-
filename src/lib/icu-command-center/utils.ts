@@ -42,7 +42,8 @@ export const icuDeviceLabels: Record<IcuDeviceType, string> = {
   vent: "Vent",
   bipap: "BiPAP",
   cpap: "CPAP",
-  hfnc: "HFNC"
+  hfnc: "HFNC",
+  cool_aerosol: "Cool Aerosol"
 };
 
 export const icuVentModeLabels: Record<IcuVentMode, string> = {
@@ -82,6 +83,12 @@ export const ventilatorOutcomeOptions: VentilatorOutcome[] = [
   "donor_network",
   "discontinue_vent_support_palliative"
 ];
+
+export const standbyDeviceTypes: IcuDeviceType[] = ["vent", "hfnc", "bipap", "cpap"];
+
+export function supportsIcuStandby(deviceType: IcuDeviceType | ""): boolean {
+  return Boolean(deviceType) && standbyDeviceTypes.includes(deviceType as IcuDeviceType);
+}
 
 function hasValue(value: number | string | null | undefined) {
   return value !== null && value !== undefined && String(value).trim() !== "";
@@ -183,6 +190,10 @@ export function formatIcuSettings(record: IcuPatientRecord) {
 
   if (record.device_type === "hfnc") {
     parts.push(setting("FiO2", record.fio2, "%"), setting("Flow", record.flow, "L"));
+  }
+
+  if (record.device_type === "cool_aerosol") {
+    parts.push(setting("Flow", record.flow, " L/min"), setting("FiO2", record.fio2, "%"));
   }
 
   return parts.filter(Boolean).join(" - ") || "Settings not entered";

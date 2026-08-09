@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertTriangle, Bed, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, Bed, ChevronRight, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -12,6 +12,12 @@ import type {
   IcuVentMode,
   VentilatorOutcome
 } from "@/lib/icu-command-center/types";
+import {
+  icuActivityStateFromEvent,
+  icuActivityStateFromRecord,
+  icuActivityStatusChanges,
+  type IcuActivityAuditState
+} from "@/lib/icu-command-center/activity-comparison";
 import {
   airwayLocationOptions,
   airwaySizeOptions,
@@ -24,6 +30,7 @@ import {
   icuBedOptions,
   icuDeviceLabels,
   icuVentModeLabels,
+  supportsIcuStandby,
   ventilatorOutcomeLabels,
   ventilatorOutcomeOptions,
   ventModeOptions
@@ -60,6 +67,7 @@ type IcuPatientForm = {
   cpap: string;
   flow: string;
   is_critical_vent: boolean;
+  is_standby: boolean;
 };
 
 const emptyForm: IcuPatientForm = {
@@ -83,7 +91,8 @@ const emptyForm: IcuPatientForm = {
   epap: "",
   cpap: "",
   flow: "",
-  is_critical_vent: false
+  is_critical_vent: false,
+  is_standby: false
 };
 
 const icuPatientSelect = [
@@ -110,6 +119,7 @@ const icuPatientSelect = [
   "cpap",
   "flow",
   "is_critical_vent",
+  "is_standby",
   "ventilator_outcome",
   "discontinued_at",
   "discontinued_by_staff_profile_id",
@@ -225,7 +235,8 @@ function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
     epap: record.epap?.toString() ?? "",
     cpap: record.cpap?.toString() ?? "",
     flow: record.flow?.toString() ?? "",
-    is_critical_vent: record.is_critical_vent
+    is_critical_vent: record.is_critical_vent,
+    is_standby: record.is_standby
   };
 }
 
@@ -243,7 +254,7 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
     tidal_volume: deviceType === "vent" ? numericOrNull(form.tidal_volume) : null,
     peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
-    fio2: deviceType === "vent" || deviceType === "bipap" || deviceType === "hfnc" ? numericOrNull(form.fio2) : null,
+    fio2: deviceType === "vent" || deviceType === "bipap" || deviceType === "hfnc" || deviceType === "cool_aerosol" ? numericOrNull(form.fio2) : null,
     ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
     t_high: deviceType === "vent" ? numericOrNull(form.t_high) : null,
     t_low: deviceType === "vent" ? numericOrNull(form.t_low) : null,
@@ -253,8 +264,9 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     ipap: deviceType === "bipap" ? numericOrNull(form.ipap) : null,
     epap: deviceType === "bipap" ? numericOrNull(form.epap) : null,
     cpap: deviceType === "cpap" ? numericOrNull(form.cpap) : null,
-    flow: deviceType === "hfnc" ? numericOrNull(form.flow) : null,
+    flow: deviceType === "hfnc" || deviceType === "cool_aerosol" ? numericOrNull(form.flow) : null,
     is_critical_vent: deviceType === "vent" ? form.is_critical_vent : false,
+    is_standby: supportsIcuStandby(deviceType) ? form.is_standby : false,
     ventilator_outcome: null,
     updated_by_staff_profile_id: authContext.staffProfileId
   };
@@ -266,7 +278,9 @@ function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unk
     device: formatIcuDeviceSummary(record),
     airway: formatIcuAirway(record) || null,
     settings: formatIcuSettings(record),
-    criticalVent: record.is_critical_vent,
+    ...(record.device_type === "vent" ? { criticalVent: record.is_critical_vent } : {}),
+    ...(supportsIcuStandby(record.device_type) ? { standby: record.is_standby } : {}),
+    updatedState: icuActivityStateFromRecord(record),
     ...extra
   };
 }
@@ -316,7 +330,8 @@ async function createIcuPatientEvent(
   eventType: IcuPatientEventRecord["event_type"],
   eventSummary: string,
   eventData: Record<string, unknown> = {},
-  eventTime?: string
+  eventTime?: string,
+  previousRecord?: IcuPatientRecord | null
 ) {
   return supabase.from("icu_patient_events").insert({
     department_id: authContext.departmentId,
@@ -324,7 +339,10 @@ async function createIcuPatientEvent(
     event_type: eventType,
     event_time: eventTime ?? new Date().toISOString(),
     event_summary: eventSummary,
-    event_data: eventDataFromRecord(record, eventData),
+    event_data: eventDataFromRecord(record, {
+      ...(previousRecord ? { previousState: icuActivityStateFromRecord(previousRecord) } : {}),
+      ...eventData
+    }),
     created_by_staff_profile_id: authContext.staffProfileId,
     created_by_name: authContext.displayName
   });
@@ -338,6 +356,8 @@ function historyEventLabel(eventType: IcuPatientEventRecord["event_type"]) {
       return "Updated settings";
     case "critical_status_updated":
       return "Critical status updated";
+    case "standby_status_updated":
+      return "Standby status updated";
     case "discontinued":
       return "Discontinued";
     default:
@@ -362,6 +382,7 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   const settings = eventDataText(event, "settings");
   const outcome = eventDataText(event, "ventilatorOutcome");
   const criticalVent = eventDataBoolean(event, "criticalVent");
+  const standby = eventDataBoolean(event, "standby");
 
   if (device) {
     lines.push(`Device: ${device}`);
@@ -374,6 +395,9 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   }
   if (criticalVent !== null) {
     lines.push(`Critical Vent: ${criticalVent ? "Yes" : "No"}`);
+  }
+  if (standby !== null) {
+    lines.push(`Standby: ${standby ? "Yes" : "No"}`);
   }
   if (outcome) {
     lines.push(`Outcome: ${outcome}`);
@@ -454,13 +478,15 @@ function IcuPatientCard({
   onUpdate,
   onDiscontinue,
   onHistory,
-  onToggleCritical
+  onToggleCritical,
+  onToggleStandby
 }: {
   record: IcuPatientRecord;
   onUpdate: () => void;
   onDiscontinue: () => void;
   onHistory: () => void;
   onToggleCritical: () => void;
+  onToggleStandby: () => void;
 }) {
   const airway = formatIcuAirway(record);
 
@@ -474,20 +500,36 @@ function IcuPatientCard({
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
-        {record.device_type === "vent" && (
-          <button
-            type="button"
-            onClick={onToggleCritical}
-            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-black ${
-              record.is_critical_vent
-                ? "border-rose-100 bg-rose-50 text-rose-700"
-                : "border-slate-200 bg-white text-slate-600"
-            }`}
-          >
-            <AlertTriangle size={13} />
-            {record.is_critical_vent ? "Critical" : "Not Critical"}
-          </button>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          {record.device_type === "vent" && (
+            <button
+              type="button"
+              onClick={onToggleCritical}
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-black ${
+                record.is_critical_vent
+                  ? "border-rose-100 bg-rose-50 text-rose-700"
+                  : "border-slate-200 bg-white text-slate-600"
+              }`}
+            >
+              <AlertTriangle size={13} />
+              {record.is_critical_vent ? "Critical" : "Not Critical"}
+            </button>
+          )}
+          {supportsIcuStandby(record.device_type) && (
+            <button
+              type="button"
+              onClick={onToggleStandby}
+              aria-pressed={record.is_standby}
+              className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-black ${
+                record.is_standby
+                  ? "border-amber-200 bg-amber-50 text-amber-800"
+                  : "border-slate-200 bg-white text-slate-500"
+              }`}
+            >
+              {record.is_standby ? "Standby" : "Not Standby"}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -519,7 +561,44 @@ function IcuPatientCard({
   );
 }
 
-function IcuActivityCard({ eventRecord }: { eventRecord: IcuPatientEventRecord }) {
+function IcuActivitySettingsBlock({
+  title,
+  state,
+  emptyMessage,
+  showContext = false
+}: {
+  title: string;
+  state: IcuActivityAuditState | null;
+  emptyMessage: string;
+  showContext?: boolean;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white px-3 py-3">
+      <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{title}</p>
+      {state ? (
+        <div className="mt-1 space-y-1">
+          {showContext && (
+            <p className="text-xs font-bold leading-5 text-slate-500">
+              {[state.bed, state.device].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {state.airway && <p className="text-sm font-black leading-6 text-slate-700">{state.airway}</p>}
+          <p className="text-sm font-black leading-6 text-hospital-ink">{state.settings.replaceAll(" - ", " · ")}</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{emptyMessage}</p>
+      )}
+    </section>
+  );
+}
+
+function IcuActivityCard({
+  eventRecord,
+  onOpen
+}: {
+  eventRecord: IcuPatientEventRecord;
+  onOpen: () => void;
+}) {
   const bed = eventDataText(eventRecord, "bed") || "ICU";
   const device = eventDataText(eventRecord, "device") || "Device";
   const settings = eventDataText(eventRecord, "settings");
@@ -527,12 +606,17 @@ function IcuActivityCard({ eventRecord }: { eventRecord: IcuPatientEventRecord }
   const action = historyEventLabel(eventRecord.event_type);
 
   return (
-    <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-sm">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`View details for ${bed} ${device} ${action.toLowerCase()}`}
+      className="w-full rounded-3xl border border-white bg-white/95 p-4 text-left shadow-sm transition active:scale-[0.99]"
+    >
       <div className="flex items-start gap-3">
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
           <ClipboardList size={18} />
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-black leading-5 text-hospital-ink">
             {formatIcuActivityTime(eventRecord.event_time)} - {bed} {device} {action.toLowerCase()} by{" "}
             {eventRecord.created_by_name || "Unknown"}
@@ -543,8 +627,9 @@ function IcuActivityCard({ eventRecord }: { eventRecord: IcuPatientEventRecord }
           {outcome && <p className="mt-1 text-xs font-black leading-5 text-rose-700">Outcome: {outcome}</p>}
           {settings && <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{settings}</p>}
         </div>
+        <ChevronRight size={18} className="mt-2 shrink-0 text-cyan-700" />
       </div>
-    </article>
+    </button>
   );
 }
 
@@ -577,10 +662,22 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
   const [todayActivityLoading, setTodayActivityLoading] = useState(true);
   const [todayActivityError, setTodayActivityError] = useState("");
+  const [activityDetailEvent, setActivityDetailEvent] = useState<IcuPatientEventRecord | null>(null);
+  const [activityDetailPreviousState, setActivityDetailPreviousState] = useState<IcuActivityAuditState | null>(null);
+  const [activityDetailLoading, setActivityDetailLoading] = useState(false);
+  const [activityDetailError, setActivityDetailError] = useState("");
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
   const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
+  const activityDetailUpdatedState = useMemo(
+    () => (activityDetailEvent ? icuActivityStateFromEvent(activityDetailEvent) : null),
+    [activityDetailEvent]
+  );
+  const activityDetailStatusChanges = useMemo(
+    () => icuActivityStatusChanges(activityDetailPreviousState, activityDetailUpdatedState),
+    [activityDetailPreviousState, activityDetailUpdatedState]
+  );
 
   const signOut = async () => {
     await signOutAndRedirect();
@@ -625,7 +722,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       .eq("department_id", authContext.departmentId)
       .gte("event_time", range.startIso)
       .lte("event_time", range.endIso)
-      .in("event_type", ["added", "updated", "critical_status_updated", "discontinued"])
+      .in("event_type", ["added", "updated", "critical_status_updated", "standby_status_updated", "discontinued"])
       .order("event_time", { ascending: false });
 
     setTodayActivityLoading(false);
@@ -773,7 +870,9 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
         editingRecord ? "ICU device settings updated." : "ICU device added.",
         {
           action: editingRecord ? "updated" : "added"
-        }
+        },
+        undefined,
+        editingRecord
       );
 
       if (eventResult.error) {
@@ -869,7 +968,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
         ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
         discontinuedAt
       },
-      discontinuedAt
+      discontinuedAt,
+      discontinueTarget
     );
 
     setDiscontinueTarget(null);
@@ -925,12 +1025,98 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       `Critical Vent: ${nextCritical ? "Yes" : "No"}.`,
       {
         criticalVent: nextCritical
-      }
+      },
+      undefined,
+      record
     );
 
     setMessage(eventResult.error ? "Critical status updated, but history could not be recorded." : "Critical status updated.");
     await loadRecords();
     await loadTodayActivity();
+  };
+
+  const toggleStandbyStatus = async (record: IcuPatientRecord) => {
+    if (!supportsIcuStandby(record.device_type)) {
+      return;
+    }
+
+    setActionSaving(true);
+    setMessage("");
+    setError("");
+    const nextStandby = !record.is_standby;
+    const supabase = createClient();
+    const { data, error: updateError } = await supabase
+      .from("icu_patients")
+      .update({
+        is_standby: nextStandby,
+        updated_by_staff_profile_id: authContext.staffProfileId
+      })
+      .eq("id", record.id)
+      .eq("department_id", authContext.departmentId)
+      .select(icuPatientSelect)
+      .maybeSingle();
+
+    setActionSaving(false);
+
+    if (updateError || !data) {
+      setError("Could not update standby status. Please try again.");
+      return;
+    }
+
+    const updatedRecord = (data as unknown as IcuPatientRecord | null) ?? {
+      ...record,
+      is_standby: nextStandby
+    };
+    const eventResult = await createIcuPatientEvent(
+      supabase,
+      authContext,
+      updatedRecord,
+      "standby_status_updated",
+      `Standby: ${nextStandby ? "Yes" : "No"}.`,
+      { standby: nextStandby },
+      undefined,
+      record
+    );
+
+    setMessage(eventResult.error ? "Standby status updated, but history could not be recorded." : "Standby status updated.");
+    await loadRecords();
+    await loadTodayActivity();
+  };
+
+  const openActivityDetail = async (eventRecord: IcuPatientEventRecord) => {
+    setActivityDetailEvent(eventRecord);
+    setActivityDetailError("");
+
+    const embeddedPreviousState = icuActivityStateFromEvent(eventRecord, "previousState");
+    if (embeddedPreviousState || eventRecord.event_type === "added") {
+      setActivityDetailPreviousState(embeddedPreviousState);
+      setActivityDetailLoading(false);
+      return;
+    }
+
+    setActivityDetailPreviousState(null);
+    setActivityDetailLoading(true);
+    const supabase = createClient();
+    const { data, error: previousLoadError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .eq("icu_patient_id", eventRecord.icu_patient_id)
+      .lt("event_time", eventRecord.event_time)
+      .order("event_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setActivityDetailLoading(false);
+
+    if (previousLoadError) {
+      setActivityDetailError("Could not load the previous settings for this activity.");
+      return;
+    }
+
+    setActivityDetailPreviousState(
+      data ? icuActivityStateFromEvent(data as unknown as IcuPatientEventRecord) : null
+    );
   };
 
   const openHistory = async (record: IcuPatientRecord) => {
@@ -978,7 +1164,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       .eq("department_id", authContext.departmentId)
       .gte("event_time", parsed.startIso)
       .lte("event_time", parsed.endIso)
-      .in("event_type", ["added", "updated", "critical_status_updated", "discontinued"])
+      .in("event_type", ["added", "updated", "critical_status_updated", "standby_status_updated", "discontinued"])
       .order("event_time", { ascending: false });
 
     setPreviousDateLoading(false);
@@ -1088,6 +1274,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 onDiscontinue={() => openDiscontinue(record)}
                 onHistory={() => void openHistory(record)}
                 onToggleCritical={() => void toggleCriticalStatus(record)}
+                onToggleStandby={() => void toggleStandbyStatus(record)}
               />
             ))}
         </section>
@@ -1125,7 +1312,13 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           )}
           {!todayActivityLoading &&
             !todayActivityError &&
-            todayActivity.map((eventRecord) => <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />)}
+            todayActivity.map((eventRecord) => (
+              <IcuActivityCard
+                key={eventRecord.id}
+                eventRecord={eventRecord}
+                onOpen={() => void openActivityDetail(eventRecord)}
+              />
+            ))}
 
           <div className="rounded-3xl border border-cyan-100 bg-cyan-50/40 p-3">
             <div className="flex items-center gap-2">
@@ -1170,7 +1363,11 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 </p>
               )}
               {previousDateResults.map((eventRecord) => (
-                <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />
+                <IcuActivityCard
+                  key={eventRecord.id}
+                  eventRecord={eventRecord}
+                  onOpen={() => void openActivityDetail(eventRecord)}
+                />
               ))}
             </div>
           </div>
@@ -1185,6 +1382,91 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           Sign out
         </button>
       </div>
+
+      {activityDetailEvent && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-activity-detail-title"
+            className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Activity Details</p>
+                <h2 id="icu-activity-detail-title" className="mt-1 text-xl font-black text-hospital-ink">
+                  {activityDetailUpdatedState?.bed || eventDataText(activityDetailEvent, "bed") || "ICU"}
+                  {" · "}
+                  {activityDetailUpdatedState?.device || eventDataText(activityDetailEvent, "device") || "Device"}
+                </h2>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  {formatIcuLastUpdated(activityDetailEvent.event_time)} · {historyEventLabel(activityDetailEvent.event_type)}
+                  {activityDetailEvent.created_by_name ? ` by ${activityDetailEvent.created_by_name}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivityDetailEvent(null);
+                  setActivityDetailPreviousState(null);
+                  setActivityDetailError("");
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {activityDetailLoading ? (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  Loading previous settings...
+                </p>
+              ) : (
+                <IcuActivitySettingsBlock
+                  title="Previous Settings"
+                  state={activityDetailPreviousState}
+                  emptyMessage={activityDetailEvent.event_type === "added" ? "No previous settings — device added." : "Previous settings unavailable for this activity."}
+                  showContext={Boolean(
+                    activityDetailPreviousState &&
+                    activityDetailUpdatedState &&
+                    (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
+                      activityDetailPreviousState.device !== activityDetailUpdatedState.device)
+                  )}
+                />
+              )}
+
+              <IcuActivitySettingsBlock
+                title="Updated Settings"
+                state={activityDetailUpdatedState}
+                emptyMessage="Updated settings unavailable for this activity."
+                showContext={Boolean(
+                  activityDetailPreviousState &&
+                  activityDetailUpdatedState &&
+                  (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
+                    activityDetailPreviousState.device !== activityDetailUpdatedState.device)
+                )}
+              />
+
+              {activityDetailStatusChanges.length > 0 && (
+                <section className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-amber-800">Status Changes</p>
+                  <p className="mt-1 text-sm font-black leading-6 text-amber-950">
+                    {activityDetailStatusChanges.join(" · ")}
+                  </p>
+                </section>
+              )}
+
+              {activityDetailError && (
+                <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                  {activityDetailError}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       {formOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
@@ -1246,14 +1528,15 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                       setForm({
                         ...form,
                         device_type: event.target.value as IcuDeviceType | "",
-                        is_critical_vent: event.target.value === "vent" ? form.is_critical_vent : false
+                        is_critical_vent: event.target.value === "vent" ? form.is_critical_vent : false,
+                        is_standby: supportsIcuStandby(event.target.value as IcuDeviceType | "") ? form.is_standby : false
                       })
                     }
                     required
                     className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                   >
                     <option value="">Select device</option>
-                    {(["vent", "bipap", "cpap", "hfnc"] as IcuDeviceType[]).map((device) => (
+                    {(["vent", "bipap", "cpap", "hfnc", "cool_aerosol"] as IcuDeviceType[]).map((device) => (
                       <option key={device} value={device}>
                         {icuDeviceLabels[device]}
                       </option>
@@ -1400,6 +1683,28 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                     <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
                   </div>
                 </section>
+              )}
+
+              {form.device_type === "cool_aerosol" && (
+                <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                  <h3 className="text-sm font-black text-hospital-ink">Cool Aerosol Settings</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                  </div>
+                </section>
+              )}
+
+              {supportsIcuStandby(form.device_type) && (
+                <label className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-sm font-black text-hospital-ink">
+                  <input
+                    type="checkbox"
+                    checked={form.is_standby}
+                    onChange={(event) => setForm({ ...form, is_standby: event.target.checked })}
+                    className="h-5 w-5 accent-amber-600"
+                  />
+                  Standby
+                </label>
               )}
 
               <div className="grid grid-cols-2 gap-2">
@@ -1693,7 +1998,11 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                 </p>
               )}
               {previousDateResults.map((eventRecord) => (
-                <IcuActivityCard key={eventRecord.id} eventRecord={eventRecord} />
+                <IcuActivityCard
+                  key={eventRecord.id}
+                  eventRecord={eventRecord}
+                  onOpen={() => void openActivityDetail(eventRecord)}
+                />
               ))}
             </div>
           </section>

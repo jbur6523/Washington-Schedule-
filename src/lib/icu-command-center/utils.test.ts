@@ -6,7 +6,7 @@ import type {
   IcuPatientRecord,
   IcuSnapshotCounts
 } from "@/lib/icu-command-center/types";
-import { getIcuSnapshotCounts } from "@/lib/icu-command-center/utils";
+import { formatIcuSettings, getIcuSnapshotCounts, supportsIcuStandby } from "@/lib/icu-command-center/utils";
 
 function record(
   id: string,
@@ -37,6 +37,7 @@ function record(
     cpap: null,
     flow: null,
     is_critical_vent: false,
+    is_standby: false,
     ventilator_outcome: null,
     discontinued_at: null,
     discontinued_by_staff_profile_id: null,
@@ -112,5 +113,31 @@ describe("persistent ICU snapshot counts", () => {
       criticalVents: 0,
       totalActive: 0
     });
+  });
+});
+
+describe("ICU device settings", () => {
+  it("formats Cool Aerosol with only Flow and FiO2 in the requested order", () => {
+    expect(
+      formatIcuSettings(
+        record("cool-aerosol-1", "cool_aerosol", {
+          flow: 10,
+          fio2: 40,
+          rate: 12,
+          peep: 5,
+          ipap: 14,
+          airway_size: "7.5"
+        })
+      )
+    ).toBe("Flow 10 L/min - FiO2 40%");
+  });
+
+  it("retains standby state on supported ICU records", () => {
+    for (const deviceType of ["vent", "hfnc", "bipap", "cpap"] as IcuDeviceType[]) {
+      expect(supportsIcuStandby(deviceType)).toBe(true);
+      expect(record(`${deviceType}-standby`, deviceType, { is_standby: true }).is_standby).toBe(true);
+    }
+
+    expect(supportsIcuStandby("cool_aerosol")).toBe(false);
   });
 });

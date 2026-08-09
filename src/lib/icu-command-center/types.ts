@@ -1,4 +1,4 @@
-export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc";
+export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol";
 export type IcuAirwayLocation = "teeth" | "gum" | "nare";
 export type IcuVentMode = "apvcmv" | "scmv" | "spont" | "asv" | "pcmv" | "aprv";
 export type VentilatorOutcome =
@@ -9,7 +9,12 @@ export type VentilatorOutcome =
   | "transferred_to_another_facility"
   | "donor_network"
   | "discontinue_vent_support_palliative";
-export type IcuPatientEventType = "added" | "updated" | "critical_status_updated" | "discontinued";
+export type IcuPatientEventType =
+  | "added"
+  | "updated"
+  | "critical_status_updated"
+  | "standby_status_updated"
+  | "discontinued";
 
 export type IcuPatientRecord = {
   id: string;
@@ -35,6 +40,7 @@ export type IcuPatientRecord = {
   cpap: number | null;
   flow: number | null;
   is_critical_vent: boolean;
+  is_standby: boolean;
   ventilator_outcome: VentilatorOutcome | null;
   discontinued_at: string | null;
   discontinued_by_staff_profile_id: string | null;
