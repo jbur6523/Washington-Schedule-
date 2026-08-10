@@ -8,6 +8,7 @@ import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { RtAideNotesModal } from "@/components/RtAideNotesModal";
+import { LeadOperationalSummary } from "@/components/LeadOperationalSummary";
 
 type CommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
@@ -19,7 +20,7 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
   const [leadNewNoteCount, setLeadNewNoteCount] = useState(0);
   const cardBaseClass =
-    "h-36 rounded-3xl border p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]";
+    "h-full min-h-32 rounded-3xl border p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]";
 
   const loadLeadNewNoteCount = useCallback(async () => {
     const count = await fetchLeadCommunicationNewCount(authContext.departmentId);
@@ -39,15 +40,17 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
   };
 
   return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-xl space-y-4">
+    <main className="min-h-screen overflow-x-hidden px-4 py-6 lg:py-8">
+      <div className="mx-auto max-w-6xl space-y-4">
         <section className="rounded-3xl border border-white bg-white/95 p-5 text-center shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">Lead Command Board</h1>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Lead shift operations</p>
         </section>
 
-        <div className="grid gap-3">
+        <LeadOperationalSummary authContext={authContext} timezone={timezone} />
+
+        <div data-testid="lead-action-grid" aria-label="Lead command actions" className="grid gap-3 md:grid-cols-2">
           <Link
             href="/command-center/shift-update"
             className={`${cardBaseClass} border-sky-100 bg-sky-50/90`}
@@ -58,25 +61,8 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               </span>
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Shift Update</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
                   Update current shift staffing and equipment numbers.
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/command-center/icu-snapshot"
-            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
-          >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
-                <Activity size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
-                  View ICU respiratory devices and settings.
                 </p>
               </div>
             </div>
@@ -96,9 +82,9 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-blue-700">
                 <MessageSquareText size={24} />
               </span>
-              <div className="pr-14">
+              <div className="min-w-0 pr-14">
                 <h2 className="text-xl font-black text-hospital-ink">Lead Communication Board</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
                   Shared notes for RT leads.
                 </p>
               </div>
@@ -115,8 +101,25 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               </span>
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Phone List</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
                   Assign scheduled staff to department extensions.
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/command-center/icu-snapshot"
+            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
+          >
+            <div className="flex h-full items-start gap-3">
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
+                <Activity size={24} />
+              </span>
+              <div>
+                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
+                  View ICU respiratory devices and settings.
                 </p>
               </div>
             </div>
@@ -131,9 +134,9 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700">
                 <MessageSquareText size={24} />
               </span>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-xl font-black text-hospital-ink">Aide Communication Board</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
                   Send notes or questions to RT Aides.
                 </p>
               </div>
@@ -150,7 +153,7 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               </span>
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Rental Management</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
                   Order rentals, confirm delivery, and manage pickups.
                 </p>
               </div>
@@ -167,14 +170,20 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
               </span>
               <div>
                 <h2 className="text-xl font-black text-hospital-ink">Short Shift Alert</h2>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-500">
+                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
                   Post a staffing need for the current shift.
                 </p>
               </div>
             </div>
           </Link>
 
-          <DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />
+          <div className="h-full">
+            <DepartmentAnnouncementManagerCard
+              departmentId={authContext.departmentId}
+              timezone={timezone}
+              variant="dashboard"
+            />
+          </div>
         </div>
 
         <button

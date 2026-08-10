@@ -413,7 +413,7 @@ export function DepartmentAnnouncementManagerCard({
 }: {
   departmentId: string;
   timezone: string;
-  variant?: "card" | "compact";
+  variant?: "card" | "compact" | "dashboard";
 }) {
   const [editorOpen, setEditorOpen] = useState(false);
   const closeEditor = useCallback(() => setEditorOpen(false), []);
@@ -426,7 +426,7 @@ export function DepartmentAnnouncementManagerCard({
         className={
           variant === "compact"
             ? "flex min-h-16 w-full items-center gap-3 rounded-3xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
-            : "h-36 w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+            : `${variant === "dashboard" ? "h-full min-h-32" : "h-36"} w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]`
         }
       >
         <span
@@ -452,7 +452,7 @@ export function DepartmentAnnouncementManagerCard({
             <span className={`block font-bold text-slate-500 ${variant === "compact" ? "mt-0.5 text-xs" : "mt-1 text-sm leading-5"}`}>
               Create or update the department-wide employee announcement.
             </span>
-            {variant === "card" && (
+            {variant !== "compact" && (
               <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
             )}
           </span>

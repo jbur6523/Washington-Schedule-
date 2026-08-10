@@ -36,6 +36,7 @@ import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { isLeadership } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { activeRentalStatuses } from "@/lib/rental-management/status";
 import type { ScheduleEntry } from "@/data/mockSchedule";
 import {
   adaptActiveSchedule,
@@ -47,6 +48,11 @@ import {
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchDirectorShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
+import {
+  isFreshProcedureUpdate,
+  procedureCounts,
+  procedureTotal
+} from "@/lib/shift-status/procedures";
 import {
   formatDirectorSourceShift,
   resolveDirectorCurrentShiftStatus,
@@ -65,7 +71,6 @@ import {
   updatedByName
 } from "@/lib/shift-status/utils";
 
-const activeRentalStatuses = ["active", "delivered"];
 const scheduleEntrySelect =
   "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)";
 const scheduleOverrideSelect =
@@ -281,32 +286,6 @@ function parseManualScheduleDate(value: string) {
   }
 
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function procedureCounts(update: ShiftStatusUpdate | null) {
-  return {
-    cSections: update?.c_section_count ?? 0,
-    vaginalDelivery: update?.vaginal_delivery_count ?? 0,
-    cabg: update?.cabg_count ?? 0,
-    bronchs: update?.bronch_count ?? 0,
-    sputumInductions: update?.sputum_induction_count ?? 0,
-    other: update?.other_procedure_count ?? 0,
-    note: update?.other_procedure_note ?? null
-  };
-}
-
-function isFreshProcedureUpdate(update: ShiftStatusUpdate | null, now: Date) {
-  if (!update) {
-    return false;
-  }
-
-  const updatedAt = new Date(update.updated_at).getTime();
-
-  if (!Number.isFinite(updatedAt)) {
-    return false;
-  }
-
-  return now.getTime() - updatedAt < 24 * 60 * 60 * 1000;
 }
 
 type DirectoryStaffProfile = {
@@ -690,13 +669,7 @@ export function DirectorShiftStatusClient({
   const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
   const currentProcedureCounts = procedureCounts(procedureLatest);
   const snapshotProcedureCounts = procedureCounts(snapshotLatest);
-  const snapshotProcedureTotal =
-    snapshotProcedureCounts.cSections +
-    snapshotProcedureCounts.vaginalDelivery +
-    snapshotProcedureCounts.cabg +
-    snapshotProcedureCounts.bronchs +
-    snapshotProcedureCounts.sputumInductions +
-    snapshotProcedureCounts.other;
+  const snapshotProcedureTotal = procedureTotal(snapshotProcedureCounts);
   const statusSourceShift = formatDirectorSourceShift(latest);
   const snapshotSourceShift = formatDirectorSourceShift(snapshotLatest);
   const departmentSnapshotUpdate = latestDirectorCardUpdate(

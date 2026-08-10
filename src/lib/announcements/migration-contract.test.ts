@@ -45,9 +45,9 @@ describe("department announcement migration and integration contract", () => {
   });
 
   it("uses the shared editor in both management locations", () => {
-    expect(commandCenter).toContain(
-      '<DepartmentAnnouncementManagerCard departmentId={authContext.departmentId} timezone={timezone} />'
-    );
+    expect(commandCenter).toContain("<DepartmentAnnouncementManagerCard");
+    expect(commandCenter).toContain("departmentId={authContext.departmentId}");
+    expect(commandCenter).toContain('variant="dashboard"');
     expect(directorDashboard).toContain("<DepartmentAnnouncementManagerDialog");
     expect(commandCenter).not.toContain("<DepartmentAnnouncementEditor");
     expect(directorDashboard).not.toContain("<DepartmentAnnouncementEditor");
@@ -56,9 +56,9 @@ describe("department announcement migration and integration contract", () => {
   it("keeps the requested Lead card order and moves the Director action into its compact menu", () => {
     const leadCardLabels = [
       "Shift Update",
-      "ICU Snapshot",
       "Lead Communication Board",
       "Phone List",
+      "ICU Snapshot",
       "Aide Communication Board",
       "Rental Management",
       "Short Shift Alert",

@@ -21,6 +21,7 @@ import {
   Search
 } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { isActiveRentalStatus } from "@/lib/rental-management/status";
 import { createClient } from "@/lib/supabase/client";
 import { wallTimeToIso } from "@/lib/time/zoned-date-time";
 
@@ -192,7 +193,7 @@ function isPendingDeliveryStatus(status: RentalStatus) {
 }
 
 function isActiveStatus(status: RentalStatus) {
-  return status === "active" || status === "delivered";
+  return isActiveRentalStatus(status);
 }
 
 function isPickupCalledStatus(status: RentalStatus) {
