@@ -28,7 +28,7 @@ describe("admin navigation", () => {
   it("shows only the seven approved admin dashboard areas", () => {
     expect(adminDashboardAreas.map((area) => area.title)).toEqual([
       "Lead Command Board",
-      "Director Dashboard",
+      "Leadership Dashboard",
       "ICU Command Center",
       "Rental Management",
       "Order Management",

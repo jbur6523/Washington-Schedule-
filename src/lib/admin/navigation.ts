@@ -11,10 +11,10 @@ export const adminDashboardAreas = [
     buttonClassName: "bg-blue-700 text-white"
   },
   {
-    title: "Director Dashboard",
+    title: "Leadership Dashboard",
     description: "View the leadership operational dashboard.",
     href: "/director/shift-status",
-    buttonLabel: "Open Director Dashboard",
+    buttonLabel: "Open Leadership Dashboard",
     cardClassName: "border-emerald-200 bg-emerald-100",
     accentClassName: "text-emerald-800",
     buttonClassName: "bg-emerald-700 text-white"

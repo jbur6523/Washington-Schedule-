@@ -121,7 +121,7 @@ export function DirectorDashboardIcuSummaryView({
 
   return (
     <section
-      aria-label="Director ICU Summary"
+      aria-label="Leadership ICU Summary"
       className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft"
     >
       <div className="flex items-start gap-3">

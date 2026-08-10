@@ -434,7 +434,7 @@ function StaffProfileEditor({
               <option value="icu_command_center">ICU Command Center</option>
             </select>
             <span className="mt-1 block text-xs font-bold text-slate-400">
-              Aide gives dashboard access. Command Center, ICU Command Center, and Director route to simplified operational views.
+              Aide gives dashboard access. Command Center and ICU Command Center open their operational views; Director opens the read-only Leadership Dashboard.
             </span>
           </label>
 

@@ -38,7 +38,7 @@ describe("admin dashboard", () => {
     const view = render(await AdminPage());
     const expectedLinks = [
       ["Lead Command Board", "/command-center"],
-      ["Director Dashboard", "/director/shift-status"],
+      ["Leadership Dashboard", "/director/shift-status"],
       ["ICU Command Center", "/icu-command-center"],
       ["Rental Management", "/operations/rental-management"],
       ["Order Management", "/operations/order-management"],

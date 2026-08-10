@@ -825,9 +825,9 @@ export function DirectorShiftStatusClient({
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
               <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink">
-                Director Dashboard
+                Leadership Dashboard
               </h1>
               <p className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold leading-5 text-slate-500">
                 <span>Live department numbers from the Command Center</span>
@@ -1064,16 +1064,16 @@ export function DirectorShiftStatusClient({
             >
               <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
                 <div>
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
                   <h2 id="director-utility-menu-title" className="mt-1 text-xl font-black text-hospital-ink">
-                    Director Menu
+                    Leadership Menu
                   </h2>
                 </div>
                 <button
                   ref={utilityMenuCloseRef}
                   type="button"
                   onClick={() => setUtilityMenuOpen(false)}
-                  aria-label="Close Director menu"
+                  aria-label="Close Leadership menu"
                   className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
                 >
                   <X size={16} aria-hidden="true" />
@@ -1151,7 +1151,7 @@ export function DirectorShiftStatusClient({
               className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
             >
               <div className="border-b border-slate-100 px-4 py-4">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
                 <div className="mt-1 flex items-start justify-between gap-3">
                   <div>
                     <h2 id="respiratory-directory-title" className="text-2xl font-black text-hospital-ink">
@@ -1236,7 +1236,7 @@ export function DirectorShiftStatusClient({
               className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
             >
               <div className="border-b border-slate-100 px-4 py-4">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Director View</p>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
                 <div className="mt-1 flex items-start justify-between gap-3">
                   <div>
                     <h2 id="director-view-shift-title" className="text-2xl font-black text-hospital-ink">

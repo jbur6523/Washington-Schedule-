@@ -103,7 +103,7 @@ describe("DirectorDashboardIcuSummary", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Director ICU Summary"
+      name: "Leadership ICU Summary"
     });
     expect(metricValue(region, "Vents")).toContain("5");
     expect(metricValue(region, "Vents")).not.toContain("6");
@@ -146,7 +146,7 @@ describe("DirectorDashboardIcuSummary", () => {
     );
 
     let region = screen.getByRole("region", {
-      name: "Director ICU Summary"
+      name: "Leadership ICU Summary"
     });
     expect(metricValue(region, "Vents")).toContain("0");
     expect(region).toHaveTextContent("Last updated: 07/27/2026 14:00");
@@ -170,7 +170,7 @@ describe("DirectorDashboardIcuSummary", () => {
       />
     );
 
-    region = screen.getByRole("region", { name: "Director ICU Summary" });
+    region = screen.getByRole("region", { name: "Leadership ICU Summary" });
     expect(metricValue(region, "Vents")).toContain("0");
     expect(region).toHaveTextContent("Last updated: 07/28/2026 10:00");
     expect(region).toHaveTextContent("Updated by: ICU RT");
@@ -196,7 +196,7 @@ describe("DirectorDashboardIcuSummary", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Director ICU Summary"
+      name: "Leadership ICU Summary"
     });
     expect(region).toHaveTextContent("No vent count recorded yet.");
     expect(region).not.toHaveTextContent("No official vent update for this shift.");
@@ -224,7 +224,7 @@ describe("DirectorDashboardIcuSummary", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Director ICU Summary"
+      name: "Leadership ICU Summary"
     });
     expect(metricValue(region, "Vents")).toContain("—");
     expect(metricValue(region, "Vents")).not.toContain("6");
@@ -252,7 +252,7 @@ describe("DirectorDashboardIcuSummary", () => {
     );
 
     const region = screen.getByRole("region", {
-      name: "Director ICU Summary"
+      name: "Leadership ICU Summary"
     });
     expect(metricValue(region, "Vents")).toContain("—");
     expect(metricValue(region, "Vents")).not.toContain("6");

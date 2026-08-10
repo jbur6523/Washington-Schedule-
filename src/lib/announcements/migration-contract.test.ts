@@ -69,7 +69,7 @@ describe("department announcement migration and integration contract", () => {
     expect(leadCardPositions).toEqual([...leadCardPositions].sort((left, right) => left - right));
 
     const directorHeader = directorDashboard.slice(
-      directorDashboard.indexOf("Director View"),
+      directorDashboard.indexOf("Leadership View"),
       directorDashboard.indexOf("Current Shift Status")
     );
     expect(directorHeader).toContain("<MenuIcon");

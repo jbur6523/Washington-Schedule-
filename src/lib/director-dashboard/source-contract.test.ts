@@ -9,7 +9,7 @@ function source(path: string) {
 }
 
 describe("Director and WHHS RT Schedule source boundaries", () => {
-  it("keeps latest-known fallback confined to the Director Dashboard", () => {
+  it("keeps latest-known fallback confined to the Leadership Dashboard", () => {
     const director = source("src/components/DirectorShiftStatusClient.tsx");
     const schedule = source("src/components/CurrentShiftStatusSummary.tsx");
 

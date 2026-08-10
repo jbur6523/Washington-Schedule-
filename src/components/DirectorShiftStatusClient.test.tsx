@@ -193,34 +193,34 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(card.queryByText(/Vents updated by:/)).not.toBeInTheDocument();
   });
 
-  it("opens a responsive Director menu and dismisses it with escape or an outside click", async () => {
+  it("opens a responsive Leadership menu and dismisses it with escape or an outside click", async () => {
     render(<DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
 
     const menuButton = screen.getByRole("button", { name: "Menu" });
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(screen.queryByText("Respiratory Directory")).not.toBeInTheDocument();
 
     menuButton.focus();
     fireEvent.click(menuButton);
-    const menu = screen.getByRole("dialog", { name: "Director Menu" });
+    const menu = screen.getByRole("dialog", { name: "Leadership Menu" });
     expect(menu).toHaveClass("rounded-t-[2rem]", "sm:max-w-sm", "sm:rounded-[2rem]");
     expect(document.body.style.overflow).toBe("hidden");
-    expect(screen.getByRole("button", { name: "Close Director menu" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Close Leadership menu" })).toHaveFocus();
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe("");
     expect(menuButton).toHaveFocus();
 
     fireEvent.click(menuButton);
     fireEvent.mouseDown(screen.getByTestId("director-menu-backdrop"));
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
   });
 
-  it("moves every Director utility action into the menu and closes it after selection", async () => {
+  it("moves every Leadership utility action into the menu and closes it after selection", async () => {
     render(<DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
@@ -229,32 +229,32 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Menu" }));
 
     openMenu();
-    const directorMenu = screen.getByRole("dialog", { name: "Director Menu" });
+    const directorMenu = screen.getByRole("dialog", { name: "Leadership Menu" });
     expect(within(directorMenu).getByRole("button", { name: "Respiratory Directory" })).toBeInTheDocument();
     expect(within(directorMenu).getByRole("button", { name: "Lead Communication Board" })).toBeInTheDocument();
     expect(within(directorMenu).getByRole("button", { name: "Announcement Board" })).toBeInTheDocument();
     expect(within(directorMenu).getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
 
     fireEvent.click(within(directorMenu).getByRole("button", { name: "Respiratory Directory" }));
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Respiratory Directory" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
     openMenu();
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Director Menu" })).getByRole("button", { name: "Lead Communication Board" }));
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Leadership Menu" })).getByRole("button", { name: "Lead Communication Board" }));
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Lead Communication Board" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close lead board" }));
 
     openMenu();
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Director Menu" })).getByRole("button", { name: "Announcement Board" }));
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Leadership Menu" })).getByRole("button", { name: "Announcement Board" }));
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: "Announcement Board" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Close announcement" }));
 
     openMenu();
-    fireEvent.click(within(screen.getByRole("dialog", { name: "Director Menu" })).getByRole("button", { name: "Sign Out" }));
-    expect(screen.queryByRole("dialog", { name: "Director Menu" })).not.toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Leadership Menu" })).getByRole("button", { name: "Sign Out" }));
+    expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
 
     expect(screen.getByRole("heading", { name: "Current Shift Status" })).toBeInTheDocument();
