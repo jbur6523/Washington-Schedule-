@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 
 const migration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/202608100001_leadership_accounts.sql"),
@@ -64,7 +65,9 @@ describe.each(firstLoginAccounts)("pre-provisioned Leadership account %s", (user
   });
 
   it("uses the existing user-created password activation flow", () => {
-    expect(claimRoute).toContain('password.length < 12');
+    expect(MIN_PASSWORD_LENGTH).toBe(6);
+    expect(claimRoute).toContain("password.length < MIN_PASSWORD_LENGTH");
+    expect(loginForm).toContain("minLength={MIN_PASSWORD_LENGTH}");
     expect(claimRoute).toContain('supabase.auth.admin.createUser');
     expect(loginForm).toContain("Create the password you will use to sign in.");
     expect(loginForm).toContain('autoComplete="new-password"');
@@ -102,7 +105,8 @@ describe("Ramon Hollander Leadership account rename", () => {
   it("uses the existing first-login claim flow to create Ramon's own holr password", () => {
     expect(usernameHelpers).toContain('return `${normalizeUsername(username)}@washington-schedule.local`;');
     expect(usernameStatusRoute).toMatch(/\? "claimed"\s*: "unclaimed"/);
-    expect(claimRoute).toContain('password.length < 12');
+    expect(MIN_PASSWORD_LENGTH).toBe(6);
+    expect(claimRoute).toContain("password.length < MIN_PASSWORD_LENGTH");
     expect(claimRoute).toContain('supabase.auth.admin.createUser');
     expect(claimRoute).toContain("requested_username: username");
     expect(loginForm).toContain("Create the password you will use to sign in.");

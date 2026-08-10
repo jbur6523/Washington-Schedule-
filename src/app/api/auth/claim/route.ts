@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { authEmailForUsername, normalizeUsername } from "@/lib/auth/username";
 import type { AppRole, OperationsRole } from "@/lib/auth/types";
 
@@ -45,8 +46,8 @@ export async function POST(request: Request) {
 
   if (
     !username
-    || password.length < 12
-    || password.length > 128
+    || password.length < MIN_PASSWORD_LENGTH
+    || password.length > MAX_PASSWORD_LENGTH
     || password !== confirmPassword
   ) {
     return claimError("invalid_request", "Check the username and password requirements.", 400);

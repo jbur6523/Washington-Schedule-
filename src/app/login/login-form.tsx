@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, BellOff } from "lucide-react";
+import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { createClient } from "@/lib/supabase/client";
 import { authEmailForUsername, normalizeUsername } from "@/lib/auth/username";
 
@@ -299,8 +300,8 @@ export function LoginForm() {
     setError("");
     setMessage("");
 
-    if (password.length < 12) {
-      setError("Use a password with at least 12 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Use a password with at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -658,11 +659,13 @@ export function LoginForm() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={12}
+              minLength={MIN_PASSWORD_LENGTH}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
-            <span className="mt-1 block text-xs font-bold text-slate-400">Use at least 12 characters.</span>
+            <span className="mt-1 block text-xs font-bold text-slate-400">
+              Use at least {MIN_PASSWORD_LENGTH} characters.
+            </span>
           </label>
           <label className="block">
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -673,7 +676,7 @@ export function LoginForm() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               required
-              minLength={12}
+              minLength={MIN_PASSWORD_LENGTH}
               autoComplete="new-password"
               className="mt-2 min-h-12 w-full rounded-2xl border border-cyan-100 bg-cyan-50/60 px-3 text-base font-bold text-hospital-ink outline-none focus:border-cyan-300"
             />
