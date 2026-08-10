@@ -1,29 +1,12 @@
 import { NextResponse } from "next/server";
-import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
+import { authenticatedLandingPath } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
-import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
 export const dynamic = "force-dynamic";
 
 const noStoreHeaders = {
   "Cache-Control": "no-store, max-age=0"
 };
-
-function appLandingPath(context: AuthenticatedUserContext) {
-  if (isCommandCenter(context)) {
-    return "/command-center";
-  }
-
-  if (isIcuCommandCenter(context)) {
-    return "/icu-command-center";
-  }
-
-  if (isDirector(context)) {
-    return "/director/shift-status";
-  }
-
-  return "/";
-}
 
 export async function GET() {
   const auth = await getAuthenticatedUserContext();
@@ -45,7 +28,7 @@ export async function GET() {
   return NextResponse.json(
     {
       status: "active",
-      redirectTo: appLandingPath(auth.context)
+      redirectTo: authenticatedLandingPath(auth.context)
     },
     { headers: noStoreHeaders }
   );

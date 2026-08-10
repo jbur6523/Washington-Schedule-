@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { CheckCircle2, MessageSquareText, Send, X } from "lucide-react";
+import {
+  canCreateLeadCommunication,
+  canReplyToLeadCommunication,
+  isLeadership
+} from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -12,7 +17,7 @@ const leadNoteColumns =
 
 type LeadNoteStatus = "new" | "reviewed" | "closed";
 type LeadNotePriority = "normal" | "urgent";
-type LeadBoardContext = "lead" | "director" | "icu";
+type LeadBoardContext = "lead" | "director" | "leadership" | "icu";
 
 type LeadCommunicationNoteRow = {
   id: string;
@@ -119,7 +124,7 @@ function priorityChipClass(priority: LeadNotePriority) {
 }
 
 function contextSubtitle(context: LeadBoardContext) {
-  if (context === "director") {
+  if (context === "director" || context === "leadership") {
     return "Share notes or updates for RT leads.";
   }
 
@@ -154,19 +159,20 @@ export function LeadCommunicationBoardModal({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const canCreateNotes =
-    authContext.role === "admin" ||
-    authContext.role === "lead" ||
-    authContext.operationsRole === "director" ||
-    authContext.operationsRole === "icu_command_center" ||
-    authContext.operationsRole === "command_center";
+  const canCreateNotes = canCreateLeadCommunication(authContext);
   const canReviewNotes = authContext.role === "admin" || authContext.role === "lead";
+  const canReplyToNotes = canReplyToLeadCommunication(authContext);
+  const leadershipContext = isLeadership(authContext);
   const selectedAddedBy = useMemo(
     () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
     [addedByStaffProfileId, leadOptions]
   );
   const defaultAddedByName = context === "lead" ? selectedAddedBy?.display_name ?? "" : authContext.displayName;
-  const addedByName = useManualAddedBy ? manualAddedByName.trim() : defaultAddedByName;
+  const addedByName = leadershipContext
+    ? authContext.displayName
+    : useManualAddedBy
+      ? manualAddedByName.trim()
+      : defaultAddedByName;
   const canSendNewNote = canCreateNotes && noteText.trim().length > 0 && Boolean(authContext.staffProfileId) && addedByName.length > 0;
   const visibleNotes = notes;
   const hasMoreNotes = activeNoteCount > visibleNotes.length;
@@ -346,7 +352,7 @@ export function LeadCommunicationBoardModal({
   };
 
   const sendFollowUp = async (note: LeadCommunicationNoteRow) => {
-    if (!canReviewNotes || !authContext.staffProfileId) {
+    if (!canReplyToNotes || !authContext.staffProfileId) {
       return;
     }
 
@@ -362,21 +368,26 @@ export function LeadCommunicationBoardModal({
 
     const now = new Date().toISOString();
     const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("lead_communication_notes")
-      .update({
-        status: "reviewed",
-        follow_up_text: followUpText,
-        followed_up_at: now,
-        followed_up_by_staff_profile_id: authContext.staffProfileId,
-        followed_up_by_name: authContext.displayName,
-        reviewed_at: note.reviewed_at ?? now,
-        reviewed_by_staff_profile_id: note.reviewed_by_staff_profile_id ?? authContext.staffProfileId,
-        reviewed_by_name: note.reviewed_by_name ?? authContext.displayName
-      })
-      .eq("id", note.id)
-      .eq("department_id", authContext.departmentId)
-      .neq("status", "closed");
+    const { error: updateError } = leadershipContext
+      ? await supabase.rpc("reply_to_lead_communication_note", {
+          target_note_id: note.id,
+          reply_text: followUpText
+        })
+      : await supabase
+          .from("lead_communication_notes")
+          .update({
+            status: "reviewed",
+            follow_up_text: followUpText,
+            followed_up_at: now,
+            followed_up_by_staff_profile_id: authContext.staffProfileId,
+            followed_up_by_name: authContext.displayName,
+            reviewed_at: note.reviewed_at ?? now,
+            reviewed_by_staff_profile_id: note.reviewed_by_staff_profile_id ?? authContext.staffProfileId,
+            reviewed_by_name: note.reviewed_by_name ?? authContext.displayName
+          })
+          .eq("id", note.id)
+          .eq("department_id", authContext.departmentId)
+          .neq("status", "closed");
 
     setBusyNoteId(null);
 
@@ -493,13 +504,15 @@ export function LeadCommunicationBoardModal({
                   <p className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-black text-hospital-ink">
                     {authContext.displayName}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setUseManualAddedBy(true)}
-                    className="text-sm font-extrabold text-blue-700 underline decoration-blue-200 underline-offset-4"
-                  >
-                    Not listed? Type name manually
-                  </button>
+                  {!leadershipContext && (
+                    <button
+                      type="button"
+                      onClick={() => setUseManualAddedBy(true)}
+                      className="text-sm font-extrabold text-blue-700 underline decoration-blue-200 underline-offset-4"
+                    >
+                      Not listed? Type name manually
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -563,7 +576,7 @@ export function LeadCommunicationBoardModal({
               {visibleNotes.map((note) => {
                 const followUpDraft = followUpDrafts[note.id] ?? "";
                 const canMarkReviewed = canReviewNotes && note.status === "new";
-                const canSendFollowUp = canReviewNotes && followUpDraft.trim().length > 0 && busyNoteId !== note.id;
+                const canSendFollowUp = canReplyToNotes && followUpDraft.trim().length > 0 && busyNoteId !== note.id;
 
                 return (
                   <article key={note.id} className={`rounded-[1.75rem] border p-4 shadow-md ${priorityCardClass(note.priority)}`}>
@@ -608,7 +621,7 @@ export function LeadCommunicationBoardModal({
                       </div>
                     )}
 
-                    {canReviewNotes && (
+                    {canReplyToNotes && (
                       <div className="mt-4 space-y-3">
                         {canMarkReviewed && (
                           <button
@@ -625,7 +638,7 @@ export function LeadCommunicationBoardModal({
                         {expandedFollowUpNoteId === note.id ? (
                           <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3">
                             <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`lead-follow-up-${note.id}`}>
-                              Add Note
+                              Reply
                             </label>
                             <textarea
                               id={`lead-follow-up-${note.id}`}
@@ -636,7 +649,7 @@ export function LeadCommunicationBoardModal({
                                   [note.id]: event.target.value.slice(0, maxNoteLength)
                                 }))
                               }
-                              placeholder="Add follow-up note..."
+                              placeholder="Write a reply..."
                               maxLength={maxNoteLength}
                               className="mt-2 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                             />
@@ -661,7 +674,7 @@ export function LeadCommunicationBoardModal({
                                 disabled={!canSendFollowUp}
                                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 text-sm font-black text-white shadow-md shadow-blue-900/20 transition duration-150 active:scale-[0.98] active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
                               >
-                                {busyNoteId === note.id ? "Sending..." : "Send Note"}
+                                {busyNoteId === note.id ? "Sending..." : "Send Reply"}
                               </button>
                             </div>
                           </div>
@@ -674,7 +687,7 @@ export function LeadCommunicationBoardModal({
                             }}
                             className="inline-flex min-h-11 w-auto items-center justify-center rounded-2xl border border-blue-200 bg-white px-3.5 text-sm font-black text-blue-700 shadow-sm transition duration-150 active:scale-[0.98]"
                           >
-                            + Add Note
+                            Reply
                           </button>
                         ) : null}
                       </div>

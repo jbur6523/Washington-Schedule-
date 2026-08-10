@@ -11,8 +11,8 @@ type EmploymentType = "full_time" | "per_diem";
 type HomeAssignment = "day_shift" | "night_shift" | "pft" | "pulmonary_rehab" | "rt_aide" | "flexible";
 type PreferredContactMethod = "phone" | "email" | "app";
 type StaffRole = "admin" | "lead" | "staff";
-type OperationsRole = "none" | "aide" | "command_center" | "director" | "icu_command_center";
-type VisibleRole = StaffRole | "aide" | "command_center" | "director" | "icu_command_center";
+type OperationsRole = "none" | "aide" | "command_center" | "director" | "leadership" | "icu_command_center";
+type VisibleRole = StaffRole | "aide" | "command_center" | "director" | "leadership" | "icu_command_center";
 type RosterFilter =
   | "all"
   | "admin"
@@ -133,6 +133,7 @@ const operationsRoleLabels: Record<Exclude<OperationsRole, "none">, string> = {
   aide: "Aide",
   command_center: "Command Center",
   director: "Director",
+  leadership: "Leadership",
   icu_command_center: "ICU Command Center"
 };
 
@@ -187,6 +188,7 @@ function roleLabelForProfile(profile: Pick<StaffProfile, "assigned_role" | "oper
     visibleRole === "aide" ||
     visibleRole === "command_center" ||
     visibleRole === "director" ||
+    visibleRole === "leadership" ||
     visibleRole === "icu_command_center"
   ) {
     return operationsRoleLabels[visibleRole];
@@ -415,6 +417,7 @@ function StaffProfileEditor({
                   nextRole === "aide" ||
                   nextRole === "command_center" ||
                   nextRole === "director" ||
+                  nextRole === "leadership" ||
                   nextRole === "icu_command_center"
                 ) {
                   onChange({ ...form, assigned_role: "staff", operations_role: nextRole });
@@ -431,10 +434,11 @@ function StaffProfileEditor({
               <option value="aide">Aide</option>
               <option value="command_center">Command Center</option>
               <option value="director">Director</option>
+              <option value="leadership">Leadership</option>
               <option value="icu_command_center">ICU Command Center</option>
             </select>
             <span className="mt-1 block text-xs font-bold text-slate-400">
-              Aide gives dashboard access. Command Center and ICU Command Center open their operational views; Director opens the read-only Leadership Dashboard.
+              Aide gives dashboard access. Command Center and ICU Command Center open their operational views; Director and Leadership open the read-only Leadership Dashboard.
             </span>
           </label>
 

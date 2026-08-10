@@ -3,7 +3,7 @@ import AppClient from "@/app/app-client";
 import { AccountAccessNotice } from "@/components/AccountAccessNotice";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
-import { isCommandCenter, isDirector, isIcuCommandCenter } from "@/lib/auth/access";
+import { authenticatedLandingPath } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 
@@ -64,16 +64,9 @@ export default async function Home() {
     return <AuthVerificationNotice message={auth.message} />;
   }
 
-  if (isCommandCenter(auth.context)) {
-    redirect("/command-center");
-  }
-
-  if (isIcuCommandCenter(auth.context)) {
-    redirect("/icu-command-center");
-  }
-
-  if (isDirector(auth.context)) {
-    redirect("/director/shift-status");
+  const landingPath = authenticatedLandingPath(auth.context);
+  if (landingPath !== "/") {
+    redirect(landingPath);
   }
 
   return <AppClient authContext={auth.context} />;

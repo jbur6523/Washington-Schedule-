@@ -34,6 +34,7 @@ import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
+import { isLeadership } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
 import {
@@ -1217,7 +1218,7 @@ export function DirectorShiftStatusClient({
           authContext={authContext}
           open={leadNotesOpen}
           onClose={() => setLeadNotesOpen(false)}
-          context="director"
+          context={isLeadership(authContext) ? "leadership" : "director"}
         />
 
         <DepartmentAnnouncementManagerDialog

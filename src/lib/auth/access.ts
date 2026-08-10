@@ -8,6 +8,10 @@ export function isDirector(context: Pick<AuthenticatedUserContext, "operationsRo
   return context.operationsRole === "director";
 }
 
+export function isLeadership(context: Pick<AuthenticatedUserContext, "operationsRole">) {
+  return context.operationsRole === "leadership";
+}
+
 export function isIcuCommandCenter(context: Pick<AuthenticatedUserContext, "operationsRole">) {
   return context.operationsRole === "icu_command_center";
 }
@@ -29,7 +33,7 @@ export function canManageShiftStatus(context: Pick<AuthenticatedUserContext, "ro
 }
 
 export function canViewDirectorShiftStatus(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
-  return context.role === "admin" || context.role === "lead" || isDirector(context);
+  return context.role === "admin" || context.role === "lead" || isDirector(context) || isLeadership(context);
 }
 
 export function canManageDepartmentAnnouncement(
@@ -44,4 +48,43 @@ export function canEditIcuCommandCenter(context: Pick<AuthenticatedUserContext, 
 
 export function canViewIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
   return canEditIcuCommandCenter(context) || isDirector(context) || isCommandCenter(context);
+}
+
+export function canCreateLeadCommunication(
+  context: Pick<AuthenticatedUserContext, "role" | "operationsRole">
+) {
+  return (
+    context.role === "admin"
+    || context.role === "lead"
+    || isDirector(context)
+    || isLeadership(context)
+    || isIcuCommandCenter(context)
+    || isCommandCenter(context)
+  );
+}
+
+export function canReplyToLeadCommunication(
+  context: Pick<AuthenticatedUserContext, "role" | "operationsRole">
+) {
+  return context.role === "admin" || context.role === "lead" || isLeadership(context);
+}
+
+export function canUseNotifications(context: Pick<AuthenticatedUserContext, "operationsRole">) {
+  return !isLeadership(context);
+}
+
+export function authenticatedLandingPath(context: Pick<AuthenticatedUserContext, "operationsRole">) {
+  if (isCommandCenter(context)) {
+    return "/command-center";
+  }
+
+  if (isIcuCommandCenter(context)) {
+    return "/icu-command-center";
+  }
+
+  if (isDirector(context) || isLeadership(context)) {
+    return "/director/shift-status";
+  }
+
+  return "/";
 }

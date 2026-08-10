@@ -98,6 +98,7 @@ export async function getAuthenticatedUserContext(): Promise<AuthContextResult> 
     "aide",
     "command_center",
     "director",
+    "leadership",
     "icu_command_center"
   ]);
   const operationsRole = operationsRoleValues.has(staffProfile?.operations_role as OperationsRole)

@@ -1,5 +1,11 @@
 export type AppRole = "admin" | "lead" | "staff";
-export type OperationsRole = "none" | "aide" | "command_center" | "director" | "icu_command_center";
+export type OperationsRole =
+  | "none"
+  | "aide"
+  | "command_center"
+  | "director"
+  | "leadership"
+  | "icu_command_center";
 
 export type AuthenticatedUserContext = {
   authUserId: string;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canUseNotifications } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
 
@@ -80,6 +81,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { message: auth.status === "error" ? "Unable to verify access." : "Sign in required." },
       { status: auth.status === "error" ? 503 : 401, headers: noStoreHeaders }
+    );
+  }
+
+  if (!canUseNotifications(auth.context)) {
+    return NextResponse.json(
+      { message: "Notifications are disabled for this account." },
+      { status: 403, headers: noStoreHeaders }
     );
   }
 

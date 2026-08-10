@@ -1,5 +1,5 @@
 export type StaffType = "Full-time" | "Per diem";
-export type StaffOperationsRole = "none" | "aide" | "command_center" | "director" | "icu_command_center";
+export type StaffOperationsRole = "none" | "aide" | "command_center" | "director" | "leadership" | "icu_command_center";
 export type UsualShift =
   | "Dayshift"
   | "Nightshift"

@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  authenticatedLandingPath,
+  canCreateLeadCommunication,
   canEditIcuCommandCenter,
   canManageDepartmentAnnouncement,
   canManageShiftStatus,
+  canReplyToLeadCommunication,
+  canUseNotifications,
   canViewDirectorShiftStatus,
   canViewIcuCommandCenter,
   hasOperationsDashboardAccess,
@@ -62,11 +66,30 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(director)).toBe(true);
     expect(canViewIcuCommandCenter(director)).toBe(true);
     expect(canEditIcuCommandCenter(director)).toBe(false);
+    expect(canUseNotifications(director)).toBe(true);
 
     expect(canEditIcuCommandCenter(icu)).toBe(true);
     expect(canManageDepartmentAnnouncement(icu)).toBe(false);
     expect(canViewIcuCommandCenter(icu)).toBe(true);
     expect(canViewDirectorShiftStatus(icu)).toBe(false);
+  });
+
+  it("restricts Leadership accounts to their dashboard and communication capabilities", () => {
+    const leadership = accessContext("staff", "leadership");
+
+    expect(authenticatedLandingPath(leadership)).toBe("/director/shift-status");
+    expect(canViewDirectorShiftStatus(leadership)).toBe(true);
+    expect(canManageDepartmentAnnouncement(leadership)).toBe(true);
+    expect(canCreateLeadCommunication(leadership)).toBe(true);
+    expect(canReplyToLeadCommunication(leadership)).toBe(true);
+    expect(canUseNotifications(leadership)).toBe(false);
+
+    expect(hasOperationsDashboardAccess(leadership)).toBe(false);
+    expect(hasRentalManagementAccess(leadership)).toBe(false);
+    expect(hasOrderManagementAccess(leadership)).toBe(false);
+    expect(canManageShiftStatus(leadership)).toBe(false);
+    expect(canEditIcuCommandCenter(leadership)).toBe(false);
+    expect(canViewIcuCommandCenter(leadership)).toBe(false);
   });
 
   it("retains administrator access across management surfaces", () => {
