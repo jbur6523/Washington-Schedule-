@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import tailwindConfig from "../../../tailwind.config";
 import { adminDashboardAreas, getProfileDashboardShortcut } from "./navigation";
 
 describe("admin navigation", () => {
@@ -34,5 +35,9 @@ describe("admin navigation", () => {
       "Staff Management",
       "Import Schedule"
     ]);
+  });
+
+  it("keeps navigation palette classes in Tailwind's scanned source tree", () => {
+    expect(tailwindConfig.content).toContain("./src/**/*.{js,ts,jsx,tsx,mdx}");
   });
 });
