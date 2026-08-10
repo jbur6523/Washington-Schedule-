@@ -8,10 +8,12 @@ import { createClient } from "@/lib/supabase/client";
 const maxNoteLength = 500;
 const notesPageSize = 10;
 const rtAideNoteColumns =
-  "id, department_id, note_text, priority, status, created_by_staff_profile_id, created_by_name, acknowledged_at, acknowledged_by_staff_profile_id, acknowledged_by_name, response_text, responded_at, responded_by_staff_profile_id, responded_by_name, closed_at, closed_by_staff_profile_id, closed_by_name, created_at, updated_at";
+  "id, department_id, note_text, priority, status, conversation_direction, created_by_staff_profile_id, created_by_name, acknowledged_at, acknowledged_by_staff_profile_id, acknowledged_by_name, response_text, responded_at, responded_by_staff_profile_id, responded_by_name, closed_at, closed_by_staff_profile_id, closed_by_name, created_at, updated_at";
+const rtAideReplyColumns = "id, note_id, reply_text, created_by_staff_profile_id, created_by_name, created_at";
 
 type RtAideNoteStatus = "new" | "acknowledged" | "responded" | "closed";
 type RtAideNotePriority = "normal" | "urgent";
+type RtAideConversationDirection = "to_aides" | "to_leads";
 
 type RtAideNoteRow = {
   id: string;
@@ -19,6 +21,7 @@ type RtAideNoteRow = {
   note_text: string;
   priority: RtAideNotePriority;
   status: RtAideNoteStatus;
+  conversation_direction: RtAideConversationDirection;
   created_by_staff_profile_id: string | null;
   created_by_name: string | null;
   acknowledged_at: string | null;
@@ -35,10 +38,70 @@ type RtAideNoteRow = {
   updated_at: string;
 };
 
+type RtAideNoteReplyRow = {
+  id: string;
+  note_id: string;
+  reply_text: string;
+  created_by_staff_profile_id: string | null;
+  created_by_name: string | null;
+  created_at: string;
+};
+
 type StaffOption = {
   id: string;
   display_name: string;
 };
+
+type AuthorSelectorProps = {
+  id: string;
+  roleLabel: "aide" | "lead";
+  actionLabel: "adding note" | "replying";
+  options: StaffOption[];
+  selectedId: string;
+  manualName: string;
+  useManualName: boolean;
+  compact?: boolean;
+  onSelectedIdChange: (value: string) => void;
+  onManualNameChange: (value: string) => void;
+  onChooseList: () => void;
+  onChooseManual: () => void;
+};
+
+function AuthorSelector({ id, roleLabel, actionLabel, options, selectedId, manualName, useManualName, compact = false, onSelectedIdChange, onManualNameChange, onChooseList, onChooseManual }: AuthorSelectorProps) {
+  const controlClass = `${compact ? "min-h-11" : "min-h-12"} w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100`;
+
+  return (
+    <div>
+      <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={id}>
+        Added by
+      </label>
+      {useManualName ? (
+        <div className="mt-2 space-y-2">
+          <input id={id} value={manualName} onChange={(event) => onManualNameChange(event.target.value.slice(0, 80))} placeholder="Enter name" className={controlClass} />
+          <button type="button" onClick={onChooseList} className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4">
+            Choose from {roleLabel} list
+          </button>
+        </div>
+      ) : (
+        <div className="mt-2 space-y-2">
+          <select id={id} value={selectedId} onChange={(event) => onSelectedIdChange(event.target.value)} className={controlClass}>
+            <option value="">
+              Select {roleLabel} {actionLabel}
+            </option>
+            {options.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.display_name}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={onChooseManual} className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4">
+            Not listed? Type name manually
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type RtAideNotesModalProps = {
   authContext: AuthenticatedUserContext;
@@ -107,14 +170,9 @@ function priorityChipClass(priority: RtAideNotePriority) {
   return "border border-purple-200 bg-purple-100 text-purple-800";
 }
 
-export function RtAideNotesModal({
-  authContext,
-  open,
-  onClose,
-  onNotesChanged,
-  context = "lead"
-}: RtAideNotesModalProps) {
+export function RtAideNotesModal({ authContext, open, onClose, onNotesChanged, context = "lead" }: RtAideNotesModalProps) {
   const [notes, setNotes] = useState<RtAideNoteRow[]>([]);
+  const [repliesByNoteId, setRepliesByNoteId] = useState<Record<string, RtAideNoteReplyRow[]>>({});
   const [visibleNoteCount, setVisibleNoteCount] = useState(notesPageSize);
   const [activeNoteCount, setActiveNoteCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -131,33 +189,32 @@ export function RtAideNotesModal({
   const [useManualResponseAddedBy, setUseManualResponseAddedBy] = useState(false);
   const [responseDrafts, setResponseDrafts] = useState<Record<string, string>>({});
   const [expandedResponseNoteId, setExpandedResponseNoteId] = useState<string | null>(null);
+  const [aideComposerOpen, setAideComposerOpen] = useState(false);
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
   const [archiveCandidate, setArchiveCandidate] = useState<RtAideNoteRow | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const canCreateNotes =
-    authContext.role === "admin" || authContext.role === "lead" || authContext.operationsRole === "command_center";
+  const canCreateNotes = authContext.role === "admin" || authContext.role === "lead" || authContext.operationsRole === "command_center";
   const canResolveNotes = authContext.role === "admin" || authContext.operationsRole === "aide";
   const canCreateInContext = context === "lead" && canCreateNotes;
   const canResolveInContext = context === "aide" && canResolveNotes;
+  const canParticipateInContext = canCreateInContext || canResolveInContext;
   const canArchiveInContext = context === "aide" && authContext.operationsRole === "aide";
   const hasNoteText = noteText.trim().length > 0;
-  const selectedAddedBy = useMemo(
-    () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
-    [addedByStaffProfileId, leadOptions]
-  );
-  const selectedResponseAddedBy = useMemo(
-    () => aideOptions.find((staff) => staff.id === responseAddedByStaffProfileId) ?? null,
-    [aideOptions, responseAddedByStaffProfileId]
-  );
-  const addedByName = useManualAddedBy ? manualAddedByName.trim() : selectedAddedBy?.display_name ?? "";
-  const responseAddedByName = useManualResponseAddedBy
-    ? manualResponseAddedByName.trim()
-    : selectedResponseAddedBy?.display_name ?? "";
-  const canSendNewNote =
-    canCreateInContext && hasNoteText && Boolean(authContext.staffProfileId) && addedByName.length > 0;
+  const selectedAddedBy = useMemo(() => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null, [addedByStaffProfileId, leadOptions]);
+  const selectedResponseAddedBy = useMemo(() => aideOptions.find((staff) => staff.id === responseAddedByStaffProfileId) ?? null, [aideOptions, responseAddedByStaffProfileId]);
+  const addedByName = useManualAddedBy ? manualAddedByName.trim() : (selectedAddedBy?.display_name ?? "");
+  const responseAddedByName = useManualResponseAddedBy ? manualResponseAddedByName.trim() : (selectedResponseAddedBy?.display_name ?? "");
+  const composerUsesAideIdentity = context === "aide";
+  const composerOptions = composerUsesAideIdentity ? aideOptions : leadOptions;
+  const composerStaffProfileId = composerUsesAideIdentity ? responseAddedByStaffProfileId : addedByStaffProfileId;
+  const composerManualName = composerUsesAideIdentity ? manualResponseAddedByName : manualAddedByName;
+  const composerUsesManualName = composerUsesAideIdentity ? useManualResponseAddedBy : useManualAddedBy;
+  const newNoteAddedByName = context === "aide" ? responseAddedByName : addedByName;
+  const canStartNewConversation = canCreateInContext || canResolveInContext;
+  const canSendNewNote = canStartNewConversation && hasNoteText && Boolean(authContext.staffProfileId) && newNoteAddedByName.length > 0;
 
   const visibleNotes = notes;
   const hasMoreNotes = activeNoteCount > visibleNotes.length;
@@ -174,10 +231,7 @@ export function RtAideNotesModal({
       .order("created_at", { ascending: false })
       .range(0, visibleNoteCount - 1);
 
-    let countQuery = supabase
-      .from("rt_aide_notes")
-      .select("id", { count: "exact", head: true })
-      .eq("department_id", authContext.departmentId);
+    let countQuery = supabase.from("rt_aide_notes").select("id", { count: "exact", head: true }).eq("department_id", authContext.departmentId);
 
     if (showArchived) {
       notesQuery = notesQuery.eq("status", "closed");
@@ -192,13 +246,39 @@ export function RtAideNotesModal({
 
     if (loadError || countError) {
       setNotes([]);
+      setRepliesByNoteId({});
       setActiveNoteCount(0);
       setError("Unable to load Aide Communication Board.");
       setLoading(false);
       return;
     }
 
-    setNotes((data ?? []) as RtAideNoteRow[]);
+    const loadedNotes = (data ?? []) as RtAideNoteRow[];
+    const noteIds = loadedNotes.map((note) => note.id);
+    let loadedReplies: RtAideNoteReplyRow[] = [];
+
+    if (noteIds.length > 0) {
+      const { data: replyData, error: replyError } = await supabase.from("rt_aide_note_replies").select(rtAideReplyColumns).in("note_id", noteIds).order("created_at", { ascending: true });
+
+      if (replyError) {
+        setNotes([]);
+        setRepliesByNoteId({});
+        setActiveNoteCount(0);
+        setError("Unable to load Aide Communication Board replies.");
+        setLoading(false);
+        return;
+      }
+
+      loadedReplies = (replyData ?? []) as RtAideNoteReplyRow[];
+    }
+
+    const nextRepliesByNoteId = loadedReplies.reduce<Record<string, RtAideNoteReplyRow[]>>((grouped, reply) => {
+      (grouped[reply.note_id] ??= []).push(reply);
+      return grouped;
+    }, {});
+
+    setNotes(loadedNotes);
+    setRepliesByNoteId(nextRepliesByNoteId);
     setActiveNoteCount(count ?? 0);
     setLoading(false);
   }, [authContext.departmentId, showArchived, visibleNoteCount]);
@@ -211,6 +291,8 @@ export function RtAideNotesModal({
     const timer = window.setTimeout(() => {
       setVisibleNoteCount(notesPageSize);
       setShowArchived(false);
+      setAideComposerOpen(false);
+      setExpandedResponseNoteId(null);
     }, 0);
 
     return () => window.clearTimeout(timer);
@@ -324,8 +406,9 @@ export function RtAideNotesModal({
       note_text: noteText.trim(),
       priority,
       status: "new",
+      conversation_direction: context === "aide" ? "to_leads" : "to_aides",
       created_by_staff_profile_id: authContext.staffProfileId,
-      created_by_name: addedByName
+      created_by_name: newNoteAddedByName
     });
 
     setSaving(false);
@@ -337,12 +420,21 @@ export function RtAideNotesModal({
 
     setNoteText("");
     setPriority("normal");
-    setManualAddedByName("");
-    setUseManualAddedBy(false);
-    if (authContext.staffProfileId && leadOptions.some((staff) => staff.id === authContext.staffProfileId)) {
-      setAddedByStaffProfileId(authContext.staffProfileId);
+    if (context === "aide") {
+      setAideComposerOpen(false);
+      setManualResponseAddedByName("");
+      setUseManualResponseAddedBy(false);
+      if (aideOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+        setResponseAddedByStaffProfileId(authContext.staffProfileId);
+      }
+    } else {
+      setManualAddedByName("");
+      setUseManualAddedBy(false);
+      if (leadOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+        setAddedByStaffProfileId(authContext.staffProfileId);
+      }
     }
-    setMessage("Note sent to RT Aides.");
+    setMessage(context === "aide" ? "New note sent to RT Leads." : "Note sent to RT Aides.");
     await loadNotes();
     notifyChanged();
   };
@@ -382,13 +474,14 @@ export function RtAideNotesModal({
   };
 
   const sendResponse = async (note: RtAideNoteRow) => {
-    if (!canResolveInContext || !authContext.staffProfileId) {
+    if (!canParticipateInContext || !authContext.staffProfileId || note.status === "closed") {
       return;
     }
 
     const responseText = (responseDrafts[note.id] ?? "").trim();
-    if (!responseText || !responseAddedByName) {
-      setError("Select who added this note before sending.");
+    const replyAddedByName = context === "aide" ? responseAddedByName : addedByName;
+    if (!responseText || !replyAddedByName) {
+      setError("Select who is sending this reply before sending.");
       return;
     }
 
@@ -396,39 +489,37 @@ export function RtAideNotesModal({
     setError("");
     setMessage("");
 
-    const now = new Date().toISOString();
     const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("rt_aide_notes")
-      .update({
-        status: "responded",
-        response_text: responseText,
-        responded_at: now,
-        responded_by_staff_profile_id: authContext.staffProfileId,
-        responded_by_name: responseAddedByName,
-        acknowledged_at: note.acknowledged_at ?? now,
-        acknowledged_by_staff_profile_id: note.acknowledged_by_staff_profile_id ?? authContext.staffProfileId,
-        acknowledged_by_name: note.acknowledged_by_name ?? authContext.displayName
-      })
-      .eq("id", note.id)
-      .eq("department_id", authContext.departmentId)
-      .neq("status", "closed");
+    const { error: insertError } = await supabase.from("rt_aide_note_replies").insert({
+      note_id: note.id,
+      reply_text: responseText,
+      created_by_staff_profile_id: authContext.staffProfileId,
+      created_by_name: replyAddedByName
+    });
 
     setBusyNoteId(null);
 
-    if (updateError) {
-      setError("Unable to send response.");
+    if (insertError) {
+      setError("Unable to send reply.");
       return;
     }
 
     setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
-    setManualResponseAddedByName("");
-    setUseManualResponseAddedBy(false);
-    if (authContext.staffProfileId && aideOptions.some((staff) => staff.id === authContext.staffProfileId)) {
-      setResponseAddedByStaffProfileId(authContext.staffProfileId);
+    if (context === "aide") {
+      setManualResponseAddedByName("");
+      setUseManualResponseAddedBy(false);
+      if (aideOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+        setResponseAddedByStaffProfileId(authContext.staffProfileId);
+      }
+    } else {
+      setManualAddedByName("");
+      setUseManualAddedBy(false);
+      if (leadOptions.some((staff) => staff.id === authContext.staffProfileId)) {
+        setAddedByStaffProfileId(authContext.staffProfileId);
+      }
     }
     setExpandedResponseNoteId((current) => (current === note.id ? null : current));
-    setMessage("Note sent.");
+    setMessage("Reply sent.");
     await loadNotes();
     notifyChanged();
   };
@@ -483,25 +574,46 @@ export function RtAideNotesModal({
             <div>
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Shared Notes</p>
               <h2 className="text-2xl font-black text-hospital-ink">Aide Communication Board</h2>
-              <p className="mt-1 text-sm font-bold text-slate-500">
-                {context === "aide"
-                  ? "View notes and respond to RT leads."
-                  : "Send notes or questions to RT Aides."}
-              </p>
+              <p className="mt-1 text-sm font-bold text-slate-500">{context === "aide" ? "View notes and respond to RT leads." : "Send notes or questions to RT Aides."}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600"
-            aria-label="Close Aide Communication Board"
-          >
+          <button type="button" onClick={onClose} className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600" aria-label="Close Aide Communication Board">
             <X size={18} />
           </button>
         </div>
 
-        {canCreateInContext && (
+        {canResolveInContext && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-black text-hospital-ink">{showArchived ? "Archived Notes" : "Recent Notes"}</h3>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">{activeNoteCount}</span>
+            </div>
+            {!showArchived && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAideComposerOpen((current) => !current);
+                  setExpandedResponseNoteId(null);
+                  setMessage("");
+                  setError("");
+                }}
+                className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 transition duration-150 active:scale-[0.98] active:bg-cyan-800"
+                aria-expanded={aideComposerOpen}
+              >
+                + New Note to Leads
+              </button>
+            )}
+          </div>
+        )}
+
+        {(canCreateInContext || (canResolveInContext && aideComposerOpen)) && (
           <form onSubmit={sendNote} className="mt-5 rounded-3xl border border-cyan-100 bg-cyan-50/50 p-4">
+            {composerUsesAideIdentity && (
+              <div className="mb-4">
+                <p className="text-sm font-black text-cyan-900">New Note to Leads</p>
+                <p className="mt-1 text-xs font-bold text-cyan-700">Starts a new conversation with the RT Leads.</p>
+              </div>
+            )}
             <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor="rt-aide-note">
               Note
             </label>
@@ -509,66 +621,47 @@ export function RtAideNotesModal({
               id="rt-aide-note"
               value={noteText}
               onChange={(event) => setNoteText(event.target.value.slice(0, maxNoteLength))}
-              placeholder="Example: Please order HMEs."
+              placeholder={composerUsesAideIdentity ? "Write a new note to the RT Leads..." : "Example: Please order HMEs."}
               maxLength={maxNoteLength}
               className="mt-2 min-h-28 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
             />
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
               <span>No patient information.</span>
-              <span>{noteText.length}/{maxNoteLength}</span>
+              <span>
+                {noteText.length}/{maxNoteLength}
+              </span>
             </div>
 
             <div className="mt-4">
-              <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor="rt-aide-added-by">
-                Added by
-              </label>
-              {useManualAddedBy ? (
-                <div className="mt-2 space-y-2">
-                  <input
-                    id="rt-aide-added-by"
-                    value={manualAddedByName}
-                    onChange={(event) => setManualAddedByName(event.target.value.slice(0, 80))}
-                    placeholder="Enter name"
-                    className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUseManualAddedBy(false);
-                      setManualAddedByName("");
-                    }}
-                    className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
-                  >
-                    Choose from lead list
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-2 space-y-2">
-                  <select
-                    id="rt-aide-added-by"
-                    value={addedByStaffProfileId}
-                    onChange={(event) => setAddedByStaffProfileId(event.target.value)}
-                    className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                  >
-                    <option value="">Select lead adding note</option>
-                    {leadOptions.map((staff) => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.display_name}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUseManualAddedBy(true);
-                      setAddedByStaffProfileId("");
-                    }}
-                    className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
-                  >
-                    Not listed? Type name manually
-                  </button>
-                </div>
-              )}
+              <AuthorSelector
+                id="rt-aide-added-by"
+                roleLabel={composerUsesAideIdentity ? "aide" : "lead"}
+                actionLabel="adding note"
+                options={composerOptions}
+                selectedId={composerStaffProfileId}
+                manualName={composerManualName}
+                useManualName={composerUsesManualName}
+                onSelectedIdChange={composerUsesAideIdentity ? setResponseAddedByStaffProfileId : setAddedByStaffProfileId}
+                onManualNameChange={composerUsesAideIdentity ? setManualResponseAddedByName : setManualAddedByName}
+                onChooseList={() => {
+                  if (composerUsesAideIdentity) {
+                    setUseManualResponseAddedBy(false);
+                    setManualResponseAddedByName("");
+                  } else {
+                    setUseManualAddedBy(false);
+                    setManualAddedByName("");
+                  }
+                }}
+                onChooseManual={() => {
+                  if (composerUsesAideIdentity) {
+                    setUseManualResponseAddedBy(true);
+                    setResponseAddedByStaffProfileId("");
+                  } else {
+                    setUseManualAddedBy(true);
+                    setAddedByStaffProfileId("");
+                  }
+                }}
+              />
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
@@ -577,11 +670,7 @@ export function RtAideNotesModal({
                   key={option}
                   type="button"
                   onClick={() => setPriority(option)}
-                  className={`min-h-11 rounded-2xl border px-3 text-sm font-extrabold capitalize ${
-                    priority === option
-                      ? "border-cyan-200 bg-cyan-700 text-white"
-                      : "border-slate-200 bg-white text-slate-600"
-                  }`}
+                  className={`min-h-11 rounded-2xl border px-3 text-sm font-extrabold capitalize ${priority === option ? "border-cyan-200 bg-cyan-700 text-white" : "border-slate-200 bg-white text-slate-600"}`}
                 >
                   {option}
                 </button>
@@ -593,7 +682,7 @@ export function RtAideNotesModal({
               className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send size={16} />
-              {saving ? "Sending..." : "Send Note"}
+              {saving ? "Sending..." : composerUsesAideIdentity ? "Send to Leads" : "Send Note"}
             </button>
           </form>
         )}
@@ -610,215 +699,195 @@ export function RtAideNotesModal({
         )}
 
         <div className="mt-5 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-black text-hospital-ink">{showArchived ? "Archived Notes" : "Recent Notes"}</h3>
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">
-              {activeNoteCount}
-            </span>
-          </div>
+          {!canResolveInContext && (
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-lg font-black text-hospital-ink">{showArchived ? "Archived Notes" : "Recent Notes"}</h3>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-600">{activeNoteCount}</span>
+            </div>
+          )}
 
           {loading ? (
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-              Loading Aide Communication Board...
-            </div>
+            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">Loading Aide Communication Board...</div>
           ) : visibleNotes.length === 0 ? (
-            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">
-              {showArchived ? "No archived Aide Communication Board notes." : "No Aide Communication Board notes right now."}
-            </div>
+            <div className="rounded-3xl border border-slate-100 bg-slate-50 p-4 text-sm font-bold text-slate-500">{showArchived ? "No archived Aide Communication Board notes." : "No Aide Communication Board notes right now."}</div>
           ) : (
             <>
               {visibleNotes.map((note) => {
-              const responseDraft = responseDrafts[note.id] ?? "";
-              const canAcknowledge = canResolveInContext && note.status === "new";
-              const canSendResponse =
-                canResolveInContext &&
-                responseDraft.trim().length > 0 &&
-                responseAddedByName.length > 0 &&
-                busyNoteId !== note.id;
+                const responseDraft = responseDrafts[note.id] ?? "";
+                const replies = repliesByNoteId[note.id] ?? [];
+                const replyAddedByName = context === "aide" ? responseAddedByName : addedByName;
+                const canAcknowledge = canResolveInContext && note.conversation_direction === "to_aides" && note.status === "new";
+                const canSendResponse = canParticipateInContext && note.status !== "closed" && responseDraft.trim().length > 0 && replyAddedByName.length > 0 && busyNoteId !== note.id;
 
-              return (
-                <article key={note.id} className={`rounded-[1.75rem] border p-4 shadow-md ${priorityCardClass(note.priority)}`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusClass(note.status)}`}>
-                        {statusLabel(note.status)}
-                      </span>
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${priorityChipClass(note.priority)}`}>
-                        {note.priority === "urgent" ? "Urgent" : "Normal"}
-                      </span>
-                    </div>
-                    <span className="text-right text-xs font-bold text-slate-400">{formatDateTime(note.created_at)}</span>
-                  </div>
-                  <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-hospital-ink">
-                    {note.note_text}
-                  </p>
-                  <p className="mt-3 text-xs font-bold text-slate-500">
-                    Created by: {note.created_by_name ?? "Unknown"}
-                  </p>
-
-                  {note.response_text && (
-                    <div className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
-                      <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">
-                        Note from {note.responded_by_name ?? "Aide"}
-                      </p>
-                      <p className="mt-1 whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950">
-                        {note.response_text}
-                      </p>
-                      <p className="mt-2 text-xs font-bold text-emerald-700">
-                        {formatDateTime(note.responded_at)}
-                      </p>
-                    </div>
-                  )}
-
-                  {note.acknowledged_at && (
-                    <div className="mt-3 border-t border-slate-100 pt-3 text-emerald-800">
-                      <div className="flex items-center gap-2 text-sm font-extrabold">
-                        <CheckCircle2 size={17} />
-                        <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
+                return (
+                  <article key={note.id} className={`rounded-[1.75rem] border p-4 shadow-md ${priorityCardClass(note.priority)}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusClass(note.status)}`}>{statusLabel(note.status)}</span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-extrabold ${priorityChipClass(note.priority)}`}>{note.priority === "urgent" ? "Urgent" : "Normal"}</span>
+                        <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-extrabold text-cyan-800">{note.conversation_direction === "to_leads" ? "To RT Leads" : "To RT Aides"}</span>
                       </div>
-                      <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
-                      {canArchiveInContext && note.status !== "closed" && (
-                        <button
-                          type="button"
-                          onClick={() => setArchiveCandidate(note)}
-                          disabled={busyNoteId === note.id}
-                          className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Archive size={15} />
-                          Archive
-                        </button>
-                      )}
+                      <span className="text-right text-xs font-bold text-slate-400">{formatDateTime(note.created_at)}</span>
                     </div>
-                  )}
+                    <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-slate-50 px-3 py-3 text-sm font-bold leading-6 text-hospital-ink">{note.note_text}</p>
+                    <p className="mt-3 text-xs font-bold text-slate-500">Created by: {note.created_by_name ?? "Unknown"}</p>
 
-                  {canResolveInContext && (
-                    <div className="mt-4 space-y-3">
-                      {canAcknowledge && (
-                        <button
-                          type="button"
-                          onClick={() => void acknowledgeNote(note)}
-                          disabled={busyNoteId === note.id}
-                          className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-3.5 text-left text-sm font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <span className="h-5 w-5 shrink-0 rounded-md border-2 border-emerald-500 bg-white" />
-                          {busyNoteId === note.id ? "Acknowledging..." : "Acknowledge"}
-                        </button>
-                      )}
+                    {replies.length > 0 && (
+                      <div className="mt-3 space-y-2 border-l-2 border-cyan-200 pl-3" aria-label="Conversation replies">
+                        {replies.map((reply) => (
+                          <div key={reply.id} className="rounded-2xl border border-cyan-100 bg-cyan-50 px-3 py-3">
+                            <p className="text-xs font-extrabold uppercase tracking-wide text-emerald-700">Reply from {reply.created_by_name ?? "Unknown"}</p>
+                            <p className="mt-1 whitespace-pre-wrap text-sm font-bold leading-6 text-emerald-950">{reply.reply_text}</p>
+                            <p className="mt-2 text-xs font-bold text-emerald-700">{formatDateTime(reply.created_at)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                      {expandedResponseNoteId === note.id ? (
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                          <div className="mb-3">
-                            <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-added-by-${note.id}`}>
-                              Added by
-                            </label>
-                            {useManualResponseAddedBy ? (
-                              <div className="mt-2 space-y-2">
-                                <input
-                                  id={`rt-aide-response-added-by-${note.id}`}
-                                  value={manualResponseAddedByName}
-                                  onChange={(event) => setManualResponseAddedByName(event.target.value.slice(0, 80))}
-                                  placeholder="Enter name"
-                                  className="min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => {
+                    {note.acknowledged_at && (
+                      <div className="mt-3 border-t border-slate-100 pt-3 text-emerald-800">
+                        <div className="flex items-center gap-2 text-sm font-extrabold">
+                          <CheckCircle2 size={17} />
+                          <span>Acknowledged by {note.acknowledged_by_name ?? "Unknown"}</span>
+                        </div>
+                        <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.acknowledged_at)}</p>
+                        {canArchiveInContext && note.status !== "closed" && (
+                          <button
+                            type="button"
+                            onClick={() => setArchiveCandidate(note)}
+                            disabled={busyNoteId === note.id}
+                            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Archive size={15} />
+                            Archive
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {canParticipateInContext && (
+                      <div className="mt-4 space-y-3">
+                        {canAcknowledge && (
+                          <button
+                            type="button"
+                            onClick={() => void acknowledgeNote(note)}
+                            disabled={busyNoteId === note.id}
+                            className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-3.5 text-left text-sm font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <span className="h-5 w-5 shrink-0 rounded-md border-2 border-emerald-500 bg-white" />
+                            {busyNoteId === note.id ? "Acknowledging..." : "Acknowledge"}
+                          </button>
+                        )}
+
+                        {note.status !== "closed" && expandedResponseNoteId === note.id ? (
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <p className="mb-3 text-xs font-bold text-indigo-700">Replying to this conversation.</p>
+                            <div className="mb-3">
+                              <AuthorSelector
+                                id={`rt-aide-response-added-by-${note.id}`}
+                                roleLabel={composerUsesAideIdentity ? "aide" : "lead"}
+                                actionLabel="replying"
+                                options={composerOptions}
+                                selectedId={composerStaffProfileId}
+                                manualName={composerManualName}
+                                useManualName={composerUsesManualName}
+                                compact
+                                onSelectedIdChange={composerUsesAideIdentity ? setResponseAddedByStaffProfileId : setAddedByStaffProfileId}
+                                onManualNameChange={composerUsesAideIdentity ? setManualResponseAddedByName : setManualAddedByName}
+                                onChooseList={() => {
+                                  if (composerUsesAideIdentity) {
                                     setUseManualResponseAddedBy(false);
                                     setManualResponseAddedByName("");
-                                  }}
-                                  className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
-                                >
-                                  Choose from aide list
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="mt-2 space-y-2">
-                                <select
-                                  id={`rt-aide-response-added-by-${note.id}`}
-                                  value={responseAddedByStaffProfileId}
-                                  onChange={(event) => setResponseAddedByStaffProfileId(event.target.value)}
-                                  className="min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                                >
-                                  <option value="">Select aide adding note</option>
-                                  {aideOptions.map((staff) => (
-                                    <option key={staff.id} value={staff.id}>
-                                      {staff.display_name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <button
-                                  type="button"
-                                  onClick={() => {
+                                  } else {
+                                    setUseManualAddedBy(false);
+                                    setManualAddedByName("");
+                                  }
+                                }}
+                                onChooseManual={() => {
+                                  if (composerUsesAideIdentity) {
                                     setUseManualResponseAddedBy(true);
                                     setResponseAddedByStaffProfileId("");
-                                  }}
-                                  className="text-sm font-extrabold text-cyan-700 underline decoration-cyan-200 underline-offset-4"
-                                >
-                                  Not listed? Type name manually
-                                </button>
-                              </div>
-                            )}
+                                  } else {
+                                    setUseManualAddedBy(true);
+                                    setAddedByStaffProfileId("");
+                                  }
+                                }}
+                              />
+                            </div>
+                            <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-${note.id}`}>
+                              Reply
+                            </label>
+                            <textarea
+                              id={`rt-aide-response-${note.id}`}
+                              value={responseDraft}
+                              onChange={(event) =>
+                                setResponseDrafts((current) => ({
+                                  ...current,
+                                  [note.id]: event.target.value.slice(0, maxNoteLength)
+                                }))
+                              }
+                              placeholder="Write a reply to this conversation..."
+                              maxLength={maxNoteLength}
+                              className="mt-2 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
+                            />
+                            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
+                              <span>No patient information.</span>
+                              <span>
+                                {responseDraft.length}/{maxNoteLength}
+                              </span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExpandedResponseNoteId(null);
+                                  setResponseDrafts((current) => ({
+                                    ...current,
+                                    [note.id]: ""
+                                  }));
+                                  if (composerUsesAideIdentity) {
+                                    setManualResponseAddedByName("");
+                                    setUseManualResponseAddedBy(false);
+                                  } else {
+                                    setManualAddedByName("");
+                                    setUseManualAddedBy(false);
+                                  }
+                                }}
+                                className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98]"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void sendResponse(note)}
+                                disabled={!canSendResponse}
+                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 transition duration-150 active:scale-[0.98] active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {busyNoteId === note.id ? "Sending..." : "Send Reply"}
+                              </button>
+                            </div>
                           </div>
-                          <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`rt-aide-response-${note.id}`}>
-                            Add Note
-                          </label>
-                          <textarea
-                            id={`rt-aide-response-${note.id}`}
-                            value={responseDraft}
-                            onChange={(event) =>
+                        ) : note.status !== "closed" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAideComposerOpen(false);
+                              setExpandedResponseNoteId(note.id);
                               setResponseDrafts((current) => ({
                                 ...current,
-                                [note.id]: event.target.value.slice(0, maxNoteLength)
-                              }))
-                            }
-                            placeholder="Add optional note..."
-                            maxLength={maxNoteLength}
-                            className="mt-2 min-h-24 w-full rounded-2xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-                          />
-                          <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-500">
-                            <span>No patient information.</span>
-                            <span>{responseDraft.length}/{maxNoteLength}</span>
-                          </div>
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setExpandedResponseNoteId(null);
-                                setResponseDrafts((current) => ({ ...current, [note.id]: "" }));
-                                setManualResponseAddedByName("");
-                                setUseManualResponseAddedBy(false);
-                              }}
-                              className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition duration-150 active:scale-[0.98]"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void sendResponse(note)}
-                              disabled={!canSendResponse}
-                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 transition duration-150 active:scale-[0.98] active:shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {busyNoteId === note.id ? "Sending..." : "Send Note"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : !note.response_text ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpandedResponseNoteId(note.id);
-                            setResponseDrafts((current) => ({ ...current, [note.id]: current[note.id] ?? "" }));
-                          }}
-                          className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-indigo-500/40 bg-indigo-700 px-4 text-sm font-black text-white shadow-md shadow-indigo-950/20 transition duration-150 hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 active:scale-[0.98] active:bg-indigo-900"
-                        >
-                          + Add Note
-                        </button>
-                      ) : null}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+                                [note.id]: current[note.id] ?? ""
+                              }));
+                            }}
+                            className="inline-flex min-h-12 w-full items-center justify-center rounded-2xl border border-indigo-500/40 bg-indigo-700 px-4 text-sm font-black text-white shadow-md shadow-indigo-950/20 transition duration-150 hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700 active:scale-[0.98] active:bg-indigo-900"
+                          >
+                            Reply
+                          </button>
+                        ) : null}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </>
           )}
           <div className="grid gap-2 sm:grid-cols-2">
@@ -837,6 +906,7 @@ export function RtAideNotesModal({
               onClick={() => {
                 setShowArchived((current) => !current);
                 setVisibleNoteCount(notesPageSize);
+                setAideComposerOpen(false);
                 setExpandedResponseNoteId(null);
                 setArchiveCandidate(null);
                 setMessage("");
@@ -853,9 +923,7 @@ export function RtAideNotesModal({
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 px-4">
             <section className="w-full max-w-sm rounded-[1.75rem] border border-white bg-white p-5 shadow-2xl">
               <h3 className="text-xl font-black text-hospital-ink">Archive message?</h3>
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-                This will move the acknowledged message out of the active board. It can still be viewed later in archived notes.
-              </p>
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">This will move the acknowledged message out of the active board. It can still be viewed later in archived notes.</p>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                   type="button"
