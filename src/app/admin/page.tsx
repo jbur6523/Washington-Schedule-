@@ -39,13 +39,15 @@ export default async function AdminPage() {
             <Link
               key={area.title}
               href={area.href}
-              className={`flex min-h-44 flex-col justify-between rounded-2xl border px-4 py-4 shadow-sm transition duration-150 active:scale-[0.99] ${area.className}`}
+              className={`flex min-h-44 flex-col justify-between rounded-2xl border px-4 py-4 shadow-sm transition duration-150 active:scale-[0.99] ${area.cardClassName}`}
             >
               <span>
-                <span className="block text-base font-black text-hospital-ink">{area.title}</span>
+                <span className={`block text-base font-black ${area.accentClassName}`}>{area.title}</span>
                 <span className="mt-1 block text-sm font-bold leading-5 text-slate-600">{area.description}</span>
               </span>
-              <span className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-2xl bg-white/90 px-3 text-center text-sm font-black shadow-sm">
+              <span
+                className={`mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-2xl px-3 text-center text-sm font-black shadow-sm ${area.buttonClassName}`}
+              >
                 {area.buttonLabel}
               </span>
             </Link>

@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { adminDashboardAreas } from "@/lib/admin/navigation";
 import AdminPage from "./page";
 
 const { getAuthenticatedUserContextMock } = vi.hoisted(() => ({
@@ -66,5 +67,23 @@ describe("admin dashboard", () => {
 
     expect(screen.getAllByRole("link")).toHaveLength(8);
     expect(view.container.querySelector(".grid")).toHaveClass("grid", "gap-3", "sm:grid-cols-2");
+  });
+
+  it("gives every module a distinct pastel card and matching accessible accent", async () => {
+    render(await AdminPage());
+
+    expect(new Set(adminDashboardAreas.map((area) => area.cardClassName)).size).toBe(7);
+    expect(new Set(adminDashboardAreas.map((area) => area.buttonClassName)).size).toBe(7);
+
+    for (const area of adminDashboardAreas) {
+      const card = screen.getByRole("link", { name: new RegExp(area.title) });
+      const title = screen.getByText(area.title);
+      const button = screen.getByText(area.buttonLabel);
+
+      expect(card).toHaveClass(...area.cardClassName.split(" "));
+      expect(title).toHaveClass(...area.accentClassName.split(" "));
+      expect(button).toHaveClass(...area.buttonClassName.split(" "));
+      expect(button).toHaveClass("text-white");
+    }
   });
 });
