@@ -49,6 +49,8 @@ describe("CommandCenterClient desktop dashboard", () => {
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(gridPosition & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(grid).toHaveClass("md:grid-cols-2");
+    expect(heading.closest("header")).not.toBeNull();
+    expect(heading.closest("section")).toBeNull();
 
     const actionNames = [
       "Shift Update",
@@ -65,5 +67,24 @@ describe("CommandCenterClient desktop dashboard", () => {
     );
 
     expect(renderedOrder).toEqual(actionNames);
+
+    const unifiedActionCards = Array.from(grid.children).slice(0, 7);
+    for (const card of unifiedActionCards) {
+      expect(card).toHaveClass("bg-white/95", "border-slate-200/80", "focus-visible:ring-2");
+      expect(card.className).not.toMatch(/bg-(sky|blue|cyan|teal|purple|violet|amber|red)-50/);
+    }
+    expect(screen.getAllByTestId("lead-action-chevron")).toHaveLength(7);
+    expect(screen.getByRole("link", { name: /Shift Update/ })).toHaveAttribute(
+      "href",
+      "/command-center/shift-update"
+    );
+    expect(screen.getByRole("link", { name: /Phone List/ })).toHaveAttribute(
+      "href",
+      "/command-center/phone-list"
+    );
+    expect(screen.getByRole("link", { name: /ICU Snapshot/ })).toHaveAttribute(
+      "href",
+      "/command-center/icu-snapshot"
+    );
   });
 });

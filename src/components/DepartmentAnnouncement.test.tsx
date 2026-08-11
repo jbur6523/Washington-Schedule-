@@ -254,6 +254,22 @@ describe("department announcement UI", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("uses the unified neutral Lead dashboard card treatment", () => {
+    render(
+      <DepartmentAnnouncementManagerCard
+        departmentId="department-1"
+        timezone="America/Los_Angeles"
+        variant="dashboard"
+      />
+    );
+
+    const trigger = screen.getByRole("button", { name: /Announcement Board/ });
+    expect(trigger).toHaveClass("bg-white/95", "border-slate-200/80", "focus-visible:ring-2");
+    expect(trigger).not.toHaveClass("bg-amber-50/90");
+    expect(trigger).toHaveTextContent("Manage Announcement");
+    expect(screen.getByTestId("lead-action-chevron")).toBeInTheDocument();
+  });
+
   it("requires both fields before saving", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

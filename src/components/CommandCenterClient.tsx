@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, Phone, RefreshCcw } from "lucide-react";
 import { DepartmentAnnouncementManagerCard } from "@/components/DepartmentAnnouncement";
+import { LeadActionCardContent, leadActionCardClass } from "@/components/LeadActionCard";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
@@ -19,8 +20,6 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
   const [leadNewNoteCount, setLeadNewNoteCount] = useState(0);
-  const cardBaseClass =
-    "h-full min-h-32 rounded-3xl border p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]";
 
   const loadLeadNewNoteCount = useCallback(async () => {
     const count = await fetchLeadCommunicationNewCount(authContext.departmentId);
@@ -40,141 +39,109 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden px-4 py-6 lg:py-8">
-      <div className="mx-auto max-w-6xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 text-center shadow-soft">
+    <main className="min-h-screen overflow-x-hidden px-4 py-5 lg:py-6">
+      <div className="mx-auto max-w-6xl space-y-3">
+        <header className="py-1 text-center sm:py-2">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
-          <h1 className="mt-2 text-3xl font-black text-hospital-ink">Lead Command Board</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Lead shift operations</p>
-        </section>
+          <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink lg:text-4xl">Lead Command Board</h1>
+          <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">Lead shift operations</p>
+        </header>
 
         <LeadOperationalSummary authContext={authContext} timezone={timezone} />
 
-        <div data-testid="lead-action-grid" aria-label="Lead command actions" className="grid gap-3 md:grid-cols-2">
+        <div data-testid="lead-action-grid" aria-label="Lead command actions" className="grid gap-2.5 md:grid-cols-2 lg:gap-3">
           <Link
             href="/command-center/shift-update"
-            className={`${cardBaseClass} border-sky-100 bg-sky-50/90`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-sky-700">
-                <ClipboardList size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Shift Update</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
-                  Update current shift staffing and equipment numbers.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={ClipboardList}
+              title="Shift Update"
+              description="Update current shift staffing and equipment numbers."
+              accentClass="bg-teal-500"
+              iconClass="bg-teal-50 text-teal-700 ring-teal-100"
+            />
           </Link>
 
           <button
             type="button"
             onClick={() => setLeadNotesOpen(true)}
-            className={`${cardBaseClass} relative border-blue-100 bg-blue-50/90`}
+            className={leadActionCardClass}
           >
-            {leadNewNoteCount > 0 && (
-              <span className="absolute right-3 top-3 rounded-full bg-red-600 px-2.5 py-1 text-xs font-black text-white shadow-sm">
-                {leadNewNoteCount} new
-              </span>
-            )}
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-blue-700">
-                <MessageSquareText size={24} />
-              </span>
-              <div className="min-w-0 pr-14">
-                <h2 className="text-xl font-black text-hospital-ink">Lead Communication Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
-                  Shared notes for RT leads.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={MessageSquareText}
+              title="Lead Communication Board"
+              description="Shared notes for RT leads."
+              accentClass="bg-blue-500"
+              iconClass="bg-blue-50 text-blue-700 ring-blue-100"
+              badge={leadNewNoteCount > 0 ? `${leadNewNoteCount} new` : undefined}
+            />
           </button>
 
           <Link
             href="/command-center/phone-list"
-            className={`${cardBaseClass} border-cyan-100 bg-cyan-50/90`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-cyan-700">
-                <Phone size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Phone List</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
-                  Assign scheduled staff to department extensions.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={Phone}
+              title="Phone List"
+              description="Assign scheduled staff to department extensions."
+              accentClass="bg-green-500"
+              iconClass="bg-green-50 text-green-700 ring-green-100"
+            />
           </Link>
 
           <Link
             href="/command-center/icu-snapshot"
-            className={`${cardBaseClass} border-teal-100 bg-teal-50/90`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-teal-700">
-                <Activity size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">ICU Snapshot</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
-                  View ICU respiratory devices and settings.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={Activity}
+              title="ICU Snapshot"
+              description="View ICU respiratory devices and settings."
+              accentClass="bg-cyan-600"
+              iconClass="bg-cyan-50 text-cyan-700 ring-cyan-100"
+            />
           </Link>
 
           <button
             type="button"
             onClick={() => setRtAideNotesOpen(true)}
-            className={`${cardBaseClass} border-purple-100 bg-purple-50/90`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-purple-700">
-                <MessageSquareText size={24} />
-              </span>
-              <div className="min-w-0">
-                <h2 className="text-xl font-black text-hospital-ink">Aide Communication Board</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
-                  Send notes or questions to RT Aides.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={MessageSquareText}
+              title="Aide Communication Board"
+              description="Send notes or questions to RT Aides."
+              accentClass="bg-violet-500"
+              iconClass="bg-violet-50 text-violet-700 ring-violet-100"
+            />
           </button>
 
           <Link
             href="/operations/rental-management"
-            className={`${cardBaseClass} border-amber-100 bg-amber-50/90`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-600">
-                <RefreshCcw size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Rental Management</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-600">
-                  Order rentals, confirm delivery, and manage pickups.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={RefreshCcw}
+              title="Rental Management"
+              description="Order rentals, confirm delivery, and manage pickups."
+              accentClass="bg-orange-500"
+              iconClass="bg-orange-50 text-orange-700 ring-orange-100"
+            />
           </Link>
 
           <Link
             href="/command-center/short-shift-alert"
-            className={`${cardBaseClass} border-red-200 bg-red-50/95`}
+            className={leadActionCardClass}
           >
-            <div className="flex h-full items-start gap-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-red-700">
-                <Megaphone size={24} />
-              </span>
-              <div>
-                <h2 className="text-xl font-black text-hospital-ink">Short Shift Alert</h2>
-                <p className="mt-1 text-sm font-bold leading-5 text-slate-500">
-                  Post a staffing need for the current shift.
-                </p>
-              </div>
-            </div>
+            <LeadActionCardContent
+              icon={Megaphone}
+              title="Short Shift Alert"
+              description="Post a staffing need for the current shift."
+              accentClass="bg-red-500"
+              iconClass="bg-red-50 text-red-700 ring-red-100"
+            />
           </Link>
 
           <div className="h-full">

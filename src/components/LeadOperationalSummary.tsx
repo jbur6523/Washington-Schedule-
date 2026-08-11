@@ -45,31 +45,32 @@ type SummaryMetricCardProps = {
   icon: ReactNode;
   label: string;
   value: string | number;
-  tone: string;
+  iconClass: string;
   children?: ReactNode;
 };
 
-function SummaryMetricCard({ icon, label, value, tone, children }: SummaryMetricCardProps) {
+function SummaryMetricCard({ icon, label, value, iconClass, children }: SummaryMetricCardProps) {
   return (
-    <article className={`flex min-h-28 min-w-0 flex-col rounded-3xl border p-3.5 shadow-soft ${tone}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="text-xs font-extrabold uppercase leading-4 tracking-wide text-slate-600">
-            {label}
-          </h2>
-          <p
-            data-testid="operational-summary-value"
-            aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`}
-            className="mt-1 text-3xl font-black leading-none text-hospital-ink"
-          >
-            {value}
-          </p>
-        </div>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-2xl bg-white/90 text-current shadow-sm">
-          {icon}
-        </span>
+    <article
+      data-testid="operational-summary-tile"
+      className="flex h-full min-h-20 min-w-0 flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/95 px-3.5 py-2.5 shadow-sm"
+    >
+      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${iconClass}`}>
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="text-[10px] font-extrabold uppercase leading-4 tracking-wide text-slate-500">
+          {label}
+        </h2>
+        <p
+          data-testid="operational-summary-value"
+          aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`}
+          className="text-2xl font-black leading-none text-hospital-ink sm:text-3xl"
+        >
+          {value}
+        </p>
       </div>
-      {children && <div className="mt-auto pt-2">{children}</div>}
+      {children && <div className="w-full min-[640px]:ml-auto min-[640px]:w-auto">{children}</div>}
     </article>
   );
 }
@@ -371,48 +372,48 @@ export function LeadOperationalSummary({
       <section aria-label="Operational Summary" className="space-y-2.5">
         <div
           data-testid="operational-summary-grid"
-          className="grid grid-cols-1 gap-2.5 min-[380px]:grid-cols-2 lg:grid-cols-3"
+          className="grid auto-rows-fr grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:grid-cols-3"
         >
           <SummaryMetricCard
             icon={<User size={18} aria-hidden="true" />}
             label="Staff Needed"
             value={staffNeeded}
-            tone="border-sky-100 bg-sky-50/90 text-sky-700"
+            iconClass="bg-teal-50 text-teal-700 ring-teal-100"
           />
           <SummaryMetricCard
             icon={<Users size={18} aria-hidden="true" />}
             label="Staff Scheduled"
             value={staffScheduled}
-            tone="border-cyan-100 bg-cyan-50/90 text-cyan-700"
+            iconClass="bg-cyan-50 text-cyan-700 ring-cyan-100"
           />
           <SummaryMetricCard
             icon={<Wind size={18} aria-hidden="true" />}
             label="Vent Count"
             value={officialVentLoading ? "—" : ventCount}
-            tone="border-teal-100 bg-teal-50/90 text-teal-700"
+            iconClass="bg-sky-50 text-sky-700 ring-sky-100"
           />
           <SummaryMetricCard
             icon={<Activity size={18} aria-hidden="true" />}
             label="BiPAP Count"
             value={bipapCount}
-            tone="border-emerald-100 bg-emerald-50/90 text-emerald-700"
+            iconClass="bg-teal-50 text-teal-700 ring-teal-100"
           />
           <SummaryMetricCard
             icon={<Building2 size={18} aria-hidden="true" />}
             label="Active Rentals"
             value={rentalCount}
-            tone="border-amber-100 bg-amber-50/90 text-amber-700"
+            iconClass="bg-emerald-50 text-emerald-700 ring-emerald-100"
           />
           <SummaryMetricCard
             icon={<CalendarCheck size={18} aria-hidden="true" />}
             label="Procedures"
             value={procedures}
-            tone="border-violet-100 bg-violet-50/90 text-violet-700"
+            iconClass="bg-violet-50 text-violet-700 ring-violet-100"
           >
             <button
               type="button"
               onClick={() => setProceduresOpen(true)}
-              className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-violet-200 bg-white/90 px-2.5 text-xs font-extrabold text-violet-700 shadow-sm"
+              className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-violet-300 bg-white px-2.5 text-[11px] font-extrabold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
             >
               View Procedures
             </button>

@@ -17,6 +17,7 @@ import {
 } from "@/lib/announcements/types";
 import { formatShiftStatusTime } from "@/lib/shift-status/utils";
 import { createClient } from "@/lib/supabase/client";
+import { LeadActionCardContent, leadActionCardClass } from "@/components/LeadActionCard";
 
 const announcementSelect =
   "id, department_id, title, message, updated_by_staff_profile_id, updated_by_name, created_at, updated_at";
@@ -426,37 +427,44 @@ export function DepartmentAnnouncementManagerCard({
         className={
           variant === "compact"
             ? "flex min-h-16 w-full items-center gap-3 rounded-3xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-left shadow-sm transition duration-150 active:scale-[0.99]"
-            : `${variant === "dashboard" ? "h-full min-h-32" : "h-36"} w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]`
+            : variant === "dashboard"
+              ? leadActionCardClass
+              : "h-36 w-full rounded-3xl border border-amber-100 bg-amber-50/90 p-4 text-left shadow-soft transition duration-150 active:scale-[0.99]"
         }
       >
-        <span
-          className={
-            variant === "compact"
-              ? "flex w-full items-center gap-3"
-              : "flex h-full items-start gap-3"
-          }
-        >
-          <span
-            className={
-              variant === "compact"
-                ? "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm"
-                : "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700"
-            }
-          >
-            <Megaphone size={variant === "compact" ? 20 : 24} aria-hidden="true" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className={`block font-black text-hospital-ink ${variant === "compact" ? "text-sm" : "text-xl"}`}>
-              Announcement Board
+        {variant === "dashboard" ? (
+          <LeadActionCardContent
+            icon={Megaphone}
+            title="Announcement Board"
+            description="Create or update the department-wide employee announcement."
+            accentClass="bg-amber-500"
+            iconClass="bg-amber-50 text-amber-700 ring-amber-100"
+            secondaryText="Manage Announcement"
+          />
+        ) : (
+          <span className={variant === "compact" ? "flex w-full items-center gap-3" : "flex h-full items-start gap-3"}>
+            <span
+              className={
+                variant === "compact"
+                  ? "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-amber-700 shadow-sm"
+                  : "grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white text-amber-700"
+              }
+            >
+              <Megaphone size={variant === "compact" ? 20 : 24} aria-hidden="true" />
             </span>
-            <span className={`block font-bold text-slate-500 ${variant === "compact" ? "mt-0.5 text-xs" : "mt-1 text-sm leading-5"}`}>
-              Create or update the department-wide employee announcement.
+            <span className="min-w-0 flex-1">
+              <span className={`block font-black text-hospital-ink ${variant === "compact" ? "text-sm" : "text-xl"}`}>
+                Announcement Board
+              </span>
+              <span className={`block font-bold text-slate-500 ${variant === "compact" ? "mt-0.5 text-xs" : "mt-1 text-sm leading-5"}`}>
+                Create or update the department-wide employee announcement.
+              </span>
+              {variant !== "compact" && (
+                <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
+              )}
             </span>
-            {variant !== "compact" && (
-              <span className="mt-2 inline-flex text-xs font-extrabold text-amber-700">Manage Announcement</span>
-            )}
           </span>
-        </span>
+        )}
       </button>
 
       <DepartmentAnnouncementManagerDialog
