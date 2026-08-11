@@ -2,9 +2,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ShiftUpdateClient } from "@/components/ShiftUpdateClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
-  fetchShiftStatusUpdates: vi.fn(),
+  fetchReportingWindowShiftStatusUpdates: vi.fn(),
   insert: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn()
@@ -21,7 +22,7 @@ vi.mock("@/lib/shift-status/client-queries", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/shift-status/client-queries")>();
   return {
     ...actual,
-    fetchShiftStatusUpdates: mocks.fetchShiftStatusUpdates
+    fetchReportingWindowShiftStatusUpdates: mocks.fetchReportingWindowShiftStatusUpdates
   };
 });
 
@@ -70,12 +71,41 @@ function populateRequiredFields() {
   fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
 }
 
+function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
+  return {
+    id: "status-1",
+    department_id: "department-1",
+    shift_date: "2026-08-07",
+    shift_type: "night",
+    rts_on: 7,
+    rts_required: 7.5,
+    vent_count: 6,
+    bipap_count: 4,
+    c_section_count: 8,
+    vaginal_delivery_count: 2,
+    cabg_count: 1,
+    bronch_count: 1,
+    sputum_induction_count: 3,
+    other_procedure_count: 2,
+    other_procedure_note: "MRI",
+    updated_by_staff_profile_id: "lead-1",
+    updated_by_name: "Lead RT",
+    created_at: "2026-08-08T12:00:00.000Z",
+    updated_at: "2026-08-08T12:00:00.000Z",
+    ...overrides
+  };
+}
+
 describe("ShiftUpdateClient submission flow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-08T16:00:00.000Z"));
-    mocks.fetchShiftStatusUpdates.mockReset();
-    mocks.fetchShiftStatusUpdates.mockResolvedValue({ data: [], error: null });
+    mocks.fetchReportingWindowShiftStatusUpdates.mockReset();
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
     mocks.insert.mockReset();
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
@@ -159,5 +189,141 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("reopens with every current-window value and preserves unchanged values when one procedure changes", async () => {
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate()],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(7.5);
+    expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
+    expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(4);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
+    expect(screen.getByLabelText(/Bronchs/)).toHaveValue(1);
+    expect(screen.getByLabelText(/Vaginal Deliveries/)).toHaveValue(2);
+    expect(screen.getByLabelText(/CABG/)).toHaveValue(1);
+    expect(screen.getByLabelText(/Sputum Inductions/)).toHaveValue(3);
+    expect(screen.getByLabelText(/MRI/)).toHaveValue(2);
+    expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("MRI");
+
+    fireEvent.change(screen.getByLabelText(/C-Sections/), { target: { value: "9" } });
+    fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Editing Lead" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      rts_on: 7,
+      rts_required: 7.5,
+      vent_count: 6,
+      bipap_count: 4,
+      c_section_count: 9,
+      vaginal_delivery_count: 2,
+      cabg_count: 1,
+      bronch_count: 1,
+      sputum_induction_count: 3,
+      other_procedure_count: 2,
+      other_procedure_note: "MRI",
+      updated_by_name: "Editing Lead"
+    }));
+  });
+
+  it("clears the editable values when the 16:00 reporting window begins without deleting history", async () => {
+    vi.setSystemTime(new Date("2026-08-08T22:59:59.000Z"));
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate()],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_050);
+    });
+
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
+    expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("");
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it("clears evening values when the 04:00 reporting window begins", async () => {
+    vi.setSystemTime(new Date("2026-08-09T10:59:59.000Z"));
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate({
+        id: "evening-status",
+        shift_date: "2026-08-08",
+        shift_type: "day",
+        created_at: "2026-08-09T00:00:00.000Z",
+        updated_at: "2026-08-09T00:00:00.000Z"
+      })],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_050);
+    });
+
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(null);
+  });
+
+  it("ignores a previous-window load that finishes after the reset boundary", async () => {
+    vi.setSystemTime(new Date("2026-08-08T22:59:59.000Z"));
+    let resolvePreviousLoad: ((value: {
+      data: ShiftStatusUpdate[];
+      error: null;
+      usedLegacyProcedureSelect: false;
+    }) => void) | null = null;
+    mocks.fetchReportingWindowShiftStatusUpdates
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolvePreviousLoad = resolve;
+      }))
+      .mockResolvedValue({ data: [], error: null, usedLegacyProcedureSelect: false });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(1_050);
+    });
+
+    await act(async () => {
+      resolvePreviousLoad?.({
+        data: [shiftUpdate()],
+        error: null,
+        usedLegacyProcedureSelect: false
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
   });
 });

@@ -7,8 +7,14 @@ import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Stethoscope, 
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { fetchShiftStatusUpdates, isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
+import { fetchReportingWindowShiftStatusUpdates, isMissingVaginalDeliveryColumn, type ShiftStatusQueryError } from "@/lib/shift-status/client-queries";
 import { currentShiftStatusWindow, shiftTypeLabel } from "@/lib/shift-status/utils";
+import {
+  latestReportingWindowUpdate,
+  reportingWindowEndDelay,
+  reportingWindowForInstant,
+  type ShiftUpdateReportingWindow
+} from "@/lib/shift-status/reporting-window";
 import {
   optionalShiftStatusNumberValue,
   shiftStatusNumberValue,
@@ -33,33 +39,31 @@ type ShiftUpdateForm = {
   updatedByName: string;
 };
 
-function shiftSortKey(shiftDate: string, shiftType: ShiftStatusShiftType) {
-  return `${shiftDate}-${shiftType === "day" ? "1" : "2"}`;
-}
+function shiftUpdateFormForWindow(
+  update: ShiftStatusUpdate | null,
+  authContext: AuthenticatedUserContext,
+  timezone: string,
+  date = new Date()
+): ShiftUpdateForm {
+  const operationalShift = currentShiftStatusWindow(timezone, date);
 
-function getLastKnownUpdate(updates: ShiftStatusUpdate[], shiftDate: string, shiftType: ShiftStatusShiftType) {
-  const selectedKey = shiftSortKey(shiftDate, shiftType);
-  const sameShift = updates
-    .filter((update) => update.shift_date === shiftDate && update.shift_type === shiftType)
-    .sort((left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime());
-
-  if (sameShift[0]) {
-    return sameShift[0];
-  }
-
-  return updates
-    .filter((update) => shiftSortKey(update.shift_date, update.shift_type) <= selectedKey)
-    .sort((left, right) => {
-      const keyCompare = shiftSortKey(right.shift_date, right.shift_type).localeCompare(
-        shiftSortKey(left.shift_date, left.shift_type)
-      );
-
-      if (keyCompare !== 0) {
-        return keyCompare;
-      }
-
-      return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
-    })[0] ?? null;
+  return {
+    shiftDate: update?.shift_date ?? operationalShift.shiftDate,
+    shiftType: update?.shift_type ?? operationalShift.shiftType,
+    rtsOn: update ? String(update.rts_on) : "",
+    rtsRequired: update ? String(update.rts_required) : "",
+    ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
+    bipapCount: update ? String(update.bipap_count) : "",
+    cSectionCount: update ? String(update.c_section_count) : "",
+    vaginalDeliveryCount: update ? String(update.vaginal_delivery_count) : "",
+    cabgCount: update ? String(update.cabg_count) : "",
+    bronchCount: update ? String(update.bronch_count) : "",
+    sputumInductionCount: update ? String(update.sputum_induction_count) : "",
+    otherProcedureCount: update ? String(update.other_procedure_count) : "",
+    otherProcedureNote: update?.other_procedure_note ?? "",
+    updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
+    updatedByName: ""
+  };
 }
 
 function formatLastKnownTime(value: string, timezone: string) {
@@ -182,31 +186,18 @@ export function ShiftUpdateClient({
   timezone: string;
 }) {
   const router = useRouter();
-  const initialWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
+  const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
-  const [form, setForm] = useState<ShiftUpdateForm>(() => ({
-    shiftDate: initialWindow.shiftDate,
-    shiftType: initialWindow.shiftType,
-    rtsOn: "",
-    rtsRequired: "",
-    ventCount: "",
-    bipapCount: "",
-    cSectionCount: "",
-    vaginalDeliveryCount: "",
-    cabgCount: "",
-    bronchCount: "",
-    sputumInductionCount: "",
-    otherProcedureCount: "",
-    otherProcedureNote: "",
-    updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
-    updatedByName: ""
-  }));
+  const [form, setForm] = useState<ShiftUpdateForm>(() =>
+    shiftUpdateFormForWindow(null, authContext, timezone)
+  );
   const [saving, setSaving] = useState(false);
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const submissionInFlightRef = useRef(false);
   const redirectTimerRef = useRef<number | null>(null);
+  const latestLoadRequestIdRef = useRef(0);
 
   useEffect(
     () => () => {
@@ -235,25 +226,60 @@ export function ShiftUpdateClient({
     return () => window.clearTimeout(timer);
   }, [authContext.departmentId]);
 
-  const loadLastKnownUpdate = useCallback(async () => {
+  const loadCurrentReportingUpdate = useCallback(async () => {
+    const requestId = latestLoadRequestIdRef.current + 1;
+    latestLoadRequestIdRef.current = requestId;
     const supabase = createClient();
-    const { data, error: updatesError } = await fetchShiftStatusUpdates(supabase, authContext.departmentId, 75);
+    const { data, error: updatesError, usedLegacyProcedureSelect } =
+      await fetchReportingWindowShiftStatusUpdates(
+        supabase,
+        authContext.departmentId,
+        reportingWindow
+      );
+
+    if (requestId !== latestLoadRequestIdRef.current) {
+      return;
+    }
 
     if (updatesError) {
       setLastKnownUpdate(null);
       return;
     }
 
-    setLastKnownUpdate(getLastKnownUpdate(data, form.shiftDate, form.shiftType));
-  }, [authContext.departmentId, form.shiftDate, form.shiftType]);
+    if (usedLegacyProcedureSelect && process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Shift Update loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count."
+      );
+    }
+
+    const currentUpdate = latestReportingWindowUpdate(data, reportingWindow);
+    setLastKnownUpdate(currentUpdate);
+    setForm(shiftUpdateFormForWindow(currentUpdate, authContext, timezone));
+  }, [authContext, reportingWindow, timezone]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadLastKnownUpdate();
+      void loadCurrentReportingUpdate();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadLastKnownUpdate]);
+  }, [loadCurrentReportingUpdate]);
+
+  useEffect(() => {
+    const delay = reportingWindowEndDelay(reportingWindow);
+    const timer = window.setTimeout(() => {
+      const now = new Date();
+      const nextWindow = reportingWindowForInstant(now);
+      latestLoadRequestIdRef.current += 1;
+      setReportingWindow(nextWindow);
+      setLastKnownUpdate(null);
+      setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
+      setMessage("");
+      setError("");
+    }, delay + 25);
+
+    return () => window.clearTimeout(timer);
+  }, [authContext, reportingWindow, timezone]);
 
   const selectedStaff = useMemo(
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
@@ -274,6 +300,18 @@ export function ShiftUpdateClient({
     event.preventDefault();
 
     if (submissionInFlightRef.current) {
+      return;
+    }
+
+    const activeWindow = reportingWindowForInstant();
+    if (activeWindow.id !== reportingWindow.id) {
+      const now = new Date();
+      latestLoadRequestIdRef.current += 1;
+      setReportingWindow(activeWindow);
+      setLastKnownUpdate(null);
+      setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
+      setMessage("");
+      setError("A new reporting window has started. Enter the new cycle's values before saving.");
       return;
     }
 
@@ -368,22 +406,25 @@ export function ShiftUpdateClient({
         <form onSubmit={saveShiftUpdate} className="space-y-4">
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Shift</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              Current reporting window · resets at 04:00 and 16:00 local time
+            </p>
             <div className={twoColumnGridClass}>
               <label className="block">
                 <span className={labelClass}>Date</span>
                 <input
                   type="date"
                   value={form.shiftDate}
-                  onChange={(event) => setForm((current) => ({ ...current, shiftDate: event.target.value }))}
-                  className={controlClass}
+                  disabled
+                  className={`${controlClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600`}
                 />
               </label>
               <label className="block">
                 <span className={labelClass}>Shift</span>
                 <select
                   value={form.shiftType}
-                  onChange={(event) => setForm((current) => ({ ...current, shiftType: event.target.value as ShiftStatusShiftType }))}
-                  className={controlClass}
+                  disabled
+                  className={`${controlClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600`}
                 >
                   <option value="day">{shiftTypeLabel("day")}</option>
                   <option value="night">{shiftTypeLabel("night")}</option>
@@ -416,7 +457,7 @@ export function ShiftUpdateClient({
                 icon={<Wind size={18} />}
                 label="Vents"
                 value={form.ventCount}
-                helperText={`${lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vent_count, timezone)} · Blank = no change`}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.vent_count, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, ventCount: value }))}
               />
               <CountInputCard

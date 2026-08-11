@@ -3,6 +3,7 @@ import type {
   OfficialVentCountUpdate,
   ShiftStatusUpdate
 } from "@/lib/shift-status/types";
+import type { ShiftUpdateReportingWindow } from "@/lib/shift-status/reporting-window";
 
 const baseShiftStatusColumns = [
   "id",
@@ -74,6 +75,28 @@ async function queryShiftStatusUpdates(supabase: SupabaseClient, departmentId: s
   };
 }
 
+async function queryReportingWindowShiftStatusUpdates(
+  supabase: SupabaseClient,
+  departmentId: string,
+  selectColumns: string,
+  window: ShiftUpdateReportingWindow
+) {
+  const { data, error } = await supabase
+    .from("shift_status_updates")
+    .select(selectColumns)
+    .eq("department_id", departmentId)
+    .gte("created_at", window.startsAt)
+    .lt("created_at", window.endsAt)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1_000);
+
+  return {
+    data: normalizeShiftStatusRows(data as ShiftStatusRow[] | null),
+    error: error as ShiftStatusQueryError | null
+  };
+}
+
 async function queryDirectorShiftStatusUpdates(
   supabase: SupabaseClient,
   departmentId: string,
@@ -133,6 +156,45 @@ export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departme
   }
 
   const legacy = await queryShiftStatusUpdates(supabase, departmentId, legacyShiftStatusSelect, limit);
+
+  return {
+    ...legacy,
+    usedLegacyProcedureSelect: !legacy.error
+  };
+}
+
+export async function fetchReportingWindowShiftStatusUpdates(
+  supabase: SupabaseClient,
+  departmentId: string,
+  window: ShiftUpdateReportingWindow
+) {
+  const primary = await queryReportingWindowShiftStatusUpdates(
+    supabase,
+    departmentId,
+    shiftStatusSelect,
+    window
+  );
+
+  if (!primary.error) {
+    return {
+      ...primary,
+      usedLegacyProcedureSelect: false
+    };
+  }
+
+  if (!isMissingVaginalDeliveryColumn(primary.error)) {
+    return {
+      ...primary,
+      usedLegacyProcedureSelect: false
+    };
+  }
+
+  const legacy = await queryReportingWindowShiftStatusUpdates(
+    supabase,
+    departmentId,
+    legacyShiftStatusSelect,
+    window
+  );
 
   return {
     ...legacy,

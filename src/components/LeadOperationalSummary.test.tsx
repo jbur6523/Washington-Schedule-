@@ -2,26 +2,16 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeadOperationalSummary } from "@/components/LeadOperationalSummary";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { OfficialVentCountUpdate, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
-  fetchDirector: vi.fn(),
-  officialVent: null as OfficialVentCountUpdate | null,
-  officialVentError: "",
+  fetchReportingWindow: vi.fn(),
   rentalCount: 0 as number | null,
   rentalError: null as { message: string } | null
 }));
 
 vi.mock("@/lib/shift-status/client-queries", () => ({
-  fetchDirectorShiftStatusUpdates: mocks.fetchDirector
-}));
-
-vi.mock("@/lib/shift-status/use-official-vent-count", () => ({
-  useOfficialVentCount: () => ({
-    update: mocks.officialVent,
-    loading: false,
-    error: mocks.officialVentError
-  })
+  fetchReportingWindowShiftStatusUpdates: mocks.fetchReportingWindow
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -73,7 +63,7 @@ const currentUpdate: ShiftStatusUpdate = {
   shift_type: "day",
   rts_on: 8,
   rts_required: 9.5,
-  vent_count: null,
+  vent_count: 0,
   bipap_count: 3,
   c_section_count: 1,
   vaginal_delivery_count: 2,
@@ -92,24 +82,12 @@ describe("LeadOperationalSummary", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-09T16:00:00.000Z"));
-    mocks.fetchDirector.mockReset();
-    mocks.fetchDirector.mockResolvedValue({
+    mocks.fetchReportingWindow.mockReset();
+    mocks.fetchReportingWindow.mockResolvedValue({
       data: [currentUpdate],
       error: null,
       usedLegacyProcedureSelect: false
     });
-    mocks.officialVent = {
-      id: 1,
-      department_id: "department-1",
-      shift_date: "2026-08-09",
-      shift_type: "day",
-      vent_count: 0,
-      source: "icu_command_center",
-      updated_by_staff_profile_id: "icu-1",
-      updated_by_name: "ICU RT",
-      created_at: "2026-08-09T15:50:00.000Z"
-    };
-    mocks.officialVentError = "";
     mocks.rentalCount = 2;
     mocks.rentalError = null;
   });
@@ -168,8 +146,8 @@ describe("LeadOperationalSummary", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("keeps independent confirmed counts visible when shift metrics are unavailable", async () => {
-    mocks.fetchDirector.mockResolvedValue({
+  it("keeps the independent rental count visible when reporting-window metrics are unavailable", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
       data: [],
       error: { message: "shift query failed" },
       usedLegacyProcedureSelect: false
@@ -183,8 +161,53 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByLabelText("Staff Scheduled: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Vent Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 0")).toBeInTheDocument();
     expect(within(summary).getByText("Some operational metrics are currently unavailable.")).toBeInTheDocument();
+  });
+
+  it("clears prior-window metrics at 16:00 instead of falling back", async () => {
+    vi.setSystemTime(new Date("2026-08-09T22:59:59.000Z"));
+    await renderLoadedSummary();
+    const summary = screen.getByRole("region", { name: "Operational Summary" });
+    expect(within(summary).getByLabelText("Staff Scheduled: 8")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_050);
+    });
+
+    expect(within(summary).getByLabelText("Staff Needed: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff Scheduled: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Vent Count: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
+  });
+
+  it("shows the evening window's submitted values after the 17:00 update", async () => {
+    vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{
+        ...currentUpdate,
+        id: "evening-update",
+        rts_on: 6,
+        rts_required: 7,
+        vent_count: 5,
+        bipap_count: 2,
+        c_section_count: 3,
+        created_at: "2026-08-10T00:00:00.000Z",
+        updated_at: "2026-08-10T00:00:00.000Z"
+      }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    await renderLoadedSummary();
+    const summary = screen.getByRole("region", { name: "Operational Summary" });
+    expect(within(summary).getByLabelText("Staff Needed: 7")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff Scheduled: 6")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Vent Count: 5")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("BiPAP Count: 2")).toBeInTheDocument();
   });
 });

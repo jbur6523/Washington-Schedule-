@@ -4,8 +4,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import {
   fetchDirectorShiftStatusUpdates,
-  fetchOfficialVentCount
+  fetchOfficialVentCount,
+  fetchReportingWindowShiftStatusUpdates
 } from "@/lib/shift-status/client-queries";
+import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
 import type { OfficialVentCountUpdate, ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 type QueryCall = {
@@ -255,5 +257,52 @@ describe("fetchDirectorShiftStatusUpdates", () => {
       { column: "id", ascending: false }
     ]);
     expect(calls.ranges).toEqual([{ from: 0, to: 999 }]);
+  });
+});
+
+describe("fetchReportingWindowShiftStatusUpdates", () => {
+  it("bounds the query by the active window's created_at timestamps", async () => {
+    const filters: QueryCall[] = [];
+    const orders: QueryCall[] = [];
+    const current = shiftStatus({ created_at: "2026-08-09T13:00:00.000Z" });
+    const query = {
+      select() {
+        return query;
+      },
+      eq(column: string, value: unknown) {
+        filters.push({ column, value });
+        return query;
+      },
+      gte(column: string, value: unknown) {
+        filters.push({ column, value });
+        return query;
+      },
+      lt(column: string, value: unknown) {
+        filters.push({ column, value });
+        return query;
+      },
+      order(column: string, options: { ascending: boolean }) {
+        orders.push({ column, ascending: options.ascending });
+        return query;
+      },
+      async limit() {
+        return { data: [current], error: null };
+      }
+    };
+    const client = { from: () => query } as unknown as SupabaseClient;
+    const window = reportingWindowForInstant(new Date("2026-08-09T16:00:00.000Z"));
+
+    const result = await fetchReportingWindowShiftStatusUpdates(client, "department-1", window);
+
+    expect(result.data).toEqual([current]);
+    expect(filters).toEqual([
+      { column: "department_id", value: "department-1" },
+      { column: "created_at", value: window.startsAt },
+      { column: "created_at", value: window.endsAt }
+    ]);
+    expect(orders).toEqual([
+      { column: "created_at", ascending: false },
+      { column: "id", ascending: false }
+    ]);
   });
 });

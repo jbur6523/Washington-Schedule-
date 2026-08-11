@@ -20,26 +20,23 @@ import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { activeRentalStatuses } from "@/lib/rental-management/status";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { fetchDirectorShiftStatusUpdates } from "@/lib/shift-status/client-queries";
-import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
+import { fetchReportingWindowShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import {
-  formatDirectorSourceShift,
-  resolveDirectorCurrentShiftStatus,
-  resolveDirectorDepartmentSnapshot
-} from "@/lib/director-dashboard/shift-status";
-import {
-  isFreshProcedureUpdate,
   procedureCounts,
   procedureTotal,
   type ProcedureCounts
 } from "@/lib/shift-status/procedures";
 import {
-  currentShiftStatusWindow,
   formatShiftStatusNumber,
   formatShiftStatusTime,
-  resolveCurrentShiftStatus,
   updatedByName
 } from "@/lib/shift-status/utils";
+import {
+  latestReportingWindowUpdate,
+  reportingWindowEndDelay,
+  reportingWindowForInstant,
+  type ShiftUpdateReportingWindow
+} from "@/lib/shift-status/reporting-window";
 
 type SummaryMetricCardProps = {
   icon: ReactNode;
@@ -222,10 +219,8 @@ export function LeadOperationalSummary({
   const [loading, setLoading] = useState(true);
   const [shiftError, setShiftError] = useState("");
   const [rentalError, setRentalError] = useState("");
-  const [nowTick, setNowTick] = useState(() => Date.now());
+  const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
   const [proceduresOpen, setProceduresOpen] = useState(false);
-  const { update: officialVent, loading: officialVentLoading, error: officialVentError } =
-    useOfficialVentCount(authContext.departmentId);
 
   const loadSummary = useCallback(
     async (showLoading = true) => {
@@ -234,9 +229,12 @@ export function LeadOperationalSummary({
       }
 
       const supabase = createClient();
-      const maximumShiftDate = currentShiftStatusWindow(timezone).shiftDate;
       const [shiftResult, rentalResult] = await Promise.all([
-        fetchDirectorShiftStatusUpdates(supabase, authContext.departmentId, maximumShiftDate),
+        fetchReportingWindowShiftStatusUpdates(
+          supabase,
+          authContext.departmentId,
+          reportingWindow
+        ),
         supabase
           .from("rental_records")
           .select("id", { count: "exact", head: true })
@@ -272,7 +270,7 @@ export function LeadOperationalSummary({
       setUpdates(shiftResult.data);
       setShiftError("");
     },
-    [authContext.departmentId, timezone]
+    [authContext.departmentId, reportingWindow]
   );
 
   useEffect(() => {
@@ -280,7 +278,6 @@ export function LeadOperationalSummary({
       void loadSummary(true);
     }, 0);
     const interval = window.setInterval(() => {
-      setNowTick(Date.now());
       void loadSummary(false);
     }, 60_000);
     const supabase = createClient();
@@ -295,7 +292,6 @@ export function LeadOperationalSummary({
           filter: `department_id=eq.${authContext.departmentId}`
         },
         () => {
-          setNowTick(Date.now());
           void loadSummary(false);
         }
       )
@@ -320,49 +316,36 @@ export function LeadOperationalSummary({
     };
   }, [authContext.departmentId, loadSummary]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setUpdates([]);
+      setLoading(true);
+      setReportingWindow(reportingWindowForInstant(new Date()));
+    }, reportingWindowEndDelay(reportingWindow) + 25);
+
+    return () => window.clearTimeout(timer);
+  }, [reportingWindow]);
+
   const resolved = useMemo(() => {
-    const now = new Date(nowTick);
-    const staffing = resolveDirectorCurrentShiftStatus(updates, timezone, now);
-    const snapshot = resolveDirectorDepartmentSnapshot(updates, timezone, now);
-    const currentShift = resolveCurrentShiftStatus(updates, timezone, now);
-    const currentProcedureUpdate = currentShift.currentLatest;
-    const proceduresFresh = isFreshProcedureUpdate(currentProcedureUpdate, now);
-    const procedureUpdate = proceduresFresh ? currentProcedureUpdate : null;
-    const counts = procedureCounts(procedureUpdate);
+    const latest = latestReportingWindowUpdate(updates, reportingWindow);
+    const counts = procedureCounts(latest);
 
     return {
-      staffing,
-      snapshot,
-      currentProcedureUpdate,
-      procedureUpdate,
-      proceduresFresh,
+      latest,
       counts,
-      totalProcedures: procedureUpdate ? procedureTotal(counts) : null
+      totalProcedures: latest ? procedureTotal(counts) : null
     };
-  }, [nowTick, timezone, updates]);
+  }, [reportingWindow, updates]);
 
-  const staffingSource = resolved.staffing.showingFallback
-    ? formatDirectorSourceShift(resolved.staffing.latest)
-    : null;
-  const snapshotSource = resolved.snapshot.showingFallback
-    ? formatDirectorSourceShift(resolved.snapshot.latest)
-    : null;
-  const fallbackNotes = [
-    staffingSource ? `Staffing uses the latest submitted ${staffingSource}.` : null,
-    snapshotSource ? `BiPAP count uses the latest submitted ${snapshotSource}.` : null,
-    resolved.currentProcedureUpdate && !resolved.proceduresFresh
-      ? "The current-shift procedure count expired after 24 hours."
-      : null
-  ].filter((note): note is string => Boolean(note));
-  const availabilityNotes = [shiftError, rentalError, officialVentError].filter(Boolean);
-  const staffNeeded = resolved.staffing.latest
-    ? formatShiftStatusNumber(resolved.staffing.latest.rts_required)
+  const availabilityNotes = [shiftError, rentalError].filter(Boolean);
+  const staffNeeded = resolved.latest
+    ? formatShiftStatusNumber(resolved.latest.rts_required)
     : "—";
-  const staffScheduled = resolved.staffing.latest
-    ? formatShiftStatusNumber(resolved.staffing.latest.rts_on)
+  const staffScheduled = resolved.latest
+    ? formatShiftStatusNumber(resolved.latest.rts_on)
     : "—";
-  const bipapCount = resolved.snapshot.latest?.bipap_count ?? "—";
-  const ventCount = officialVent?.vent_count ?? "—";
+  const bipapCount = resolved.latest?.bipap_count ?? "—";
+  const ventCount = resolved.latest?.vent_count ?? "—";
   const rentalCount = activeRentalCount ?? "—";
   const procedures = resolved.totalProcedures ?? "—";
   const closeProcedures = useCallback(() => setProceduresOpen(false), []);
@@ -389,7 +372,7 @@ export function LeadOperationalSummary({
           <SummaryMetricCard
             icon={<Wind size={18} aria-hidden="true" />}
             label="Vent Count"
-            value={officialVentLoading ? "—" : ventCount}
+            value={ventCount}
             iconClass="bg-sky-50 text-sky-700 ring-sky-100"
           />
           <SummaryMetricCard
@@ -420,12 +403,9 @@ export function LeadOperationalSummary({
           </SummaryMetricCard>
         </div>
 
-        {(fallbackNotes.length > 0 || availabilityNotes.length > 0) && (
+        {availabilityNotes.length > 0 && (
           <div className="rounded-2xl border border-slate-100 bg-white/85 px-3 py-2 text-center text-[11px] font-bold leading-4 text-slate-500">
-            {fallbackNotes.map((note) => (
-              <p key={note}>{note}</p>
-            ))}
-            {availabilityNotes.length > 0 && <p>Some operational metrics are currently unavailable.</p>}
+            <p>Some operational metrics are currently unavailable.</p>
           </div>
         )}
       </section>
@@ -433,10 +413,10 @@ export function LeadOperationalSummary({
       <ProcedureDetailsModal
         open={proceduresOpen}
         onClose={closeProcedures}
-        update={resolved.procedureUpdate}
+        update={resolved.latest}
         counts={resolved.counts}
         loading={loading}
-        stale={Boolean(resolved.currentProcedureUpdate && !resolved.proceduresFresh)}
+        stale={false}
         timezone={timezone}
       />
     </>
