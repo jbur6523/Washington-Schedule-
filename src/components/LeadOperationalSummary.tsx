@@ -37,16 +37,18 @@ import {
   reportingWindowForInstant,
   type ShiftUpdateReportingWindow
 } from "@/lib/shift-status/reporting-window";
+import { readSessionRvu, type SessionRvu } from "@/lib/shift-status/session-rvu";
 
 type SummaryMetricCardProps = {
   icon: ReactNode;
   label: string;
   value: string | number;
   iconClass: string;
+  helperText?: string;
   children?: ReactNode;
 };
 
-function SummaryMetricCard({ icon, label, value, iconClass, children }: SummaryMetricCardProps) {
+function SummaryMetricCard({ icon, label, value, iconClass, helperText, children }: SummaryMetricCardProps) {
   return (
     <article
       data-testid="operational-summary-tile"
@@ -66,6 +68,9 @@ function SummaryMetricCard({ icon, label, value, iconClass, children }: SummaryM
         >
           {value}
         </p>
+        {helperText && (
+          <p className="mt-1 text-[11px] font-bold leading-none text-slate-500">{helperText}</p>
+        )}
       </div>
       {children && <div className="w-full min-[640px]:ml-auto min-[640px]:w-auto">{children}</div>}
     </article>
@@ -221,6 +226,12 @@ export function LeadOperationalSummary({
   const [rentalError, setRentalError] = useState("");
   const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
   const [proceduresOpen, setProceduresOpen] = useState(false);
+  const [sessionRvu, setSessionRvu] = useState<SessionRvu | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSessionRvu(readSessionRvu()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const loadSummary = useCallback(
     async (showLoading = true) => {
@@ -339,11 +350,18 @@ export function LeadOperationalSummary({
 
   const availabilityNotes = [shiftError, rentalError].filter(Boolean);
   const staffNeeded = resolved.latest
-    ? formatShiftStatusNumber(resolved.latest.rts_required)
+    ? resolved.latest.rts_required.toFixed(1)
     : "—";
   const staffScheduled = resolved.latest
     ? formatShiftStatusNumber(resolved.latest.rts_on)
     : "—";
+  const staffNeededRvu = resolved.latest
+    && sessionRvu?.departmentId === authContext.departmentId
+    && sessionRvu.shiftDate === resolved.latest.shift_date
+    && sessionRvu.shiftType === resolved.latest.shift_type
+    && sessionRvu.rtsNeeded === resolved.latest.rts_required
+      ? `${formatShiftStatusNumber(sessionRvu.rvuCount)} RVUs`
+      : undefined;
   const bipapCount = resolved.latest?.bipap_count ?? "—";
   const ventCount = resolved.latest?.vent_count ?? "—";
   const rentalCount = activeRentalCount ?? "—";
@@ -362,6 +380,7 @@ export function LeadOperationalSummary({
             label="Staff Needed"
             value={staffNeeded}
             iconClass="bg-teal-50 text-teal-700 ring-teal-100"
+            helperText={staffNeededRvu}
           />
           <SummaryMetricCard
             icon={<Users size={18} aria-hidden="true" />}

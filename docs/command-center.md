@@ -87,7 +87,7 @@ Fields:
 - Shift date
 - Shift type: Day Shift or Night Shift
 - RTs Scheduled
-- RTs Needed, calculated to one decimal place from the entered RVUs using `RVUs / 27` and saved in the existing RTs Needed field
+- RTs Needed, calculated to one decimal place from the entered RVUs using `RVUs / 27` and saved in the existing RTs Needed field. On blur, the RVU input changes to the calculated RT need; focusing it again restores the raw RVUs for editing. The Lead Command Board can show the just-submitted raw RVUs as session-only helper text beneath Staff Needed without persisting RVUs.
 - Official Vent count from the persistent `official_vent_count_updates` stream. The newest genuine Lead Vent change or ICU tracked Vent-total change wins across shift and date boundaries; leaving the field blank means no change.
 - BiPAP count
 - C-Section count

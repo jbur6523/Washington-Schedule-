@@ -21,6 +21,7 @@ import {
   shiftStatusNumberValue,
   validateShiftStatusCounts
 } from "@/lib/shift-status/validation";
+import { rememberSessionRvu } from "@/lib/shift-status/session-rvu";
 
 type ShiftUpdateForm = {
   shiftDate: string;
@@ -116,7 +117,9 @@ function CountInputCard({
   inputMode = "numeric",
   inputHint,
   helperText,
-  onChange
+  onBlur,
+  onChange,
+  onFocus
 }: {
   icon: ReactNode;
   label: string;
@@ -124,8 +127,10 @@ function CountInputCard({
   step?: string;
   inputMode?: "numeric" | "decimal";
   inputHint?: string;
-  helperText: string;
+  helperText?: string;
+  onBlur?: () => void;
   onChange: (value: string) => void;
+  onFocus?: () => void;
 }) {
   return (
     <label className="flex min-h-[8.75rem] flex-col items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
@@ -140,10 +145,12 @@ function CountInputCard({
         step={step}
         inputMode={inputMode}
         value={value}
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
+        onFocus={onFocus}
         className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
-      <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>
+      {helperText && <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>}
     </label>
   );
 }
@@ -199,6 +206,7 @@ export function ShiftUpdateClient({
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [editingRvus, setEditingRvus] = useState(true);
   const submissionInFlightRef = useRef(false);
   const redirectTimerRef = useRef<number | null>(null);
   const latestLoadRequestIdRef = useRef(0);
@@ -259,6 +267,7 @@ export function ShiftUpdateClient({
     const currentUpdate = latestReportingWindowUpdate(data, reportingWindow);
     setLastKnownUpdate(currentUpdate);
     setForm(shiftUpdateFormForWindow(currentUpdate, authContext, timezone));
+    setEditingRvus(true);
   }, [authContext, reportingWindow, timezone]);
 
   useEffect(() => {
@@ -278,6 +287,7 @@ export function ShiftUpdateClient({
       setReportingWindow(nextWindow);
       setLastKnownUpdate(null);
       setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
+      setEditingRvus(true);
       setMessage("");
       setError("");
     }, delay + 25);
@@ -315,12 +325,13 @@ export function ShiftUpdateClient({
       setReportingWindow(activeWindow);
       setLastKnownUpdate(null);
       setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
+      setEditingRvus(true);
       setMessage("");
       setError("A new reporting window has started. Enter the new cycle's values before saving.");
       return;
     }
 
-    if (!canSave) {
+    if (!canSave || calculatedRtsNeeded === null) {
       setError("Select lead and enter shift numbers to continue.");
       return;
     }
@@ -376,6 +387,13 @@ export function ShiftUpdateClient({
         return;
       }
 
+      rememberSessionRvu({
+        departmentId: authContext.departmentId,
+        shiftDate: form.shiftDate,
+        shiftType: form.shiftType,
+        rtsNeeded: calculatedRtsNeeded,
+        rvuCount: Number(form.rvuCount)
+      });
       setMessage("Update Submitted");
       redirectTimerRef.current = window.setTimeout(() => {
         router.replace("/command-center");
@@ -452,14 +470,15 @@ export function ShiftUpdateClient({
               <CountInputCard
                 icon={<User size={18} />}
                 label="RTs Needed"
-                value={form.rvuCount}
+                value={editingRvus
+                  ? form.rvuCount
+                  : calculatedRtsNeeded?.toFixed(1) ?? ""}
                 step="any"
                 inputMode="decimal"
                 inputHint="Enter RVUs"
-                helperText={calculatedRtsNeeded === null
-                  ? "Calculated: —"
-                  : `Calculated: ${calculatedRtsNeeded.toFixed(1)} RTs`}
+                onBlur={() => setEditingRvus(false)}
                 onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
+                onFocus={() => setEditingRvus(true)}
               />
               <CountInputCard
                 icon={<Wind size={18} />}

@@ -109,6 +109,7 @@ describe("ShiftUpdateClient submission flow", () => {
     mocks.insert.mockReset();
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -207,7 +208,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
     expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(null);
     expect(screen.getByText("Enter RVUs")).toBeInTheDocument();
-    expect(screen.getByText("Calculated: —")).toBeInTheDocument();
+    expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(4);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
@@ -256,7 +257,14 @@ describe("ShiftUpdateClient submission flow", () => {
     fireEvent.change(rvuInput, { target: { value: "188.65" } });
 
     expect(rvuInput).toHaveValue(188.65);
-    expect(screen.getByText("Calculated: 7.0 RTs")).toBeInTheDocument();
+    fireEvent.blur(rvuInput);
+    expect(rvuInput.value).toBe("7.0");
+    expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
+
+    fireEvent.focus(rvuInput);
+    expect(rvuInput.value).toBe("188.65");
+    fireEvent.blur(rvuInput);
+    expect(rvuInput.value).toBe("7.0");
 
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
@@ -267,6 +275,9 @@ describe("ShiftUpdateClient submission flow", () => {
       rts_on: 8,
       rts_required: 7
     }));
+    expect(JSON.parse(window.sessionStorage.getItem("whhs:last-submitted-shift-rvu") ?? "null")).toEqual(
+      expect.objectContaining({ rtsNeeded: 7, rvuCount: 188.65 })
+    );
   });
 
   it("does not display or submit an invalid staffing value", async () => {
@@ -278,7 +289,7 @@ describe("ShiftUpdateClient submission flow", () => {
     fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
     fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
 
-    expect(screen.getByText("Calculated: —")).toBeInTheDocument();
+    expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Shift Update" })).toBeDisabled();
     expect(mocks.insert).not.toHaveBeenCalled();

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeadOperationalSummary } from "@/components/LeadOperationalSummary";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
+import { rememberSessionRvu } from "@/lib/shift-status/session-rvu";
 
 const mocks = vi.hoisted(() => ({
   fetchReportingWindow: vi.fn(),
@@ -90,6 +91,7 @@ describe("LeadOperationalSummary", () => {
     });
     mocks.rentalCount = 2;
     mocks.rentalError = null;
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -128,6 +130,28 @@ describe("LeadOperationalSummary", () => {
       expect(tile).toHaveClass("bg-white/95", "border-slate-200/80", "min-h-20");
       expect(tile.className).not.toMatch(/bg-(sky|cyan|teal|emerald|amber|violet)-50/);
     }
+  });
+
+  it("keeps staffing need primary and shows matching session RVUs as secondary text", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{ ...currentUpdate, rts_required: 6.7 }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+    rememberSessionRvu({
+      departmentId: "department-1",
+      shiftDate: currentUpdate.shift_date,
+      shiftType: currentUpdate.shift_type,
+      rtsNeeded: 6.7,
+      rvuCount: 182
+    });
+
+    await renderLoadedSummary();
+
+    const summary = screen.getByRole("region", { name: "Operational Summary" });
+    const staffNeeded = within(summary).getByLabelText("Staff Needed: 6.7");
+    expect(staffNeeded).toHaveTextContent("6.7");
+    expect(staffNeeded.parentElement).toHaveTextContent("182 RVUs");
   });
 
   it("opens the compact procedure details modal without expanding the summary card", async () => {
@@ -205,7 +229,7 @@ describe("LeadOperationalSummary", () => {
 
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
-    expect(within(summary).getByLabelText("Staff Needed: 7")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff Needed: 7.0")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Staff Scheduled: 6")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 5")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: 2")).toBeInTheDocument();
