@@ -1,6 +1,6 @@
 export type ShiftStatusCountInput = {
   rtsOn: string;
-  rtsRequired: string;
+  rvuCount: string;
   ventCount: string;
   bipapCount: string;
   cSectionCount: string;
@@ -37,16 +37,26 @@ export function validateShiftStatusCounts(input: ShiftStatusCountInput) {
     }
   }
 
-  const rtsRequired = Number(input.rtsRequired);
+  const rvuCount = Number(input.rvuCount);
   if (
-    !input.rtsRequired.trim()
-    || !Number.isFinite(rtsRequired)
-    || rtsRequired < 0
+    !input.rvuCount.trim()
+    || !Number.isFinite(rvuCount)
+    || rvuCount < 0
   ) {
-    return "RTs Needed must be a number of 0 or more.";
+    return "RVUs must be a number of 0 or more.";
   }
 
   return null;
+}
+
+export function rtsNeededFromRvus(value: string) {
+  const rvuCount = Number(value);
+
+  if (!value.trim() || !Number.isFinite(rvuCount) || rvuCount < 0) {
+    return null;
+  }
+
+  return Math.round((rvuCount / 27) * 10) / 10;
 }
 
 export function shiftStatusNumberValue(value: string) {

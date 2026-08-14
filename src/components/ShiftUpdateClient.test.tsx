@@ -66,7 +66,7 @@ const authContext: AuthenticatedUserContext = {
 
 function populateRequiredFields() {
   fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
-  fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "8" } });
+  fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "216" } });
   fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
   fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
 }
@@ -191,7 +191,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
-  it("reopens with every current-window value and preserves unchanged values when one procedure changes", async () => {
+  it("reopens with persisted counts and requires a fresh RVU entry when one procedure changes", async () => {
     mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
       data: [shiftUpdate()],
       error: null,
@@ -205,7 +205,9 @@ describe("ShiftUpdateClient submission flow", () => {
     });
 
     expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
-    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(7.5);
+    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(null);
+    expect(screen.getByText("Enter RVUs")).toBeInTheDocument();
+    expect(screen.getByText("Calculated: —")).toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(4);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
@@ -217,6 +219,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("MRI");
 
     fireEvent.change(screen.getByLabelText(/C-Sections/), { target: { value: "9" } });
+    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
     fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Editing Lead" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
@@ -238,6 +241,47 @@ describe("ShiftUpdateClient submission flow", () => {
       other_procedure_note: "MRI",
       updated_by_name: "Editing Lead"
     }));
+  });
+
+  it("shows and submits normally rounded RT need from decimal RVUs", async () => {
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    populateRequiredFields();
+
+    const rvuInput = screen.getByLabelText(/RTs Needed/) as HTMLInputElement;
+    fireEvent.change(rvuInput, { target: { value: "188.65" } });
+
+    expect(rvuInput).toHaveValue(188.65);
+    expect(screen.getByText("Calculated: 7.0 RTs")).toBeInTheDocument();
+
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      rts_on: 8,
+      rts_required: 7
+    }));
+  });
+
+  it("does not display or submit an invalid staffing value", async () => {
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
+    fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
+
+    expect(screen.getByText("Calculated: —")).toBeInTheDocument();
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Shift Update" })).toBeDisabled();
+    expect(mocks.insert).not.toHaveBeenCalled();
   });
 
   it("clears the editable values when the 16:00 reporting window begins without deleting history", async () => {

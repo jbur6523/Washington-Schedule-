@@ -17,6 +17,7 @@ import {
 } from "@/lib/shift-status/reporting-window";
 import {
   optionalShiftStatusNumberValue,
+  rtsNeededFromRvus,
   shiftStatusNumberValue,
   validateShiftStatusCounts
 } from "@/lib/shift-status/validation";
@@ -25,7 +26,7 @@ type ShiftUpdateForm = {
   shiftDate: string;
   shiftType: ShiftStatusShiftType;
   rtsOn: string;
-  rtsRequired: string;
+  rvuCount: string;
   ventCount: string;
   bipapCount: string;
   cSectionCount: string;
@@ -51,7 +52,7 @@ function shiftUpdateFormForWindow(
     shiftDate: update?.shift_date ?? operationalShift.shiftDate,
     shiftType: update?.shift_type ?? operationalShift.shiftType,
     rtsOn: update ? String(update.rts_on) : "",
-    rtsRequired: update ? String(update.rts_required) : "",
+    rvuCount: "",
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
     bipapCount: update ? String(update.bipap_count) : "",
     cSectionCount: update ? String(update.c_section_count) : "",
@@ -113,6 +114,7 @@ function CountInputCard({
   value,
   step = "1",
   inputMode = "numeric",
+  inputHint,
   helperText,
   onChange
 }: {
@@ -121,6 +123,7 @@ function CountInputCard({
   value: string;
   step?: string;
   inputMode?: "numeric" | "decimal";
+  inputHint?: string;
   helperText: string;
   onChange: (value: string) => void;
 }) {
@@ -130,6 +133,7 @@ function CountInputCard({
         {icon}
       </span>
       <span className="mt-2 text-[12px] font-extrabold leading-tight text-slate-600">{label}</span>
+      {inputHint && <span className="mt-1 text-[11px] font-bold leading-tight text-cyan-700">{inputHint}</span>}
       <input
         type="number"
         min={0}
@@ -287,11 +291,12 @@ export function ShiftUpdateClient({
   );
   const manualUpdatedByName = isValidManualUpdater(form.updatedByName) ? form.updatedByName.trim() : "";
   const updatedByName = selectedStaff?.display_name ?? manualUpdatedByName;
+  const calculatedRtsNeeded = rtsNeededFromRvus(form.rvuCount);
   const canSave = Boolean(
     form.shiftDate &&
       form.shiftType &&
       form.rtsOn !== "" &&
-      form.rtsRequired !== "" &&
+      calculatedRtsNeeded !== null &&
       form.bipapCount !== "" &&
       updatedByName
   );
@@ -336,7 +341,7 @@ export function ShiftUpdateClient({
       shift_date: form.shiftDate,
       shift_type: form.shiftType,
       rts_on: shiftStatusNumberValue(form.rtsOn),
-      rts_required: shiftStatusNumberValue(form.rtsRequired),
+      rts_required: calculatedRtsNeeded,
       vent_count: optionalShiftStatusNumberValue(form.ventCount),
       bipap_count: shiftStatusNumberValue(form.bipapCount),
       c_section_count: shiftStatusNumberValue(form.cSectionCount),
@@ -447,11 +452,14 @@ export function ShiftUpdateClient({
               <CountInputCard
                 icon={<User size={18} />}
                 label="RTs Needed"
-                value={form.rtsRequired}
-                step="0.1"
+                value={form.rvuCount}
+                step="any"
                 inputMode="decimal"
-                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_required, timezone)}
-                onChange={(value) => setForm((current) => ({ ...current, rtsRequired: value }))}
+                inputHint="Enter RVUs"
+                helperText={calculatedRtsNeeded === null
+                  ? "Calculated: —"
+                  : `Calculated: ${calculatedRtsNeeded.toFixed(1)} RTs`}
+                onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
               />
               <CountInputCard
                 icon={<Wind size={18} />}
