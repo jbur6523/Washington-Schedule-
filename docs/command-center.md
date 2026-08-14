@@ -121,8 +121,8 @@ The compact card shows only those three number tiles. `Staffed`, `Short`, or `No
 
 The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule filter. Those controls continue to filter schedule cards only. Current Shift Status uses the same Command Center update source as the Director dashboard. It first looks for the active department shift window:
 
-- Day Shift: `08:00-19:59`
-- Night Shift: `20:00-07:59`
+- Day Shift: `04:00-15:59`
+- Night Shift: `16:00-03:59`
 
 Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs Scheduled, RTs Needed, BiPAPs, and scheduled procedure fields. If multiple rows exist for the same shift, the newest `updated_at` row wins for those non-Vent fields. The normal Schedule page intentionally omits BiPAP counts and procedure counts. Every shared Vent display reads the newest department event from the append-only `official_vent_count_updates` stream without filtering by shift or date. A Lead save appends an official Vent update only when a non-null Lead Vent field changed from the previous Lead Vent event across shifts. An ICU mutation appends one only when persisted active Vent membership changed, using a fresh database count after the mutation. Page loads, refreshes, shift rollover, unrelated Lead saves, blank Lead Vent fields, ICU settings edits, Critical Vent toggles, and generic timestamp changes do not publish official Vent updates.
 

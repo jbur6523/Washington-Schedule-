@@ -37,15 +37,23 @@ function update(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
 
 describe("operational shift boundaries", () => {
   it.each([
-    ["2026-01-15T15:59:00.000Z", "2026-01-14", "night"],
-    ["2026-01-15T16:00:00.000Z", "2026-01-15", "day"],
-    ["2026-01-16T03:59:00.000Z", "2026-01-15", "day"],
-    ["2026-01-16T04:00:00.000Z", "2026-01-15", "night"],
-    ["2026-01-16T10:00:00.000Z", "2026-01-15", "night"]
+    ["2026-01-15T11:59:59.999Z", "2026-01-14", "night"],
+    ["2026-01-15T12:00:00.000Z", "2026-01-15", "day"],
+    ["2026-01-15T23:59:59.999Z", "2026-01-15", "day"],
+    ["2026-01-16T00:00:00.000Z", "2026-01-15", "night"],
+    ["2026-01-16T08:00:00.000Z", "2026-01-15", "night"],
+    ["2026-01-16T11:59:59.999Z", "2026-01-15", "night"]
   ] as const)("maps %s to %s %s", (instant, shiftDate, shiftType) => {
     expect(currentShiftStatusWindow(timezone, new Date(instant))).toEqual({
       shiftDate,
       shiftType
+    });
+  });
+
+  it("maps 16:52 Pacific on 08/14/2026 to Night Shift", () => {
+    expect(currentShiftStatusWindow(timezone, new Date("2026-08-14T23:52:00.000Z"))).toEqual({
+      shiftDate: "2026-08-14",
+      shiftType: "night"
     });
   });
 

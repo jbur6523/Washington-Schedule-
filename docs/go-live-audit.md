@@ -116,8 +116,8 @@ Protections retained:
 ## Date and Shift Logic
 
 - Operational calculations explicitly use `America/Los_Angeles`.
-- Day shift begins at 08:00 and night shift begins at 20:00.
-- Times before 08:00 belong to the previous operational date's night shift.
+- Day shift begins at 04:00 and night shift begins at 16:00.
+- Times before 04:00 belong to the previous operational date's night shift.
 - Date-only schedule values are formatted without browser-local UTC conversion.
 - Wall-clock timestamp conversion handles daylight-saving transitions explicitly.
 - Nonexistent spring-forward times are rejected.

@@ -244,6 +244,28 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("shows Night Shift at 16:52 Pacific even if a saved row has a stale Day Shift label", async () => {
+    vi.setSystemTime(new Date("2026-08-14T23:52:00.000Z"));
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate({
+        shift_date: "2026-08-14",
+        shift_type: "day",
+        created_at: "2026-08-14T23:30:00.000Z",
+        updated_at: "2026-08-14T23:30:00.000Z"
+      })],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByLabelText("Shift", { exact: true })).toBeDisabled();
+    expect(screen.getByLabelText("Shift", { exact: true })).toHaveValue("night");
+  });
+
   it("shows and submits normally rounded RT need from decimal RVUs", async () => {
     mocks.insert.mockResolvedValue({ error: null });
 

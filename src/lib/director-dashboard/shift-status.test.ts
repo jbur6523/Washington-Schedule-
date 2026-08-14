@@ -184,9 +184,9 @@ describe("Director latest-known shift submissions", () => {
     const day = update({ shift_date: "2026-08-09", shift_type: "day" });
     const night = update({ shift_date: "2026-08-09", shift_type: "night" });
 
-    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-10T02:59:59.000Z")).latest).toBe(day);
-    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-10T03:00:00.000Z")).latest).toBe(night);
-    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-10T14:59:59.000Z")).latest).toBe(night);
+    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-09T22:59:59.999Z")).latest).toBe(day);
+    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-09T23:00:00.000Z")).latest).toBe(night);
+    expect(resolveDirectorCurrentShiftStatus([day, night], timezone, new Date("2026-08-10T10:59:59.999Z")).latest).toBe(night);
   });
 
   it("returns the same persisted records after a refresh with new row objects", () => {

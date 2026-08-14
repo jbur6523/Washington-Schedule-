@@ -50,8 +50,8 @@ function shiftUpdateFormForWindow(
   const operationalShift = currentShiftStatusWindow(timezone, date);
 
   return {
-    shiftDate: update?.shift_date ?? operationalShift.shiftDate,
-    shiftType: update?.shift_type ?? operationalShift.shiftType,
+    shiftDate: operationalShift.shiftDate,
+    shiftType: operationalShift.shiftType,
     rtsOn: update ? String(update.rts_on) : "",
     rvuCount: "",
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),

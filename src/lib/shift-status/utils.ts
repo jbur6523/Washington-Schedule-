@@ -3,6 +3,7 @@ import type {
   ShiftStatusShiftType,
   ShiftStatusUpdate
 } from "@/lib/shift-status/types";
+import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
 
 export function todayInTimezone(timezone = "America/Los_Angeles") {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -18,66 +19,16 @@ export function todayInTimezone(timezone = "America/Los_Angeles") {
   return `${year}-${month}-${day}`;
 }
 
-function zonedDateHour(timezone = "America/Los_Angeles", date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).formatToParts(date);
-
-  const year = parts.find((part) => part.type === "year")?.value ?? "1970";
-  const month = parts.find((part) => part.type === "month")?.value ?? "01";
-  const day = parts.find((part) => part.type === "day")?.value ?? "01";
-  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
-
-  return {
-    dateValue: `${year}-${month}-${day}`,
-    hour
-  };
-}
-
-function previousIsoDate(dateValue: string) {
-  const [year, month, day] = dateValue.split("-").map(Number);
-  const previous = new Date(Date.UTC(year, month - 1, day - 1));
-
-  return [
-    previous.getUTCFullYear().toString().padStart(4, "0"),
-    (previous.getUTCMonth() + 1).toString().padStart(2, "0"),
-    previous.getUTCDate().toString().padStart(2, "0")
-  ].join("-");
-}
-
 export function currentShiftType(timezone = "America/Los_Angeles", date = new Date()) {
-  const { hour } = zonedDateHour(timezone, date);
-  return hour >= 8 && hour < 20 ? "day" : "night";
+  return currentShiftStatusWindow(timezone, date).shiftType;
 }
 
 export function currentShiftStatusWindow(timezone = "America/Los_Angeles", date = new Date()) {
-  const { dateValue, hour } = zonedDateHour(timezone, date);
-
-  if (hour >= 8 && hour < 20) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "day" as ShiftStatusShiftType
-    };
-  }
-
-  if (hour >= 20) {
-    return {
-      shiftDate: dateValue,
-      shiftType: "night" as ShiftStatusShiftType
-    };
-  }
+  const reportingWindow = reportingWindowForInstant(date, timezone);
 
   return {
-    // The operational date for the midnight-to-08:00 portion of a night
-    // shift is the date on which that shift began.
-    shiftDate: previousIsoDate(dateValue),
-    shiftType: "night" as ShiftStatusShiftType
+    shiftDate: reportingWindow.localStartDate,
+    shiftType: (reportingWindow.cycle === "morning" ? "day" : "night") as ShiftStatusShiftType
   };
 }
 
