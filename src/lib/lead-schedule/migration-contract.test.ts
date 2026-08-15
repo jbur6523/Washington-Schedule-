@@ -16,6 +16,10 @@ const foundationMigration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/202606230001_backend_foundation.sql"),
   "utf8"
 );
+const removalMigration = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/202608150004_remove_ruth_deguzman_from_lead_directory.sql"),
+  "utf8"
+);
 
 describe("Lead Schedule employee directory migration contract", () => {
   it("extends the canonical staff model and keeps directory PII behind authenticated staff RLS", () => {
@@ -39,6 +43,14 @@ describe("Lead Schedule employee directory migration contract", () => {
     expect(migration.match(/\('Renae', 'Waldschmidt'/g)).toHaveLength(1);
     expect(migration).toContain("resolution.first_name = 'Renae' and resolution.last_name = 'Waldschmidt'");
     expect(migration).not.toMatch(/\('RT', 'Aide'|\('Payroll'|\('Department', 'Director'/i);
+  });
+
+  it("removes Ruth Deguzman from the Lead directory without deleting her canonical profile", () => {
+    expect(removalMigration).toContain("update public.staff_profiles");
+    expect(removalMigration).toContain("set directory_shift = null");
+    expect(removalMigration).toContain("lower(trim(first_name)) = 'ruth'");
+    expect(removalMigration).toContain("lower(trim(last_name)) = 'deguzman'");
+    expect(removalMigration).not.toMatch(/delete\s+from/i);
   });
 
   it("resolves required aliases without fuzzy matching or duplicate canonical employees", () => {

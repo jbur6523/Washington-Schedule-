@@ -566,6 +566,7 @@ export function ShiftUpdateClient({
                 step="any"
                 inputMode="decimal"
                 placeholder="Enter RVUs"
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_required, timezone)}
                 onBlur={() => setEditingRvus(false)}
                 onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
                 onFocus={() => setEditingRvus(true)}
