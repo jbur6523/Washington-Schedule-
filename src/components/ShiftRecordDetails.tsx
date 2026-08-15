@@ -37,15 +37,15 @@ export function ShiftStaffingValues({ record, compact = false }: { record: Shift
   const values = [
     ["Staff On Shift", formatShiftStatusNumber(record.rts_on)],
     ["Staff Needed", formatOneDecimal(calculated)],
-    ["RVUs", record.rvu_total === null || record.rvu_total === undefined ? "Unavailable" : formatShiftStatusNumber(record.rvu_total)]
+    ["RVUs", record.rvu_total === null || record.rvu_total === undefined ? "Unavailable" : formatOneDecimal(record.rvu_total)]
   ];
 
   return (
-    <div className={`grid grid-cols-3 ${compact ? "gap-2" : "gap-3"}`}>
+    <div className={`grid grid-cols-3 ${compact ? "gap-1.5 sm:gap-2" : "gap-2 sm:gap-3"}`}>
       {values.map(([label, value]) => (
-        <div key={label} className={`${compact ? "py-1" : "rounded-2xl border border-slate-200 bg-white px-3 py-3 text-center shadow-sm"}`}>
-          <p className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">{label}</p>
-          <p className={`${compact ? "text-lg" : "mt-1 text-2xl"} font-black text-hospital-ink`}>{value}</p>
+        <div key={label} className={`min-w-0 text-center ${compact ? "py-1" : "flex min-h-[7rem] flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-1.5 py-3 shadow-sm sm:px-3"}`}>
+          <p className="flex min-h-8 items-center justify-center text-[9px] font-extrabold uppercase leading-4 tracking-normal text-slate-500 sm:text-[10px] sm:tracking-wide">{label}</p>
+          <p className={`${value === "Unavailable" ? "text-xs sm:text-sm" : compact ? "text-base sm:text-lg" : "mt-1 text-xl sm:text-2xl"} max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-black leading-none tabular-nums text-hospital-ink`}>{value}</p>
         </div>
       ))}
     </div>

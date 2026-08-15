@@ -253,7 +253,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     const dialog = screen.getByRole("dialog", { name: "View Shift" });
     expect(within(dialog).getAllByText("Staff On Shift")[0]?.parentElement).toHaveTextContent("7");
     expect(within(dialog).getByText("Staff Needed").parentElement).toHaveTextContent("6.5");
-    expect(within(dialog).getByText("RVUs").parentElement).toHaveTextContent("176.45");
+    expect(within(dialog).getByText("RVUs").parentElement).toHaveTextContent("176.5");
     expect(within(dialog).getByText("Vents").parentElement).toHaveTextContent("5");
     expect(within(dialog).getByText("BiPAPs").parentElement).toHaveTextContent("8");
     expect(within(dialog).getByText("Procedures · 3")).toBeInTheDocument();

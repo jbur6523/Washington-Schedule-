@@ -52,12 +52,14 @@ const baseProps = {
 };
 
 describe("ShiftHistory", () => {
-  it("expands 24-hour cards with exact RVUs, roster assignments, procedures, and note", () => {
+  it("expands 24-hour cards with mobile-safe one-decimal RVUs, roster assignments, procedures, and note", () => {
     render(<ShiftHistory {...baseProps} />);
 
     const card = screen.getByText("Saturday, August 15, 2026").closest("details");
     expect(card).toHaveAttribute("open");
-    expect(screen.getByText("176.45")).toBeInTheDocument();
+    const rvuValue = screen.getByText("176.5");
+    expect(rvuValue).toHaveClass("max-w-full", "overflow-hidden", "whitespace-nowrap", "tabular-nums");
+    expect(rvuValue.parentElement).toHaveClass("min-w-0", "min-h-[7rem]", "px-1.5");
     expect(screen.getByText("6.5")).toBeInTheDocument();
     expect(screen.getByText("Jonathan Burdick").nextSibling).toHaveTextContent("4 WEST · 5W");
     expect(screen.getByRole("heading", { name: "Procedures · 3" })).toBeInTheDocument();
