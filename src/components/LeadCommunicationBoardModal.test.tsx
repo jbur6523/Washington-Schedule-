@@ -223,7 +223,11 @@ describe("Lead Communication shared read state", () => {
       await waitFor(() => expect(storedNotes[0].status).toBe("reviewed"));
       expect(await screen.findByText("Read")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Mark Reviewed" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Mark Unread" })).toBeEnabled();
+      const markUnread = screen.getByRole("button", { name: "Mark Unread" });
+      const reply = screen.getByRole("button", { name: "Reply" });
+      expect(markUnread).toBeEnabled();
+      expect(markUnread.parentElement).toBe(reply.parentElement);
+      expect(markUnread.parentElement).toHaveClass("flex", "flex-wrap", "items-center", "gap-2");
       expect(storedNotes[0].reviewed_at).toBeNull();
       expect(onNotesChanged).toHaveBeenCalled();
     }

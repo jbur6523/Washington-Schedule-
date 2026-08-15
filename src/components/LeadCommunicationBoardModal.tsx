@@ -652,13 +652,13 @@ export function LeadCommunicationBoardModal({
                     )}
 
                     {(canReplyToNotes || canManageReadState) && (
-                      <div className="mt-4 space-y-3">
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
                         {canManageReadState && (
                           <button
                             type="button"
                             onClick={() => void markUnread(note)}
                             disabled={busyNoteId === note.id || note.status === "new"}
-                            className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 text-left text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex min-h-11 w-auto items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 text-center text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Mail size={17} />
                             {busyNoteId === note.id ? "Updating..." : "Mark Unread"}
@@ -666,7 +666,7 @@ export function LeadCommunicationBoardModal({
                         )}
 
                         {canReplyToNotes && expandedFollowUpNoteId === note.id ? (
-                          <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3">
+                          <div className="w-full basis-full rounded-2xl border border-slate-200 bg-white/80 px-3 py-3">
                             <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`lead-follow-up-${note.id}`}>
                               Reply
                             </label>
