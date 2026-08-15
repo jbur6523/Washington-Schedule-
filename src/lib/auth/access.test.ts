@@ -9,6 +9,7 @@ import {
   canUseNotifications,
   canViewDirectorShiftStatus,
   canViewIcuCommandCenter,
+  canViewRvuStaffingMetrics,
   hasOperationsDashboardAccess,
   hasOrderManagementAccess,
   hasRentalManagementAccess
@@ -31,6 +32,7 @@ describe("role permission matrix", () => {
     expect(canViewDirectorShiftStatus(staff)).toBe(false);
     expect(canEditIcuCommandCenter(staff)).toBe(false);
     expect(canViewIcuCommandCenter(staff)).toBe(false);
+    expect(canViewRvuStaffingMetrics(staff)).toBe(false);
   });
 
   it("allows leads to manage shared shift operations without ICU edit access", () => {
@@ -43,6 +45,7 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(lead)).toBe(true);
     expect(canViewDirectorShiftStatus(lead)).toBe(true);
     expect(canEditIcuCommandCenter(lead)).toBe(false);
+    expect(canViewRvuStaffingMetrics(lead)).toBe(false);
   });
 
   it("keeps each operations role scoped to its intended surface", () => {
@@ -90,6 +93,7 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(leadership)).toBe(false);
     expect(canEditIcuCommandCenter(leadership)).toBe(false);
     expect(canViewIcuCommandCenter(leadership)).toBe(false);
+    expect(canViewRvuStaffingMetrics(leadership)).toBe(false);
   });
 
   it("retains administrator access across management surfaces", () => {
@@ -103,5 +107,6 @@ describe("role permission matrix", () => {
     expect(canViewDirectorShiftStatus(admin)).toBe(true);
     expect(canEditIcuCommandCenter(admin)).toBe(true);
     expect(canViewIcuCommandCenter(admin)).toBe(true);
+    expect(canViewRvuStaffingMetrics(admin)).toBe(true);
   });
 });

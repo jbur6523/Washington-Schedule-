@@ -63,6 +63,15 @@ export const adminDashboardAreas = [
     cardClassName: "border-cyan-200 bg-cyan-100",
     accentClassName: "text-cyan-800",
     buttonClassName: "bg-cyan-700 text-white"
+  },
+  {
+    title: "RVU & Staffing Metrics",
+    description: "Review reporting-window RVU and staffing trends.",
+    href: "/admin/rvu-staffing-metrics",
+    buttonLabel: "Open RVU & Staffing Metrics",
+    cardClassName: "border-violet-200 bg-violet-100",
+    accentClassName: "text-violet-800",
+    buttonClassName: "bg-violet-700 text-white"
   }
 ] as const;
 

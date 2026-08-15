@@ -34,7 +34,7 @@ describe("admin dashboard", () => {
     });
   });
 
-  it("renders only the seven approved admin shortcuts in a responsive grid", async () => {
+  it("renders the eight approved admin shortcuts in a responsive grid", async () => {
     const view = render(await AdminPage());
     const expectedLinks = [
       ["Lead Command Board", "/command-center"],
@@ -43,7 +43,8 @@ describe("admin dashboard", () => {
       ["Rental Management", "/operations/rental-management"],
       ["Order Management", "/operations/order-management"],
       ["Staff Management", "/admin/roster"],
-      ["Import Schedule", "/admin/import-schedule"]
+      ["Import Schedule", "/admin/import-schedule"],
+      ["RVU & Staffing Metrics", "/admin/rvu-staffing-metrics"]
     ] as const;
     const removedCards = [
       "Schedule",
@@ -65,15 +66,15 @@ describe("admin dashboard", () => {
       expect(screen.queryByRole("link", { name: new RegExp(`^${name}`) })).not.toBeInTheDocument();
     }
 
-    expect(screen.getAllByRole("link")).toHaveLength(8);
+    expect(screen.getAllByRole("link")).toHaveLength(9);
     expect(view.container.querySelector(".grid")).toHaveClass("grid", "gap-3", "sm:grid-cols-2");
   });
 
   it("gives every module a distinct pastel card and matching accessible accent", async () => {
     render(await AdminPage());
 
-    expect(new Set(adminDashboardAreas.map((area) => area.cardClassName)).size).toBe(7);
-    expect(new Set(adminDashboardAreas.map((area) => area.buttonClassName)).size).toBe(7);
+    expect(new Set(adminDashboardAreas.map((area) => area.cardClassName)).size).toBe(8);
+    expect(new Set(adminDashboardAreas.map((area) => area.buttonClassName)).size).toBe(8);
 
     for (const area of adminDashboardAreas) {
       const card = screen.getByRole("link", { name: new RegExp(area.title) });

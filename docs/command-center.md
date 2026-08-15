@@ -86,8 +86,8 @@ Fields:
 
 - Shift date
 - Shift type: Day Shift or Night Shift
-- RTs Scheduled
-- RTs Needed, calculated to one decimal place from the entered RVUs using `RVUs / 27` and saved in the existing RTs Needed field. On blur, the RVU input changes to the calculated RT need; focusing it again restores the raw RVUs for editing. The Lead Command Board can show the just-submitted raw RVUs as session-only helper text beneath Staff Needed without persisting RVUs.
+- RTs On Shift, entered manually as the authoritative actual staffing count for the reporting window
+- RTs Needed, calculated to one decimal place from the entered RVUs using `RVUs / 27` and saved in the existing RTs Needed field. On blur, the RVU input changes to the calculated RT need; focusing it again restores the raw RVUs for editing. Exact raw RVUs are persisted on the canonical reporting-window row and appear as helper text beneath Staff Needed after navigation or refresh.
 - Official Vent count from the persistent `official_vent_count_updates` stream. The newest genuine Lead Vent change or ICU tracked Vent-total change wins across shift and date boundaries; leaving the field blank means no change.
 - BiPAP count
 - C-Section count
@@ -114,20 +114,20 @@ Authenticated department users see a compact `Current Shift Status` card directl
 
 The card comes from Command Center shift updates and shows:
 
-- RTs Scheduled
+- RTs On Shift
 - RTs Needed
 - Vent count
 - Last updated time
 - Updated by, when available
 
-The compact card shows only those three number tiles. `Staffed`, `Short`, or `No Update` appears only in the title line. `Staffed` uses green, `Short` uses red, and `No Update` uses neutral gray. `Short` only appears when `RTs Needed - RTs Scheduled >= 0.5`; smaller gaps such as `8 scheduled / 8.4 needed` remain `Staffed`.
+The compact card shows only those three number tiles. `Staffed`, `Short`, or `No Update` appears only in the title line. `Staffed` uses green, `Short` uses red, and `No Update` uses neutral gray. `Short` only appears when `RTs Needed - RTs On Shift >= 0.5`; smaller gaps such as `8 on shift / 8.4 needed` remain `Staffed`.
 
 The compact Schedule card does not follow the `Day`, `Night`, or `All` schedule filter. Those controls continue to filter schedule cards only. Current Shift Status uses the same Command Center update source as the Director dashboard. It first looks for the active department shift window:
 
 - Day Shift: `04:00-15:59`
 - Night Shift: `16:00-03:59`
 
-Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs Scheduled, RTs Needed, BiPAPs, and scheduled procedure fields. If multiple rows exist for the same shift, the newest `updated_at` row wins for those non-Vent fields. The normal Schedule page intentionally omits BiPAP counts and procedure counts. Every shared Vent display reads the newest department event from the append-only `official_vent_count_updates` stream without filtering by shift or date. A Lead save appends an official Vent update only when a non-null Lead Vent field changed from the previous Lead Vent event across shifts. An ICU mutation appends one only when persisted active Vent membership changed, using a fresh database count after the mutation. Page loads, refreshes, shift rollover, unrelated Lead saves, blank Lead Vent fields, ICU settings edits, Critical Vent toggles, and generic timestamp changes do not publish official Vent updates.
+Staff Schedule and Director Dashboard use the same latest saved Lead Command Board Shift Update for RTs On Shift, RTs Needed, BiPAPs, and scheduled procedure fields. New Shift Update saves use an atomic canonical save: the first save creates the reporting-window row and same-window corrections update it. Partial saves preserve omitted staffing values. Historical duplicate rows are not changed; readers deterministically use the newest row. The normal Schedule page intentionally omits BiPAP counts and procedure counts. Every shared Vent display reads the newest department event from the append-only `official_vent_count_updates` stream without filtering by shift or date. A Lead save appends an official Vent update only when a non-null Lead Vent field changed from the previous Lead Vent event across shifts. An ICU mutation appends one only when persisted active Vent membership changed, using a fresh database count after the mutation. Page loads, refreshes, shift rollover, unrelated Lead saves, blank Lead Vent fields, ICU settings edits, Critical Vent toggles, and generic timestamp changes do not publish official Vent updates.
 
 ## Director Shift Status
 
@@ -142,7 +142,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - Compact header with visible top-right `Sign Out` control
 - `Respiratory Directory` action for a read-only staff contact modal
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
-- Main stat cards for Scheduled and RTs Needed
+- Main stat cards for RTs On Shift and RTs Needed
 - `Department Snapshot` card with left-aligned shift/date context, official Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, last-updated metadata, and the official Vent source/timestamp
 - Scheduled procedure detail cards for C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and MRI with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name

@@ -15,6 +15,7 @@ function update(id: string, createdAt: string): ShiftStatusUpdate {
     shift_type: "night",
     rts_on: 7,
     rts_required: 7.5,
+    rvu_total: null,
     vent_count: 6,
     bipap_count: 4,
     c_section_count: 8,

@@ -442,15 +442,21 @@ export function LeadOperationalSummary({
   const staffNeeded = resolved.latest
     ? resolved.latest.rts_required.toFixed(1)
     : "—";
-  const staffScheduled = resolved.latest
+  const staffOnShift = resolved.latest
     ? formatShiftStatusNumber(resolved.latest.rts_on)
     : "—";
-  const staffNeededRvu = resolved.latest
+  const persistedRvu = resolved.latest?.rvu_total;
+  const sessionFallbackRvu = resolved.latest
     && sessionRvu?.departmentId === authContext.departmentId
     && sessionRvu.shiftDate === resolved.latest.shift_date
     && sessionRvu.shiftType === resolved.latest.shift_type
     && sessionRvu.rtsNeeded === resolved.latest.rts_required
-      ? `${formatShiftStatusNumber(sessionRvu.rvuCount)} RVUs`
+      ? sessionRvu.rvuCount
+      : null;
+  const staffNeededRvu = persistedRvu !== null && persistedRvu !== undefined
+    ? `${formatShiftStatusNumber(persistedRvu)} RVUs`
+    : sessionFallbackRvu !== null
+      ? `${formatShiftStatusNumber(sessionFallbackRvu)} RVUs`
       : undefined;
   const bipapCount = resolved.latest?.bipap_count ?? "—";
   const ventCount = resolved.latest?.vent_count ?? "—";
@@ -488,8 +494,8 @@ export function LeadOperationalSummary({
           </SummaryMetricCard>
           <SummaryMetricCard
             icon={<Users size={18} aria-hidden="true" />}
-            label="Staff Scheduled"
-            value={staffScheduled}
+            label="Staff On Shift"
+            value={staffOnShift}
             iconClass="bg-cyan-50 text-cyan-700 ring-cyan-100"
           />
           <SummaryMetricCard

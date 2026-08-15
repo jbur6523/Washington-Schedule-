@@ -9,6 +9,7 @@ const update: ShiftStatusUpdate = {
   shift_type: "day",
   rts_on: 8,
   rts_required: 8,
+  rvu_total: null,
   vent_count: null,
   bipap_count: 0,
   c_section_count: 1,

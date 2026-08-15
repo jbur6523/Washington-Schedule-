@@ -93,7 +93,7 @@ export function CommandShortShiftAlertClient({
     if (!canPost) {
       setError(
         staffing.status === "staffed"
-          ? "Only post a Short Shift Alert when RTs Needed is at least 0.5 above RTs Scheduled."
+          ? "Only post a Short Shift Alert when RTs Needed is at least 0.5 above RTs On Shift."
           : "Shift date, RT counts, and posted-by attribution are required."
       );
       return;
@@ -184,7 +184,7 @@ export function CommandShortShiftAlertClient({
             <h2 className="text-lg font-black text-hospital-ink">Staffing Need</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs Scheduled</span>
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">RTs On Shift</span>
                 <input
                   type="number"
                   min={0}

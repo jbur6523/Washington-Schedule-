@@ -153,6 +153,7 @@ function shiftStatus(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
     shift_type: "night",
     rts_on: 8,
     rts_required: 8,
+    rvu_total: null,
     vent_count: 5,
     bipap_count: 2,
     c_section_count: 0,

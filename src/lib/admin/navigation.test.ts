@@ -25,7 +25,7 @@ describe("admin navigation", () => {
     expect(getProfileDashboardShortcut({ role: "staff", operationsRole: "none" })).toBeNull();
   });
 
-  it("shows only the seven approved admin dashboard areas", () => {
+  it("shows the eight approved admin dashboard areas", () => {
     expect(adminDashboardAreas.map((area) => area.title)).toEqual([
       "Lead Command Board",
       "Leadership Dashboard",
@@ -33,7 +33,8 @@ describe("admin navigation", () => {
       "Rental Management",
       "Order Management",
       "Staff Management",
-      "Import Schedule"
+      "Import Schedule",
+      "RVU & Staffing Metrics"
     ]);
   });
 

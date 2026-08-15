@@ -18,6 +18,7 @@ function update(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
     shift_type: "day",
     rts_on: 8,
     rts_required: 8,
+    rvu_total: null,
     vent_count: 5,
     bipap_count: 1,
     c_section_count: 0,

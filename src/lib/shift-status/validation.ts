@@ -1,3 +1,5 @@
+import { rtsNeededFromRvus } from "@/lib/metrics/rvu-staffing";
+
 export type ShiftStatusCountInput = {
   rtsOn: string;
   rvuCount: string;
@@ -12,7 +14,7 @@ export type ShiftStatusCountInput = {
 };
 
 const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> = [
-  ["rtsOn", "RTs Scheduled", true],
+  ["rtsOn", "RTs On Shift", true],
   ["ventCount", "Vents", false],
   ["bipapCount", "BiPAPs", true],
   ["cSectionCount", "C-Sections", false],
@@ -49,15 +51,7 @@ export function validateShiftStatusCounts(input: ShiftStatusCountInput) {
   return null;
 }
 
-export function rtsNeededFromRvus(value: string) {
-  const rvuCount = Number(value);
-
-  if (!value.trim() || !Number.isFinite(rvuCount) || rvuCount < 0) {
-    return null;
-  }
-
-  return Math.round((rvuCount / 27) * 10) / 10;
-}
+export { rtsNeededFromRvus };
 
 export function shiftStatusNumberValue(value: string) {
   return value.trim() ? Number(value) : 0;

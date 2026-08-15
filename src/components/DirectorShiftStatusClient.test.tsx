@@ -95,6 +95,7 @@ const prior: ShiftStatusUpdate = {
   shift_type: "night",
   rts_on: 0,
   rts_required: 0,
+  rvu_total: null,
   vent_count: null,
   bipap_count: 0,
   c_section_count: 0,
@@ -145,7 +146,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(statusCard).not.toBeNull();
     expect(snapshotCard).not.toBeNull();
     expect(within(statusCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
-    expect(within(statusCard as HTMLElement).getByText("Scheduled").parentElement).toHaveTextContent("0");
+    expect(within(statusCard as HTMLElement).getByText("RTs On Shift").parentElement).toHaveTextContent("0");
     expect(within(statusCard as HTMLElement).queryByText("No Update")).not.toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");

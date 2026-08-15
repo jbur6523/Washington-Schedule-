@@ -6,7 +6,7 @@ import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
   fetchReportingWindowShiftStatusUpdates: vi.fn(),
-  insert: vi.fn(),
+  rpc: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn(),
   staffOptions: [] as Array<{ id: string; display_name: string }>
@@ -45,10 +45,8 @@ vi.mock("@/lib/supabase/client", () => ({
     };
 
     return {
-      from: (table: string) =>
-        table === "shift_status_updates"
-          ? { insert: mocks.insert }
-          : staffQuery
+      from: () => staffQuery,
+      rpc: mocks.rpc
     };
   }
 }));
@@ -66,7 +64,7 @@ const authContext: AuthenticatedUserContext = {
 };
 
 function populateRequiredFields() {
-  fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
+  fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
   fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "216" } });
   fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
   fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
@@ -80,6 +78,7 @@ function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
     shift_type: "night",
     rts_on: 7,
     rts_required: 7.5,
+    rvu_total: null,
     vent_count: 6,
     bipap_count: 4,
     c_section_count: 8,
@@ -98,6 +97,10 @@ function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
   };
 }
 
+function savedPayload(callIndex = 0) {
+  return mocks.rpc.mock.calls[callIndex]?.[1]?.shift_payload;
+}
+
 describe("ShiftUpdateClient submission flow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -108,7 +111,7 @@ describe("ShiftUpdateClient submission flow", () => {
       error: null,
       usedLegacyProcedureSelect: false
     });
-    mocks.insert.mockReset();
+    mocks.rpc.mockReset();
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
     mocks.staffOptions = [{ id: "lead-1", display_name: "Lead RT" }];
@@ -121,7 +124,7 @@ describe("ShiftUpdateClient submission flow", () => {
 
   it("confirms one successful save, then replaces the form with a refreshed Lead Command Board", async () => {
     let resolveInsert: ((value: { error: null }) => void) | null = null;
-    mocks.insert.mockImplementation(
+    mocks.rpc.mockImplementation(
       () => new Promise<{ error: null }>((resolve) => {
         resolveInsert = resolve;
       })
@@ -140,7 +143,7 @@ describe("ShiftUpdateClient submission flow", () => {
     fireEvent.submit(form as HTMLFormElement);
     fireEvent.submit(form as HTMLFormElement);
 
-    expect(mocks.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(submitButton).toBeDisabled();
     expect(mocks.replace).not.toHaveBeenCalled();
 
@@ -165,7 +168,7 @@ describe("ShiftUpdateClient submission flow", () => {
   });
 
   it("keeps form values and allows retry when persistence fails", async () => {
-    mocks.insert.mockResolvedValue({ error: { message: "insert failed" } });
+    mocks.rpc.mockResolvedValue({ error: { message: "insert failed" } });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -173,7 +176,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     populateRequiredFields();
 
-    const scheduledInput = screen.getByLabelText(/RTs Scheduled/) as HTMLInputElement;
+    const scheduledInput = screen.getByLabelText(/RTs On Shift/) as HTMLInputElement;
     const bipapInput = screen.getByLabelText(/BiPAPs/) as HTMLInputElement;
     const submitButton = screen.getByRole("button", { name: "Save Shift Update" });
 
@@ -196,7 +199,7 @@ describe("ShiftUpdateClient submission flow", () => {
   });
 
   it("submits a listed lead through the existing staff attribution pathway", async () => {
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -209,14 +212,15 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.rpc).toHaveBeenCalledWith("save_shift_status_update", expect.any(Object));
+    expect(savedPayload()).toEqual(expect.objectContaining({
       updated_by_staff_profile_id: "lead-1",
       updated_by_name: "Lead RT"
     }));
   });
 
   it("requires a custom updater name for Not Listed and never persists the sentinel", async () => {
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -231,7 +235,7 @@ describe("ShiftUpdateClient submission flow", () => {
     const customName = screen.getByLabelText("Enter your name", { exact: true });
     expect(customName).toBeRequired();
     expect(screen.getByRole("button", { name: "Save Shift Update" })).toBeDisabled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
 
     fireEvent.change(customName, { target: { value: "Relief Lead" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
@@ -239,12 +243,12 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(savedPayload()).toEqual(expect.objectContaining({
       updated_by_staff_profile_id: null,
       updated_by_name: "Relief Lead"
     }));
-    expect(JSON.stringify(mocks.insert.mock.calls[0]?.[0])).not.toContain("Not Listed");
-    expect(JSON.stringify(mocks.insert.mock.calls[0]?.[0])).not.toContain("__not_listed__");
+    expect(JSON.stringify(savedPayload())).not.toContain("Not Listed");
+    expect(JSON.stringify(savedPayload())).not.toContain("__not_listed__");
   });
 
   it("hides and clears the custom updater when a listed lead is selected again", async () => {
@@ -261,21 +265,21 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.queryByLabelText("Enter your name", { exact: true })).not.toBeInTheDocument();
   });
 
-  it("reopens with persisted counts and requires a fresh RVU entry when one procedure changes", async () => {
+  it("reopens with persisted RVUs and preserves staffing when one procedure changes", async () => {
     mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
-      data: [shiftUpdate()],
+      data: [shiftUpdate({ rvu_total: 202.5 })],
       error: null,
       usedLegacyProcedureSelect: false
     });
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
 
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
-    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(null);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(202.5);
     expect(screen.getByText("Enter RVUs")).toBeInTheDocument();
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
@@ -289,17 +293,17 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("MRI");
 
     fireEvent.change(screen.getByLabelText(/C-Sections/), { target: { value: "9" } });
-    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
     fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledTimes(1);
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(savedPayload()).toEqual(expect.objectContaining({
       rts_on: 7,
       rts_required: 7.5,
+      rvu_total: "202.5",
       vent_count: 6,
       bipap_count: 4,
       c_section_count: 9,
@@ -320,7 +324,7 @@ describe("ShiftUpdateClient submission flow", () => {
       error: null,
       usedLegacyProcedureSelect: false
     });
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -335,7 +339,7 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(savedPayload()).toEqual(expect.objectContaining({
       shift_note: "Cover the north pod after 19:00."
     }));
   });
@@ -346,7 +350,7 @@ describe("ShiftUpdateClient submission flow", () => {
       error: null,
       usedLegacyProcedureSelect: false
     });
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -361,7 +365,7 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ shift_note: null }));
+    expect(savedPayload()).toEqual(expect.objectContaining({ shift_note: null }));
   });
 
   it("shows Night Shift at 16:52 Pacific even if a saved row has a stale Day Shift label", async () => {
@@ -387,7 +391,7 @@ describe("ShiftUpdateClient submission flow", () => {
   });
 
   it("shows and submits normally rounded RT need from decimal RVUs", async () => {
-    mocks.insert.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
 
     render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
@@ -413,9 +417,10 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+    expect(savedPayload()).toEqual(expect.objectContaining({
       rts_on: 8,
-      rts_required: 7
+      rts_required: 7,
+      rvu_total: "188.65"
     }));
     expect(JSON.parse(window.sessionStorage.getItem("whhs:last-submitted-shift-rvu") ?? "null")).toEqual(
       expect.objectContaining({ rtsNeeded: 7, rvuCount: 188.65 })
@@ -427,14 +432,14 @@ describe("ShiftUpdateClient submission flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
     fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
 
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Shift Update" })).toBeDisabled();
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("clears the editable values when the 16:00 reporting window begins without deleting history", async () => {
@@ -449,7 +454,7 @@ describe("ShiftUpdateClient submission flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Day-window note");
 
@@ -457,12 +462,12 @@ describe("ShiftUpdateClient submission flow", () => {
       await vi.advanceTimersByTimeAsync(1_050);
     });
 
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
     expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
     expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("");
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("clears evening values when the 04:00 reporting window begins", async () => {
@@ -484,14 +489,14 @@ describe("ShiftUpdateClient submission flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Evening-window note");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_050);
     });
 
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(null);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
   });
@@ -524,7 +529,7 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
+    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
     expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
   });

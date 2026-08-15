@@ -122,7 +122,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
   return [
     `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date)}`,
     "",
-    `RTs scheduled: ${formatShiftStatusNumber(update.rts_on)}`,
+    `RTs on shift: ${formatShiftStatusNumber(update.rts_on)}`,
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
     ...staffingLines,
     "",
@@ -881,7 +881,7 @@ export function DirectorShiftStatusClient({
 
           {latest && (
             <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <MetricCard icon={<Users size={22} />} label="Scheduled" value={formatShiftStatusNumber(latest.rts_on)} />
+              <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(latest.rts_on)} />
               <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
             </div>
           )}

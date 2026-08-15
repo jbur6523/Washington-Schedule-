@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LeadOperationalSummary } from "@/components/LeadOperationalSummary";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { rememberSessionRvu } from "@/lib/shift-status/session-rvu";
 
 const mocks = vi.hoisted(() => ({
   fetchReportingWindow: vi.fn(),
@@ -64,6 +63,7 @@ const currentUpdate: ShiftStatusUpdate = {
   shift_type: "day",
   rts_on: 8,
   rts_required: 9.5,
+  rvu_total: null,
   vent_count: 0,
   bipap_count: 3,
   c_section_count: 1,
@@ -112,14 +112,14 @@ describe("LeadOperationalSummary", () => {
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getAllByRole("heading").map((heading) => heading.textContent)).toEqual([
       "Staff Needed",
-      "Staff Scheduled",
+      "Staff On Shift",
       "Vent Count",
       "BiPAP Count",
       "Active Rentals",
       "Procedures"
     ]);
     expect(within(summary).getByLabelText("Staff Needed: 9.5")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Staff Scheduled: 8")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: 3")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
@@ -133,20 +133,12 @@ describe("LeadOperationalSummary", () => {
     }
   });
 
-  it("keeps staffing need primary and shows matching session RVUs as secondary text", async () => {
+  it("keeps staffing need primary and shows persisted RVUs as secondary text", async () => {
     mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{ ...currentUpdate, rts_required: 6.7 }],
+      data: [{ ...currentUpdate, rts_required: 6.7, rvu_total: 182 }],
       error: null,
       usedLegacyProcedureSelect: false
     });
-    rememberSessionRvu({
-      departmentId: "department-1",
-      shiftDate: currentUpdate.shift_date,
-      shiftType: currentUpdate.shift_type,
-      rtsNeeded: 6.7,
-      rvuCount: 182
-    });
-
     await renderLoadedSummary();
 
     const summary = screen.getByRole("region", { name: "Operational Summary" });
@@ -257,7 +249,7 @@ describe("LeadOperationalSummary", () => {
 
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff Needed: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Staff Scheduled: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: Unavailable")).toBeInTheDocument();
@@ -274,7 +266,7 @@ describe("LeadOperationalSummary", () => {
     });
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
-    expect(within(summary).getByLabelText("Staff Scheduled: 8")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
 
@@ -283,7 +275,7 @@ describe("LeadOperationalSummary", () => {
     });
 
     expect(within(summary).getByLabelText("Staff Needed: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Staff Scheduled: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
@@ -312,7 +304,7 @@ describe("LeadOperationalSummary", () => {
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff Needed: 7.0")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Staff Scheduled: 6")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: 6")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 5")).toBeInTheDocument();
     expect(within(summary).getByLabelText("BiPAP Count: 2")).toBeInTheDocument();
   });
