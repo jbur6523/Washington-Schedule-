@@ -264,7 +264,7 @@ describe("department announcement UI", () => {
     );
 
     const trigger = screen.getByRole("button", { name: /Announcement Board/ });
-    expect(trigger).toHaveClass("bg-white/95", "border-slate-200/80", "focus-visible:ring-2");
+    expect(trigger).toHaveClass("bg-white/95", "border-blue-900", "focus-visible:ring-2");
     expect(trigger).not.toHaveClass("bg-amber-50/90");
     expect(trigger).toHaveTextContent("Manage Announcement");
     expect(screen.getByTestId("lead-action-chevron")).toBeInTheDocument();

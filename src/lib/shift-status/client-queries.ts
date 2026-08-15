@@ -36,6 +36,7 @@ const shiftStatusSelect = [
 ].join(", ");
 
 const legacyShiftStatusSelect = baseShiftStatusColumns.join(", ");
+const canonicalShiftStatusSelect = `${shiftStatusSelect}, is_canonical`;
 
 export type ShiftStatusQueryError = {
   code?: string;
@@ -166,6 +167,69 @@ export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departme
   return {
     ...legacy,
     usedLegacyProcedureSelect: !legacy.error
+  };
+}
+
+export async function fetchLatestCanonicalShiftStatusUpdate(
+  supabase: SupabaseClient,
+  departmentId: string
+) {
+  const { data, error } = await supabase
+    .from("shift_status_updates")
+    .select(canonicalShiftStatusSelect)
+    .eq("department_id", departmentId)
+    .eq("is_canonical", true)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
+    error: error as ShiftStatusQueryError | null
+  };
+}
+
+export async function fetchLatestCanonicalVentStatusUpdate(
+  supabase: SupabaseClient,
+  departmentId: string
+) {
+  const { data, error } = await supabase
+    .from("shift_status_updates")
+    .select(canonicalShiftStatusSelect)
+    .eq("department_id", departmentId)
+    .eq("is_canonical", true)
+    .not("vent_count", "is", null)
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
+    error: error as ShiftStatusQueryError | null
+  };
+}
+
+export async function fetchShiftStatusUpdateForRecord(
+  supabase: SupabaseClient,
+  departmentId: string,
+  shiftDate: string,
+  shiftType: ShiftStatusUpdate["shift_type"]
+) {
+  const { data, error } = await supabase
+    .from("shift_status_updates")
+    .select(canonicalShiftStatusSelect)
+    .eq("department_id", departmentId)
+    .match({ shift_date: shiftDate, shift_type: shiftType })
+    .eq("is_canonical", true)
+    .maybeSingle();
+
+  return {
+    data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
+    error: error as ShiftStatusQueryError | null
   };
 }
 

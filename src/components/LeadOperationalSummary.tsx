@@ -21,7 +21,10 @@ import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { activeRentalStatuses } from "@/lib/rental-management/status";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { fetchReportingWindowShiftStatusUpdates } from "@/lib/shift-status/client-queries";
+import {
+  fetchLatestCanonicalShiftStatusUpdate,
+  fetchLatestCanonicalVentStatusUpdate
+} from "@/lib/shift-status/client-queries";
 import {
   procedureCounts,
   procedureTotal,
@@ -32,12 +35,6 @@ import {
   formatShiftStatusTime,
   updatedByName
 } from "@/lib/shift-status/utils";
-import {
-  latestReportingWindowUpdate,
-  reportingWindowEndDelay,
-  reportingWindowForInstant,
-  type ShiftUpdateReportingWindow
-} from "@/lib/shift-status/reporting-window";
 import { readSessionRvu, type SessionRvu } from "@/lib/shift-status/session-rvu";
 
 type SummaryMetricCardProps = {
@@ -305,11 +302,11 @@ export function LeadOperationalSummary({
   timezone: string;
 }) {
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
+  const [latestVentUpdate, setLatestVentUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [activeRentalCount, setActiveRentalCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [shiftError, setShiftError] = useState("");
   const [rentalError, setRentalError] = useState("");
-  const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
   const [proceduresOpen, setProceduresOpen] = useState(false);
   const [shiftNoteOpen, setShiftNoteOpen] = useState(false);
   const [sessionRvu, setSessionRvu] = useState<SessionRvu | null>(null);
@@ -326,12 +323,9 @@ export function LeadOperationalSummary({
       }
 
       const supabase = createClient();
-      const [shiftResult, rentalResult] = await Promise.all([
-        fetchReportingWindowShiftStatusUpdates(
-          supabase,
-          authContext.departmentId,
-          reportingWindow
-        ),
+      const [shiftResult, ventResult, rentalResult] = await Promise.all([
+        fetchLatestCanonicalShiftStatusUpdate(supabase, authContext.departmentId),
+        fetchLatestCanonicalVentStatusUpdate(supabase, authContext.departmentId),
         supabase
           .from("rental_records")
           .select("id", { count: "exact", head: true })
@@ -354,20 +348,16 @@ export function LeadOperationalSummary({
           console.error("Lead operational summary load failed", shiftResult.error);
         }
         setUpdates([]);
+        setLatestVentUpdate(null);
         setShiftError("Shift metrics unavailable.");
         return;
       }
 
-      if (shiftResult.usedLegacyProcedureSelect && process.env.NODE_ENV !== "production") {
-        console.warn(
-          "Lead operational summary loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count."
-        );
-      }
-
-      setUpdates(shiftResult.data);
-      setShiftError("");
+      setLatestVentUpdate(ventResult.error ? null : ventResult.data);
+      setUpdates(shiftResult.data ? [shiftResult.data] : []);
+      setShiftError(ventResult.error ? "Shift metrics unavailable." : "");
     },
-    [authContext.departmentId, reportingWindow]
+    [authContext.departmentId]
   );
 
   useEffect(() => {
@@ -413,20 +403,8 @@ export function LeadOperationalSummary({
     };
   }, [authContext.departmentId, loadSummary]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setUpdates([]);
-      setLoading(true);
-      setProceduresOpen(false);
-      setShiftNoteOpen(false);
-      setReportingWindow(reportingWindowForInstant(new Date()));
-    }, reportingWindowEndDelay(reportingWindow) + 25);
-
-    return () => window.clearTimeout(timer);
-  }, [reportingWindow]);
-
   const resolved = useMemo(() => {
-    const latest = latestReportingWindowUpdate(updates, reportingWindow);
+    const latest = updates[0] ?? null;
     const counts = procedureCounts(latest);
 
     return {
@@ -434,7 +412,7 @@ export function LeadOperationalSummary({
       counts,
       totalProcedures: latest ? procedureTotal(counts) : null
     };
-  }, [reportingWindow, updates]);
+  }, [updates]);
 
   const availabilityNotes = [shiftError, rentalError].filter(Boolean);
   const staffNeeded = resolved.latest
@@ -457,7 +435,7 @@ export function LeadOperationalSummary({
       ? `${formatShiftStatusNumber(sessionFallbackRvu)} RVUs`
       : undefined;
   const bipapCount = resolved.latest?.bipap_count ?? "—";
-  const ventCount = resolved.latest?.vent_count ?? "—";
+  const ventCount = latestVentUpdate?.vent_count ?? "—";
   const rentalCount = activeRentalCount ?? "—";
   const procedures = resolved.totalProcedures ?? "—";
   const shiftNote = resolved.latest?.shift_note?.trim() ?? "";

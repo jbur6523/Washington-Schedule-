@@ -7,12 +7,14 @@ import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Stethoscope, 
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { fetchReportingWindowShiftStatusUpdates } from "@/lib/shift-status/client-queries";
-import { currentShiftStatusWindow, shiftTypeLabel } from "@/lib/shift-status/utils";
+import { fetchShiftStatusUpdateForRecord } from "@/lib/shift-status/client-queries";
+import { shiftTypeLabel } from "@/lib/shift-status/utils";
 import {
-  latestReportingWindowUpdate,
+  defaultShiftRecordForInstant,
   reportingWindowEndDelay,
   reportingWindowForInstant,
+  shiftRecordOptionsForInstant,
+  type ShiftRecordSelection,
   type ShiftUpdateReportingWindow
 } from "@/lib/shift-status/reporting-window";
 import {
@@ -44,17 +46,18 @@ type ShiftUpdateForm = {
 
 const notListedLeadValue = "__not_listed__";
 
-function shiftUpdateFormForWindow(
+function shiftUpdateFormForSelection(
   update: ShiftStatusUpdate | null,
-  authContext: AuthenticatedUserContext,
-  timezone: string,
-  date = new Date()
+  selection: ShiftRecordSelection,
+  authContext: AuthenticatedUserContext
 ): ShiftUpdateForm {
-  const operationalShift = currentShiftStatusWindow(timezone, date);
+  const savedStaffProfileId = update?.updated_by_staff_profile_id ?? null;
+  const savedUpdaterName = update?.updated_by_name?.trim() ?? "";
+  const fallbackStaffProfileId = authContext.role === "lead" ? authContext.staffProfileId ?? "" : "";
 
   return {
-    shiftDate: operationalShift.shiftDate,
-    shiftType: operationalShift.shiftType,
+    shiftDate: selection.shiftDate,
+    shiftType: selection.shiftType,
     rtsOn: update ? String(update.rts_on) : "",
     rvuCount: update?.rvu_total === null || update?.rvu_total === undefined ? "" : String(update.rvu_total),
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
@@ -67,9 +70,13 @@ function shiftUpdateFormForWindow(
     otherProcedureCount: update ? String(update.other_procedure_count) : "0",
     otherProcedureNote: update?.other_procedure_note ?? "",
     shiftNote: update?.shift_note ?? "",
-    updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
-    updatedByName: ""
+    updatedByStaffProfileId: savedStaffProfileId ?? (savedUpdaterName ? notListedLeadValue : fallbackStaffProfileId),
+    updatedByName: savedStaffProfileId ? "" : savedUpdaterName
   };
+}
+
+function formSignature(form: ShiftUpdateForm) {
+  return JSON.stringify(form);
 }
 
 function withDefaultProcedureCounts(form: ShiftUpdateForm): ShiftUpdateForm {
@@ -218,11 +225,17 @@ export function ShiftUpdateClient({
   timezone: string;
 }) {
   const router = useRouter();
+  const initialSelection = useMemo(
+    () => defaultShiftRecordForInstant(new Date(), timezone),
+    [timezone]
+  );
   const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
+  const [selection, setSelection] = useState<ShiftRecordSelection>(initialSelection);
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShiftUpdateForm>(() =>
-    shiftUpdateFormForWindow(null, authContext, timezone)
+    shiftUpdateFormForSelection(null, initialSelection, authContext)
   );
+  const [loadingSelection, setLoadingSelection] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [message, setMessage] = useState("");
@@ -231,6 +244,8 @@ export function ShiftUpdateClient({
   const submissionInFlightRef = useRef(false);
   const redirectTimerRef = useRef<number | null>(null);
   const latestLoadRequestIdRef = useRef(0);
+  const [cleanFormSignature, setCleanFormSignature] = useState(() => formSignature(form));
+  const dirty = formSignature(form) !== cleanFormSignature;
 
   useEffect(
     () => () => {
@@ -259,16 +274,17 @@ export function ShiftUpdateClient({
     return () => window.clearTimeout(timer);
   }, [authContext.departmentId]);
 
-  const loadCurrentReportingUpdate = useCallback(async () => {
+  const loadSelectedShiftUpdate = useCallback(async () => {
     const requestId = latestLoadRequestIdRef.current + 1;
     latestLoadRequestIdRef.current = requestId;
+    setLoadingSelection(true);
     const supabase = createClient();
-    const { data, error: updatesError, usedLegacyProcedureSelect } =
-      await fetchReportingWindowShiftStatusUpdates(
-        supabase,
-        authContext.departmentId,
-        reportingWindow
-      );
+    const { data: selectedUpdate, error: updatesError } = await fetchShiftStatusUpdateForRecord(
+      supabase,
+      authContext.departmentId,
+      selection.shiftDate,
+      selection.shiftType
+    );
 
     if (requestId !== latestLoadRequestIdRef.current) {
       return;
@@ -276,50 +292,91 @@ export function ShiftUpdateClient({
 
     if (updatesError) {
       setLastKnownUpdate(null);
+      setLoadingSelection(false);
+      setError("The selected shift could not be loaded. Try again.");
       return;
     }
 
-    if (usedLegacyProcedureSelect && process.env.NODE_ENV !== "production") {
-      console.warn(
-        "Shift Update loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count."
-      );
-    }
-
-    const currentUpdate = latestReportingWindowUpdate(data, reportingWindow);
-    setLastKnownUpdate(currentUpdate);
-    setForm(shiftUpdateFormForWindow(currentUpdate, authContext, timezone));
+    const nextForm = shiftUpdateFormForSelection(selectedUpdate, selection, authContext);
+    setLastKnownUpdate(selectedUpdate);
+    setForm(nextForm);
+    setCleanFormSignature(formSignature(nextForm));
     setEditingRvus(true);
-  }, [authContext, reportingWindow, timezone]);
+    setLoadingSelection(false);
+    setError("");
+  }, [authContext, selection]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadCurrentReportingUpdate();
+      void loadSelectedShiftUpdate();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadCurrentReportingUpdate]);
+  }, [loadSelectedShiftUpdate]);
 
   useEffect(() => {
     const delay = reportingWindowEndDelay(reportingWindow);
     const timer = window.setTimeout(() => {
       const now = new Date();
       const nextWindow = reportingWindowForInstant(now);
-      latestLoadRequestIdRef.current += 1;
       setReportingWindow(nextWindow);
-      setLastKnownUpdate(null);
-      setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
-      setEditingRvus(true);
+      const nextSelection = defaultShiftRecordForInstant(now, timezone);
+
+      if (
+        dirty
+        && !window.confirm("A new Shift Update workspace is available. Discard unsaved changes and switch?")
+      ) {
+        setError("The new workspace is available. Your unsaved selected-shift values were kept.");
+        return;
+      }
+
+      setLoadingSelection(true);
+      setSelection(nextSelection);
       setMessage("");
       setError("");
     }, delay + 25);
 
     return () => window.clearTimeout(timer);
-  }, [authContext, reportingWindow, timezone]);
+  }, [dirty, reportingWindow, timezone]);
+
+  const selectShiftType = (shiftType: ShiftStatusShiftType) => {
+    const options = shiftRecordOptionsForInstant(new Date(), timezone);
+    const nextSelection = options[shiftType];
+
+    if (
+      nextSelection.shiftDate === selection.shiftDate
+      && nextSelection.shiftType === selection.shiftType
+    ) {
+      return;
+    }
+
+    if (dirty && !window.confirm("Discard unsaved changes and open the other shift?")) {
+      return;
+    }
+
+    setLoadingSelection(true);
+    setSelection(nextSelection);
+    setMessage("");
+    setError("");
+  };
 
   const selectedStaff = useMemo(
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
     [form.updatedByStaffProfileId, staffOptions]
   );
+
+  useEffect(() => {
+    if (!dirty) {
+      return undefined;
+    }
+
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [dirty]);
   const isNotListedLead = form.updatedByStaffProfileId === notListedLeadValue;
   const manualUpdatedByName = isNotListedLead && isValidManualUpdater(form.updatedByName)
     ? form.updatedByName.trim()
@@ -332,7 +389,8 @@ export function ShiftUpdateClient({
       form.rtsOn !== "" &&
       calculatedRtsNeeded !== null &&
       form.bipapCount !== "" &&
-      updatedByName
+      updatedByName &&
+      !loadingSelection
   );
 
   const saveShiftUpdate = async (event: FormEvent<HTMLFormElement>) => {
@@ -342,16 +400,9 @@ export function ShiftUpdateClient({
       return;
     }
 
-    const activeWindow = reportingWindowForInstant();
-    if (activeWindow.id !== reportingWindow.id) {
-      const now = new Date();
-      latestLoadRequestIdRef.current += 1;
-      setReportingWindow(activeWindow);
-      setLastKnownUpdate(null);
-      setForm(shiftUpdateFormForWindow(null, authContext, timezone, now));
-      setEditingRvus(true);
-      setMessage("");
-      setError("A new reporting window has started. Enter the new cycle's values before saving.");
+    const editableRecords = shiftRecordOptionsForInstant(new Date(), timezone);
+    if (editableRecords[form.shiftType].shiftDate !== form.shiftDate) {
+      setError("This shift is no longer editable from the current workspace. Reopen the applicable Day or Night shift.");
       return;
     }
 
@@ -388,8 +439,8 @@ export function ShiftUpdateClient({
       bronch_count: shiftStatusNumberValue(normalizedForm.bronchCount),
       sputum_induction_count: shiftStatusNumberValue(normalizedForm.sputumInductionCount),
       other_procedure_count: shiftStatusNumberValue(normalizedForm.otherProcedureCount),
-      other_procedure_note: normalizedForm.otherProcedureNote.trim() || null,
-      shift_note: normalizedForm.shiftNote.trim() || null,
+      other_procedure_note: form.otherProcedureNote.trim() || null,
+      shift_note: form.shiftNote.trim() || null,
       updated_by_staff_profile_id: selectedStaff?.id ?? null,
       updated_by_name: updatedByName
     };
@@ -410,6 +461,7 @@ export function ShiftUpdateClient({
         return;
       }
 
+      setCleanFormSignature(formSignature(normalizedForm));
       rememberSessionRvu({
         departmentId: authContext.departmentId,
         shiftDate: form.shiftDate,
@@ -443,6 +495,11 @@ export function ShiftUpdateClient({
           </p>
           <Link
             href="/command-center"
+            onClick={(event) => {
+              if (dirty && !window.confirm("Discard unsaved Shift Update changes and return to the Command Center?")) {
+                event.preventDefault();
+              }
+            }}
             className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
           >
             Back to Command Center
@@ -453,7 +510,7 @@ export function ShiftUpdateClient({
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Shift</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
-              Current reporting window · resets at 04:00 and 16:00 local time
+              Select the clinical shift record to update. Workspace defaults change at 04:00 and 16:00.
             </p>
             <div className={twoColumnGridClass}>
               <label className="block">
@@ -465,18 +522,28 @@ export function ShiftUpdateClient({
                   className={`${controlClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600`}
                 />
               </label>
-              <label className="block">
-                <span className={labelClass}>Shift</span>
-                <select
-                  value={form.shiftType}
-                  disabled
-                  className={`${controlClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600`}
-                >
-                  <option value="day">{shiftTypeLabel("day")}</option>
-                  <option value="night">{shiftTypeLabel("night")}</option>
-                </select>
-              </label>
+              <fieldset disabled={loadingSelection || saving}>
+                <legend className={labelClass}>Shift</legend>
+                <div className="mt-1 grid grid-cols-2 gap-2">
+                  {(["day", "night"] as const).map((shiftType) => (
+                    <button
+                      key={shiftType}
+                      type="button"
+                      aria-pressed={form.shiftType === shiftType}
+                      onClick={() => selectShiftType(shiftType)}
+                      className={`min-h-11 rounded-2xl border px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
+                        form.shiftType === shiftType
+                          ? "border-cyan-700 bg-cyan-700 text-white"
+                          : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                    >
+                      {shiftTypeLabel(shiftType)}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
             </div>
+            {loadingSelection && <p className="mt-3 text-xs font-bold text-cyan-700">Loading selected shift…</p>}
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">

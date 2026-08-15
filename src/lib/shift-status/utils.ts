@@ -3,7 +3,7 @@ import type {
   ShiftStatusShiftType,
   ShiftStatusUpdate
 } from "@/lib/shift-status/types";
-import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
+import { defaultShiftRecordForInstant } from "@/lib/shift-status/reporting-window";
 
 export function todayInTimezone(timezone = "America/Los_Angeles") {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -24,11 +24,9 @@ export function currentShiftType(timezone = "America/Los_Angeles", date = new Da
 }
 
 export function currentShiftStatusWindow(timezone = "America/Los_Angeles", date = new Date()) {
-  const reportingWindow = reportingWindowForInstant(date, timezone);
-
-  return {
-    shiftDate: reportingWindow.localStartDate,
-    shiftType: (reportingWindow.cycle === "morning" ? "day" : "night") as ShiftStatusShiftType
+  return defaultShiftRecordForInstant(date, timezone) as {
+    shiftDate: string;
+    shiftType: ShiftStatusShiftType;
   };
 }
 

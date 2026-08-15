@@ -5,13 +5,15 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
-  fetchReportingWindow: vi.fn(),
+  fetchLatestCanonical: vi.fn(),
+  fetchLatestVent: vi.fn(),
   rentalCount: 0 as number | null,
   rentalError: null as { message: string } | null
 }));
 
 vi.mock("@/lib/shift-status/client-queries", () => ({
-  fetchReportingWindowShiftStatusUpdates: mocks.fetchReportingWindow
+  fetchLatestCanonicalShiftStatusUpdate: mocks.fetchLatestCanonical,
+  fetchLatestCanonicalVentStatusUpdate: mocks.fetchLatestVent
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
@@ -84,12 +86,10 @@ describe("LeadOperationalSummary", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-09T16:00:00.000Z"));
-    mocks.fetchReportingWindow.mockReset();
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [currentUpdate],
-      error: null,
-      usedLegacyProcedureSelect: false
-    });
+    mocks.fetchLatestCanonical.mockReset();
+    mocks.fetchLatestCanonical.mockResolvedValue({ data: currentUpdate, error: null });
+    mocks.fetchLatestVent.mockReset();
+    mocks.fetchLatestVent.mockResolvedValue({ data: currentUpdate, error: null });
     mocks.rentalCount = 2;
     mocks.rentalError = null;
     window.sessionStorage.clear();
@@ -151,10 +151,9 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("keeps staffing need primary and shows persisted RVUs beside the label", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{ ...currentUpdate, rts_required: 6.7, rvu_total: 182 }],
-      error: null,
-      usedLegacyProcedureSelect: false
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: { ...currentUpdate, rts_required: 6.7, rvu_total: 182 },
+      error: null
     });
     await renderLoadedSummary();
 
@@ -181,10 +180,9 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("shows the current shift note on Staff Needed and opens the read-only modal", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{ ...currentUpdate, shift_note: "Move one RT to the north pod after 19:00.\nConfirm at huddle." }],
-      error: null,
-      usedLegacyProcedureSelect: false
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: { ...currentUpdate, shift_note: "Move one RT to the north pod after 19:00.\nConfirm at huddle." },
+      error: null
     });
 
     await renderLoadedSummary();
@@ -200,11 +198,7 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("hides View Shift Note when the current update has no nonblank note", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{ ...currentUpdate, shift_note: "   " }],
-      error: null,
-      usedLegacyProcedureSelect: false
-    });
+    mocks.fetchLatestCanonical.mockResolvedValue({ data: { ...currentUpdate, shift_note: "   " }, error: null });
 
     await renderLoadedSummary();
 
@@ -212,8 +206,8 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("hides View Procedures when all counts are zero and Other Procedures is blank", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: {
         ...currentUpdate,
         c_section_count: 0,
         vaginal_delivery_count: 0,
@@ -222,9 +216,8 @@ describe("LeadOperationalSummary", () => {
         sputum_induction_count: 0,
         other_procedure_count: 0,
         other_procedure_note: ""
-      }],
-      error: null,
-      usedLegacyProcedureSelect: false
+      },
+      error: null
     });
 
     await renderLoadedSummary();
@@ -234,8 +227,8 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("shows View Procedures when Other Procedures has text despite zero counts", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: {
         ...currentUpdate,
         c_section_count: 0,
         vaginal_delivery_count: 0,
@@ -244,9 +237,8 @@ describe("LeadOperationalSummary", () => {
         sputum_induction_count: 0,
         other_procedure_count: 0,
         other_procedure_note: "Transport coverage"
-      }],
-      error: null,
-      usedLegacyProcedureSelect: false
+      },
+      error: null
     });
 
     await renderLoadedSummary();
@@ -255,11 +247,7 @@ describe("LeadOperationalSummary", () => {
   });
 
   it("keeps the independent rental count visible when reporting-window metrics are unavailable", async () => {
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [],
-      error: { message: "shift query failed" },
-      usedLegacyProcedureSelect: false
-    });
+    mocks.fetchLatestCanonical.mockResolvedValue({ data: null, error: { message: "shift query failed" } });
     mocks.rentalCount = 0;
 
     await renderLoadedSummary();
@@ -274,13 +262,9 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByText("Some operational metrics are currently unavailable.")).toBeInTheDocument();
   });
 
-  it("clears prior-window metrics at 16:00 instead of falling back", async () => {
+  it("keeps the latest submitted metrics visible across the 16:00 workspace boundary", async () => {
     vi.setSystemTime(new Date("2026-08-09T22:59:59.000Z"));
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{ ...currentUpdate, shift_note: "Day-window note" }],
-      error: null,
-      usedLegacyProcedureSelect: false
-    });
+    mocks.fetchLatestCanonical.mockResolvedValue({ data: { ...currentUpdate, shift_note: "Day-window note" }, error: null });
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
@@ -291,19 +275,36 @@ describe("LeadOperationalSummary", () => {
       await vi.advanceTimersByTimeAsync(1_050);
     });
 
-    expect(within(summary).getByLabelText("Staff Needed: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Staff On Shift: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Vent Count: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
-    expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff Needed: 9.5")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("BiPAP Count: 3")).toBeInTheDocument();
+    expect(within(summary).getByLabelText("Procedures: 5")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View Shift Note" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
+  });
+
+  it("uses the latest non-null submitted Vent value without changing the record behind other controls", async () => {
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: { ...currentUpdate, id: "new-staffing", vent_count: null, shift_note: "Newest note" },
+      error: null
+    });
+    mocks.fetchLatestVent.mockResolvedValue({
+      data: { ...currentUpdate, id: "older-vent", vent_count: 4, shift_note: "Older note" },
+      error: null
+    });
+
+    await renderLoadedSummary();
+
+    expect(screen.getByLabelText("Vent Count: 4")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
+    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent("Newest note");
   });
 
   it("shows the evening window's submitted values after the 17:00 update", async () => {
     vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
-    mocks.fetchReportingWindow.mockResolvedValue({
-      data: [{
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: {
         ...currentUpdate,
         id: "evening-update",
         rts_on: 6,
@@ -313,9 +314,12 @@ describe("LeadOperationalSummary", () => {
         c_section_count: 3,
         created_at: "2026-08-10T00:00:00.000Z",
         updated_at: "2026-08-10T00:00:00.000Z"
-      }],
-      error: null,
-      usedLegacyProcedureSelect: false
+      },
+      error: null
+    });
+    mocks.fetchLatestVent.mockResolvedValue({
+      data: { ...currentUpdate, id: "evening-vent", vent_count: 5 },
+      error: null
     });
 
     await renderLoadedSummary();

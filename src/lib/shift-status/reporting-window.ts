@@ -19,10 +19,68 @@ function isoDate(year: number, month: number, day: number) {
   ].join("-");
 }
 
-function addIsoDays(dateValue: string, days: number) {
+export function addIsoDays(dateValue: string, days: number) {
   const [year, month, day] = dateValue.split("-").map(Number);
   const shifted = new Date(Date.UTC(year, month - 1, day + days));
   return isoDate(shifted.getUTCFullYear(), shifted.getUTCMonth() + 1, shifted.getUTCDate());
+}
+
+export type ShiftRecordSelection = {
+  shiftDate: string;
+  shiftType: "day" | "night";
+};
+
+export type ShiftRecordOptions = {
+  day: ShiftRecordSelection;
+  night: ShiftRecordSelection;
+  defaultShiftType: ShiftRecordSelection["shiftType"];
+};
+
+export function shiftRecordOptionsForInstant(
+  date = new Date(),
+  timezone = SHIFT_UPDATE_REPORTING_TIMEZONE
+): ShiftRecordOptions {
+  const parts = timeZoneParts(date, timezone);
+  const localDate = isoDate(parts.year, parts.month, parts.day);
+  const priorDate = addIsoDays(localDate, -1);
+
+  return {
+    day: {
+      shiftDate: parts.hour < 4 ? priorDate : localDate,
+      shiftType: "day"
+    },
+    night: {
+      shiftDate: parts.hour < 16 ? priorDate : localDate,
+      shiftType: "night"
+    },
+    defaultShiftType: parts.hour >= 4 && parts.hour < 16 ? "day" : "night"
+  };
+}
+
+export function defaultShiftRecordForInstant(
+  date = new Date(),
+  timezone = SHIFT_UPDATE_REPORTING_TIMEZONE
+) {
+  const options = shiftRecordOptionsForInstant(date, timezone);
+  return options[options.defaultShiftType];
+}
+
+export function clinicalShiftStart(
+  selection: ShiftRecordSelection,
+  timezone = SHIFT_UPDATE_REPORTING_TIMEZONE
+) {
+  const localTime = selection.shiftType === "day" ? "06:30" : "18:30";
+  const value = wallTimeToIso(selection.shiftDate, localTime, timezone);
+
+  if (!value) {
+    throw new Error(`Unable to resolve clinical shift start for ${selection.shiftDate}.`);
+  }
+
+  return value;
+}
+
+export function clinicalShiftTimeLabel(shiftType: ShiftRecordSelection["shiftType"]) {
+  return shiftType === "day" ? "6:30 AM–6:30 PM" : "6:30 PM–6:30 AM";
 }
 
 export function reportingWindowForInstant(

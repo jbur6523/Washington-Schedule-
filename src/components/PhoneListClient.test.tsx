@@ -5,7 +5,14 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
-  tableResults: new Map<string, { data: unknown; error: unknown }>()
+  tableResults: new Map<string, { data: unknown; error: unknown }>(),
+  push: vi.fn(),
+  replace: vi.fn(),
+  refresh: vi.fn()
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mocks.push, replace: mocks.replace, refresh: mocks.refresh })
 }));
 
 function queryBuilder(result: { data: unknown; error: unknown }) {
@@ -49,6 +56,9 @@ describe("PhoneListClient", () => {
     vi.setSystemTime(new Date("2026-07-27T15:00:00-07:00"));
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: "draft-1", error: null });
+    mocks.push.mockReset();
+    mocks.replace.mockReset();
+    mocks.refresh.mockReset();
     mocks.tableResults.clear();
     mocks.tableResults.set("departments", {
       data: { active_schedule_version_id: "version-1" },
@@ -111,7 +121,7 @@ describe("PhoneListClient", () => {
     const firstRow = screen.getByTestId("assignment-row-main_lead_therapist");
     const firstFields = screen.getByTestId("assignment-fields-main_lead_therapist");
     const assignmentRows = screen.getAllByTestId(/^assignment-row-/);
-    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+    const printButton = screen.getByRole("button", { name: "Print Sheet" });
 
     expect(assignmentRows).toHaveLength(31);
     expect(staffInput).toHaveAttribute("placeholder", "Roster # or staff name");
@@ -133,28 +143,26 @@ describe("PhoneListClient", () => {
     ).toBeTruthy();
   });
 
-  it("prints current unsaved values and preserves Save Draft behavior", async () => {
+  it("atomically captures current values before printing and returns to the board", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
 
     const staffInput = await screen.findByTestId("staff-name-main_lead_therapist");
     const phoneInput = screen.getByTestId("phone-number-main_lead_therapist");
-    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+    const printButton = screen.getByRole("button", { name: "Print Sheet" });
     await waitFor(() => expect(printButton).not.toBeDisabled());
 
     fireEvent.change(staffInput, { target: { value: "Unsubmitted Therapist" } });
     fireEvent.change(phoneInput, { target: { value: "6404" } });
     fireEvent.click(printButton);
 
-    expect(print).toHaveBeenCalledOnce();
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    await waitFor(() => expect(print).toHaveBeenCalledOnce());
+    expect(mocks.rpc).toHaveBeenCalledWith("capture_phone_list_roster", expect.any(Object));
+    expect(mocks.replace).toHaveBeenCalledWith("/command-center");
 
     const printLayout = screen.getByTestId("phone-list-print-layout");
     expect(within(printLayout).getByText("Unsubmitted Therapist")).toBeInTheDocument();
     expect(within(printLayout).getByText("6404")).toBeInTheDocument();
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Save Draft" })[0]);
-    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
 
     const rpcArguments = mocks.rpc.mock.calls[0][1];
     const savedAssignments = rpcArguments.p_assignments as Array<{
@@ -174,14 +182,26 @@ describe("PhoneListClient", () => {
     });
     render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
 
-    const printButton = screen.getByRole("button", { name: "Print Phone List" });
+    const printButton = screen.getByRole("button", { name: "Print Sheet" });
     await waitFor(() => expect(printButton).not.toBeDisabled());
     fireEvent.click(printButton);
 
-    expect(
-      screen.getByText("Printing is not available in this browser. Your phone list has not changed.")
-    ).toBeInTheDocument();
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(await screen.findByText("Printing is not available in this browser. The phone list and roster snapshot were saved.")).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("capture_phone_list_roster", expect.any(Object));
+  });
+
+  it("blocks printing and navigation when roster capture fails", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "denied" } });
+    render(<PhoneListClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    const printButton = screen.getByRole("button", { name: "Print Sheet" });
+    await waitFor(() => expect(printButton).not.toBeDisabled());
+    fireEvent.click(printButton);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("retry Print Sheet");
+    expect(print).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 
   it("stores the profile reference for an autocomplete selection and allows manual names", async () => {

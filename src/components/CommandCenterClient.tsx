@@ -10,6 +10,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { RtAideNotesModal } from "@/components/RtAideNotesModal";
 import { LeadOperationalSummary } from "@/components/LeadOperationalSummary";
+import { CommandCenterTabs } from "@/components/CommandCenterTabs";
 
 type CommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
@@ -45,6 +46,7 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
           <h1 className="mt-1 text-3xl font-black leading-tight text-hospital-ink lg:text-4xl">Lead Command Board</h1>
           <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">Lead shift operations</p>
+          <CommandCenterTabs />
         </header>
 
         <LeadOperationalSummary authContext={authContext} timezone={timezone} />

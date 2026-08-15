@@ -5,6 +5,7 @@ export type ShiftStatusUpdate = {
   department_id: string;
   shift_date: string;
   shift_type: ShiftStatusShiftType;
+  is_canonical?: boolean;
   rts_on: number;
   rts_required: number;
   rvu_total: number | null;

@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ChangeEvent,
   type KeyboardEvent
 } from "react";
 import { ArrowLeft, Check, LoaderCircle, Phone, Printer, Save, Users } from "lucide-react";
@@ -34,7 +33,13 @@ import {
   selectStaffForAssignment,
   updatePhoneForAssignment
 } from "@/lib/phone-list/utils";
-import { currentShiftStatusWindow } from "@/lib/shift-status/utils";
+import {
+  defaultShiftRecordForInstant,
+  reportingWindowEndDelay,
+  reportingWindowForInstant,
+  shiftRecordOptionsForInstant,
+  type ShiftUpdateReportingWindow
+} from "@/lib/shift-status/reporting-window";
 import { createClient } from "@/lib/supabase/client";
 
 type PhoneListClientProps = {
@@ -108,9 +113,11 @@ function Roster({
 }
 
 export function PhoneListClient({ authContext, timezone }: PhoneListClientProps) {
-  const initialWindow = useMemo(() => currentShiftStatusWindow(timezone), [timezone]);
+  const router = useRouter();
+  const initialWindow = useMemo(() => defaultShiftRecordForInstant(new Date(), timezone), [timezone]);
   const [scheduleDate, setScheduleDate] = useState(initialWindow.shiftDate);
   const [shiftType, setShiftType] = useState<PhoneListShiftType>(initialWindow.shiftType);
+  const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant(new Date(), timezone));
   const [directory, setDirectory] = useState<PhoneListDirectoryStaff[]>([]);
   const [roster, setRoster] = useState<PhoneListRosterMember[]>([]);
   const [assignments, setAssignments] = useState<PhoneListAssignment[]>(emptyPhoneListAssignments);
@@ -263,7 +270,9 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
     setSaveError("");
   };
 
-  const changeSelection = (nextDate: string, nextShift: PhoneListShiftType) => {
+  const changeSelection = (nextShift: PhoneListShiftType) => {
+    const next = shiftRecordOptionsForInstant(new Date(), timezone)[nextShift];
+    const nextDate = next.shiftDate;
     if (!nextDate || (nextDate === scheduleDate && nextShift === shiftType)) {
       return;
     }
@@ -329,9 +338,9 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
     }
   };
 
-  const saveDraft = async () => {
+  const saveDraft = useCallback(async () => {
     if (saveInFlightRef.current) {
-      return;
+      return false;
     }
 
     saveInFlightRef.current = true;
@@ -364,16 +373,75 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
       setSaveState("error");
       setSaveError(saveErrorMessage(error.code));
       saveInFlightRef.current = false;
-      return;
+      return false;
     }
 
     setDraftUpdatedAt(new Date().toISOString());
     setSaveState("saved");
     saveInFlightRef.current = false;
-  };
+    return true;
+  }, [assignments, authContext.departmentId, scheduleDate, shiftType]);
 
-  const printPhoneList = () => {
+  useEffect(() => {
+    if (saveState !== "dirty") {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      void saveDraft();
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [saveDraft, saveState]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (saveState === "dirty" && !(await saveDraft())) {
+          setSaveError("The new phone-list workspace is ready, but these unsaved entries could not be saved. Retry before switching shifts.");
+          return;
+        }
+
+        const nextWindow = reportingWindowForInstant(new Date(), timezone);
+        const next = defaultShiftRecordForInstant(new Date(), timezone);
+        setReportingWindow(nextWindow);
+        setScheduleDate(next.shiftDate);
+        setShiftType(next.shiftType);
+      })();
+    }, reportingWindowEndDelay(reportingWindow) + 25);
+
+    return () => window.clearTimeout(timer);
+  }, [reportingWindow, saveDraft, saveState, timezone]);
+
+  const printPhoneList = async () => {
     setPrintError("");
+    setSaveError("");
+    setSaveState("saving");
+
+    const supabase = createClient();
+    const { error } = await supabase.rpc("capture_phone_list_roster", {
+      p_department_id: authContext.departmentId,
+      p_schedule_date: scheduleDate,
+      p_shift_type: shiftType,
+      p_assignments: assignments.map((assignment) => ({
+        row_key: assignment.rowKey,
+        selected_staff_profile_id: assignment.staffProfileId,
+        staff_name_snapshot: assignment.staffNameSnapshot || null,
+        phone_number: assignment.phoneNumber || null
+      }))
+    });
+
+    if (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Phone List roster capture failed", error);
+      }
+      setSaveState("error");
+      setPrintError(`${saveErrorMessage(error.code)} The roster was not captured; retry Print Sheet.`);
+      return;
+    }
+
+    setDraftUpdatedAt(new Date().toISOString());
+    setSaveState("saved");
 
     try {
       if (typeof window.print !== "function") {
@@ -381,9 +449,18 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
       }
 
       window.print();
+      router.replace("/command-center");
+      router.refresh();
     } catch {
-      setPrintError("Printing is not available in this browser. Your phone list has not changed.");
+      setPrintError("Printing is not available in this browser. The phone list and roster snapshot were saved.");
     }
+  };
+
+  const returnToCommandBoard = async () => {
+    if (saveState === "dirty" && !(await saveDraft())) {
+      return;
+    }
+    router.push("/command-center");
   };
 
   const saveLabel =
@@ -400,13 +477,14 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
       <div className={printStyles.screen}>
         <div className="mx-auto max-w-7xl space-y-4">
         <header className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <Link
-            href="/command-center"
+          <button
+            type="button"
+            onClick={() => void returnToCommandBoard()}
             className="inline-flex min-h-10 items-center gap-2 rounded-xl text-sm font-extrabold text-cyan-800"
           >
             <ArrowLeft size={18} />
             Lead Command Board
-          </Link>
+          </button>
           <div className="mt-3 flex items-start gap-3">
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-cyan-50 text-cyan-700">
               <Phone size={24} />
@@ -428,11 +506,8 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
               <input
                 type="date"
                 value={scheduleDate}
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                  changeSelection(event.target.value, shiftType)
-                }
                 className={`mt-1 ${controlClass}`}
-                disabled={loading || saveState === "saving"}
+                disabled
               />
             </label>
 
@@ -444,7 +519,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
                     key={option}
                     type="button"
                     aria-pressed={shiftType === option}
-                    onClick={() => changeSelection(scheduleDate, option)}
+                    onClick={() => changeSelection(option)}
                     disabled={loading || saveState === "saving"}
                     className={`min-h-11 rounded-2xl border px-3 text-sm font-black transition ${
                       shiftType === option
@@ -602,12 +677,12 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
 
             <button
               type="button"
-              onClick={printPhoneList}
-              disabled={loading || Boolean(loadError)}
+              onClick={() => void printPhoneList()}
+              disabled={loading || saveState === "saving" || Boolean(loadError)}
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Printer size={18} />
-              Print Phone List
+              Print Sheet
             </button>
           </section>
 

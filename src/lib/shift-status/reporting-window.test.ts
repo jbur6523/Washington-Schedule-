@@ -3,8 +3,12 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
+  clinicalShiftStart,
+  defaultShiftRecordForInstant,
   latestReportingWindowUpdate,
-  reportingWindowForInstant
+  reportingWindowEndDelay,
+  reportingWindowForInstant,
+  shiftRecordOptionsForInstant
 } from "@/lib/shift-status/reporting-window";
 
 function update(id: string, createdAt: string): ShiftStatusUpdate {
@@ -34,6 +38,37 @@ function update(id: string, createdAt: string): ShiftStatusUpdate {
 }
 
 describe("Shift Update reporting windows", () => {
+  it.each([
+    ["2026-08-16T12:00:00.000Z", "2026-08-16", "day", "2026-08-15", "night"],
+    ["2026-08-15T23:48:00.000Z", "2026-08-15", "night", "2026-08-15", "day"],
+    ["2026-08-16T09:00:00.000Z", "2026-08-15", "night", "2026-08-15", "day"]
+  ] as const)(
+    "maps editable records at %s without duplicating date logic",
+    (instant, defaultDate, defaultShift, alternateDate, alternateShift) => {
+      const options = shiftRecordOptionsForInstant(new Date(instant));
+      const selectedDefault = defaultShiftRecordForInstant(new Date(instant));
+
+      expect(selectedDefault).toEqual({ shiftDate: defaultDate, shiftType: defaultShift });
+      expect(options[alternateShift]).toEqual({ shiftDate: alternateDate, shiftType: alternateShift });
+    }
+  );
+
+  it("uses clinical 06:30 and 18:30 starts independently from workspace boundaries", () => {
+    expect(clinicalShiftStart({ shiftDate: "2026-08-15", shiftType: "day" })).toBe(
+      "2026-08-15T13:30:00.000Z"
+    );
+    expect(clinicalShiftStart({ shiftDate: "2026-08-15", shiftType: "night" })).toBe(
+      "2026-08-16T01:30:00.000Z"
+    );
+  });
+
+  it("schedules the next workspace transition at the exact reporting boundary", () => {
+    const beforeEvening = new Date("2026-08-08T22:59:59.000Z");
+    const beforeMorning = new Date("2026-08-09T10:59:59.000Z");
+    expect(reportingWindowEndDelay(reportingWindowForInstant(beforeEvening), beforeEvening)).toBe(1_000);
+    expect(reportingWindowEndDelay(reportingWindowForInstant(beforeMorning), beforeMorning)).toBe(1_000);
+  });
+
   it.each([
     ["2026-01-15T12:00:00.000Z", "2026-01-15T12:00:00.000Z", "2026-01-16T00:00:00.000Z", "morning"],
     ["2026-01-15T23:59:59.999Z", "2026-01-15T12:00:00.000Z", "2026-01-16T00:00:00.000Z", "morning"],
