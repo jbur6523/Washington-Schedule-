@@ -150,7 +150,7 @@ describe("LeadOperationalSummary", () => {
     }
   });
 
-  it("keeps staffing need primary and shows persisted RVUs as secondary text", async () => {
+  it("keeps staffing need primary and shows persisted RVUs beside the label", async () => {
     mocks.fetchReportingWindow.mockResolvedValue({
       data: [{ ...currentUpdate, rts_required: 6.7, rvu_total: 182 }],
       error: null,
@@ -161,7 +161,7 @@ describe("LeadOperationalSummary", () => {
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     const staffNeeded = within(summary).getByLabelText("Staff Needed: 6.7");
     expect(staffNeeded).toHaveTextContent("6.7");
-    expect(staffNeeded.parentElement).toHaveTextContent("182 RVUs");
+    expect(within(summary).getByRole("heading", { name: "Staff Needed · 182 RVUs" })).toBeInTheDocument();
   });
 
   it("opens the compact procedure details modal without expanding the summary card", async () => {

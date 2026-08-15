@@ -61,6 +61,7 @@ function SummaryMetricCard({ icon, label, value, iconClass, helperText, children
       <div className="min-w-0 flex-1">
         <h2 className="text-[10px] font-extrabold uppercase leading-4 tracking-wide text-slate-500">
           {label}
+          {helperText && ` · ${helperText}`}
         </h2>
         <p
           data-testid="operational-summary-value"
@@ -69,9 +70,6 @@ function SummaryMetricCard({ icon, label, value, iconClass, helperText, children
         >
           {value}
         </p>
-        {helperText && (
-          <p className="mt-1 text-[11px] font-bold leading-none text-slate-500">{helperText}</p>
-        )}
       </div>
       {children && <div className="w-full min-[640px]:ml-auto min-[640px]:w-auto">{children}</div>}
     </article>
