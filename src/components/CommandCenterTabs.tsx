@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const tabs = [
   { href: "/command-center", label: "Live Board" },
+  { href: "/command-center/schedule", label: "Schedule" },
   { href: "/command-center/history", label: "History" }
 ] as const;
 
@@ -12,7 +13,7 @@ export function CommandCenterTabs() {
   const pathname = usePathname() ?? "";
 
   return (
-    <nav aria-label="Lead Command Board views" className="mx-auto mt-3 grid w-full max-w-xs grid-cols-2 rounded-2xl border border-slate-300 bg-slate-100 p-1">
+    <nav aria-label="Lead Command Board views" className="mx-auto mt-3 grid w-full max-w-md grid-cols-3 rounded-2xl border border-slate-300 bg-slate-100 p-1">
       {tabs.map((tab) => {
         const selected = tab.href === "/command-center"
           ? pathname === tab.href
