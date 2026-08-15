@@ -1,0 +1,30 @@
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const migrationPath = path.join(
+  process.cwd(),
+  "supabase/migrations/202608140002_lead_communication_read_state.sql"
+);
+
+describe("Lead Communication read-state migration", () => {
+  it("keeps leadership replies independent from shared read state", () => {
+    const migration = fs.readFileSync(migrationPath, "utf8");
+
+    expect(migration).toContain("create or replace function public.reply_to_lead_communication_note");
+    expect(migration).toContain("follow_up_text = reply_text");
+    expect(migration).toContain("and note.status <> 'closed'");
+    expect(migration).not.toContain("status = 'reviewed'");
+    expect(migration).not.toContain("reviewed_at =");
+    expect(migration).not.toContain("reviewed_by_staff_profile_id =");
+    expect(migration).not.toContain("reviewed_by_name =");
+  });
+
+  it("does not add or alter Lead Communication table columns", () => {
+    const migration = fs.readFileSync(migrationPath, "utf8").toLowerCase();
+
+    expect(migration).not.toContain("alter table");
+    expect(migration).not.toContain("create table");
+    expect(migration).not.toContain("drop table");
+  });
+});

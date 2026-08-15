@@ -192,8 +192,10 @@ The Lead Command Board dashboard includes `Lead Communication Board` for lightwe
 - Admin, Lead, Command Center, Director, and ICU Command Center users can create notes. Staff and Aide users are denied unless they also have an allowed role.
 - Note creation requires text, Normal/Urgent priority, and `Added by` attribution. Lead Command Board uses active Lead/Admin names with a manual fallback; Director and ICU contexts default to the current display name with a manual fallback.
 - Lead Command Board shows a badge for all notes with `status = new`. The badge count is not limited to the first page of visible notes.
-- Only Lead/Admin users can `Mark Reviewed`. Reviewing stores reviewed date/time and reviewer display name, changes status to Reviewed, and reduces the new-note badge count.
-- Lead/Admin users can optionally expand `+ Add Note` to add one follow-up note. This also marks the note reviewed if it was still New.
+- Opening the board as a Lead/Admin acknowledges all unread notes that existed when the board was opened and refreshes the badge. Notes created after that entry remain unread until the next board entry.
+- Lead/Admin users can `Mark Unread` to restore a note to the badge. The note stays unread while the current board session remains open and is acknowledged on the next entry.
+- Lead/Admin and Leadership users can optionally add the existing one-time reply. Replying does not change the shared read/unread state.
+- The existing shared `new`/`reviewed` status remains the read/unread source of truth. Historical review metadata is retained but is no longer presented as a manual review workflow.
 - Notes load 10 at a time, newest first, with `Load More` for older active notes.
 - The board is not a chat app and must not contain patient names, MRNs, diagnoses, DOBs, or patient-identifying clinical details.
 

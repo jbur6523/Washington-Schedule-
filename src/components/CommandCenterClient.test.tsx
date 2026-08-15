@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandCenterClient } from "@/components/CommandCenterClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
@@ -11,9 +11,21 @@ vi.mock("@/components/DepartmentAnnouncement", () => ({
   DepartmentAnnouncementManagerCard: () => <button type="button">Announcement Board</button>
 }));
 
+const mocks = vi.hoisted(() => ({
+  fetchLeadCommunicationNewCount: vi.fn()
+}));
+
 vi.mock("@/components/LeadCommunicationBoardModal", () => ({
-  fetchLeadCommunicationNewCount: () => new Promise<number>(() => undefined),
-  LeadCommunicationBoardModal: () => null
+  fetchLeadCommunicationNewCount: mocks.fetchLeadCommunicationNewCount,
+  LeadCommunicationBoardModal: ({
+    open,
+    onNotesChanged
+  }: {
+    open: boolean;
+    onNotesChanged?: () => void;
+  }) => open
+    ? <button type="button" onClick={onNotesChanged}>Simulate board entry acknowledgement</button>
+    : null
 }));
 
 vi.mock("@/components/RtAideNotesModal", () => ({
@@ -37,6 +49,11 @@ const authContext: AuthenticatedUserContext = {
 };
 
 describe("CommandCenterClient desktop dashboard", () => {
+  beforeEach(() => {
+    mocks.fetchLeadCommunicationNewCount.mockReset();
+    mocks.fetchLeadCommunicationNewCount.mockResolvedValue(0);
+  });
+
   it("places the summary below the unchanged header and renders action cards in the required pairs", () => {
     render(<CommandCenterClient authContext={authContext} timezone="America/Los_Angeles" />);
 
@@ -86,5 +103,28 @@ describe("CommandCenterClient desktop dashboard", () => {
       "href",
       "/command-center/icu-snapshot"
     );
+  });
+
+  it("shows the shared unread message count as the red new-note badge", async () => {
+    mocks.fetchLeadCommunicationNewCount.mockResolvedValue(2);
+
+    render(<CommandCenterClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    const badge = await screen.findByText("2 new");
+    expect(badge).toHaveClass("bg-red-600");
+  });
+
+  it("clears the badge when board-entry acknowledgement refreshes the shared count", async () => {
+    mocks.fetchLeadCommunicationNewCount
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(0);
+
+    render(<CommandCenterClient authContext={authContext} timezone="America/Los_Angeles" />);
+
+    expect(await screen.findByText("1 new")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Lead Communication Board/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Simulate board entry acknowledgement" }));
+
+    await waitFor(() => expect(screen.queryByText("1 new")).not.toBeInTheDocument());
   });
 });

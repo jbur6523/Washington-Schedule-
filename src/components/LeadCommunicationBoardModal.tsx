@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { CheckCircle2, MessageSquareText, Send, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Mail, MessageSquareText, Send, X } from "lucide-react";
 import {
   canCreateLeadCommunication,
   canReplyToLeadCommunication,
@@ -91,7 +91,7 @@ function formatDateTime(value: string | null) {
 
 function statusLabel(status: LeadNoteStatus) {
   if (status === "new") return "New";
-  if (status === "reviewed") return "Reviewed";
+  if (status === "reviewed") return "Read";
   return "Closed";
 }
 
@@ -158,9 +158,11 @@ export function LeadCommunicationBoardModal({
   const [busyNoteId, setBusyNoteId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const boardEntryAcknowledgedRef = useRef(false);
 
   const canCreateNotes = canCreateLeadCommunication(authContext);
-  const canReviewNotes = authContext.role === "admin" || authContext.role === "lead";
+  const canManageReadState = Boolean(authContext.staffProfileId)
+    && (authContext.role === "admin" || authContext.role === "lead");
   const canReplyToNotes = canReplyToLeadCommunication(authContext);
   const leadershipContext = isLeadership(authContext);
   const selectedAddedBy = useMemo(
@@ -176,6 +178,10 @@ export function LeadCommunicationBoardModal({
   const canSendNewNote = canCreateNotes && noteText.trim().length > 0 && Boolean(authContext.staffProfileId) && addedByName.length > 0;
   const visibleNotes = notes;
   const hasMoreNotes = activeNoteCount > visibleNotes.length;
+
+  const notifyChanged = useCallback(() => {
+    onNotesChanged?.();
+  }, [onNotesChanged]);
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
@@ -229,10 +235,58 @@ export function LeadCommunicationBoardModal({
       return;
     }
 
+    if (canManageReadState && !boardEntryAcknowledgedRef.current) {
+      return;
+    }
+
     queueMicrotask(() => {
       void loadNotes();
     });
-  }, [loadNotes, open]);
+  }, [canManageReadState, loadNotes, open]);
+
+  useEffect(() => {
+    if (!open) {
+      boardEntryAcknowledgedRef.current = false;
+      return;
+    }
+
+    if (boardEntryAcknowledgedRef.current) {
+      return;
+    }
+
+    boardEntryAcknowledgedRef.current = true;
+    const openedAt = new Date().toISOString();
+
+    if (!canManageReadState) {
+      return;
+    }
+
+    queueMicrotask(async () => {
+      const supabase = createClient();
+      const { error: acknowledgeError } = await supabase
+        .from("lead_communication_notes")
+        .update({ status: "reviewed" })
+        .eq("department_id", authContext.departmentId)
+        .eq("status", "new")
+        .lte("created_at", openedAt);
+
+      if (acknowledgeError) {
+        await loadNotes();
+        setError("Unable to acknowledge new notes.");
+        return;
+      }
+
+      await loadNotes();
+      notifyChanged();
+    });
+  }, [
+    authContext.departmentId,
+    authContext.staffProfileId,
+    canManageReadState,
+    loadNotes,
+    notifyChanged,
+    open
+  ]);
 
   useEffect(() => {
     if (!open || context !== "lead" || !canCreateNotes) {
@@ -272,10 +326,6 @@ export function LeadCommunicationBoardModal({
 
     return () => window.clearTimeout(timer);
   }, [authContext.departmentId, authContext.staffProfileId, canCreateNotes, context, open]);
-
-  const notifyChanged = () => {
-    onNotesChanged?.();
-  };
 
   const sendNote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -317,8 +367,8 @@ export function LeadCommunicationBoardModal({
     notifyChanged();
   };
 
-  const markReviewed = async (note: LeadCommunicationNoteRow) => {
-    if (!canReviewNotes || !authContext.staffProfileId || note.status !== "new") {
+  const markUnread = async (note: LeadCommunicationNoteRow) => {
+    if (!canManageReadState || !authContext.staffProfileId || note.status === "new") {
       return;
     }
 
@@ -329,24 +379,19 @@ export function LeadCommunicationBoardModal({
     const supabase = createClient();
     const { error: updateError } = await supabase
       .from("lead_communication_notes")
-      .update({
-        status: "reviewed",
-        reviewed_at: new Date().toISOString(),
-        reviewed_by_staff_profile_id: authContext.staffProfileId,
-        reviewed_by_name: authContext.displayName
-      })
+      .update({ status: "new" })
       .eq("id", note.id)
       .eq("department_id", authContext.departmentId)
-      .eq("status", "new");
+      .neq("status", "closed");
 
     setBusyNoteId(null);
 
     if (updateError) {
-      setError("Unable to mark note reviewed.");
+      setError("Unable to mark note unread.");
       return;
     }
 
-    setMessage("Note marked reviewed.");
+    setMessage("Note marked unread.");
     await loadNotes();
     notifyChanged();
   };
@@ -376,14 +421,10 @@ export function LeadCommunicationBoardModal({
       : await supabase
           .from("lead_communication_notes")
           .update({
-            status: "reviewed",
             follow_up_text: followUpText,
             followed_up_at: now,
             followed_up_by_staff_profile_id: authContext.staffProfileId,
-            followed_up_by_name: authContext.displayName,
-            reviewed_at: note.reviewed_at ?? now,
-            reviewed_by_staff_profile_id: note.reviewed_by_staff_profile_id ?? authContext.staffProfileId,
-            reviewed_by_name: note.reviewed_by_name ?? authContext.displayName
+            followed_up_by_name: authContext.displayName
           })
           .eq("id", note.id)
           .eq("department_id", authContext.departmentId)
@@ -575,7 +616,6 @@ export function LeadCommunicationBoardModal({
             <>
               {visibleNotes.map((note) => {
                 const followUpDraft = followUpDrafts[note.id] ?? "";
-                const canMarkReviewed = canReviewNotes && note.status === "new";
                 const canSendFollowUp = canReplyToNotes && followUpDraft.trim().length > 0 && busyNoteId !== note.id;
 
                 return (
@@ -611,31 +651,21 @@ export function LeadCommunicationBoardModal({
                       </div>
                     )}
 
-                    {note.reviewed_at && (
-                      <div className="mt-3 border-t border-slate-200/70 pt-3 text-emerald-800">
-                        <div className="flex items-center gap-2 text-sm font-extrabold">
-                          <CheckCircle2 size={17} />
-                          <span>Reviewed by {note.reviewed_by_name ?? "Unknown"}</span>
-                        </div>
-                        <p className="mt-1 pl-7 text-xs font-bold text-emerald-700">{formatDateTime(note.reviewed_at)}</p>
-                      </div>
-                    )}
-
-                    {canReplyToNotes && (
+                    {(canReplyToNotes || canManageReadState) && (
                       <div className="mt-4 space-y-3">
-                        {canMarkReviewed && (
+                        {canManageReadState && (
                           <button
                             type="button"
-                            onClick={() => void markReviewed(note)}
-                            disabled={busyNoteId === note.id}
-                            className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border-2 border-emerald-200 bg-emerald-50 px-3.5 text-left text-sm font-black text-emerald-800 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => void markUnread(note)}
+                            disabled={busyNoteId === note.id || note.status === "new"}
+                            className="inline-flex min-h-11 w-auto items-center justify-start gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 text-left text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <CheckCircle2 size={17} />
-                            {busyNoteId === note.id ? "Reviewing..." : "Mark Reviewed"}
+                            <Mail size={17} />
+                            {busyNoteId === note.id ? "Updating..." : "Mark Unread"}
                           </button>
                         )}
 
-                        {expandedFollowUpNoteId === note.id ? (
+                        {canReplyToNotes && expandedFollowUpNoteId === note.id ? (
                           <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-3">
                             <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500" htmlFor={`lead-follow-up-${note.id}`}>
                               Reply
@@ -678,7 +708,7 @@ export function LeadCommunicationBoardModal({
                               </button>
                             </div>
                           </div>
-                        ) : !note.follow_up_text ? (
+                        ) : canReplyToNotes && !note.follow_up_text ? (
                           <button
                             type="button"
                             onClick={() => {

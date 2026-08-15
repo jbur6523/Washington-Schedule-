@@ -171,7 +171,10 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
       <LeadCommunicationBoardModal
         authContext={authContext}
         open={leadNotesOpen}
-        onClose={() => setLeadNotesOpen(false)}
+        onClose={() => {
+          setLeadNotesOpen(false);
+          void loadLeadNewNoteCount();
+        }}
         onNotesChanged={loadLeadNewNoteCount}
         context="lead"
       />
