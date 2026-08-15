@@ -83,6 +83,36 @@ export function clinicalShiftTimeLabel(shiftType: ShiftRecordSelection["shiftTyp
   return shiftType === "day" ? "6:30 AM–6:30 PM" : "6:30 PM–6:30 AM";
 }
 
+export function currentClinicalShiftRecordForInstant(
+  date = new Date(),
+  timezone = SHIFT_UPDATE_REPORTING_TIMEZONE
+): ShiftRecordSelection {
+  const parts = timeZoneParts(date, timezone);
+  const localDate = isoDate(parts.year, parts.month, parts.day);
+  const minutesAfterMidnight = (parts.hour * 60) + parts.minute;
+  const dayStartsAt = (6 * 60) + 30;
+  const nightStartsAt = (18 * 60) + 30;
+
+  if (minutesAfterMidnight < dayStartsAt) {
+    return {
+      shiftDate: addIsoDays(localDate, -1),
+      shiftType: "night"
+    };
+  }
+
+  if (minutesAfterMidnight < nightStartsAt) {
+    return {
+      shiftDate: localDate,
+      shiftType: "day"
+    };
+  }
+
+  return {
+    shiftDate: localDate,
+    shiftType: "night"
+  };
+}
+
 export function reportingWindowForInstant(
   date = new Date(),
   timezone = SHIFT_UPDATE_REPORTING_TIMEZONE

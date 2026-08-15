@@ -9,6 +9,10 @@ const migration = fs.readFileSync(
   "utf8"
 );
 const historyPage = fs.readFileSync(path.join(process.cwd(), "src/app/command-center/history/page.tsx"), "utf8");
+const leadershipRosterReadMigration = fs.readFileSync(
+  path.join(process.cwd(), "supabase/migrations/202608150002_leadership_roster_read.sql"),
+  "utf8"
+);
 
 describe("Shift History migration contract", () => {
   it("preserves legacy rows while enforcing one canonical reporting date and shift", () => {
@@ -33,5 +37,12 @@ describe("Shift History migration contract", () => {
     expect(migration).toContain("limit least(greatest(p_limit, 1), 50)");
     expect(historyPage).toContain("canManageShiftStatus(auth.context)");
     expect(historyPage).toContain("supabase.rpc(\"list_shift_history\"");
+  });
+
+  it("grants read-only roster access to the existing Leadership Dashboard roles", () => {
+    expect(leadershipRosterReadMigration).toContain("for select");
+    expect(leadershipRosterReadMigration).toContain("public.user_is_department_director");
+    expect(leadershipRosterReadMigration).toContain("public.user_is_department_leadership");
+    expect(leadershipRosterReadMigration).not.toMatch(/for (insert|update|delete)/i);
   });
 });

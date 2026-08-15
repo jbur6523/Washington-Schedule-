@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   formatDirectorSourceShift,
+  resolveDirectorCurrentClinicalShift,
   resolveDirectorCurrentShiftStatus,
   resolveDirectorDepartmentSnapshot
 } from "@/lib/director-dashboard/shift-status";
@@ -39,6 +40,33 @@ function update(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
 }
 
 describe("Director latest-known shift submissions", () => {
+  it("uses the strict current clinical shift without substituting a prior record", () => {
+    const prior = update();
+    const currentDay = update({
+      id: "00000000-0000-0000-0000-000000000002",
+      shift_date: "2026-08-09",
+      shift_type: "day",
+      rvu_total: 176.45,
+      updated_at: "2026-08-09T16:30:00.000Z"
+    });
+
+    expect(resolveDirectorCurrentClinicalShift([prior], timezone, activeDay)).toMatchObject({
+      currentWindow: { shiftDate: "2026-08-09", shiftType: "day" },
+      latest: null,
+      showingFallback: false
+    });
+    expect(resolveDirectorCurrentClinicalShift([prior, currentDay], timezone, activeDay).latest).toBe(currentDay);
+  });
+
+  it("keeps the clinical day active until 18:30 and maps after midnight to the prior night date", () => {
+    const day = update({ shift_date: "2026-08-09", shift_type: "day" });
+    const night = update({ shift_date: "2026-08-09", shift_type: "night" });
+
+    expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T01:29:59.999Z")).latest).toBe(day);
+    expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T01:30:00.000Z")).latest).toBe(night);
+    expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T09:00:00.000Z")).latest).toBe(night);
+  });
+
   it("keeps prior status and snapshot across shift and date rollover", () => {
     const prior = update();
 

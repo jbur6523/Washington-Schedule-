@@ -9,15 +9,15 @@ function source(path: string) {
 }
 
 describe("Director and WHHS RT Schedule source boundaries", () => {
-  it("keeps latest-known fallback confined to the Leadership Dashboard", () => {
+  it("keeps Leadership-specific clinical and snapshot resolution confined to the Leadership Dashboard", () => {
     const director = source("src/components/DirectorShiftStatusClient.tsx");
     const schedule = source("src/components/CurrentShiftStatusSummary.tsx");
 
     expect(director).toContain("fetchDirectorShiftStatusUpdates");
-    expect(director).toContain("resolveDirectorCurrentShiftStatus");
+    expect(director).toContain("resolveDirectorCurrentClinicalShift");
     expect(director).toContain("resolveDirectorDepartmentSnapshot");
     expect(schedule).not.toContain("fetchDirectorShiftStatusUpdates");
-    expect(schedule).not.toContain("resolveDirectorCurrentShiftStatus");
+    expect(schedule).not.toContain("resolveDirectorCurrentClinicalShift");
     expect(schedule).not.toContain("resolveDirectorDepartmentSnapshot");
   });
 

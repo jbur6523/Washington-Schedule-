@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
 import { DepartmentAnnouncementManagerDialog } from "@/components/DepartmentAnnouncement";
+import { ShiftRecordDetails, ShiftRecordIdentity } from "@/components/ShiftRecordDetails";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
@@ -37,6 +38,8 @@ import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { isLeadership } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { activeRentalStatuses } from "@/lib/rental-management/status";
+import { fetchShiftRosterSnapshot } from "@/lib/shift-history/client-queries";
+import type { ShiftHistoryRecord, ShiftRosterSnapshot } from "@/lib/shift-history/types";
 import type { ScheduleEntry } from "@/data/mockSchedule";
 import {
   adaptActiveSchedule,
@@ -55,7 +58,7 @@ import {
 } from "@/lib/shift-status/procedures";
 import {
   formatDirectorSourceShift,
-  resolveDirectorCurrentShiftStatus,
+  resolveDirectorCurrentClinicalShift,
   resolveDirectorDepartmentSnapshot
 } from "@/lib/director-dashboard/shift-status";
 import { latestDirectorCardUpdate } from "@/lib/director-dashboard/update-metadata";
@@ -145,7 +148,15 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
 function directorStatus(update: ShiftStatusUpdate | null) {
   if (!update) {
     return {
-      label: "No Update",
+      label: "Awaiting update from Lead",
+      className: "border-slate-200 bg-slate-100 text-slate-600",
+      icon: null
+    };
+  }
+
+  if (update.rvu_total === null || update.rvu_total === undefined || !Number.isFinite(update.rts_on)) {
+    return {
+      label: "No staffing update",
       className: "border-slate-200 bg-slate-100 text-slate-600",
       icon: null
     };
@@ -382,6 +393,10 @@ export function DirectorShiftStatusClient({
   const [directorySearch, setDirectorySearch] = useState("");
   const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryStaffProfile[]>([]);
   const [shiftPreviewOpen, setShiftPreviewOpen] = useState(false);
+  const [currentShiftDetailOpen, setCurrentShiftDetailOpen] = useState(false);
+  const [currentShiftRoster, setCurrentShiftRoster] = useState<ShiftRosterSnapshot | null>(null);
+  const [currentShiftRosterLoading, setCurrentShiftRosterLoading] = useState(false);
+  const [currentShiftRosterError, setCurrentShiftRosterError] = useState("");
   const [schedulePreview, setSchedulePreview] = useState<ActiveSchedule | null>(null);
   const [schedulePreviewLoading, setSchedulePreviewLoading] = useState(false);
   const [schedulePreviewError, setSchedulePreviewError] = useState("");
@@ -574,7 +589,7 @@ export function DirectorShiftStatusClient({
   }, [authContext.departmentId, loadShiftStatus]);
 
   useEffect(() => {
-    if (!shiftPreviewOpen && !directoryOpen) {
+    if (!shiftPreviewOpen && !currentShiftDetailOpen && !directoryOpen) {
       return;
     }
 
@@ -584,7 +599,7 @@ export function DirectorShiftStatusClient({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [directoryOpen, shiftPreviewOpen]);
+  }, [currentShiftDetailOpen, directoryOpen, shiftPreviewOpen]);
 
   useEffect(() => {
     if (!utilityMenuOpen) {
@@ -650,7 +665,7 @@ export function DirectorShiftStatusClient({
   }, [directoryLoading, directoryOpen, directoryProfiles.length]);
 
   const directorStatusDisplay = useMemo(
-    () => resolveDirectorCurrentShiftStatus(updates, timezone, new Date(nowTick)),
+    () => resolveDirectorCurrentClinicalShift(updates, timezone, new Date(nowTick)),
     [nowTick, timezone, updates]
   );
   const directorSnapshotDisplay = useMemo(
@@ -662,7 +677,9 @@ export function DirectorShiftStatusClient({
     [nowTick, timezone, updates]
   );
   const latest = directorStatusDisplay.latest;
-  const showingFallback = directorStatusDisplay.showingFallback;
+  const currentShiftRecordId = latest?.id ?? null;
+  const currentShiftRecordDate = latest?.shift_date ?? "";
+  const currentShiftRecordType = latest?.shift_type ?? null;
   const snapshotLatest = directorSnapshotDisplay.latest;
   const latestProcedureUpdate = strictCurrentShiftDisplay.currentLatest;
   const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
@@ -686,9 +703,66 @@ export function DirectorShiftStatusClient({
         }
       : null
   );
+  const hasCurrentStaffing = Boolean(
+    latest &&
+    latest.rvu_total !== null &&
+    latest.rvu_total !== undefined &&
+    Number.isFinite(latest.rts_on)
+  );
   const status = directorStatus(latest);
   const displayedVentCount = officialVent?.vent_count ?? null;
   const textReport = latest ? reportText(latest, timezone, displayedVentCount ?? "No Update") : "";
+  const currentShiftDetailRecord: ShiftHistoryRecord | null = latest
+    ? { ...latest, roster: currentShiftRoster }
+    : null;
+
+  useEffect(() => {
+    if (!currentShiftDetailOpen) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!currentShiftRecordId || !currentShiftRecordDate || !currentShiftRecordType) {
+        setCurrentShiftRoster(null);
+        setCurrentShiftRosterLoading(false);
+        setCurrentShiftRosterError("");
+        return;
+      }
+
+      setCurrentShiftRoster(null);
+      setCurrentShiftRosterLoading(true);
+      setCurrentShiftRosterError("");
+
+      void (async () => {
+        const supabase = createClient();
+        const { data, error: rosterError } = await fetchShiftRosterSnapshot(
+          supabase,
+          authContext.departmentId,
+          currentShiftRecordDate,
+          currentShiftRecordType
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentShiftRosterLoading(false);
+        if (rosterError) {
+          setCurrentShiftRoster(null);
+          setCurrentShiftRosterError("Captured roster could not be loaded.");
+          return;
+        }
+
+        setCurrentShiftRoster(data);
+      })();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [authContext.departmentId, currentShiftDetailOpen, currentShiftRecordDate, currentShiftRecordId, currentShiftRecordType]);
   const filteredDirectoryProfiles = useMemo(() => {
     const query = directorySearch.trim().toLowerCase();
     if (!query) {
@@ -828,15 +902,15 @@ export function DirectorShiftStatusClient({
         </section>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-            <span aria-hidden="true" />
+          <div className="grid items-start gap-2 sm:grid-cols-[1fr_auto_1fr]">
+            <span className="hidden sm:block" aria-hidden="true" />
             <div className="text-center">
               <h2 className="text-2xl font-black leading-tight text-hospital-ink">Current Shift Status</h2>
               {statusSourceShift && (
                 <p className="mt-1 text-xs font-black text-slate-500">{statusSourceShift}</p>
               )}
             </div>
-            <span className={`inline-flex items-center gap-1.5 justify-self-end rounded-full border px-3 py-1.5 text-xs font-black ${status.className}`}>
+            <span className={`inline-flex items-center gap-1.5 justify-self-center rounded-full border px-3 py-1.5 text-center text-xs font-black sm:justify-self-end ${status.className}`}>
               {status.icon}
               {status.label}
             </span>
@@ -855,12 +929,6 @@ export function DirectorShiftStatusClient({
             </div>
           )}
 
-          {showingFallback && (
-            <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
-              Showing the most recent submitted status until this shift is updated.
-            </p>
-          )}
-
           {loading && (
             <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-bold text-slate-500">
               Loading shift status...
@@ -875,25 +943,41 @@ export function DirectorShiftStatusClient({
 
           {!loading && !latest && !error && (
             <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
-              No shift status has been submitted yet.
+              Awaiting update from Lead
             </p>
           )}
 
-          {latest && (
+          {latest && !hasCurrentStaffing && !loading && !error && (
+            <p className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+              Awaiting staffing update from Lead
+            </p>
+          )}
+
+          {latest && hasCurrentStaffing && (
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(latest.rts_on)} />
               <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={openShiftPreview}
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
-          >
-            <CalendarCheck size={17} />
-            View Shift
-          </button>
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => setCurrentShiftDetailOpen(true)}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-sm font-black text-white shadow-sm"
+            >
+              <ClipboardList size={17} />
+              View Shift
+            </button>
+            <button
+              type="button"
+              onClick={openShiftPreview}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-3 text-sm font-black text-cyan-700 shadow-sm"
+            >
+              <CalendarCheck size={17} />
+              View Schedule
+            </button>
+          </div>
         </section>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
@@ -1201,20 +1285,72 @@ export function DirectorShiftStatusClient({
           onClose={() => setAnnouncementOpen(false)}
         />
 
-        {shiftPreviewOpen && (
+        {currentShiftDetailOpen && (
           <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
             <section
               role="dialog"
               aria-modal="true"
-              aria-labelledby="director-view-shift-title"
+              aria-labelledby="director-current-shift-detail-title"
               className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
             >
               <div className="border-b border-slate-100 px-4 py-4">
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
                 <div className="mt-1 flex items-start justify-between gap-3">
                   <div>
-                    <h2 id="director-view-shift-title" className="text-2xl font-black text-hospital-ink">
+                    <h2 id="director-current-shift-detail-title" className="text-2xl font-black text-hospital-ink">
                       View Shift
+                    </h2>
+                    <p className="mt-1 text-sm font-bold text-slate-500">Current clinical shift operational detail</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentShiftDetailOpen(false)}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                {!currentShiftDetailRecord ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-center">
+                    <p className="text-base font-black text-slate-700">Awaiting update from Lead</p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                      Shift information will appear here once the Lead submits the first shift update.
+                    </p>
+                  </div>
+                ) : (
+                  <article className="overflow-hidden rounded-3xl border border-slate-300 bg-white shadow-sm">
+                    <div className="px-4 py-4 sm:px-5">
+                      <ShiftRecordIdentity record={currentShiftDetailRecord} timezone={timezone} />
+                    </div>
+                    <ShiftRecordDetails
+                      record={currentShiftDetailRecord}
+                      timezone={timezone}
+                      rosterState={currentShiftRosterLoading ? "loading" : currentShiftRosterError ? "error" : "ready"}
+                    />
+                  </article>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {shiftPreviewOpen && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="director-view-schedule-title"
+              className="flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl"
+            >
+              <div className="border-b border-slate-100 px-4 py-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="director-view-schedule-title" className="text-2xl font-black text-hospital-ink">
+                      View Schedule
                     </h2>
                     <p className="mt-1 text-sm font-bold text-slate-500">Read-only schedule preview</p>
                   </div>

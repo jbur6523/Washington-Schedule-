@@ -37,6 +37,7 @@ const shiftStatusSelect = [
 
 const legacyShiftStatusSelect = baseShiftStatusColumns.join(", ");
 const canonicalShiftStatusSelect = `${shiftStatusSelect}, is_canonical`;
+const legacyCanonicalShiftStatusSelect = `${legacyShiftStatusSelect}, is_canonical`;
 
 export type ShiftStatusQueryError = {
   code?: string;
@@ -118,6 +119,7 @@ async function queryDirectorShiftStatusUpdates(
       .from("shift_status_updates")
       .select(selectColumns)
       .eq("department_id", departmentId)
+      .eq("is_canonical", true)
       .lte("shift_date", maximumShiftDate)
       .order("updated_at", { ascending: false })
       .order("created_at", { ascending: false })
@@ -280,7 +282,7 @@ export async function fetchDirectorShiftStatusUpdates(
   const primary = await queryDirectorShiftStatusUpdates(
     supabase,
     departmentId,
-    shiftStatusSelect,
+    canonicalShiftStatusSelect,
     maximumShiftDate
   );
 
@@ -301,7 +303,7 @@ export async function fetchDirectorShiftStatusUpdates(
   const legacy = await queryDirectorShiftStatusUpdates(
     supabase,
     departmentId,
-    legacyShiftStatusSelect,
+    legacyCanonicalShiftStatusSelect,
     maximumShiftDate
   );
 

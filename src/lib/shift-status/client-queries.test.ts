@@ -251,6 +251,7 @@ describe("fetchDirectorShiftStatusUpdates", () => {
     expect(calls.table).toBe("shift_status_updates");
     expect(calls.filters).toEqual([
       { column: "department_id", value: "department-1" },
+      { column: "is_canonical", value: true },
       { column: "shift_date", value: "2026-08-09" }
     ]);
     expect(calls.orders).toEqual([

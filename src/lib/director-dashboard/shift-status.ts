@@ -1,4 +1,5 @@
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import { currentClinicalShiftRecordForInstant } from "@/lib/shift-status/reporting-window";
 import {
   currentShiftStatusWindow,
   latestShiftStatus,
@@ -150,6 +151,31 @@ export function resolveDirectorCurrentShiftStatus(
     timezone,
     date
   );
+}
+
+export function resolveDirectorCurrentClinicalShift(
+  updates: ShiftStatusUpdate[],
+  timezone = "America/Los_Angeles",
+  date = new Date()
+): DirectorShiftStatusResolution {
+  const currentWindow = currentClinicalShiftRecordForInstant(date, timezone);
+  const currentLatest = latestShiftStatus(
+    updates.filter(
+      (update) =>
+        isSubmittedRecord(update) &&
+        update.is_canonical !== false &&
+        update.shift_date === currentWindow.shiftDate &&
+        update.shift_type === currentWindow.shiftType
+    )
+  );
+
+  return {
+    currentWindow,
+    latest: currentLatest,
+    currentLatest,
+    fallbackLatest: null,
+    showingFallback: false
+  };
 }
 
 export function resolveDirectorDepartmentSnapshot(

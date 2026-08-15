@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
   clinicalShiftStart,
+  currentClinicalShiftRecordForInstant,
   defaultShiftRecordForInstant,
   latestReportingWindowUpdate,
   reportingWindowEndDelay,
@@ -60,6 +61,17 @@ describe("Shift Update reporting windows", () => {
     expect(clinicalShiftStart({ shiftDate: "2026-08-15", shiftType: "night" })).toBe(
       "2026-08-16T01:30:00.000Z"
     );
+  });
+
+  it.each([
+    ["2026-08-16T13:29:59.999Z", "2026-08-15", "night"],
+    ["2026-08-16T13:30:00.000Z", "2026-08-16", "day"],
+    ["2026-08-16T23:00:00.000Z", "2026-08-16", "day"],
+    ["2026-08-17T01:29:59.999Z", "2026-08-16", "day"],
+    ["2026-08-17T01:30:00.000Z", "2026-08-16", "night"],
+    ["2026-08-17T09:00:00.000Z", "2026-08-16", "night"]
+  ] as const)("resolves the active clinical shift at %s", (instant, shiftDate, shiftType) => {
+    expect(currentClinicalShiftRecordForInstant(new Date(instant))).toEqual({ shiftDate, shiftType });
   });
 
   it("schedules the next workspace transition at the exact reporting boundary", () => {
