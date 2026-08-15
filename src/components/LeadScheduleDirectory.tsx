@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { CalendarDays, Phone, Search, Users } from "lucide-react";
 import { CommandCenterTabs } from "@/components/CommandCenterTabs";
 import {
@@ -62,33 +62,52 @@ function PhoneLink({ phoneNumber }: { phoneNumber: string | null }) {
   );
 }
 
-function MobileScheduleRows({ employees }: { employees: ScheduledDirectoryEmployee[] }) {
+function MobileScheduleRows({
+  employees,
+  showSectionLabels
+}: {
+  employees: ScheduledDirectoryEmployee[];
+  showSectionLabels: boolean;
+}) {
   return (
     <ul className="divide-y divide-slate-200 md:hidden">
-      {employees.map((employee) => (
-        <li key={employee.id} className="py-3 first:pt-0 last:pb-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="break-words text-sm font-black text-hospital-ink">{employee.fullName}</p>
-              {!employee.directoryAvailable && (
-                <p className="mt-0.5 text-xs font-bold text-slate-500">Directory information unavailable</p>
-              )}
-            </div>
-            <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-extrabold text-slate-600">
+      {employees.map((employee, index) => (
+        <Fragment key={employee.id}>
+          {showSectionLabels && (index === 0 || employees[index - 1].employmentType !== employee.employmentType) && (
+            <li data-schedule-section={employee.employmentType} className="bg-slate-50 px-1 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
               {employmentLabel(employee.employmentType)}
-            </span>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold">
-            <PhoneLink phoneNumber={employee.phoneNumber} />
-            <span className="text-slate-600">Hire date: {employee.hireDate ? formatDate(employee.hireDate) : "Unavailable"}</span>
-          </div>
-        </li>
+            </li>
+          )}
+          <li className="py-3 last:pb-0">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="break-words text-sm font-black text-hospital-ink">{employee.fullName}</p>
+                {!employee.directoryAvailable && (
+                  <p className="mt-0.5 text-xs font-bold text-slate-500">Directory information unavailable</p>
+                )}
+              </div>
+              <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-extrabold text-slate-600">
+                {employmentLabel(employee.employmentType)}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold">
+              <PhoneLink phoneNumber={employee.phoneNumber} />
+              <span className="text-slate-600">Hire date: {employee.hireDate ? formatDate(employee.hireDate) : "Unavailable"}</span>
+            </div>
+          </li>
+        </Fragment>
       ))}
     </ul>
   );
 }
 
-function DesktopScheduleTable({ employees }: { employees: ScheduledDirectoryEmployee[] }) {
+function DesktopScheduleTable({
+  employees,
+  showSectionLabels
+}: {
+  employees: ScheduledDirectoryEmployee[];
+  showSectionLabels: boolean;
+}) {
   return (
     <div className="hidden overflow-x-auto md:block">
       <table className="w-full border-collapse text-left text-sm">
@@ -101,18 +120,27 @@ function DesktopScheduleTable({ employees }: { employees: ScheduledDirectoryEmpl
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {employees.map((employee) => (
-            <tr key={employee.id}>
-              <th scope="row" className="px-2 py-3 font-black text-hospital-ink">
-                {employee.fullName}
-                {!employee.directoryAvailable && (
-                  <span className="mt-0.5 block text-xs font-bold text-slate-500">Directory information unavailable</span>
-                )}
-              </th>
-              <td className="px-2 py-3"><PhoneLink phoneNumber={employee.phoneNumber} /></td>
-              <td className="px-2 py-3 font-bold text-slate-600">{employee.hireDate ? formatDate(employee.hireDate) : "Unavailable"}</td>
-              <td className="px-2 py-3 font-bold text-slate-600">{employmentLabel(employee.employmentType)}</td>
-            </tr>
+          {employees.map((employee, index) => (
+            <Fragment key={employee.id}>
+              {showSectionLabels && (index === 0 || employees[index - 1].employmentType !== employee.employmentType) && (
+                <tr className="bg-slate-50">
+                  <th data-schedule-section={employee.employmentType} colSpan={4} scope="rowgroup" className="px-2 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    {employmentLabel(employee.employmentType)}
+                  </th>
+                </tr>
+              )}
+              <tr>
+                <th scope="row" className="px-2 py-3 font-black text-hospital-ink">
+                  {employee.fullName}
+                  {!employee.directoryAvailable && (
+                    <span className="mt-0.5 block text-xs font-bold text-slate-500">Directory information unavailable</span>
+                  )}
+                </th>
+                <td className="px-2 py-3"><PhoneLink phoneNumber={employee.phoneNumber} /></td>
+                <td className="px-2 py-3 font-bold text-slate-600">{employee.hireDate ? formatDate(employee.hireDate) : "Unavailable"}</td>
+                <td className="px-2 py-3 font-bold text-slate-600">{employmentLabel(employee.employmentType)}</td>
+              </tr>
+            </Fragment>
           ))}
         </tbody>
       </table>
@@ -188,6 +216,8 @@ export function LeadScheduleDirectory({
     [directory, filter, search]
   );
   const directoryResultCount = sections.reduce((count, section) => count + section.employees.length, 0);
+  const showScheduleSectionLabels = schedule.some((employee) => employee.employmentType === "full_time")
+    && schedule.some((employee) => employee.employmentType === "per_diem");
 
   return (
     <main className="min-h-screen px-4 py-5 sm:py-7">
@@ -204,7 +234,7 @@ export function LeadScheduleDirectory({
             <div>
               <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">RT Schedule</p>
               <h2 id="current-shift-heading" className="mt-1 text-xl font-black text-hospital-ink">Current Shift Schedule</h2>
-              <p className="mt-1 text-xs font-bold text-slate-500">Sorted by seniority · Most senior first</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">Full Time first · Seniority within each group</p>
             </div>
             <form method="get" className="grid gap-2 sm:grid-cols-[minmax(10rem,1fr)_minmax(8rem,0.8fr)_auto] sm:items-end">
               <label className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
@@ -252,8 +282,8 @@ export function LeadScheduleDirectory({
             </div>
           ) : (
             <div className="mt-4">
-              <MobileScheduleRows employees={schedule} />
-              <DesktopScheduleTable employees={schedule} />
+              <MobileScheduleRows employees={schedule} showSectionLabels={showScheduleSectionLabels} />
+              <DesktopScheduleTable employees={schedule} showSectionLabels={showScheduleSectionLabels} />
             </div>
           )}
         </section>

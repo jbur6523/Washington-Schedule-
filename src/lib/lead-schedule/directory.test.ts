@@ -114,9 +114,50 @@ describe("Lead Schedule directory data", () => {
       "day"
     );
 
-    expect(roster.map((employee) => employee.id)).toEqual(["day-rt", "actual-day", "added"]);
+    expect(roster.map((employee) => employee.id)).toEqual(["day-rt", "added", "actual-day"]);
     expect(roster.find((employee) => employee.id === "day-rt")?.employmentType).toBe("full_time");
     expect(roster.find((employee) => employee.id === "actual-day")?.employmentType).toBe("per_diem");
+  });
+
+  it("orders Full Time before Per Diem and seniority-sorts missing dates last within each group", () => {
+    const profiles = [
+      directoryProfile({ id: "pd-missing", display_name: "Missing Per Diem", first_name: "Missing", last_name: "Per Diem", hire_date: null, employment_type: "per_diem" }),
+      directoryProfile({ id: "ft-new", display_name: "New Full Time", first_name: "New", last_name: "Full Time", hire_date: "2022-01-01" }),
+      directoryProfile({ id: "pd-senior", display_name: "Senior Per Diem", first_name: "Senior", last_name: "Per Diem", hire_date: "1998-01-01", employment_type: "per_diem" }),
+      directoryProfile({ id: "ft-missing", display_name: "Missing Full Time", first_name: "Missing", last_name: "Full Time", hire_date: null }),
+      directoryProfile({ id: "pd-new", display_name: "New Per Diem", first_name: "New", last_name: "Per Diem", hire_date: "2018-01-01", employment_type: "per_diem" }),
+      directoryProfile({ id: "ft-senior", display_name: "Senior Full Time", first_name: "Senior", last_name: "Full Time", hire_date: "2001-01-01" })
+    ];
+
+    const roster = buildCurrentShiftRoster(
+      profiles.map((profile) => entry(scheduledProfile(profile), "day_shift")),
+      [],
+      profiles,
+      "day"
+    );
+
+    expect(roster.map((employee) => employee.id)).toEqual([
+      "ft-senior",
+      "ft-new",
+      "ft-missing",
+      "pd-senior",
+      "pd-new",
+      "pd-missing"
+    ]);
+  });
+
+  it("normalizes PFT and Pulmonary Rehab schedule assignments as Full Time", () => {
+    const pft = directoryProfile({ id: "pft", display_name: "PFT RT", employment_type: "per_diem", home_assignment: "flexible" });
+    const pulmonary = directoryProfile({ id: "pulmonary", display_name: "Pulmonary RT", employment_type: "per_diem", home_assignment: "flexible" });
+    const roster = buildCurrentShiftRoster(
+      [entry(scheduledProfile(pft), "pft"), entry(scheduledProfile(pulmonary), "pulmonary_rehab")],
+      [],
+      [pft, pulmonary],
+      "day"
+    );
+
+    expect(roster).toHaveLength(2);
+    expect(roster.every((employee) => employee.employmentType === "full_time")).toBe(true);
   });
 
   it("sorts most senior first, puts missing hire dates last, breaks ties by name, and preserves unmatched schedule names", () => {

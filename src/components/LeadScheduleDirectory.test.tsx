@@ -68,7 +68,7 @@ describe("LeadScheduleDirectory", () => {
       />
     );
 
-    expect(screen.getByText("Sorted by seniority · Most senior first")).toBeInTheDocument();
+    expect(screen.getByText("Full Time first · Seniority within each group")).toBeInTheDocument();
     expect(screen.getByDisplayValue("2026-08-15")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Day Shift")).toBeInTheDocument();
     expect(screen.getAllByText("Legacy Schedule Name").length).toBeGreaterThan(0);
@@ -76,6 +76,23 @@ describe("LeadScheduleDirectory", () => {
     expect(screen.getAllByRole("link", { name: /510-501-6630/ }).every((link) => link.getAttribute("href") === "tel:5105016630")).toBe(true);
     expect(view.container.querySelector("ul.md\\:hidden")).toBeInTheDocument();
     expect(view.container.querySelector("div.hidden.overflow-x-auto.md\\:block table")).toBeInTheDocument();
+    expect(view.container.querySelectorAll('[data-schedule-section="full_time"]')).toHaveLength(2);
+    expect(view.container.querySelectorAll('[data-schedule-section="per_diem"]')).toHaveLength(2);
+  });
+
+  it("hides Current Shift Schedule group labels when only one employment group is present", () => {
+    const view = render(
+      <LeadScheduleDirectory
+        selectedDate="2026-08-15"
+        selectedShift="day"
+        schedule={schedule.filter((employee) => employee.employmentType === "full_time")}
+        directory={directory}
+        scheduleError={false}
+        directoryError={false}
+      />
+    );
+
+    expect(view.container.querySelector("[data-schedule-section]")).not.toBeInTheDocument();
   });
 
   it("keeps familiar directory sections, filters employment type, and searches internal aliases", () => {

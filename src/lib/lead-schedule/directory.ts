@@ -115,6 +115,27 @@ export function seniorityCompare(
   );
 }
 
+function scheduledSeniorityCompare(left: ScheduledDirectoryEmployee, right: ScheduledDirectoryEmployee) {
+  if (left.employmentType !== right.employmentType) {
+    return left.employmentType === "full_time" ? -1 : 1;
+  }
+
+  return seniorityCompare(
+    {
+      hire_date: left.hireDate,
+      last_name: left.lastName ?? left.fullName.split(/\s+/).at(-1) ?? left.fullName,
+      first_name: left.firstName ?? left.fullName.split(/\s+/)[0] ?? "",
+      fullName: left.fullName
+    },
+    {
+      hire_date: right.hireDate,
+      last_name: right.lastName ?? right.fullName.split(/\s+/).at(-1) ?? right.fullName,
+      first_name: right.firstName ?? right.fullName.split(/\s+/)[0] ?? "",
+      fullName: right.fullName
+    }
+  );
+}
+
 export function scheduleShiftMatches(shiftType: string, selectedShift: DirectoryShift) {
   return selectedShift === "night" ? shiftType === "night_shift" : shiftType !== "night_shift";
 }
@@ -150,7 +171,7 @@ export function buildCurrentShiftRoster(
       .filter((override) => override.is_active && override.override_type === "remove_self" && override.base_schedule_entry_id)
       .map((override) => override.base_schedule_entry_id as string)
   );
-  const candidates: Array<{ id: string; profile: ScheduledStaffProfile }> = [];
+  const candidates: Array<{ id: string; profile: ScheduledStaffProfile; shiftType: string }> = [];
 
   for (const entry of entries) {
     const profile = firstProfile(entry.staff_profiles);
@@ -162,7 +183,7 @@ export function buildCurrentShiftRoster(
       && profile
       && isRespiratoryTherapist(profile, entry.shift_type)
     ) {
-      candidates.push({ id: entry.staff_profile_id, profile });
+      candidates.push({ id: entry.staff_profile_id, profile, shiftType: entry.shift_type });
     }
   }
 
@@ -175,13 +196,26 @@ export function buildCurrentShiftRoster(
       && profile
       && isRespiratoryTherapist(profile, override.shift_type)
     ) {
-      candidates.push({ id: override.staff_profile_id, profile });
+      candidates.push({ id: override.staff_profile_id, profile, shiftType: override.shift_type });
     }
   }
 
   const uniqueCandidates = new Map<string, ScheduledDirectoryEmployee>();
   for (const candidate of candidates) {
-    if (uniqueCandidates.has(candidate.id)) continue;
+    const normalizedEmploymentType: DirectoryEmploymentType =
+      candidate.shiftType === "pft"
+      || candidate.shiftType === "pulmonary_rehab"
+      || candidate.profile.home_assignment === "pft"
+      || candidate.profile.home_assignment === "pulmonary_rehab"
+        ? "full_time"
+        : candidate.profile.employment_type;
+    const existing = uniqueCandidates.get(candidate.id);
+    if (existing) {
+      if (normalizedEmploymentType === "full_time") {
+        existing.employmentType = "full_time";
+      }
+      continue;
+    }
     const idMetadata = directoryById.get(candidate.id) ?? null;
     const exactNameMetadata = directoryByExactName.get(normalizeDirectoryName(candidate.profile.display_name)) ?? null;
     const metadata = hasDirectoryMetadata(idMetadata) ? idMetadata : exactNameMetadata;
@@ -192,25 +226,14 @@ export function buildCurrentShiftRoster(
       lastName: metadata?.last_name ?? null,
       phoneNumber: metadata?.phone_number ?? null,
       hireDate: metadata?.hire_date ?? null,
-      employmentType: metadata?.employment_type ?? candidate.profile.employment_type,
+      employmentType: normalizedEmploymentType === "full_time"
+        ? "full_time"
+        : metadata?.employment_type ?? normalizedEmploymentType,
       directoryAvailable: hasDirectoryMetadata(metadata)
     });
   }
 
-  return Array.from(uniqueCandidates.values()).sort((left, right) => seniorityCompare(
-    {
-      hire_date: left.hireDate,
-      last_name: left.lastName ?? left.fullName.split(/\s+/).at(-1) ?? left.fullName,
-      first_name: left.firstName ?? left.fullName.split(/\s+/)[0] ?? "",
-      fullName: left.fullName
-    },
-    {
-      hire_date: right.hireDate,
-      last_name: right.lastName ?? right.fullName.split(/\s+/).at(-1) ?? right.fullName,
-      first_name: right.firstName ?? right.fullName.split(/\s+/)[0] ?? "",
-      fullName: right.fullName
-    }
-  ));
+  return Array.from(uniqueCandidates.values()).sort(scheduledSeniorityCompare);
 }
 
 function isDirectoryEmployee(profile: DirectoryStaffProfile) {
