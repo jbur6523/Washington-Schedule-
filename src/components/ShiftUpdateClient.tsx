@@ -59,16 +59,28 @@ function shiftUpdateFormForWindow(
     rvuCount: update?.rvu_total === null || update?.rvu_total === undefined ? "" : String(update.rvu_total),
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
     bipapCount: update ? String(update.bipap_count) : "",
-    cSectionCount: update ? String(update.c_section_count) : "",
-    vaginalDeliveryCount: update ? String(update.vaginal_delivery_count) : "",
-    cabgCount: update ? String(update.cabg_count) : "",
-    bronchCount: update ? String(update.bronch_count) : "",
-    sputumInductionCount: update ? String(update.sputum_induction_count) : "",
-    otherProcedureCount: update ? String(update.other_procedure_count) : "",
+    cSectionCount: update ? String(update.c_section_count) : "0",
+    vaginalDeliveryCount: update ? String(update.vaginal_delivery_count) : "0",
+    cabgCount: update ? String(update.cabg_count) : "0",
+    bronchCount: update ? String(update.bronch_count) : "0",
+    sputumInductionCount: update ? String(update.sputum_induction_count) : "0",
+    otherProcedureCount: update ? String(update.other_procedure_count) : "0",
     otherProcedureNote: update?.other_procedure_note ?? "",
     shiftNote: update?.shift_note ?? "",
     updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
     updatedByName: ""
+  };
+}
+
+function withDefaultProcedureCounts(form: ShiftUpdateForm): ShiftUpdateForm {
+  return {
+    ...form,
+    cSectionCount: form.cSectionCount.trim() || "0",
+    vaginalDeliveryCount: form.vaginalDeliveryCount.trim() || "0",
+    cabgCount: form.cabgCount.trim() || "0",
+    bronchCount: form.bronchCount.trim() || "0",
+    sputumInductionCount: form.sputumInductionCount.trim() || "0",
+    otherProcedureCount: form.otherProcedureCount.trim() || "0"
   };
 }
 
@@ -185,6 +197,11 @@ function ProcedureInputTile({
         min={0}
         inputMode="numeric"
         value={value}
+        onBlur={(event) => {
+          if (!event.currentTarget.value.trim()) {
+            onChange("0");
+          }
+        }}
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
@@ -338,12 +355,15 @@ export function ShiftUpdateClient({
       return;
     }
 
+    const normalizedForm = withDefaultProcedureCounts(form);
+    setForm(normalizedForm);
+
     if (!canSave || calculatedRtsNeeded === null) {
       setError("Select lead and enter shift numbers to continue.");
       return;
     }
 
-    const countValidationError = validateShiftStatusCounts(form);
+    const countValidationError = validateShiftStatusCounts(normalizedForm);
     if (countValidationError) {
       setError(countValidationError);
       return;
@@ -356,20 +376,20 @@ export function ShiftUpdateClient({
 
     const basePayload = {
       department_id: authContext.departmentId,
-      shift_date: form.shiftDate,
-      shift_type: form.shiftType,
-      rts_on: shiftStatusNumberValue(form.rtsOn),
+      shift_date: normalizedForm.shiftDate,
+      shift_type: normalizedForm.shiftType,
+      rts_on: shiftStatusNumberValue(normalizedForm.rtsOn),
       rts_required: calculatedRtsNeeded,
-      rvu_total: form.rvuCount.trim(),
-      vent_count: optionalShiftStatusNumberValue(form.ventCount),
-      bipap_count: shiftStatusNumberValue(form.bipapCount),
-      c_section_count: shiftStatusNumberValue(form.cSectionCount),
-      cabg_count: shiftStatusNumberValue(form.cabgCount),
-      bronch_count: shiftStatusNumberValue(form.bronchCount),
-      sputum_induction_count: shiftStatusNumberValue(form.sputumInductionCount),
-      other_procedure_count: shiftStatusNumberValue(form.otherProcedureCount),
-      other_procedure_note: form.otherProcedureNote.trim() || null,
-      shift_note: form.shiftNote.trim() || null,
+      rvu_total: normalizedForm.rvuCount.trim(),
+      vent_count: optionalShiftStatusNumberValue(normalizedForm.ventCount),
+      bipap_count: shiftStatusNumberValue(normalizedForm.bipapCount),
+      c_section_count: shiftStatusNumberValue(normalizedForm.cSectionCount),
+      cabg_count: shiftStatusNumberValue(normalizedForm.cabgCount),
+      bronch_count: shiftStatusNumberValue(normalizedForm.bronchCount),
+      sputum_induction_count: shiftStatusNumberValue(normalizedForm.sputumInductionCount),
+      other_procedure_count: shiftStatusNumberValue(normalizedForm.otherProcedureCount),
+      other_procedure_note: normalizedForm.otherProcedureNote.trim() || null,
+      shift_note: normalizedForm.shiftNote.trim() || null,
       updated_by_staff_profile_id: selectedStaff?.id ?? null,
       updated_by_name: updatedByName
     };
@@ -379,7 +399,7 @@ export function ShiftUpdateClient({
       const { error: saveError } = await supabase.rpc("save_shift_status_update", {
         shift_payload: {
           ...basePayload,
-          vaginal_delivery_count: shiftStatusNumberValue(form.vaginalDeliveryCount)
+          vaginal_delivery_count: shiftStatusNumberValue(normalizedForm.vaginalDeliveryCount)
         }
       });
 

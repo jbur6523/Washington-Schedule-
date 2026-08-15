@@ -219,6 +219,48 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("defaults blank scheduled procedure counts to zero without blocking submission", async () => {
+    mocks.rpc.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const procedureInputs = [
+      screen.getByLabelText(/C-Sections/),
+      screen.getByLabelText(/Vaginal Deliveries/),
+      screen.getByLabelText(/CABG/),
+      screen.getByLabelText(/Bronchs/),
+      screen.getByLabelText(/Sputum Inductions/),
+      screen.getByLabelText(/MRI/)
+    ];
+    for (const input of procedureInputs) {
+      expect(input).toHaveValue(0);
+      fireEvent.change(input, { target: { value: "" } });
+    }
+
+    fireEvent.blur(procedureInputs[0]);
+    expect(procedureInputs[0]).toHaveValue(0);
+    populateRequiredFields();
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    for (const input of procedureInputs) {
+      expect(input).toHaveValue(0);
+    }
+    expect(savedPayload()).toEqual(expect.objectContaining({
+      c_section_count: 0,
+      vaginal_delivery_count: 0,
+      cabg_count: 0,
+      bronch_count: 0,
+      sputum_induction_count: 0,
+      other_procedure_count: 0
+    }));
+  });
+
   it("requires a custom updater name for Not Listed and never persists the sentinel", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
@@ -465,7 +507,7 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
     expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
-    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(0);
     expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("");
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -532,6 +574,6 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
     expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
-    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
+    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(0);
   });
 });
