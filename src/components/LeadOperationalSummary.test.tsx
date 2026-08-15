@@ -73,6 +73,7 @@ const currentUpdate: ShiftStatusUpdate = {
   sputum_induction_count: 0,
   other_procedure_count: 1,
   other_procedure_note: "MRI at 14:00",
+  shift_note: null,
   updated_by_staff_profile_id: "staff-1",
   updated_by_name: "Lead RT",
   created_at: "2026-08-09T15:45:00.000Z",
@@ -170,6 +171,80 @@ describe("LeadOperationalSummary", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
+  it("shows the current shift note on Staff Needed and opens the read-only modal", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{ ...currentUpdate, shift_note: "Move one RT to the north pod after 19:00.\nConfirm at huddle." }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    await renderLoadedSummary();
+
+    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
+    const dialog = screen.getByRole("dialog", { name: "Shift Note" });
+    expect(dialog).toHaveTextContent("Move one RT to the north pod after 19:00. Confirm at huddle.");
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close shift note" }));
+    expect(screen.queryByRole("dialog", { name: "Shift Note" })).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("hides View Shift Note when the current update has no nonblank note", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{ ...currentUpdate, shift_note: "   " }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    await renderLoadedSummary();
+
+    expect(screen.queryByRole("button", { name: "View Shift Note" })).not.toBeInTheDocument();
+  });
+
+  it("hides View Procedures when all counts are zero and Other Procedures is blank", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{
+        ...currentUpdate,
+        c_section_count: 0,
+        vaginal_delivery_count: 0,
+        cabg_count: 0,
+        bronch_count: 0,
+        sputum_induction_count: 0,
+        other_procedure_count: 0,
+        other_procedure_note: ""
+      }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    await renderLoadedSummary();
+
+    expect(screen.getByLabelText("Procedures: 0")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View Procedures" })).not.toBeInTheDocument();
+  });
+
+  it("shows View Procedures when Other Procedures has text despite zero counts", async () => {
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{
+        ...currentUpdate,
+        c_section_count: 0,
+        vaginal_delivery_count: 0,
+        cabg_count: 0,
+        bronch_count: 0,
+        sputum_induction_count: 0,
+        other_procedure_count: 0,
+        other_procedure_note: "Transport coverage"
+      }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    await renderLoadedSummary();
+
+    expect(screen.getByRole("button", { name: "View Procedures" })).toBeInTheDocument();
+  });
+
   it("keeps the independent rental count visible when reporting-window metrics are unavailable", async () => {
     mocks.fetchReportingWindow.mockResolvedValue({
       data: [],
@@ -192,10 +267,16 @@ describe("LeadOperationalSummary", () => {
 
   it("clears prior-window metrics at 16:00 instead of falling back", async () => {
     vi.setSystemTime(new Date("2026-08-09T22:59:59.000Z"));
+    mocks.fetchReportingWindow.mockResolvedValue({
+      data: [{ ...currentUpdate, shift_note: "Day-window note" }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff Scheduled: 8")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_050);
@@ -207,6 +288,7 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByLabelText("BiPAP Count: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: Unavailable")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View Shift Note" })).not.toBeInTheDocument();
   });
 
   it("shows the evening window's submitted values after the 17:00 update", async () => {

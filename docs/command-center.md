@@ -97,13 +97,16 @@ Fields:
 - Sputum Induction count
 - MRI count
 - Other Procedures free-text field, max 100 characters
-- Updated by lead selector, with a secondary manual initials/name fallback
+- Optional Shift Notes operational text, max 500 characters, with no patient information
+- Updated by lead selector, with a final `Not Listed` option that reveals a required custom-name field
 
 The `Updated By` selector shows active Lead and Admin users who can act as shift updaters. It excludes Staff, Aide, Director, Command Center, inactive users, and the shared `Respiratory Command Center` account. The command phone must not use the shared account as the visible updated-by person.
 
-The manual initials/name fallback is secondary and should be used only when the appropriate Lead cannot be selected from the dropdown. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
+`Not Listed` is a UI-only selection and is never stored as attribution. When selected, the entered custom name is saved through the existing updater-name pathway. Shift Notes are stored on the latest reporting-window row, prefilled when revisiting the same window, and cleared only when the user saves an intentionally blank note. The Lead Command Board shows `View Shift Note` on Staff Needed only for a nonblank current-window note. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
 Current Counts and Scheduled Procedures inputs show short last-known helper text beneath each count field. The format is `Last: VALUE · MM/DD HH:mm`, such as `Last: 8 · 07/07 11:34`. If no previous value is available, the helper shows `Last: —`. These values are informational only and do not auto-fill the Shift Update inputs.
+
+The Lead Command Board shows `View Procedures` only when the current reporting-window update has at least one procedure count above zero or nonblank Other Procedures text.
 
 ## Normal Schedule Current Shift Status
 

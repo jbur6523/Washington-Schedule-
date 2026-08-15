@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   fetchReportingWindowShiftStatusUpdates: vi.fn(),
   insert: vi.fn(),
   replace: vi.fn(),
-  refresh: vi.fn()
+  refresh: vi.fn(),
+  staffOptions: [] as Array<{ id: string; display_name: string }>
 }));
 
 vi.mock("next/navigation", () => ({
@@ -39,7 +40,7 @@ vi.mock("@/lib/supabase/client", () => ({
         return staffQuery;
       },
       async order() {
-        return { data: [], error: null };
+        return { data: mocks.staffOptions, error: null };
       }
     };
 
@@ -68,7 +69,7 @@ function populateRequiredFields() {
   fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
   fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "216" } });
   fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
-  fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
+  fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
 }
 
 function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
@@ -88,6 +89,7 @@ function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
     sputum_induction_count: 3,
     other_procedure_count: 2,
     other_procedure_note: "MRI",
+    shift_note: null,
     updated_by_staff_profile_id: "lead-1",
     updated_by_name: "Lead RT",
     created_at: "2026-08-08T12:00:00.000Z",
@@ -109,6 +111,7 @@ describe("ShiftUpdateClient submission flow", () => {
     mocks.insert.mockReset();
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
+    mocks.staffOptions = [{ id: "lead-1", display_name: "Lead RT" }];
     window.sessionStorage.clear();
   });
 
@@ -192,6 +195,72 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  it("submits a listed lead through the existing staff attribution pathway", async () => {
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    populateRequiredFields();
+
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      updated_by_staff_profile_id: "lead-1",
+      updated_by_name: "Lead RT"
+    }));
+  });
+
+  it("requires a custom updater name for Not Listed and never persists the sentinel", async () => {
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    populateRequiredFields();
+
+    const leadSelect = screen.getByLabelText("Select Lead", { exact: true });
+    expect(screen.getAllByRole("option").at(-1)).toHaveTextContent("Not Listed");
+    fireEvent.change(leadSelect, { target: { value: "__not_listed__" } });
+
+    const customName = screen.getByLabelText("Enter your name", { exact: true });
+    expect(customName).toBeRequired();
+    expect(screen.getByRole("button", { name: "Save Shift Update" })).toBeDisabled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+
+    fireEvent.change(customName, { target: { value: "Relief Lead" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      updated_by_staff_profile_id: null,
+      updated_by_name: "Relief Lead"
+    }));
+    expect(JSON.stringify(mocks.insert.mock.calls[0]?.[0])).not.toContain("Not Listed");
+    expect(JSON.stringify(mocks.insert.mock.calls[0]?.[0])).not.toContain("__not_listed__");
+  });
+
+  it("hides and clears the custom updater when a listed lead is selected again", async () => {
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const leadSelect = screen.getByLabelText("Select Lead", { exact: true });
+    fireEvent.change(leadSelect, { target: { value: "__not_listed__" } });
+    fireEvent.change(screen.getByLabelText("Enter your name", { exact: true }), { target: { value: "Relief Lead" } });
+    fireEvent.change(leadSelect, { target: { value: "lead-1" } });
+
+    expect(screen.queryByLabelText("Enter your name", { exact: true })).not.toBeInTheDocument();
+  });
+
   it("reopens with persisted counts and requires a fresh RVU entry when one procedure changes", async () => {
     mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
       data: [shiftUpdate()],
@@ -221,7 +290,7 @@ describe("ShiftUpdateClient submission flow", () => {
 
     fireEvent.change(screen.getByLabelText(/C-Sections/), { target: { value: "9" } });
     fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
-    fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Editing Lead" } });
+    fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
       await Promise.resolve();
@@ -240,8 +309,59 @@ describe("ShiftUpdateClient submission flow", () => {
       sputum_induction_count: 3,
       other_procedure_count: 2,
       other_procedure_note: "MRI",
-      updated_by_name: "Editing Lead"
+      shift_note: null,
+      updated_by_name: "Lead RT"
     }));
+  });
+
+  it("prefills and preserves the active reporting window's saved shift note", async () => {
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate({ shift_note: "Cover the north pod after 19:00." })],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Cover the north pod after 19:00.");
+    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
+    fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({
+      shift_note: "Cover the north pod after 19:00."
+    }));
+  });
+
+  it("saves null when an existing shift note is intentionally cleared", async () => {
+    mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
+      data: [shiftUpdate({ shift_note: "Temporary operational note" })],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+    mocks.insert.mockResolvedValue({ error: null });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    fireEvent.change(screen.getByLabelText(/Shift Notes/), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
+    fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ shift_note: null }));
   });
 
   it("shows Night Shift at 16:52 Pacific even if a saved row has a stale Day Shift label", async () => {
@@ -309,7 +429,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
     fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
-    fireEvent.change(screen.getByPlaceholderText("Initials or name"), { target: { value: "Lead RT" } });
+    fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
 
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
@@ -320,7 +440,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("clears the editable values when the 16:00 reporting window begins without deleting history", async () => {
     vi.setSystemTime(new Date("2026-08-08T22:59:59.000Z"));
     mocks.fetchReportingWindowShiftStatusUpdates.mockResolvedValue({
-      data: [shiftUpdate()],
+      data: [shiftUpdate({ shift_note: "Day-window note" })],
       error: null,
       usedLegacyProcedureSelect: false
     });
@@ -331,6 +451,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Day-window note");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_050);
@@ -340,6 +461,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(null);
     expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("");
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 
@@ -350,6 +472,7 @@ describe("ShiftUpdateClient submission flow", () => {
         id: "evening-status",
         shift_date: "2026-08-08",
         shift_type: "day",
+        shift_note: "Evening-window note",
         created_at: "2026-08-09T00:00:00.000Z",
         updated_at: "2026-08-09T00:00:00.000Z"
       })],
@@ -362,6 +485,7 @@ describe("ShiftUpdateClient submission flow", () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Evening-window note");
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1_050);
@@ -369,6 +493,7 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(null);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(null);
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
   });
 
   it("ignores a previous-window load that finishes after the reset boundary", async () => {

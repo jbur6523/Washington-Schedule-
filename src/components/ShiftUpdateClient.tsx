@@ -37,9 +37,12 @@ type ShiftUpdateForm = {
   sputumInductionCount: string;
   otherProcedureCount: string;
   otherProcedureNote: string;
+  shiftNote: string;
   updatedByStaffProfileId: string;
   updatedByName: string;
 };
+
+const notListedLeadValue = "__not_listed__";
 
 function shiftUpdateFormForWindow(
   update: ShiftStatusUpdate | null,
@@ -63,6 +66,7 @@ function shiftUpdateFormForWindow(
     sputumInductionCount: update ? String(update.sputum_induction_count) : "",
     otherProcedureCount: update ? String(update.other_procedure_count) : "",
     otherProcedureNote: update?.other_procedure_note ?? "",
+    shiftNote: update?.shift_note ?? "",
     updatedByStaffProfileId: authContext.role === "lead" ? authContext.staffProfileId ?? "" : "",
     updatedByName: ""
   };
@@ -299,7 +303,10 @@ export function ShiftUpdateClient({
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
     [form.updatedByStaffProfileId, staffOptions]
   );
-  const manualUpdatedByName = isValidManualUpdater(form.updatedByName) ? form.updatedByName.trim() : "";
+  const isNotListedLead = form.updatedByStaffProfileId === notListedLeadValue;
+  const manualUpdatedByName = isNotListedLead && isValidManualUpdater(form.updatedByName)
+    ? form.updatedByName.trim()
+    : "";
   const updatedByName = selectedStaff?.display_name ?? manualUpdatedByName;
   const calculatedRtsNeeded = rtsNeededFromRvus(form.rvuCount);
   const canSave = Boolean(
@@ -361,7 +368,8 @@ export function ShiftUpdateClient({
       sputum_induction_count: shiftStatusNumberValue(form.sputumInductionCount),
       other_procedure_count: shiftStatusNumberValue(form.otherProcedureCount),
       other_procedure_note: form.otherProcedureNote.trim() || null,
-      updated_by_staff_profile_id: form.updatedByStaffProfileId || null,
+      shift_note: form.shiftNote.trim() || null,
+      updated_by_staff_profile_id: selectedStaff?.id ?? null,
       updated_by_name: updatedByName
     };
 
@@ -579,6 +587,7 @@ export function ShiftUpdateClient({
                     {staff.display_name}
                   </option>
                 ))}
+                <option value={notListedLeadValue}>Not Listed</option>
               </select>
             </label>
             {staffOptions.length === 0 && (
@@ -586,19 +595,34 @@ export function ShiftUpdateClient({
                 No lead or admin users found. Please update access first.
               </p>
             )}
+            {isNotListedLead && (
+              <label className="mt-3 block">
+                <span className={labelClass}>Enter your name</span>
+                <input
+                  value={form.updatedByName}
+                  onChange={(event) => setForm((current) => ({ ...current, updatedByName: event.target.value.slice(0, 120) }))}
+                  required
+                  placeholder="Enter your name"
+                  className={cyanControlClass}
+                />
+                {form.updatedByName && !manualUpdatedByName && (
+                  <span className="mt-1 block text-xs font-bold text-amber-700">
+                    Enter a lead name, not the shared Command Center account.
+                  </span>
+                )}
+              </label>
+            )}
             <label className="mt-3 block border-t border-cyan-100 pt-3">
-              <span className={labelClass}>Or enter initials/name</span>
-              <input
-                value={form.updatedByName}
-                onChange={(event) => setForm((current) => ({ ...current, updatedByStaffProfileId: "", updatedByName: event.target.value.slice(0, 120) }))}
-                placeholder="Initials or name"
-                className={cyanControlClass}
+              <span className={labelClass}>Shift Notes</span>
+              <textarea
+                value={form.shiftNote}
+                onChange={(event) => setForm((current) => ({ ...current, shiftNote: event.target.value.slice(0, 500) }))}
+                maxLength={500}
+                rows={4}
+                placeholder="Add an optional note about this shift"
+                className="mt-1 w-full resize-y rounded-2xl border border-cyan-200 bg-white px-3 py-3 text-sm font-bold leading-5 text-hospital-ink outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
               />
-              {form.updatedByName && !manualUpdatedByName && (
-                <span className="mt-1 block text-xs font-bold text-amber-700">
-                  Enter a lead name or initials, not the shared Command Center account.
-                </span>
-              )}
+              <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
             </label>
           </section>
 

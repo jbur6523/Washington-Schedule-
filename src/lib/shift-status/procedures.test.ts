@@ -18,6 +18,7 @@ const update: ShiftStatusUpdate = {
   sputum_induction_count: 5,
   other_procedure_count: 6,
   other_procedure_note: null,
+  shift_note: null,
   updated_by_staff_profile_id: "staff-1",
   updated_by_name: "Lead RT",
   created_at: "2026-08-09T15:00:00.000Z",

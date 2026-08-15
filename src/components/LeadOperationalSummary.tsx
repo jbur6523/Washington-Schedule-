@@ -8,6 +8,7 @@ import {
   Bone,
   Building2,
   CalendarCheck,
+  ClipboardList,
   Droplet,
   Heart,
   Stethoscope,
@@ -212,6 +213,92 @@ function ProcedureDetailsModal({
   );
 }
 
+function ShiftNoteModal({
+  open,
+  onClose,
+  note
+}: {
+  open: boolean;
+  onClose: () => void;
+  note: string;
+}) {
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!open || !note) {
+      return;
+    }
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previouslyFocused?.focus();
+    };
+  }, [note, onClose, open]);
+
+  if (!open || !note) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/45 sm:items-center sm:p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lead-shift-note-heading"
+        className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-t-[2rem] border border-white bg-white p-4 shadow-2xl sm:rounded-[2rem] sm:p-5"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-teal-50 text-teal-700">
+              <ClipboardList size={21} aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Operational Summary</p>
+              <h2 id="lead-shift-note-heading" className="text-xl font-black text-hospital-ink">
+                Shift Note
+              </h2>
+            </div>
+          </div>
+          <button
+            ref={closeButtonRef}
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600"
+            aria-label="Close shift note"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
+        <p className="mt-4 whitespace-pre-wrap break-words rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-3 text-sm font-bold leading-6 text-slate-700">
+          {note}
+        </p>
+      </section>
+    </div>
+  );
+}
+
 export function LeadOperationalSummary({
   authContext,
   timezone
@@ -226,6 +313,7 @@ export function LeadOperationalSummary({
   const [rentalError, setRentalError] = useState("");
   const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
   const [proceduresOpen, setProceduresOpen] = useState(false);
+  const [shiftNoteOpen, setShiftNoteOpen] = useState(false);
   const [sessionRvu, setSessionRvu] = useState<SessionRvu | null>(null);
 
   useEffect(() => {
@@ -331,6 +419,8 @@ export function LeadOperationalSummary({
     const timer = window.setTimeout(() => {
       setUpdates([]);
       setLoading(true);
+      setProceduresOpen(false);
+      setShiftNoteOpen(false);
       setReportingWindow(reportingWindowForInstant(new Date()));
     }, reportingWindowEndDelay(reportingWindow) + 25);
 
@@ -366,7 +456,11 @@ export function LeadOperationalSummary({
   const ventCount = resolved.latest?.vent_count ?? "—";
   const rentalCount = activeRentalCount ?? "—";
   const procedures = resolved.totalProcedures ?? "—";
+  const shiftNote = resolved.latest?.shift_note?.trim() ?? "";
+  const hasProcedureDetails = resolved.totalProcedures !== null
+    && (resolved.totalProcedures > 0 || Boolean(resolved.counts.note?.trim()));
   const closeProcedures = useCallback(() => setProceduresOpen(false), []);
+  const closeShiftNote = useCallback(() => setShiftNoteOpen(false), []);
 
   return (
     <>
@@ -381,7 +475,17 @@ export function LeadOperationalSummary({
             value={staffNeeded}
             iconClass="bg-teal-50 text-teal-700 ring-teal-100"
             helperText={staffNeededRvu}
-          />
+          >
+            {shiftNote && (
+              <button
+                type="button"
+                onClick={() => setShiftNoteOpen(true)}
+                className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-teal-300 bg-white px-2.5 text-[11px] font-extrabold text-teal-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
+              >
+                View Shift Note
+              </button>
+            )}
+          </SummaryMetricCard>
           <SummaryMetricCard
             icon={<Users size={18} aria-hidden="true" />}
             label="Staff Scheduled"
@@ -412,13 +516,15 @@ export function LeadOperationalSummary({
             value={procedures}
             iconClass="bg-violet-50 text-violet-700 ring-violet-100"
           >
-            <button
-              type="button"
-              onClick={() => setProceduresOpen(true)}
-              className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-violet-300 bg-white px-2.5 text-[11px] font-extrabold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
-            >
-              View Procedures
-            </button>
+            {hasProcedureDetails && (
+              <button
+                type="button"
+                onClick={() => setProceduresOpen(true)}
+                className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-violet-300 bg-white px-2.5 text-[11px] font-extrabold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
+              >
+                View Procedures
+              </button>
+            )}
           </SummaryMetricCard>
         </div>
 
@@ -437,6 +543,11 @@ export function LeadOperationalSummary({
         loading={loading}
         stale={false}
         timezone={timezone}
+      />
+      <ShiftNoteModal
+        open={shiftNoteOpen}
+        onClose={closeShiftNote}
+        note={shiftNote}
       />
     </>
   );

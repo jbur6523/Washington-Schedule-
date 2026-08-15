@@ -16,6 +16,7 @@ export type ShiftStatusUpdate = {
   sputum_induction_count: number;
   other_procedure_count: number;
   other_procedure_note: string | null;
+  shift_note: string | null;
   updated_by_staff_profile_id: string | null;
   updated_by_name: string | null;
   created_at: string;

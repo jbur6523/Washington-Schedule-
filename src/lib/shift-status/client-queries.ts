@@ -20,6 +20,7 @@ const baseShiftStatusColumns = [
   "sputum_induction_count",
   "other_procedure_count",
   "other_procedure_note",
+  "shift_note",
   "updated_by_staff_profile_id",
   "updated_by_name",
   "created_at",
@@ -42,8 +43,9 @@ export type ShiftStatusQueryError = {
   hint?: string;
 };
 
-type ShiftStatusRow = Omit<ShiftStatusUpdate, "vaginal_delivery_count"> & {
+type ShiftStatusRow = Omit<ShiftStatusUpdate, "vaginal_delivery_count" | "shift_note"> & {
   vaginal_delivery_count?: number | null;
+  shift_note?: string | null;
 };
 
 export function isMissingVaginalDeliveryColumn(error: ShiftStatusQueryError | null) {
@@ -55,7 +57,8 @@ export function isMissingVaginalDeliveryColumn(error: ShiftStatusQueryError | nu
 function normalizeShiftStatusRows(rows: ShiftStatusRow[] | null) {
   return (rows ?? []).map((row) => ({
     ...row,
-    vaginal_delivery_count: row.vaginal_delivery_count ?? 0
+    vaginal_delivery_count: row.vaginal_delivery_count ?? 0,
+    shift_note: row.shift_note ?? null
   })) as ShiftStatusUpdate[];
 }
 
