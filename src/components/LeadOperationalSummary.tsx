@@ -53,7 +53,7 @@ function SummaryMetricCard({ icon, label, value, iconClass, helperText, children
   return (
     <article
       data-testid="operational-summary-tile"
-      className="flex h-full min-h-20 min-w-0 flex-wrap items-center gap-3 rounded-2xl border-2 border-slate-950 bg-white/95 px-3.5 py-2.5 shadow-sm"
+      className="flex h-full min-h-20 min-w-0 cursor-default flex-wrap items-center gap-3 rounded-2xl border-2 border-slate-950 bg-white/95 px-3.5 py-2.5 shadow-sm xl:min-h-[4.5rem] xl:border xl:border-slate-400 xl:px-3 xl:py-2 xl:shadow-md"
     >
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${iconClass}`}>
         {icon}
@@ -473,7 +473,7 @@ export function LeadOperationalSummary({
       <section aria-label="Operational Summary" className="space-y-2.5">
         <div
           data-testid="operational-summary-grid"
-          className="grid auto-rows-fr grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:grid-cols-3"
+          className="grid auto-rows-fr grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:grid-cols-3 xl:mx-auto xl:w-[88%] xl:gap-3"
         >
           <SummaryMetricCard
             icon={<User size={18} aria-hidden="true" />}
