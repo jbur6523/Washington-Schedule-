@@ -119,7 +119,7 @@ function CountInputCard({
   value,
   step = "1",
   inputMode = "numeric",
-  inputHint,
+  placeholder,
   helperText,
   onBlur,
   onChange,
@@ -130,7 +130,7 @@ function CountInputCard({
   value: string;
   step?: string;
   inputMode?: "numeric" | "decimal";
-  inputHint?: string;
+  placeholder?: string;
   helperText?: string;
   onBlur?: () => void;
   onChange: (value: string) => void;
@@ -142,17 +142,17 @@ function CountInputCard({
         {icon}
       </span>
       <span className="mt-2 text-[12px] font-extrabold leading-tight text-slate-600">{label}</span>
-      {inputHint && <span className="mt-1 text-[11px] font-bold leading-tight text-cyan-700">{inputHint}</span>}
       <input
         type="number"
         min={0}
         step={step}
         inputMode={inputMode}
+        placeholder={placeholder}
         value={value}
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
-        className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
+        className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition placeholder:text-base placeholder:font-bold placeholder:text-slate-400/70 focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
       {helperText && <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>}
     </label>
@@ -478,7 +478,7 @@ export function ShiftUpdateClient({
                   : calculatedRtsNeeded?.toFixed(1) ?? ""}
                 step="any"
                 inputMode="decimal"
-                inputHint="Enter RVUs"
+                placeholder="Enter RVUs"
                 onBlur={() => setEditingRvus(false)}
                 onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
                 onFocus={() => setEditingRvus(true)}

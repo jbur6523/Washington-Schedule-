@@ -280,7 +280,8 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
     expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(202.5);
-    expect(screen.getByText("Enter RVUs")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter RVUs")).toBe(screen.getByLabelText(/RTs Needed/));
+    expect(screen.queryByText("Enter RVUs")).not.toBeInTheDocument();
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(4);
