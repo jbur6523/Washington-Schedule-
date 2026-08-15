@@ -128,7 +128,7 @@ describe("LeadOperationalSummary", () => {
     const grid = screen.getByTestId("operational-summary-grid");
     expect(grid).toHaveClass("min-[380px]:grid-cols-2", "lg:grid-cols-3");
     for (const tile of screen.getAllByTestId("operational-summary-tile")) {
-      expect(tile).toHaveClass("bg-white/95", "border-slate-200/80", "min-h-20");
+      expect(tile).toHaveClass("bg-white/95", "border-2", "border-slate-950", "min-h-20");
       expect(tile.className).not.toMatch(/bg-(sky|cyan|teal|emerald|amber|violet)-50/);
     }
   });

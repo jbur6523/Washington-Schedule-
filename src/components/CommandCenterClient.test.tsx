@@ -87,7 +87,7 @@ describe("CommandCenterClient desktop dashboard", () => {
 
     const unifiedActionCards = Array.from(grid.children).slice(0, 7);
     for (const card of unifiedActionCards) {
-      expect(card).toHaveClass("bg-white/95", "border-slate-200/80", "focus-visible:ring-2");
+      expect(card).toHaveClass("bg-white/95", "border-2", "border-blue-900", "focus-visible:ring-2");
       expect(card.className).not.toMatch(/bg-(sky|blue|cyan|teal|purple|violet|amber|red)-50/);
     }
     expect(screen.getAllByTestId("lead-action-chevron")).toHaveLength(7);

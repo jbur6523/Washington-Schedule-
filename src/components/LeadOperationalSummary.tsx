@@ -53,7 +53,7 @@ function SummaryMetricCard({ icon, label, value, iconClass, helperText, children
   return (
     <article
       data-testid="operational-summary-tile"
-      className="flex h-full min-h-20 min-w-0 flex-wrap items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/95 px-3.5 py-2.5 shadow-sm"
+      className="flex h-full min-h-20 min-w-0 flex-wrap items-center gap-3 rounded-2xl border-2 border-slate-950 bg-white/95 px-3.5 py-2.5 shadow-sm"
     >
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${iconClass}`}>
         {icon}

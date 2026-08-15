@@ -1,7 +1,7 @@
 import { ChevronRight, type LucideIcon } from "lucide-react";
 
 export const leadActionCardClass =
-  "group relative flex h-full min-h-[5.5rem] w-full items-center gap-3 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 px-4 py-3.5 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 active:translate-y-0";
+  "group relative flex h-full min-h-[5.5rem] w-full items-center gap-3 overflow-hidden rounded-2xl border-2 border-blue-900 bg-white/95 px-4 py-3.5 text-left shadow-sm transition duration-150 hover:-translate-y-0.5 hover:border-blue-950 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 active:translate-y-0";
 
 export function LeadActionCardContent({
   icon: Icon,
