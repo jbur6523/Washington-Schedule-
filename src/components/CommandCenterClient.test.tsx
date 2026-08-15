@@ -90,6 +90,10 @@ describe("CommandCenterClient desktop dashboard", () => {
       expect(card).toHaveClass("bg-white/95", "border-2", "border-blue-900", "focus-visible:ring-2");
       expect(card.className).not.toMatch(/bg-(sky|blue|cyan|teal|purple|violet|amber|red)-50/);
     }
+    for (const accent of screen.getAllByTestId("lead-action-accent")) {
+      expect(accent).toHaveClass("inset-x-0", "bottom-0", "h-1");
+      expect(accent).not.toHaveClass("inset-y-0", "left-0", "w-1");
+    }
     expect(screen.getAllByTestId("lead-action-chevron")).toHaveLength(7);
     expect(screen.getByRole("link", { name: /Shift Update/ })).toHaveAttribute(
       "href",

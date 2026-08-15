@@ -22,7 +22,11 @@ export function LeadActionCardContent({
 }) {
   return (
     <>
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${accentClass}`} />
+      <span
+        data-testid="lead-action-accent"
+        aria-hidden="true"
+        className={`absolute inset-x-0 bottom-0 h-1 ${accentClass}`}
+      />
       <span
         className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${iconClass}`}
       >
