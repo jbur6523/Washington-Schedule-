@@ -70,7 +70,12 @@ export function canCreateLeadCommunication(
 export function canReplyToLeadCommunication(
   context: Pick<AuthenticatedUserContext, "role" | "operationsRole">
 ) {
-  return context.role === "admin" || context.role === "lead" || isLeadership(context);
+  return (
+    context.role === "admin"
+    || context.role === "lead"
+    || isLeadership(context)
+    || isCommandCenter(context)
+  );
 }
 
 export function canUseNotifications(context: Pick<AuthenticatedUserContext, "operationsRole">) {

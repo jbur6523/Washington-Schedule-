@@ -64,6 +64,7 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(commandCenter)).toBe(true);
     expect(canViewIcuCommandCenter(commandCenter)).toBe(true);
     expect(canEditIcuCommandCenter(commandCenter)).toBe(false);
+    expect(canReplyToLeadCommunication(commandCenter)).toBe(true);
 
     expect(canViewDirectorShiftStatus(director)).toBe(true);
     expect(canManageDepartmentAnnouncement(director)).toBe(true);

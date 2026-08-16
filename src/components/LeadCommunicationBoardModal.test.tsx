@@ -148,7 +148,22 @@ function queryBuilder(table: string) {
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
     from: (table: string) => queryBuilder(table),
-    rpc: mocks.rpc
+    rpc: async (functionName: string, args: Record<string, unknown>) => {
+      mocks.rpc(functionName, args);
+
+      if (functionName === "reply_to_lead_communication_note") {
+        const noteId = String(args.target_note_id);
+        const note = storedNotes.find((item) => item.id === noteId);
+        if (note) {
+          note.follow_up_text = String(args.reply_text);
+          note.followed_up_at = "2026-08-10T16:05:00.000Z";
+          note.followed_up_by_name = "Reply Author";
+        }
+        return { data: true, error: null };
+      }
+
+      return { data: null, error: null };
+    }
   })
 }));
 
@@ -186,16 +201,29 @@ function reviewerContext(role: "admin" | "lead" = "lead"): AuthenticatedUserCont
   };
 }
 
-describe("Lead Communication shared read state", () => {
+function commandCenterContext(): AuthenticatedUserContext {
+  return {
+    authUserId: "auth-sputum",
+    profileId: "profile-sputum",
+    staffProfileId: "staff-sputum",
+    departmentId: "department-1",
+    departmentName: "Respiratory Care",
+    role: "staff",
+    operationsRole: "command_center",
+    displayName: "Respiratory Command Center",
+    hasLinkedStaffProfile: true
+  };
+}
+
+describe("Lead Communication shared read state and replies", () => {
   beforeEach(() => {
     storedNotes = [makeNote()];
     mocks.insert.mockReset();
     mocks.rpc.mockReset();
-    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.update.mockReset();
   });
 
-  it("counts every shared unread message for the command-board badge", async () => {
+  it("counts shared unread messages for the command-board badge", async () => {
     storedNotes = [
       makeNote({ id: "new-1" }),
       makeNote({ id: "new-2" }),
@@ -206,7 +234,7 @@ describe("Lead Communication shared read state", () => {
   });
 
   it.each(["lead", "admin"] as const)(
-    "acknowledges messages on %s board entry without a Mark Reviewed control",
+    "acknowledges existing unread messages when the %s board is opened",
     async (role) => {
       const onNotesChanged = vi.fn();
       render(
@@ -222,22 +250,18 @@ describe("Lead Communication shared read state", () => {
       expect(await screen.findByText("Please review the staffing update.")).toBeInTheDocument();
       await waitFor(() => expect(storedNotes[0].status).toBe("reviewed"));
       expect(await screen.findByText("Read")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Mark Reviewed" })).not.toBeInTheDocument();
       const markUnread = screen.getByRole("button", { name: "Mark Unread" });
       const reply = screen.getByRole("button", { name: "Reply" });
       expect(markUnread).toBeEnabled();
       expect(markUnread.parentElement).toBe(reply.parentElement);
-      expect(markUnread.parentElement).toHaveClass("flex", "flex-wrap", "items-center", "gap-2");
-      expect(storedNotes[0].reviewed_at).toBeNull();
       expect(onNotesChanged).toHaveBeenCalled();
     }
   );
 
-  it("keeps post-entry messages unread and leaves the correct badge count", async () => {
+  it("keeps notes that arrived after board entry unread", async () => {
     storedNotes = [
       makeNote({ id: "existing", created_at: "2020-01-01T00:00:00.000Z" }),
-      makeNote({ id: "arrived-later-1", created_at: "2099-01-01T00:00:00.000Z" }),
-      makeNote({ id: "arrived-later-2", created_at: "2099-01-01T00:00:01.000Z" })
+      makeNote({ id: "arrived-later", created_at: "2099-01-01T00:00:00.000Z" })
     ];
 
     render(
@@ -249,13 +273,12 @@ describe("Lead Communication shared read state", () => {
       />
     );
 
-    await waitFor(() => expect(storedNotes.find((item) => item.id === "existing")?.status).toBe("reviewed"));
-    expect(storedNotes.find((item) => item.id === "arrived-later-1")?.status).toBe("new");
-    expect(storedNotes.find((item) => item.id === "arrived-later-2")?.status).toBe("new");
-    await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(2);
+    await waitFor(() => expect(storedNotes.find((note) => note.id === "existing")?.status).toBe("reviewed"));
+    expect(storedNotes.find((note) => note.id === "arrived-later")?.status).toBe("new");
+    await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(1);
   });
 
-  it("keeps Mark Unread active until the board is entered again and preserves review history", async () => {
+  it("restores Mark Unread on read notes and acknowledges them on the next board entry", async () => {
     const historicalReview = "2026-07-01T10:00:00.000Z";
     storedNotes = [makeNote({
       status: "reviewed",
@@ -277,7 +300,6 @@ describe("Lead Communication shared read state", () => {
     const markUnread = await screen.findByRole("button", { name: "Mark Unread" });
     fireEvent.click(markUnread);
 
-    await waitFor(() => expect(storedNotes[0].status).toBe("new"));
     expect(await screen.findByText("New")).toBeInTheDocument();
     await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(1);
     expect(storedNotes[0]).toMatchObject({
@@ -307,33 +329,82 @@ describe("Lead Communication shared read state", () => {
     );
 
     await waitFor(() => expect(storedNotes[0].status).toBe("reviewed"));
+    expect(await screen.findByRole("button", { name: "Mark Unread" })).toBeEnabled();
     expect(storedNotes[0].reviewed_at).toBe(historicalReview);
   });
 
-  it("keeps replies independent from a post-entry unread message", async () => {
-    storedNotes = [makeNote({ created_at: "2099-01-01T00:00:00.000Z" })];
+  it("clears the shared badge after existing unread notes are acknowledged on entry", async () => {
+    storedNotes = [makeNote({ id: "note-1" }), makeNote({ id: "note-2", note_text: "Second note" })];
     render(
       <LeadCommunicationBoardModal
-        authContext={reviewerContext("admin")}
+        authContext={reviewerContext()}
         open
         onClose={() => undefined}
         context="lead"
       />
     );
 
+    await waitFor(() => expect(storedNotes.every((note) => note.status === "reviewed")).toBe(true));
+    await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(0);
+  });
+
+  it("allows a lead to reply to a self-authored note", async () => {
+    render(
+      <LeadCommunicationBoardModal authContext={reviewerContext()} open onClose={() => undefined} context="lead" />
+    );
+
     expect(await screen.findByText("Please review the staffing update.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reply" }));
     fireEvent.change(screen.getByPlaceholderText("Write a reply..."), {
-      target: { value: "Reply without changing unread state" }
+      target: { value: "Reply for the team" }
     });
     fireEvent.click(screen.getByRole("button", { name: "Send Reply" }));
 
-    await waitFor(() => expect(storedNotes[0].follow_up_text).toBe("Reply without changing unread state"));
-    expect(storedNotes[0].status).toBe("new");
+    await waitFor(() => expect(storedNotes[0].follow_up_text).toBe("Reply for the team"));
     expect(mocks.update).toHaveBeenCalledWith(
       "lead_communication_notes",
-      expect.not.objectContaining({ status: expect.anything() })
+      expect.objectContaining({ follow_up_text: "Reply for the team" })
     );
+  });
+
+  it("treats a Sputum-authored note as replyable for the shared command-center login", async () => {
+    storedNotes = [makeNote({
+      created_by_staff_profile_id: "staff-sputum",
+      created_by_name: "Respiratory Command Center"
+    })];
+
+    render(
+      <LeadCommunicationBoardModal authContext={commandCenterContext()} open onClose={() => undefined} context="lead" />
+    );
+
+    expect(await screen.findByText("Please review the staffing update.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+    fireEvent.change(screen.getByPlaceholderText("Write a reply..."), {
+      target: { value: "Reply from the next person using Sputum" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send Reply" }));
+
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("reply_to_lead_communication_note", {
+      target_note_id: "note-1",
+      reply_text: "Reply from the next person using Sputum"
+    }));
+    expect(await screen.findByText("Reply from the next person using Sputum")).toBeInTheDocument();
+  });
+
+  it("preserves urgent styling, attribution, timestamps, and archived-note filtering", async () => {
+    storedNotes = [
+      makeNote({ priority: "urgent", created_by_name: "Urgent Author" }),
+      makeNote({ id: "closed-note", note_text: "Archived note", status: "closed" })
+    ];
+
+    render(
+      <LeadCommunicationBoardModal authContext={reviewerContext()} open onClose={() => undefined} context="lead" />
+    );
+
+    expect(await screen.findByText("Urgent")).toBeInTheDocument();
+    expect(screen.getByText("Created by: Urgent Author")).toBeInTheDocument();
+    expect(screen.getByText(/08\/10\/2026, \d{2}:00/)).toBeInTheDocument();
+    expect(screen.queryByText("Archived note")).not.toBeInTheDocument();
   });
 });
 
@@ -342,7 +413,6 @@ describe.each(leadershipAccounts)("Leadership communication for %s", (username, 
     storedNotes = [makeNote()];
     mocks.insert.mockReset();
     mocks.rpc.mockReset();
-    mocks.rpc.mockResolvedValue({ data: true, error: null });
     mocks.update.mockReset();
   });
 

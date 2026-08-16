@@ -161,6 +161,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     const viewShiftButton = within(statusCard as HTMLElement).getByRole("button", { name: "View Shift" });
     expect(viewShiftButton).toBeInTheDocument();
     expect(within(statusCard as HTMLElement).getByRole("button", { name: "View Schedule" })).toBeInTheDocument();
+    expect(within(statusCard as HTMLElement).queryByRole("button", { name: "View Shift Notes" })).not.toBeInTheDocument();
     expect(viewShiftButton.parentElement).toHaveClass("grid", "grid-cols-2", "gap-2.5");
     expect(within(snapshotCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");
@@ -242,6 +243,13 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     const statusCard = screen.getByRole("heading", { name: "Current Shift Status" }).closest("section") as HTMLElement;
     expect(within(statusCard).getByText("RTs On Shift").parentElement).toHaveTextContent("7");
     expect(within(statusCard).getByText("RTs Needed").parentElement).toHaveTextContent("6.5");
+
+    fireEvent.click(within(statusCard).getByRole("button", { name: "View Shift Notes" }));
+    const notesDialog = screen.getByRole("dialog", { name: "Shift Notes" });
+    expect(within(notesDialog).getByText("Watch staffing after 15:00.")).toBeInTheDocument();
+    expect(within(notesDialog).getByText("Author").parentElement).toHaveTextContent("Lead RT");
+    expect(within(notesDialog).getByText("Date/time").parentElement).toHaveTextContent("08/09/2026");
+    fireEvent.click(within(notesDialog).getByRole("button", { name: "Close" }));
 
     fireEvent.click(within(statusCard).getByRole("button", { name: "View Shift" }));
     await act(async () => {

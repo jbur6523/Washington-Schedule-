@@ -394,6 +394,7 @@ export function DirectorShiftStatusClient({
   const [directoryProfiles, setDirectoryProfiles] = useState<DirectoryStaffProfile[]>([]);
   const [shiftPreviewOpen, setShiftPreviewOpen] = useState(false);
   const [currentShiftDetailOpen, setCurrentShiftDetailOpen] = useState(false);
+  const [shiftNotesOpen, setShiftNotesOpen] = useState(false);
   const [currentShiftRoster, setCurrentShiftRoster] = useState<ShiftRosterSnapshot | null>(null);
   const [currentShiftRosterLoading, setCurrentShiftRosterLoading] = useState(false);
   const [currentShiftRosterError, setCurrentShiftRosterError] = useState("");
@@ -589,7 +590,7 @@ export function DirectorShiftStatusClient({
   }, [authContext.departmentId, loadShiftStatus]);
 
   useEffect(() => {
-    if (!shiftPreviewOpen && !currentShiftDetailOpen && !directoryOpen) {
+    if (!shiftPreviewOpen && !currentShiftDetailOpen && !shiftNotesOpen && !directoryOpen) {
       return;
     }
 
@@ -599,7 +600,7 @@ export function DirectorShiftStatusClient({
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [currentShiftDetailOpen, directoryOpen, shiftPreviewOpen]);
+  }, [currentShiftDetailOpen, directoryOpen, shiftNotesOpen, shiftPreviewOpen]);
 
   useEffect(() => {
     if (!utilityMenuOpen) {
@@ -715,6 +716,7 @@ export function DirectorShiftStatusClient({
   const currentShiftDetailRecord: ShiftHistoryRecord | null = latest
     ? { ...latest, roster: currentShiftRoster }
     : null;
+  const currentShiftNote = latest?.shift_note?.trim() ?? "";
 
   useEffect(() => {
     if (!currentShiftDetailOpen) {
@@ -960,23 +962,35 @@ export function DirectorShiftStatusClient({
             </div>
           )}
 
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => setCurrentShiftDetailOpen(true)}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-sm font-black text-white shadow-sm"
-            >
-              <ClipboardList size={17} />
-              View Shift
-            </button>
-            <button
-              type="button"
-              onClick={openShiftPreview}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-3 text-sm font-black text-cyan-700 shadow-sm"
-            >
-              <CalendarCheck size={17} />
-              View Schedule
-            </button>
+          <div className="mt-4 space-y-2.5">
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCurrentShiftDetailOpen(true)}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-sm font-black text-white shadow-sm"
+              >
+                <ClipboardList size={17} />
+                View Shift
+              </button>
+              <button
+                type="button"
+                onClick={openShiftPreview}
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-3 text-sm font-black text-cyan-700 shadow-sm"
+              >
+                <CalendarCheck size={17} />
+                View Schedule
+              </button>
+            </div>
+            {currentShiftNote && (
+              <button
+                type="button"
+                onClick={() => setShiftNotesOpen(true)}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-slate-50 px-3 text-sm font-black text-slate-700 shadow-sm"
+              >
+                <FileText size={17} />
+                View Shift Notes
+              </button>
+            )}
           </div>
         </section>
 
@@ -1332,6 +1346,49 @@ export function DirectorShiftStatusClient({
                     />
                   </article>
                 )}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {shiftNotesOpen && latest && currentShiftNote && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="director-shift-notes-title"
+              className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white shadow-2xl"
+            >
+              <div className="border-b border-slate-100 px-4 py-4">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Leadership View</p>
+                <div className="mt-1 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="director-shift-notes-title" className="text-2xl font-black text-hospital-ink">Shift Notes</h2>
+                    <p className="mt-1 text-sm font-bold text-slate-500">{formatDirectorSourceShift(latest)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShiftNotesOpen(false)}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="px-4 py-4 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                <p className="whitespace-pre-wrap break-words rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-4 text-sm font-semibold leading-6 text-slate-700">
+                  {currentShiftNote}
+                </p>
+                <dl className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <dt>Author</dt>
+                    <dd className="text-hospital-ink">{updatedByName(latest)}</dd>
+                  </div>
+                  <div className="mt-2 flex flex-wrap justify-between gap-2">
+                    <dt>Date/time</dt>
+                    <dd className="text-hospital-ink">{formatShiftStatusTime(latest.updated_at, timezone)}</dd>
+                  </div>
+                </dl>
               </div>
             </section>
           </div>

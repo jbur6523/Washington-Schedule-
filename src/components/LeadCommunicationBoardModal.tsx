@@ -5,6 +5,7 @@ import { Mail, MessageSquareText, Send, X } from "lucide-react";
 import {
   canCreateLeadCommunication,
   canReplyToLeadCommunication,
+  isCommandCenter,
   isLeadership
 } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -165,6 +166,7 @@ export function LeadCommunicationBoardModal({
     && (authContext.role === "admin" || authContext.role === "lead");
   const canReplyToNotes = canReplyToLeadCommunication(authContext);
   const leadershipContext = isLeadership(authContext);
+  const sharedCommandCenterContext = authContext.role === "staff" && isCommandCenter(authContext);
   const selectedAddedBy = useMemo(
     () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
     [addedByStaffProfileId, leadOptions]
@@ -413,7 +415,7 @@ export function LeadCommunicationBoardModal({
 
     const now = new Date().toISOString();
     const supabase = createClient();
-    const { error: updateError } = leadershipContext
+    const { error: updateError } = leadershipContext || sharedCommandCenterContext
       ? await supabase.rpc("reply_to_lead_communication_note", {
           target_note_id: note.id,
           reply_text: followUpText

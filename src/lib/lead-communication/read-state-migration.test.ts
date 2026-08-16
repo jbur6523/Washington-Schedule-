@@ -6,6 +6,10 @@ const migrationPath = path.join(
   process.cwd(),
   "supabase/migrations/202608140002_lead_communication_read_state.sql"
 );
+const commandCenterReplyMigrationPath = path.join(
+  process.cwd(),
+  "supabase/migrations/202608150005_lead_communication_command_center_replies.sql"
+);
 
 describe("Lead Communication read-state migration", () => {
   it("keeps leadership replies independent from shared read state", () => {
@@ -26,5 +30,17 @@ describe("Lead Communication read-state migration", () => {
     expect(migration).not.toContain("alter table");
     expect(migration).not.toContain("create table");
     expect(migration).not.toContain("drop table");
+  });
+
+  it("allows narrow command-center replies without changing shared read state", () => {
+    const migration = fs.readFileSync(commandCenterReplyMigrationPath, "utf8");
+
+    expect(migration).toContain("create or replace function public.reply_to_lead_communication_note");
+    expect(migration).toContain("staff.operations_role in ('leadership', 'command_center')");
+    expect(migration).toContain("follow_up_text = reply_text");
+    expect(migration).not.toContain("created_by_staff_profile_id");
+    expect(migration).not.toContain("status = 'reviewed'");
+    expect(migration).not.toContain("create table");
+    expect(migration).not.toContain("alter table");
   });
 });
