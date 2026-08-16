@@ -1,7 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandCenterClient } from "@/components/CommandCenterClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+
+const navigationMocks = vi.hoisted(() => ({ replace: vi.fn() }));
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/command-center",
+  useRouter: () => ({ replace: navigationMocks.replace })
+}));
 
 vi.mock("@/components/LeadOperationalSummary", () => ({
   LeadOperationalSummary: () => <section aria-label="Operational Summary">Operational Summary</section>
@@ -52,6 +59,11 @@ describe("CommandCenterClient desktop dashboard", () => {
   beforeEach(() => {
     mocks.fetchLeadCommunicationNewCount.mockReset();
     mocks.fetchLeadCommunicationNewCount.mockResolvedValue(0);
+    navigationMocks.replace.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("places the summary below the unchanged header and renders action cards in the required pairs", () => {
@@ -107,6 +119,27 @@ describe("CommandCenterClient desktop dashboard", () => {
       "href",
       "/command-center/icu-snapshot"
     );
+  });
+
+  it("shows a queued Shift Update success toast once and dismisses it automatically", async () => {
+    vi.useFakeTimers();
+
+    render(
+      <CommandCenterClient
+        authContext={authContext}
+        timezone="America/Los_Angeles"
+        showShiftUpdateSaved
+      />
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Shift update saved");
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(navigationMocks.replace).toHaveBeenCalledWith("/command-center", { scroll: false });
+
   });
 
   it("shows the shared unread message count as the red new-note badge", async () => {

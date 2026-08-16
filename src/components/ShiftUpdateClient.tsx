@@ -238,23 +238,12 @@ export function ShiftUpdateClient({
   const [loadingSelection, setLoadingSelection] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
-  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [editingRvus, setEditingRvus] = useState(true);
   const submissionInFlightRef = useRef(false);
-  const redirectTimerRef = useRef<number | null>(null);
   const latestLoadRequestIdRef = useRef(0);
   const [cleanFormSignature, setCleanFormSignature] = useState(() => formSignature(form));
   const dirty = formSignature(form) !== cleanFormSignature;
-
-  useEffect(
-    () => () => {
-      if (redirectTimerRef.current !== null) {
-        window.clearTimeout(redirectTimerRef.current);
-      }
-    },
-    []
-  );
 
   useEffect(() => {
     const timer = window.setTimeout(async () => {
@@ -332,7 +321,6 @@ export function ShiftUpdateClient({
 
       setLoadingSelection(true);
       setSelection(nextSelection);
-      setMessage("");
       setError("");
     }, delay + 25);
 
@@ -356,7 +344,6 @@ export function ShiftUpdateClient({
 
     setLoadingSelection(true);
     setSelection(nextSelection);
-    setMessage("");
     setError("");
   };
 
@@ -423,7 +410,6 @@ export function ShiftUpdateClient({
     submissionInFlightRef.current = true;
     setSaving(true);
     setError("");
-    setMessage("");
 
     const basePayload = {
       department_id: authContext.departmentId,
@@ -469,11 +455,8 @@ export function ShiftUpdateClient({
         rtsNeeded: calculatedRtsNeeded,
         rvuCount: Number(form.rvuCount)
       });
-      setMessage("Update Submitted");
-      redirectTimerRef.current = window.setTimeout(() => {
-        router.replace("/command-center");
-        router.refresh();
-      }, 1_500);
+      router.replace("/command-center?shiftUpdate=saved");
+      router.refresh();
     } catch (saveException) {
       if (process.env.NODE_ENV !== "production") {
         console.error("Shift update submission failed", saveException);
@@ -710,8 +693,6 @@ export function ShiftUpdateClient({
           </section>
 
           {error && <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>}
-          {message && <p role="status" aria-live="polite" className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">{message}</p>}
-
           <button
             type="submit"
             disabled={saving || !canSave}

@@ -28,7 +28,11 @@ function AccessDenied() {
   );
 }
 
-export default async function CommandCenterPage() {
+export default async function CommandCenterPage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await getAuthenticatedUserContext();
 
   if (auth.status === "unauthenticated") {
@@ -50,11 +54,14 @@ export default async function CommandCenterPage() {
     .select("timezone")
     .eq("id", auth.context.departmentId)
     .maybeSingle();
+  const params = (await searchParams) ?? {};
+  const shiftUpdateResult = Array.isArray(params.shiftUpdate) ? params.shiftUpdate[0] : params.shiftUpdate;
 
   return (
     <CommandCenterClient
       authContext={auth.context}
       timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
+      showShiftUpdateSaved={shiftUpdateResult === "saved"}
     />
   );
 }

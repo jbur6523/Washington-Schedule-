@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Activity, ClipboardList, LogOut, Megaphone, MessageSquareText, Phone, RefreshCcw } from "lucide-react";
 import { DepartmentAnnouncementManagerCard } from "@/components/DepartmentAnnouncement";
@@ -15,12 +16,31 @@ import { CommandCenterTabs } from "@/components/CommandCenterTabs";
 type CommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
   timezone: string;
+  showShiftUpdateSaved?: boolean;
 };
 
-export function CommandCenterClient({ authContext, timezone }: CommandCenterClientProps) {
+export function CommandCenterClient({
+  authContext,
+  timezone,
+  showShiftUpdateSaved = false
+}: CommandCenterClientProps) {
+  const router = useRouter();
   const [rtAideNotesOpen, setRtAideNotesOpen] = useState(false);
   const [leadNotesOpen, setLeadNotesOpen] = useState(false);
   const [leadNewNoteCount, setLeadNewNoteCount] = useState(0);
+  const [successToast, setSuccessToast] = useState(showShiftUpdateSaved ? "Shift update saved" : "");
+
+  useEffect(() => {
+    if (!successToast) return;
+
+    const timer = window.setTimeout(() => {
+      setSuccessToast("");
+      if (showShiftUpdateSaved) {
+        router.replace("/command-center", { scroll: false });
+      }
+    }, 3_000);
+    return () => window.clearTimeout(timer);
+  }, [router, showShiftUpdateSaved, successToast]);
 
   const loadLeadNewNoteCount = useCallback(async () => {
     const count = await fetchLeadCommunicationNewCount(authContext.departmentId);
@@ -41,6 +61,15 @@ export function CommandCenterClient({ authContext, timezone }: CommandCenterClie
 
   return (
     <main className="min-h-screen overflow-x-hidden px-4 py-5 lg:py-6">
+      {successToast && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-extrabold text-emerald-800 shadow-lg"
+        >
+          {successToast}
+        </p>
+      )}
       <div className="mx-auto max-w-6xl space-y-3">
         <header className="py-1 text-center sm:py-2">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>

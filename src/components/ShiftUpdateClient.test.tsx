@@ -129,7 +129,7 @@ describe("ShiftUpdateClient submission flow", () => {
     vi.useRealTimers();
   });
 
-  it("confirms one successful save, then replaces the form with a refreshed Lead Command Board", async () => {
+  it("waits for one successful save, then immediately returns to a refreshed Lead Command Board", async () => {
     let resolveInsert: ((value: { error: null }) => void) | null = null;
     mocks.rpc.mockImplementation(
       () => new Promise<{ error: null }>((resolve) => {
@@ -159,19 +159,16 @@ describe("ShiftUpdateClient submission flow", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Update Submitted");
     expect(submitButton).toBeDisabled();
-    expect(mocks.replace).not.toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1_500);
-    });
-
-    expect(mocks.replace).toHaveBeenCalledWith("/command-center");
+    expect(mocks.replace).toHaveBeenCalledWith("/command-center?shiftUpdate=saved");
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.replace.mock.invocationCallOrder[0]
+    );
     expect(mocks.replace.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.refresh.mock.invocationCallOrder[0]
     );
+    expect(screen.queryByText("Update Submitted")).not.toBeInTheDocument();
   });
 
   it("keeps form values and allows retry when persistence fails", async () => {
