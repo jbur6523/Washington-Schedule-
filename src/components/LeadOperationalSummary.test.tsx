@@ -262,9 +262,12 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByText("Some operational metrics are currently unavailable.")).toBeInTheDocument();
   });
 
-  it("keeps the latest submitted metrics visible across the 16:00 workspace boundary", async () => {
-    vi.setSystemTime(new Date("2026-08-09T22:59:59.000Z"));
-    mocks.fetchLatestCanonical.mockResolvedValue({ data: { ...currentUpdate, shift_note: "Day-window note" }, error: null });
+  it.each([
+    ["16:00", "2026-08-09T22:59:30.000Z", "Day-window note"],
+    ["04:00", "2026-08-10T10:59:30.000Z", "Night-window note"]
+  ])("keeps the latest submitted metrics and note visible across the %s workspace boundary", async (_label, start, note) => {
+    vi.setSystemTime(new Date(start));
+    mocks.fetchLatestCanonical.mockResolvedValue({ data: { ...currentUpdate, shift_note: note }, error: null });
     await renderLoadedSummary();
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
@@ -272,7 +275,7 @@ describe("LeadOperationalSummary", () => {
     expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1_050);
+      await vi.advanceTimersByTimeAsync(60_500);
     });
 
     expect(within(summary).getByLabelText("Staff Needed: 9.5")).toBeInTheDocument();
@@ -281,7 +284,32 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByLabelText("BiPAP Count: 3")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: 5")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
+    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent(note);
+  });
+
+  it("shows a newly submitted Night update immediately before the Leadership handoff", async () => {
+    vi.setSystemTime(new Date("2026-08-10T00:30:00.000Z"));
+    mocks.fetchLatestCanonical.mockResolvedValue({
+      data: {
+        ...currentUpdate,
+        id: "early-night-update",
+        shift_type: "night",
+        rts_on: 6,
+        rts_required: 7,
+        shift_note: "Early Night handoff note",
+        created_at: "2026-08-10T00:30:00.000Z",
+        updated_at: "2026-08-10T00:30:00.000Z"
+      },
+      error: null
+    });
+
+    await renderLoadedSummary();
+
+    expect(screen.getByLabelText("Staff Needed: 7.0")).toBeInTheDocument();
+    expect(screen.getByLabelText("Staff On Shift: 6")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
+    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent("Early Night handoff note");
   });
 
   it("uses the latest non-null submitted Vent value without changing the record behind other controls", async () => {

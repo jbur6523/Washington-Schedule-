@@ -159,22 +159,39 @@ export function resolveDirectorCurrentClinicalShift(
   date = new Date()
 ): DirectorShiftStatusResolution {
   const currentWindow = currentClinicalShiftRecordForInstant(date, timezone);
+  const currentSequence = shiftSequenceValue(currentWindow.shiftDate, currentWindow.shiftType);
+  const eligible = updates.filter(
+    (update) =>
+      isSubmittedRecord(update) &&
+      update.is_canonical !== false &&
+      shiftSequenceValue(update.shift_date, update.shift_type) <= currentSequence
+  );
   const currentLatest = latestShiftStatus(
-    updates.filter(
+    eligible.filter(
       (update) =>
-        isSubmittedRecord(update) &&
-        update.is_canonical !== false &&
         update.shift_date === currentWindow.shiftDate &&
         update.shift_type === currentWindow.shiftType
     )
   );
+  const previousSequence = eligible
+    .map((update) => shiftSequenceValue(update.shift_date, update.shift_type))
+    .filter((sequence) => sequence < currentSequence)
+    .sort()
+    .at(-1);
+  const fallbackLatest = currentLatest || !previousSequence
+    ? null
+    : latestShiftStatus(
+        eligible.filter(
+          (update) => shiftSequenceValue(update.shift_date, update.shift_type) === previousSequence
+        )
+      );
 
   return {
     currentWindow,
-    latest: currentLatest,
+    latest: currentLatest ?? fallbackLatest,
     currentLatest,
-    fallbackLatest: null,
-    showingFallback: false
+    fallbackLatest,
+    showingFallback: Boolean(fallbackLatest)
   };
 }
 

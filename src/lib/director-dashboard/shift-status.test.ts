@@ -40,31 +40,64 @@ function update(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpdate {
 }
 
 describe("Director latest-known shift submissions", () => {
-  it("uses the strict current clinical shift without substituting a prior record", () => {
-    const prior = update();
-    const currentDay = update({
-      id: "00000000-0000-0000-0000-000000000002",
+  it("keeps an early Night submission hidden until the 18:30 clinical handoff", () => {
+    const day = update({
       shift_date: "2026-08-09",
       shift_type: "day",
-      rvu_total: 176.45,
-      updated_at: "2026-08-09T16:30:00.000Z"
+      shift_note: "Day handoff note"
     });
-
-    expect(resolveDirectorCurrentClinicalShift([prior], timezone, activeDay)).toMatchObject({
-      currentWindow: { shiftDate: "2026-08-09", shiftType: "day" },
-      latest: null,
-      showingFallback: false
+    const night = update({
+      id: "00000000-0000-0000-0000-000000000002",
+      shift_date: "2026-08-09",
+      shift_type: "night",
+      shift_note: "Night note",
+      created_at: "2026-08-10T00:30:00.000Z",
+      updated_at: "2026-08-10T00:30:00.000Z"
     });
-    expect(resolveDirectorCurrentClinicalShift([prior, currentDay], timezone, activeDay).latest).toBe(currentDay);
-  });
-
-  it("keeps the clinical day active until 18:30 and maps after midnight to the prior night date", () => {
-    const day = update({ shift_date: "2026-08-09", shift_type: "day" });
-    const night = update({ shift_date: "2026-08-09", shift_type: "night" });
 
     expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T01:29:59.999Z")).latest).toBe(day);
     expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T01:30:00.000Z")).latest).toBe(night);
-    expect(resolveDirectorCurrentClinicalShift([day, night], timezone, new Date("2026-08-10T09:00:00.000Z")).latest).toBe(night);
+  });
+
+  it("keeps Day visible at 18:30 until a Night update is submitted", () => {
+    const day = update({ shift_date: "2026-08-09", shift_type: "day", shift_note: "Day fallback note" });
+    const handoffTime = new Date("2026-08-10T01:30:00.000Z");
+
+    expect(resolveDirectorCurrentClinicalShift([day], timezone, handoffTime)).toMatchObject({
+      latest: day,
+      currentLatest: null,
+      fallbackLatest: day,
+      showingFallback: true
+    });
+    expect(resolveDirectorCurrentClinicalShift([day], timezone, handoffTime).latest?.shift_note).toBe("Day fallback note");
+
+    const lateNight = update({
+      id: "00000000-0000-0000-0000-000000000002",
+      shift_date: "2026-08-09",
+      shift_type: "night",
+      shift_note: "Night submitted after handoff",
+      created_at: "2026-08-10T02:00:00.000Z",
+      updated_at: "2026-08-10T02:00:00.000Z"
+    });
+
+    expect(resolveDirectorCurrentClinicalShift([day, lateNight], timezone, new Date("2026-08-10T02:00:00.000Z")).latest).toBe(lateNight);
+  });
+
+  it("applies the equivalent eligibility and fallback behavior at the 06:30 Day handoff", () => {
+    const night = update({ shift_date: "2026-08-09", shift_type: "night", shift_note: "Night fallback note" });
+    const earlyDay = update({
+      id: "00000000-0000-0000-0000-000000000002",
+      shift_date: "2026-08-10",
+      shift_type: "day",
+      shift_note: "Day note",
+      created_at: "2026-08-10T12:30:00.000Z",
+      updated_at: "2026-08-10T12:30:00.000Z"
+    });
+
+    expect(resolveDirectorCurrentClinicalShift([night, earlyDay], timezone, new Date("2026-08-10T13:29:59.999Z")).latest).toBe(night);
+    expect(resolveDirectorCurrentClinicalShift([night], timezone, new Date("2026-08-10T13:30:00.000Z")).latest).toBe(night);
+    expect(resolveDirectorCurrentClinicalShift([night], timezone, new Date("2026-08-10T13:30:00.000Z")).latest?.shift_note).toBe("Night fallback note");
+    expect(resolveDirectorCurrentClinicalShift([night, earlyDay], timezone, new Date("2026-08-10T13:30:00.000Z")).latest).toBe(earlyDay);
   });
 
   it("keeps prior status and snapshot across shift and date rollover", () => {

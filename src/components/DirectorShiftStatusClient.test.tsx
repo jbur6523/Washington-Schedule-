@@ -142,7 +142,13 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     vi.useRealTimers();
   });
 
-  it("does not present a prior shift as the current clinical shift after load or refresh", async () => {
+  it("keeps the latest submitted shift and note visible after a reporting rollover", async () => {
+    const submitted = { ...prior, rvu_total: 0, shift_note: "Night handoff note" };
+    mocks.fetchDirector.mockImplementation(async () => ({
+      data: [{ ...submitted }],
+      error: null,
+      usedLegacyProcedureSelect: false
+    }));
     const view = render(
       <DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />
     );
@@ -155,14 +161,17 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     const snapshotCard = screen.getByRole("heading", { name: "Department Snapshot" }).closest("section");
     expect(statusCard).not.toBeNull();
     expect(snapshotCard).not.toBeNull();
-    expect(within(statusCard as HTMLElement).queryByText("08/08 Night Shift")).not.toBeInTheDocument();
-    expect(within(statusCard as HTMLElement).queryByText("RTs On Shift")).not.toBeInTheDocument();
-    expect(within(statusCard as HTMLElement).getAllByText("Awaiting update from Lead")).toHaveLength(2);
+    expect(within(statusCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
+    expect(within(statusCard as HTMLElement).getByText("RTs On Shift").parentElement).toHaveTextContent("0");
+    expect(within(statusCard as HTMLElement).queryByText("Awaiting update from Lead")).not.toBeInTheDocument();
     const viewShiftButton = within(statusCard as HTMLElement).getByRole("button", { name: "View Shift" });
     expect(viewShiftButton).toBeInTheDocument();
     expect(within(statusCard as HTMLElement).getByRole("button", { name: "View Schedule" })).toBeInTheDocument();
-    expect(within(statusCard as HTMLElement).queryByRole("button", { name: "View Shift Notes" })).not.toBeInTheDocument();
-    expect(viewShiftButton.parentElement).toHaveClass("grid", "grid-cols-2", "gap-2.5");
+    const notesButton = within(statusCard as HTMLElement).getByRole("button", { name: "View Shift Notes" });
+    expect(notesButton).toBeInTheDocument();
+    fireEvent.click(notesButton);
+    expect(screen.getByRole("dialog", { name: "Shift Notes" })).toHaveTextContent("Night handoff note");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Shift Notes" })).getByRole("button", { name: "Close" }));
     expect(within(snapshotCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");
     expect(within(snapshotCard as HTMLElement).queryByText("No department snapshot has been submitted yet.")).not.toBeInTheDocument();
@@ -173,9 +182,69 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     });
 
     expect(mocks.fetchDirector).toHaveBeenCalledTimes(2);
-    expect(within(statusCard as HTMLElement).queryByText("08/08 Night Shift")).not.toBeInTheDocument();
+    expect(within(statusCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
+    expect(within(statusCard as HTMLElement).getByRole("button", { name: "View Shift Notes" })).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");
     view.unmount();
+  });
+
+  it("holds an early Night submission until 18:30, then switches the complete displayed snapshot", async () => {
+    vi.setSystemTime(new Date("2026-08-10T01:29:30.000Z"));
+    const day = {
+      ...prior,
+      id: "day-status",
+      shift_date: "2026-08-09",
+      shift_type: "day" as const,
+      rts_on: 8,
+      rts_required: 7,
+      rvu_total: 189,
+      bipap_count: 2,
+      c_section_count: 1,
+      shift_note: "Day note remains visible"
+    };
+    const earlyNight = {
+      ...prior,
+      id: "night-status",
+      shift_date: "2026-08-09",
+      shift_type: "night" as const,
+      rts_on: 6,
+      rts_required: 8,
+      rvu_total: 216,
+      bipap_count: 4,
+      c_section_count: 3,
+      shift_note: "Night note becomes visible",
+      created_at: "2026-08-10T00:30:00.000Z",
+      updated_at: "2026-08-10T00:30:00.000Z"
+    };
+    mocks.fetchDirector.mockResolvedValue({
+      data: [earlyNight, day],
+      error: null,
+      usedLegacyProcedureSelect: false
+    });
+
+    render(<DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const statusCard = screen.getByRole("heading", { name: "Current Shift Status" }).closest("section") as HTMLElement;
+    const snapshotCard = screen.getByRole("heading", { name: "Department Snapshot" }).closest("section") as HTMLElement;
+    expect(within(statusCard).getByText("08/09 Day Shift")).toBeInTheDocument();
+    expect(within(statusCard).getByText("RTs On Shift").parentElement).toHaveTextContent("8");
+    expect(within(snapshotCard).getByText("BiPAPs").parentElement).toHaveTextContent("2");
+    fireEvent.click(within(statusCard).getByRole("button", { name: "View Shift Notes" }));
+    expect(screen.getByRole("dialog", { name: "Shift Notes" })).toHaveTextContent("Day note remains visible");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Shift Notes" })).getByRole("button", { name: "Close" }));
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_500);
+    });
+
+    expect(within(statusCard).getByText("08/09 Night Shift")).toBeInTheDocument();
+    expect(within(statusCard).getByText("RTs On Shift").parentElement).toHaveTextContent("6");
+    expect(within(snapshotCard).getByText("BiPAPs").parentElement).toHaveTextContent("4");
+    fireEvent.click(within(statusCard).getByRole("button", { name: "View Shift Notes" }));
+    expect(screen.getByRole("dialog", { name: "Shift Notes" })).toHaveTextContent("Night note becomes visible");
   });
 
   it("opens separate operational and uploaded-schedule views", async () => {
@@ -185,11 +254,11 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "View Shift" }));
-    const emptyShiftDialog = screen.getByRole("dialog", { name: "View Shift" });
-    expect(emptyShiftDialog).toHaveClass("w-full", "max-w-xl", "max-h-[88vh]");
-    expect(within(emptyShiftDialog).getByText("Awaiting update from Lead")).toBeInTheDocument();
-    expect(within(emptyShiftDialog).getByText("Shift information will appear here once the Lead submits the first shift update.")).toBeInTheDocument();
-    fireEvent.click(within(emptyShiftDialog).getByRole("button", { name: "Close" }));
+    const shiftDialog = screen.getByRole("dialog", { name: "View Shift" });
+    expect(shiftDialog).toHaveClass("w-full", "max-w-xl", "max-h-[88vh]");
+    expect(within(shiftDialog).getByText("Saturday, August 8, 2026")).toBeInTheDocument();
+    expect(within(shiftDialog).queryByText("Awaiting update from Lead")).not.toBeInTheDocument();
+    fireEvent.click(within(shiftDialog).getByRole("button", { name: "Close" }));
 
     fireEvent.click(screen.getByRole("button", { name: "View Schedule" }));
     const scheduleDialog = screen.getByRole("dialog", { name: "View Schedule" });

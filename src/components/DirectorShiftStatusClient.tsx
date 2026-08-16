@@ -51,15 +51,10 @@ import {
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchDirectorShiftStatusUpdates } from "@/lib/shift-status/client-queries";
 import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
-import {
-  isFreshProcedureUpdate,
-  procedureCounts,
-  procedureTotal
-} from "@/lib/shift-status/procedures";
+import { procedureCounts, procedureTotal } from "@/lib/shift-status/procedures";
 import {
   formatDirectorSourceShift,
-  resolveDirectorCurrentClinicalShift,
-  resolveDirectorDepartmentSnapshot
+  resolveDirectorCurrentClinicalShift
 } from "@/lib/director-dashboard/shift-status";
 import { latestDirectorCardUpdate } from "@/lib/director-dashboard/update-metadata";
 import {
@@ -67,7 +62,6 @@ import {
   formatShiftStatusNumber,
   formatShiftStatusTime,
   getStaffingStatus,
-  resolveCurrentShiftStatus,
   shiftTypeLabel,
   staffingStatusLabel,
   todayInTimezone,
@@ -669,22 +663,12 @@ export function DirectorShiftStatusClient({
     () => resolveDirectorCurrentClinicalShift(updates, timezone, new Date(nowTick)),
     [nowTick, timezone, updates]
   );
-  const directorSnapshotDisplay = useMemo(
-    () => resolveDirectorDepartmentSnapshot(updates, timezone, new Date(nowTick)),
-    [nowTick, timezone, updates]
-  );
-  const strictCurrentShiftDisplay = useMemo(
-    () => resolveCurrentShiftStatus(updates, timezone, new Date(nowTick)),
-    [nowTick, timezone, updates]
-  );
   const latest = directorStatusDisplay.latest;
   const currentShiftRecordId = latest?.id ?? null;
   const currentShiftRecordDate = latest?.shift_date ?? "";
   const currentShiftRecordType = latest?.shift_type ?? null;
-  const snapshotLatest = directorSnapshotDisplay.latest;
-  const latestProcedureUpdate = strictCurrentShiftDisplay.currentLatest;
-  const procedureIsFresh = isFreshProcedureUpdate(latestProcedureUpdate, new Date(nowTick));
-  const procedureLatest = procedureIsFresh ? latestProcedureUpdate : null;
+  const snapshotLatest = latest;
+  const procedureLatest = latest;
   const currentProcedureCounts = procedureCounts(procedureLatest);
   const snapshotProcedureCounts = procedureCounts(snapshotLatest);
   const snapshotProcedureTotal = procedureTotal(snapshotProcedureCounts);
@@ -1066,13 +1050,10 @@ export function DirectorShiftStatusClient({
               Other note: {currentProcedureCounts.note}
             </p>
           )}
-          {latestProcedureUpdate && (
+          {procedureLatest && (
             <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(latestProcedureUpdate.updated_at, timezone)}</p>
-              <p>
-                Updated by: {updatedByName(latestProcedureUpdate)}
-                {!procedureIsFresh && <span className="text-amber-700"> · expired after 24 hours</span>}
-              </p>
+              <p>Last updated: {formatShiftStatusTime(procedureLatest.updated_at, timezone)}</p>
+              <p>Updated by: {updatedByName(procedureLatest)}</p>
             </div>
           )}
         </section>

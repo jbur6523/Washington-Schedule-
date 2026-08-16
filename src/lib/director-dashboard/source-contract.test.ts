@@ -9,16 +9,14 @@ function source(path: string) {
 }
 
 describe("Director and WHHS RT Schedule source boundaries", () => {
-  it("keeps Leadership-specific clinical and snapshot resolution confined to the Leadership Dashboard", () => {
+  it("keeps Leadership's clinical-handoff resolution confined to the Leadership Dashboard", () => {
     const director = source("src/components/DirectorShiftStatusClient.tsx");
     const schedule = source("src/components/CurrentShiftStatusSummary.tsx");
 
     expect(director).toContain("fetchDirectorShiftStatusUpdates");
     expect(director).toContain("resolveDirectorCurrentClinicalShift");
-    expect(director).toContain("resolveDirectorDepartmentSnapshot");
     expect(schedule).not.toContain("fetchDirectorShiftStatusUpdates");
     expect(schedule).not.toContain("resolveDirectorCurrentClinicalShift");
-    expect(schedule).not.toContain("resolveDirectorDepartmentSnapshot");
   });
 
   it("keeps the schedule Lead-update path strictly current-shift", () => {
