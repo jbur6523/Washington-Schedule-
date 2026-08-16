@@ -151,6 +151,20 @@ vi.mock("@/lib/supabase/client", () => ({
     rpc: async (functionName: string, args: Record<string, unknown>) => {
       mocks.rpc(functionName, args);
 
+      if (functionName === "set_command_center_lead_communication_read_state") {
+        const noteId = String(args.target_note_id);
+        const note = storedNotes.find((item) => item.id === noteId);
+        if (note) {
+          note.status = args.mark_read ? "reviewed" : "new";
+          if (args.mark_read && !note.reviewed_at) {
+            note.reviewed_at = "2026-08-10T16:00:00.000Z";
+            note.reviewed_by_staff_profile_id = "staff-sputum";
+            note.reviewed_by_name = "Respiratory Command Center";
+          }
+        }
+        return { data: true, error: null };
+      }
+
       if (functionName === "reply_to_lead_communication_note") {
         const noteId = String(args.target_note_id);
         const note = storedNotes.find((item) => item.id === noteId);
@@ -389,6 +403,34 @@ describe("Lead Communication shared read state and replies", () => {
       reply_text: "Reply from the next person using Sputum"
     }));
     expect(await screen.findByText("Reply from the next person using Sputum")).toBeInTheDocument();
+  });
+
+  it("lets the shared Sputum login mark a note read or unread beside Reply", async () => {
+    const onNotesChanged = vi.fn();
+    render(
+      <LeadCommunicationBoardModal
+        authContext={commandCenterContext()}
+        open
+        onClose={() => undefined}
+        onNotesChanged={onNotesChanged}
+        context="lead"
+      />
+    );
+
+    const markRead = await screen.findByRole("button", { name: "Mark as Read" });
+    const reply = screen.getByRole("button", { name: "Reply" });
+    expect(markRead.parentElement).toBe(reply.parentElement);
+    fireEvent.click(markRead);
+
+    await waitFor(() => expect(storedNotes[0].status).toBe("reviewed"));
+    expect(await screen.findByRole("button", { name: "Mark Unread" })).toBeEnabled();
+    await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Mark Unread" }));
+    await waitFor(() => expect(storedNotes[0].status).toBe("new"));
+    expect(await screen.findByRole("button", { name: "Mark as Read" })).toBeEnabled();
+    await expect(fetchLeadCommunicationNewCount("department-1")).resolves.toBe(1);
+    expect(onNotesChanged).toHaveBeenCalledTimes(2);
   });
 
   it("preserves urgent styling, attribution, timestamps, and archived-note filtering", async () => {

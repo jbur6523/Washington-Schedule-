@@ -162,11 +162,12 @@ export function LeadCommunicationBoardModal({
   const boardEntryAcknowledgedRef = useRef(false);
 
   const canCreateNotes = canCreateLeadCommunication(authContext);
-  const canManageReadState = Boolean(authContext.staffProfileId)
+  const canAutoAcknowledgeReadState = Boolean(authContext.staffProfileId)
     && (authContext.role === "admin" || authContext.role === "lead");
   const canReplyToNotes = canReplyToLeadCommunication(authContext);
   const leadershipContext = isLeadership(authContext);
   const sharedCommandCenterContext = authContext.role === "staff" && isCommandCenter(authContext);
+  const canManageReadState = canAutoAcknowledgeReadState || sharedCommandCenterContext;
   const selectedAddedBy = useMemo(
     () => leadOptions.find((staff) => staff.id === addedByStaffProfileId) ?? null,
     [addedByStaffProfileId, leadOptions]
@@ -237,14 +238,14 @@ export function LeadCommunicationBoardModal({
       return;
     }
 
-    if (canManageReadState && !boardEntryAcknowledgedRef.current) {
+    if (canAutoAcknowledgeReadState && !boardEntryAcknowledgedRef.current) {
       return;
     }
 
     queueMicrotask(() => {
       void loadNotes();
     });
-  }, [canManageReadState, loadNotes, open]);
+  }, [canAutoAcknowledgeReadState, loadNotes, open]);
 
   useEffect(() => {
     if (!open) {
@@ -259,7 +260,7 @@ export function LeadCommunicationBoardModal({
     boardEntryAcknowledgedRef.current = true;
     const openedAt = new Date().toISOString();
 
-    if (!canManageReadState) {
+    if (!canAutoAcknowledgeReadState) {
       return;
     }
 
@@ -284,7 +285,7 @@ export function LeadCommunicationBoardModal({
   }, [
     authContext.departmentId,
     authContext.staffProfileId,
-    canManageReadState,
+    canAutoAcknowledgeReadState,
     loadNotes,
     notifyChanged,
     open
@@ -369,8 +370,13 @@ export function LeadCommunicationBoardModal({
     notifyChanged();
   };
 
-  const markUnread = async (note: LeadCommunicationNoteRow) => {
-    if (!canManageReadState || !authContext.staffProfileId || note.status === "new") {
+  const updateReadState = async (note: LeadCommunicationNoteRow) => {
+    const markRead = note.status === "new";
+    if (
+      !canManageReadState
+      || !authContext.staffProfileId
+      || (!sharedCommandCenterContext && markRead)
+    ) {
       return;
     }
 
@@ -379,21 +385,26 @@ export function LeadCommunicationBoardModal({
     setMessage("");
 
     const supabase = createClient();
-    const { error: updateError } = await supabase
-      .from("lead_communication_notes")
-      .update({ status: "new" })
-      .eq("id", note.id)
-      .eq("department_id", authContext.departmentId)
-      .neq("status", "closed");
+    const { error: updateError } = sharedCommandCenterContext
+      ? await supabase.rpc("set_command_center_lead_communication_read_state", {
+          target_note_id: note.id,
+          mark_read: markRead
+        })
+      : await supabase
+          .from("lead_communication_notes")
+          .update({ status: "new" })
+          .eq("id", note.id)
+          .eq("department_id", authContext.departmentId)
+          .neq("status", "closed");
 
     setBusyNoteId(null);
 
     if (updateError) {
-      setError("Unable to mark note unread.");
+      setError(markRead ? "Unable to mark note as read." : "Unable to mark note unread.");
       return;
     }
 
-    setMessage("Note marked unread.");
+    setMessage(markRead ? "Note marked as read." : "Note marked unread.");
     await loadNotes();
     notifyChanged();
   };
@@ -658,12 +669,16 @@ export function LeadCommunicationBoardModal({
                         {canManageReadState && (
                           <button
                             type="button"
-                            onClick={() => void markUnread(note)}
-                            disabled={busyNoteId === note.id || note.status === "new"}
+                            onClick={() => void updateReadState(note)}
+                            disabled={busyNoteId === note.id || (!sharedCommandCenterContext && note.status === "new")}
                             className="inline-flex min-h-11 w-auto items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-3.5 text-center text-sm font-black text-slate-700 shadow-sm transition duration-150 active:scale-[0.98] active:shadow-none disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <Mail size={17} />
-                            {busyNoteId === note.id ? "Updating..." : "Mark Unread"}
+                            {busyNoteId === note.id
+                              ? "Updating..."
+                              : sharedCommandCenterContext && note.status === "new"
+                                ? "Mark as Read"
+                                : "Mark Unread"}
                           </button>
                         )}
 

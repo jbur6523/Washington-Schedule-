@@ -76,6 +76,45 @@ values (
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '92000000-0000-0000-0000-000000000003', true);
 
+select public.set_command_center_lead_communication_read_state(
+  '92000000-0000-0000-0000-000000000006',
+  true
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.lead_communication_notes note
+    where note.id = '92000000-0000-0000-0000-000000000006'
+      and note.status = 'reviewed'
+      and note.reviewed_by_staff_profile_id = '92000000-0000-0000-0000-000000000005'
+      and note.reviewed_at is not null
+  ) then
+    raise exception 'Shared command-center Mark as Read failed';
+  end if;
+end;
+$$;
+
+select public.set_command_center_lead_communication_read_state(
+  '92000000-0000-0000-0000-000000000006',
+  false
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.lead_communication_notes note
+    where note.id = '92000000-0000-0000-0000-000000000006'
+      and note.status = 'new'
+      and note.reviewed_at is not null
+  ) then
+    raise exception 'Shared command-center Mark Unread failed or erased review history';
+  end if;
+end;
+$$;
+
 select public.reply_to_lead_communication_note(
   '92000000-0000-0000-0000-000000000006',
   'Reply from another person using the shared login'
