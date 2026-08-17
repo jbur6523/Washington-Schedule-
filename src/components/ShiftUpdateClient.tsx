@@ -400,9 +400,7 @@ export function ShiftUpdateClient({
       !loadingSelection
   );
 
-  const saveShiftUpdate = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const persistShiftUpdate = async (printAfterSave: boolean) => {
     if (submissionInFlightRef.current) {
       return;
     }
@@ -475,6 +473,27 @@ export function ShiftUpdateClient({
         rtsNeeded: calculatedRtsNeeded,
         rvuCount: Number(form.rvuCount)
       });
+
+      if (printAfterSave) {
+        submissionInFlightRef.current = false;
+        setSaving(false);
+
+        if (typeof window.print !== "function") {
+          setError("Shift update saved, but printing is not available in this browser.");
+          return;
+        }
+
+        try {
+          window.print();
+        } catch (printError) {
+          if (process.env.NODE_ENV !== "production") {
+            console.error("Shift update printing failed", printError);
+          }
+          setError("Shift update saved, but the print dialog could not be opened.");
+        }
+        return;
+      }
+
       router.replace("/command-center?shiftUpdate=saved");
       router.refresh();
     } catch (saveException) {
@@ -485,6 +504,11 @@ export function ShiftUpdateClient({
       setSaving(false);
       setError("Unable to save shift update.");
     }
+  };
+
+  const saveShiftUpdate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await persistShiftUpdate(false);
   };
 
   return (
@@ -716,19 +740,12 @@ export function ShiftUpdateClient({
           <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2">
             <button
               type="button"
-              disabled={loadingSelection || saving}
-              onClick={() => {
-                if (typeof window.print === "function") {
-                  window.print();
-                  return;
-                }
-
-                setError("Printing is not available in this browser.");
-              }}
+              disabled={saving || !canSave}
+              onClick={() => void persistShiftUpdate(true)}
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-800 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
             >
               <Printer size={18} aria-hidden="true" />
-              Print Shift
+              Update &amp; Print
             </button>
             <button
               type="submit"

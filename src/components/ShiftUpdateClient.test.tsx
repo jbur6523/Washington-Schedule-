@@ -365,8 +365,14 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
-  it("prints the currently selected visible shift values without saving again", async () => {
+  it("waits for a successful canonical update before printing the persisted visible values", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    let resolveUpdate: ((value: { error: null }) => void) | null = null;
+    mocks.rpc.mockImplementation(
+      () => new Promise<{ error: null }>((resolve) => {
+        resolveUpdate = resolve;
+      })
+    );
     mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
       data: shiftUpdate({
         shift_date: "2026-08-08",
@@ -394,7 +400,17 @@ describe("ShiftUpdateClient submission flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Enter procedure type"), {
       target: { value: "Four scopes expected" }
     });
-    fireEvent.click(screen.getByRole("button", { name: "Print Shift" }));
+    const updateAndPrintButton = screen.getByRole("button", { name: "Update & Print" });
+    fireEvent.click(updateAndPrintButton);
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(print).not.toHaveBeenCalled();
+    expect(updateAndPrintButton).toBeDisabled();
+
+    await act(async () => {
+      resolveUpdate?.({ error: null });
+      await Promise.resolve();
+    });
 
     const report = screen.getByTestId("shift-status-print-layout");
     expect(report).toHaveTextContent("08/08/2026");
@@ -404,8 +420,34 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(report).toHaveTextContent("RVUs190.66");
     expect(report).toHaveTextContent("Four scopes expected");
     expect(report).toHaveTextContent("Visible unsaved note");
-    expect(mocks.rpc).not.toHaveBeenCalled();
     expect(print).toHaveBeenCalledTimes(1);
+    expect(updateAndPrintButton).toBeEnabled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+
+    print.mockRestore();
+  });
+
+  it("does not print or navigate when Update & Print persistence fails", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    mocks.rpc.mockResolvedValue({ error: { message: "update failed" } });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    populateRequiredFields();
+
+    fireEvent.click(screen.getByRole("button", { name: "Update & Print" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to save shift update.");
+    expect(print).not.toHaveBeenCalled();
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Update & Print" })).toBeEnabled();
 
     print.mockRestore();
   });
