@@ -20,6 +20,10 @@ const removalMigration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/202608150004_remove_ruth_deguzman_from_lead_directory.sql"),
   "utf8"
 );
+const directoryCorrectionMigration = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260817112607_correct_lead_schedule_directory_staff.sql"),
+  "utf8"
+);
 
 describe("Lead Schedule employee directory migration contract", () => {
   it("extends the canonical staff model and keeps directory PII behind authenticated staff RLS", () => {
@@ -51,6 +55,19 @@ describe("Lead Schedule employee directory migration contract", () => {
     expect(removalMigration).toContain("lower(trim(first_name)) = 'ruth'");
     expect(removalMigration).toContain("lower(trim(last_name)) = 'deguzman'");
     expect(removalMigration).not.toMatch(/delete\s+from/i);
+  });
+
+  it("corrects Stephanie Ortiz and reclassifies Harjot Kaur and Tom Macasaet without replacing profiles", () => {
+    expect(directoryCorrectionMigration).toContain("display_name = 'Stephanie Ortiz'");
+    expect(directoryCorrectionMigration).toContain("first_name = 'Stephanie'");
+    expect(directoryCorrectionMigration).toContain("array['Stefanie Ortiz']");
+    expect(directoryCorrectionMigration).toContain("lower(pg_catalog.btrim(profile.first_name)) = 'harjot'");
+    expect(directoryCorrectionMigration).toContain("lower(pg_catalog.btrim(profile.last_name)) = 'kaur'");
+    expect(directoryCorrectionMigration).toContain("lower(pg_catalog.btrim(profile.first_name)) = 'tom'");
+    expect(directoryCorrectionMigration).toContain("lower(pg_catalog.btrim(profile.last_name)) = 'macasaet'");
+    expect(directoryCorrectionMigration.match(/set employment_type = 'full_time'/g)).toHaveLength(2);
+    expect(directoryCorrectionMigration).not.toMatch(/delete\s+from|insert\s+into\s+public\.staff_profiles/i);
+    expect(directoryCorrectionMigration).not.toMatch(/username\s*=|auth_user_id\s*=/i);
   });
 
   it("resolves required aliases without fuzzy matching or duplicate canonical employees", () => {

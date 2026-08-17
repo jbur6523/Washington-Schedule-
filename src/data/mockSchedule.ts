@@ -131,7 +131,7 @@ export const staff: StaffMember[] = [
   { id: id("Peter Van Dal"), name: "Peter Van Dal (Pete)", staffType: "Per diem", usualShift: "Dayshift" },
   { id: id("Aisha Bahrami"), name: "Aisha Bahrami", staffType: "Per diem", usualShift: "Dayshift" },
   { id: id("Nina Ksovreli"), name: "Nina Ksovreli", staffType: "Per diem", usualShift: "Dayshift" },
-  { id: id("Harjot Kaur"), name: "Harjot Kaur (Joy)", staffType: "Per diem", usualShift: "Dayshift" },
+  { id: id("Harjot Kaur"), name: "Harjot Kaur (Joy)", staffType: "Full-time", usualShift: "Dayshift" },
   { id: id("Kae Alameda"), name: "Kae Alameda", staffType: "Per diem", usualShift: "Nightshift" },
   { id: id("Jemin Perenia"), name: "Jemin Perenia (Aby)", staffType: "Per diem", usualShift: "Dayshift" },
   { id: id("Andrea Watkins"), name: "Andrea Watkins", staffType: "Per diem", usualShift: "Dayshift" },
@@ -140,7 +140,7 @@ export const staff: StaffMember[] = [
   { id: id("Joshua Horng"), name: "Joshua Horng", staffType: "Per diem", usualShift: "Flexible" },
   { id: id("Erica Collins"), name: "Erica Collins", staffType: "Per diem", usualShift: "Nightshift" },
   { id: id("Catherine Morgan"), name: "Catherine Morgan", staffType: "Per diem", usualShift: "Nightshift" },
-  { id: id("Tom Macasaet"), name: "Tom Macasaet", staffType: "Per diem", usualShift: "Dayshift" }
+  { id: id("Tom Macasaet"), name: "Tom Macasaet", staffType: "Full-time", usualShift: "Dayshift" }
 ];
 
 export const fallbackSchedule: ScheduleDay[] = [
@@ -262,7 +262,7 @@ export const fallbackSchedule: ScheduleDay[] = [
     ],
     available: [
       { staffName: "Victoria Mohseni", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
-      { staffName: "Harjot Kaur (Joy)", shiftTime: "06:30-19:00", staffType: "Per diem", status: "Available" },
+      { staffName: "Harjot Kaur (Joy)", shiftTime: "06:30-19:00", staffType: "Full-time", status: "Available" },
       { staffName: "Kaitlyn Trivisonno", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" },
       { staffName: "Erica Collins", shiftTime: "18:30-07:00", staffType: "Per diem", status: "Available" }
     ],
