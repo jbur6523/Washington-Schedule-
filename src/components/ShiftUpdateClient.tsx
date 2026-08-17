@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Stethoscope, User, Users, Wind } from "lucide-react";
+import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Printer, Stethoscope, User, Users, Wind } from "lucide-react";
+import { ShiftStatusPrintLayout, type ShiftStatusPrintData } from "@/components/ShiftStatusPrintLayout";
+import printStyles from "@/components/ShiftStatusPrintLayout.module.css";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
@@ -370,6 +372,24 @@ export function ShiftUpdateClient({
     : "";
   const updatedByName = selectedStaff?.display_name ?? manualUpdatedByName;
   const calculatedRtsNeeded = rtsNeededFromRvus(form.rvuCount);
+  const printData: ShiftStatusPrintData = {
+    shiftDate: form.shiftDate,
+    shiftType: form.shiftType,
+    updatedByName: updatedByName || lastKnownUpdate?.updated_by_name?.trim() || "",
+    rtsOnShift: form.rtsOn,
+    rtsNeeded: calculatedRtsNeeded?.toFixed(1) ?? "",
+    rvuTotal: form.rvuCount,
+    vents: form.ventCount,
+    bipaps: form.bipapCount,
+    cSections: form.cSectionCount,
+    vaginalDeliveries: form.vaginalDeliveryCount,
+    cabg: form.cabgCount,
+    bronchs: form.bronchCount,
+    sputumInductions: form.sputumInductionCount,
+    mri: form.otherProcedureCount,
+    otherProcedures: form.otherProcedureNote,
+    shiftNotes: form.shiftNote
+  };
   const canSave = Boolean(
     form.shiftDate &&
       form.shiftType &&
@@ -468,8 +488,8 @@ export function ShiftUpdateClient({
   };
 
   return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-xl space-y-4">
+    <main className={`${printStyles.page} min-h-screen px-4 py-8`}>
+      <div className={`${printStyles.screen} mx-auto max-w-xl space-y-4`}>
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Lead Command Board</p>
           <h1 className="mt-2 text-2xl font-black text-hospital-ink">Shift Update</h1>
@@ -693,13 +713,31 @@ export function ShiftUpdateClient({
           </section>
 
           {error && <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>}
-          <button
-            type="submit"
-            disabled={saving || !canSave}
-            className="min-h-12 w-full rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
-          >
-            {saving ? "Saving..." : "Save Shift Update"}
-          </button>
+          <div className="grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2">
+            <button
+              type="button"
+              disabled={loadingSelection || saving}
+              onClick={() => {
+                if (typeof window.print === "function") {
+                  window.print();
+                  return;
+                }
+
+                setError("Printing is not available in this browser.");
+              }}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-800 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+            >
+              <Printer size={18} aria-hidden="true" />
+              Print Shift
+            </button>
+            <button
+              type="submit"
+              disabled={saving || !canSave}
+              className="min-h-12 w-full rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+            >
+              {saving ? "Saving..." : "Save Shift Update"}
+            </button>
+          </div>
           {!canSave && (
             <p className="text-center text-xs font-bold text-slate-500">
               Select lead and enter shift numbers to continue.
@@ -707,6 +745,7 @@ export function ShiftUpdateClient({
           )}
         </form>
       </div>
+      <ShiftStatusPrintLayout data={printData} />
     </main>
   );
 }

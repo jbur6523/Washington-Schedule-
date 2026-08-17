@@ -1,0 +1,193 @@
+.print {
+  display: none;
+}
+
+@page {
+  size: letter portrait;
+  margin: 0.48in 0.5in;
+}
+
+@media print {
+  :global(html),
+  :global(body) {
+    width: auto !important;
+    min-height: 0 !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
+
+  :global(body) {
+    margin: 0 !important;
+  }
+
+  .page {
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+
+  .screen {
+    display: none !important;
+  }
+
+  .print {
+    display: block !important;
+    width: 100%;
+    color: #111827;
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10pt;
+    line-height: 1.3;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .print,
+  .print * {
+    box-sizing: border-box;
+    box-shadow: none !important;
+  }
+
+  .header {
+    border-bottom: 1.5pt solid #17365d;
+    padding: 0.02in 0 0.12in;
+    text-align: center;
+  }
+
+  .header > p:first-child {
+    margin: 0;
+    color: #17365d;
+    font-size: 11pt;
+    font-weight: 800;
+    letter-spacing: 0.13em;
+  }
+
+  .header h1 {
+    margin: 0.08in 0 0.07in;
+    color: #102d52;
+    font-size: 27pt;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    line-height: 1;
+  }
+
+  .shiftMeta {
+    display: flex;
+    justify-content: center;
+    gap: 0.14in;
+    font-size: 12pt;
+    font-weight: 700;
+  }
+
+  .updatedBy {
+    margin: 0.06in 0 0;
+    font-size: 10.5pt;
+  }
+
+  .section {
+    margin-top: 0.22in;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .section h2 {
+    margin: 0 0 0.09in;
+    color: #17365d;
+    font-size: 13pt;
+    font-weight: 800;
+  }
+
+  .currentCounts {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    border-left: 0.75pt solid #4b5563;
+    border-top: 0.75pt solid #4b5563;
+  }
+
+  .primaryCount,
+  .secondaryCount {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-right: 0.75pt solid #4b5563;
+    border-bottom: 0.75pt solid #4b5563;
+    text-align: center;
+  }
+
+  .primaryCount {
+    grid-column: span 2;
+    min-height: 0.86in;
+  }
+
+  .secondaryCount {
+    grid-column: span 3;
+    min-height: 0.76in;
+  }
+
+  .primaryCount span,
+  .secondaryCount span,
+  .procedures span {
+    font-size: 9.5pt;
+    font-weight: 700;
+  }
+
+  .primaryCount strong {
+    margin-top: 0.06in;
+    font-size: 24pt;
+    line-height: 1;
+  }
+
+  .secondaryCount strong {
+    margin-top: 0.05in;
+    font-size: 21pt;
+    line-height: 1;
+  }
+
+  .procedures {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    border-left: 0.75pt solid #4b5563;
+    border-top: 0.75pt solid #4b5563;
+  }
+
+  .procedures > div {
+    display: grid;
+    grid-template-rows: minmax(0.38in, auto) 0.43in;
+    border-right: 0.75pt solid #4b5563;
+    border-bottom: 0.75pt solid #4b5563;
+    text-align: center;
+  }
+
+  .procedures span,
+  .procedures strong {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.04in;
+  }
+
+  .procedures span {
+    border-bottom: 0.75pt solid #6b7280;
+    line-height: 1.15;
+  }
+
+  .procedures strong {
+    font-size: 16pt;
+    line-height: 1;
+  }
+
+  .textBox {
+    min-height: 0.42in;
+    border: 0.75pt solid #4b5563;
+    padding: 0.1in 0.12in;
+    font-size: 10.5pt;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .notes {
+    min-height: 1.18in;
+  }
+}

@@ -365,6 +365,51 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("prints the currently selected visible shift values without saving again", async () => {
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
+      data: shiftUpdate({
+        shift_date: "2026-08-08",
+        shift_type: "day",
+        rts_on: 7,
+        rvu_total: 190.66,
+        vent_count: 6,
+        bipap_count: 13,
+        c_section_count: 3,
+        updated_by_staff_profile_id: null,
+        updated_by_name: "Stephanie Ortiz",
+        shift_note: "Original saved note"
+      }),
+      error: null
+    });
+
+    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    fireEvent.change(screen.getByLabelText(/Shift Notes/), {
+      target: { value: "Visible unsaved note" }
+    });
+    fireEvent.change(screen.getByPlaceholderText("Enter procedure type"), {
+      target: { value: "Four scopes expected" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Print Shift" }));
+
+    const report = screen.getByTestId("shift-status-print-layout");
+    expect(report).toHaveTextContent("08/08/2026");
+    expect(report).toHaveTextContent("Day Shift");
+    expect(report).toHaveTextContent("Updated by: Stephanie Ortiz");
+    expect(report).toHaveTextContent("RTs Needed7.1");
+    expect(report).toHaveTextContent("RVUs190.66");
+    expect(report).toHaveTextContent("Four scopes expected");
+    expect(report).toHaveTextContent("Visible unsaved note");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(print).toHaveBeenCalledTimes(1);
+
+    print.mockRestore();
+  });
+
   it("prefills and preserves the active reporting window's saved shift note", async () => {
     mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
       data: shiftUpdate({ shift_note: "Cover the north pod after 19:00." }),
