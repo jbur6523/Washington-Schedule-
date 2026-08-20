@@ -9,6 +9,7 @@ import {
   canUseNotifications,
   canViewDirectorShiftStatus,
   canViewIcuCommandCenter,
+  canViewMetrics,
   canViewRvuStaffingMetrics,
   hasOperationsDashboardAccess,
   hasOrderManagementAccess,
@@ -32,6 +33,7 @@ describe("role permission matrix", () => {
     expect(canViewDirectorShiftStatus(staff)).toBe(false);
     expect(canEditIcuCommandCenter(staff)).toBe(false);
     expect(canViewIcuCommandCenter(staff)).toBe(false);
+    expect(canViewMetrics(staff)).toBe(false);
     expect(canViewRvuStaffingMetrics(staff)).toBe(false);
   });
 
@@ -45,6 +47,7 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(lead)).toBe(true);
     expect(canViewDirectorShiftStatus(lead)).toBe(true);
     expect(canEditIcuCommandCenter(lead)).toBe(false);
+    expect(canViewMetrics(lead)).toBe(false);
     expect(canViewRvuStaffingMetrics(lead)).toBe(false);
   });
 
@@ -94,6 +97,7 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(leadership)).toBe(false);
     expect(canEditIcuCommandCenter(leadership)).toBe(false);
     expect(canViewIcuCommandCenter(leadership)).toBe(false);
+    expect(canViewMetrics(leadership)).toBe(false);
     expect(canViewRvuStaffingMetrics(leadership)).toBe(false);
   });
 
@@ -108,6 +112,7 @@ describe("role permission matrix", () => {
     expect(canViewDirectorShiftStatus(admin)).toBe(true);
     expect(canEditIcuCommandCenter(admin)).toBe(true);
     expect(canViewIcuCommandCenter(admin)).toBe(true);
+    expect(canViewMetrics(admin)).toBe(true);
     expect(canViewRvuStaffingMetrics(admin)).toBe(true);
   });
 });

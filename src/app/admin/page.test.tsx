@@ -44,7 +44,7 @@ describe("admin dashboard", () => {
       ["Order Management", "/operations/order-management"],
       ["Staff Management", "/admin/roster"],
       ["Import Schedule", "/admin/import-schedule"],
-      ["RVU & Staffing Metrics", "/admin/rvu-staffing-metrics"]
+      ["Metrics", "/admin/metrics"]
     ] as const;
     const removedCards = [
       "Schedule",

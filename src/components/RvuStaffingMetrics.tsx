@@ -141,10 +141,10 @@ export function RvuStaffingMetrics({
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <Link
-              href="/admin"
+              href="/admin/metrics"
               className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
             >
-              Back to Admin
+              Back to Metrics
             </Link>
           </div>
         </section>

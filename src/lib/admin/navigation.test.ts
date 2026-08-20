@@ -34,7 +34,7 @@ describe("admin navigation", () => {
       "Order Management",
       "Staff Management",
       "Import Schedule",
-      "RVU & Staffing Metrics"
+      "Metrics"
     ]);
   });
 
