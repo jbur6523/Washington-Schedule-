@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import Link from "next/link";
 import { ArrowLeft, ClipboardList, FileUp, Plus, Send, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
   dayNameFromDate,
@@ -243,20 +244,24 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
 
     const supabase = createClient();
     const [{ data: entryRows, error: entryError }, { data: shortageRows, error: shortageError }] = await Promise.all([
-      supabase
+      fetchAllPages((from, to) => supabase
         .from("schedule_entries")
         .select(
           "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("schedule_version_id", selectedVersionId)
         .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true }),
-      supabase
+        .order("shift_start", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("shift_shortages")
         .select("*")
         .eq("schedule_version_id", selectedVersionId)
         .order("shift_date", { ascending: true })
         .order("shift_start", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to))
     ]);
 
     if (entryError || shortageError) {
@@ -396,10 +401,13 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
         entry.staff_profile_id === candidate.staff_profile_id &&
         entry.shift_date === candidate.shift_date &&
         entry.shift_type === candidate.shift_type &&
-        entry.entry_status === candidate.entry_status
+        entry.shift_start.slice(0, 5) === candidate.shift_start.slice(0, 5) &&
+        entry.shift_end.slice(0, 5) === candidate.shift_end.slice(0, 5) &&
+        entry.entry_status === candidate.entry_status &&
+        Boolean(entry.is_shift_lead) === candidate.is_shift_lead
     );
 
-    return duplicate ? "Possible duplicate entry for this staff member, date, shift, and status." : "";
+    return duplicate ? "This exact schedule entry already exists." : "";
   };
 
   const saveEntry = async (event: FormEvent<HTMLFormElement>) => {
@@ -440,7 +448,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
     setSaving(false);
 
     if (result.error) {
-      setError("Unable to save schedule entry.");
+      setError(result.error.code === "23505" ? "This exact schedule entry already exists." : "Unable to save schedule entry.");
       return;
     }
 
@@ -640,7 +648,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
     setSaving(false);
 
     if (result.error) {
-      setError("Unable to create batch schedule entries.");
+      setError(result.error.code === "23505" ? "The batch contains an exact entry already in this version." : "Unable to create batch schedule entries.");
       return;
     }
 

@@ -20,6 +20,7 @@ function queryBuilder(result: { data: unknown; error: unknown }) {
     select: () => builder,
     eq: () => builder,
     order: () => builder,
+    range: () => Promise.resolve(result),
     maybeSingle: () => Promise.resolve(result),
     then: (
       resolve: (value: { data: unknown; error: unknown }) => unknown,

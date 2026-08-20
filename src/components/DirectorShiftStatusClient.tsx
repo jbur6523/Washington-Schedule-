@@ -34,6 +34,7 @@ import { ShiftRecordDetails, ShiftRecordIdentity } from "@/components/ShiftRecor
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { isLeadership } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -486,18 +487,22 @@ export function DirectorShiftStatusClient({
     }
 
     const [{ data: entries, error: entriesError }, { data: overrides, error: overridesError }] = await Promise.all([
-      supabase
+      fetchAllPages((from, to) => supabase
         .from("schedule_entries")
         .select(scheduleEntrySelect)
         .eq("schedule_version_id", activeVersionId)
         .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true }),
-      supabase
+        .order("shift_start", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("user_schedule_overrides")
         .select(scheduleOverrideSelect)
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)
         .order("shift_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to))
     ]);
 
     if (entriesError || overridesError) {

@@ -28,6 +28,7 @@ import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import { getProfileDashboardShortcut } from "@/lib/admin/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
@@ -3171,30 +3172,36 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
       { data: offers, error: offersError },
       { data: coworkerTitles, error: coworkerTitlesError }
     ] = await Promise.all([
-      supabase
+      fetchAllPages((from, to) => supabase
         .from("schedule_entries")
         .select(
           "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("schedule_version_id", activeVersionId)
         .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true }),
-      supabase
+        .order("shift_start", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("shift_shortages")
         .select("id, schedule_version_id, department_id, shift_date, shift_type, shift_start, shift_end, severity, status, message, created_by")
         .eq("schedule_version_id", activeVersionId)
         .eq("status", "active")
         .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true }),
-      supabase
+        .order("shift_start", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("user_schedule_overrides")
         .select(
           "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
         )
         .eq("department_id", authContext.departmentId)
         .eq("is_active", true)
-        .order("shift_date", { ascending: true }),
-      supabase
+        .order("shift_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("shift_requests")
         .select(
           "id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
@@ -3202,8 +3209,9 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         .eq("department_id", authContext.departmentId)
         .eq("status", "active")
         .order("created_at", { ascending: false })
-      ,
-      supabase
+        .order("id", { ascending: true })
+        .range(from, to)),
+      fetchAllPages((from, to) => supabase
         .from("shift_request_offers")
         .select(
           "id, department_id, shift_request_id, offer_type, offered_by_staff_profile_id, offered_schedule_entry_id, offered_override_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, note, status, created_at, updated_at, responded_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), shift_requests(id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)), schedule_entries(id, shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
@@ -3211,13 +3219,16 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         .eq("department_id", authContext.departmentId)
         .in("status", ["offered", "accepted", "declined"])
         .order("created_at", { ascending: false })
-      ,
+        .order("id", { ascending: true })
+        .range(from, to)),
       authContext.staffProfileId
-        ? supabase
+        ? fetchAllPages((from, to) => supabase
             .from("coworker_titles")
             .select("id, department_id, owner_staff_profile_id, target_staff_profile_id, title, title_key, custom_title, custom_icon, is_custom")
             .eq("department_id", authContext.departmentId)
             .eq("owner_staff_profile_id", authContext.staffProfileId)
+            .order("id", { ascending: true })
+            .range(from, to))
         : Promise.resolve({ data: [], error: null })
     ]);
 

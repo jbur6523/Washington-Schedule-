@@ -41,6 +41,7 @@ import {
   type ShiftUpdateReportingWindow
 } from "@/lib/shift-status/reporting-window";
 import { createClient } from "@/lib/supabase/client";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 
 type PhoneListClientProps = {
   authContext: AuthenticatedUserContext;
@@ -148,12 +149,14 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
           .select("active_schedule_version_id")
           .eq("id", authContext.departmentId)
           .maybeSingle(),
-        supabase
+        fetchAllPages((from, to) => supabase
           .from("staff_profiles")
           .select("id, display_name")
           .eq("department_id", authContext.departmentId)
           .eq("is_active", true)
           .order("display_name", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to))
       ]);
 
     if (loadSequence !== loadSequenceRef.current) {
@@ -168,13 +171,15 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
 
     const activeScheduleVersionId = department?.active_schedule_version_id as string | null | undefined;
     const entriesRequest = activeScheduleVersionId
-      ? supabase
+      ? fetchAllPages((from, to) => supabase
           .from("schedule_entries")
           .select("id, staff_profile_id, shift_type, entry_status, staff_profiles(id, display_name)")
           .eq("schedule_version_id", activeScheduleVersionId)
           .eq("shift_date", scheduleDate)
           .order("shift_start", { ascending: true })
           .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to))
       : Promise.resolve({ data: [], error: null });
 
     const [
@@ -183,7 +188,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
       { data: draftRow, error: draftError }
     ] = await Promise.all([
       entriesRequest,
-      supabase
+      fetchAllPages((from, to) => supabase
         .from("user_schedule_overrides")
         .select(
           "id, staff_profile_id, base_schedule_entry_id, override_type, shift_type, is_active, staff_profiles(id, display_name)"
@@ -191,7 +196,9 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
         .eq("department_id", authContext.departmentId)
         .eq("shift_date", scheduleDate)
         .eq("is_active", true)
-        .order("created_at", { ascending: true }),
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, to)),
       supabase
         .from("phone_list_drafts")
         .select(

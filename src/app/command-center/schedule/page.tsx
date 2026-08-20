@@ -11,6 +11,7 @@ import {
   type LeadScheduleOverride
 } from "@/lib/lead-schedule/directory";
 import { defaultShiftRecordForInstant } from "@/lib/shift-status/reporting-window";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -65,7 +66,7 @@ export default async function LeadSchedulePage({
 
   const [entriesResult, overridesResult, directoryResult] = await Promise.all([
     activeScheduleVersionId
-      ? supabase
+      ? fetchAllPages((from, to) => supabase
           .from("schedule_entries")
           .select(
             `id, staff_profile_id, shift_type, entry_status, staff_profiles(${scheduledStaffSelect})`
@@ -74,8 +75,10 @@ export default async function LeadSchedulePage({
           .eq("shift_date", selectedDate)
           .order("shift_start", { ascending: true })
           .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to))
       : Promise.resolve({ data: [], error: null }),
-    supabase
+    fetchAllPages((from, to) => supabase
       .from("user_schedule_overrides")
       .select(
         `id, staff_profile_id, base_schedule_entry_id, override_type, shift_type, is_active, staff_profiles(${scheduledStaffSelect})`
@@ -83,8 +86,10 @@ export default async function LeadSchedulePage({
       .eq("department_id", auth.context.departmentId)
       .eq("shift_date", selectedDate)
       .eq("is_active", true)
-      .order("created_at", { ascending: true }),
-    supabase
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to)),
+    fetchAllPages((from, to) => supabase
       .from("staff_profiles")
       .select(
         "id, display_name, first_name, last_name, hire_date, phone_number, employment_type, home_assignment, operations_role, directory_shift, name_aliases, is_active"
@@ -92,6 +97,8 @@ export default async function LeadSchedulePage({
       .eq("department_id", auth.context.departmentId)
       .eq("is_active", true)
       .order("display_name", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to))
   ]);
 
   const scheduleError = Boolean(departmentError || entriesResult.error || overridesResult.error);
