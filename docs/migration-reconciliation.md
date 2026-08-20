@@ -1,5 +1,19 @@
 # Production Migration Reconciliation
 
+## August 2026 staff-directory migration drift
+
+Production migration history was observed to stop at `202608150006`, while the repository also contains `20260817112607_correct_lead_schedule_directory_staff.sql`. Do not delete, rename, replay blindly, or mark this migration applied from its filename alone.
+
+Run the read-only `operations/migration-drift/verify-20260817112607.sql`. It inspects the Stephanie/Stefanie Ortiz correction and alias plus the full-time corrections for Harjot Kaur and Tom Macasaet. If and only if `safe_to_mark_applied` is true and the detail rows are expected, the future reviewed operator may record the existing state:
+
+```powershell
+npx supabase@2.115.0 projects list
+npx supabase@2.115.0 migration list --linked
+npx supabase@2.115.0 migration repair --status applied 20260817112607 --linked
+```
+
+The linked project must be exactly `xkhqdcxnllogiogahdmd`. If the intended state is absent, execute the unchanged historical migration as one controlled reviewed transaction, rerun the read-only proof, then record the version. This reconciliation is required before the atomic schedule-import migration. No repair command was run during local implementation.
+
 Date: 2026-07-27
 
 ## Migration to Apply

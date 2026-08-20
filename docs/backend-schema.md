@@ -107,9 +107,9 @@ Use the Supabase publishable key for client and SSR auth. `SUPABASE_SECRET_KEY` 
 
 ### Import and Review
 
-- `schedule_imports`: admin-only schedule import jobs.
-- `schedule_import_rows`: editable extracted or pasted rows for human review before creating a schedule version.
-- Import approval can create schedule versions and entries after admin review. OCR remains out of scope.
+- `schedule_imports`: admin-only logical Schedule Code imports, keyed by active version and canonical source hash with verified result counts.
+- `schedule_import_rows`: canonical row-level audit history for inserted, exact-duplicate, excluded, conflict, or rejected source rows.
+- Normal import appends transactionally to the existing active published version; version creation remains a separate Schedule Versions administration action.
 
 ### Audit
 
@@ -232,8 +232,7 @@ Assigned username rule:
 - Staff schedule reads are scoped to the active published version.
 - Rollback currently means publishing a previous version again. A fuller rollback UI remains future work.
 - The admin manual builder and batch paste format are documented in `docs/schedule-versions.md`.
-- Import results must never auto-publish.
-- Review-first imports can create draft/review versions or publish only when the admin explicitly chooses Save and Publish.
+- Import results never create, replace, or publish versions. They append to the already active published version and may only extend its range.
 
 ## Self-Managed Schedule
 
@@ -294,12 +293,11 @@ Assigned username rule:
 ## Import and Review Foundation
 
 - Schedule imports are admin-only.
-- Uploaded images are kept in browser state only during the current Phase 8 workflow.
-- If image persistence is later added, uploaded images should use private storage and a short retention/deletion policy.
-- Import rows can store raw extracted names for review, but should not store phone numbers or patient data.
-- Admin review and approval must happen before imported data becomes a schedule version.
+- The importer accepts Schedule Code only; it does not accept or store images/PDFs.
+- Import rows can store canonical source names for review, but never phone numbers or patient data.
+- Admin review and atomic verification must complete before imported data is confirmed on the active schedule.
 - Crossed-out names should be removed during review before approval.
-- `schedule_import_rows.shift_start` and `shift_end` store structured shift times for version creation.
+- `schedule_import_rows.shift_start` and `shift_end` store structured audit values for the targeted active version.
 
 ## Out of Scope
 

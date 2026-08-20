@@ -1,10 +1,6 @@
 # Schedule Code Import
 
-Schedule Code Import is the preferred way to move ChatGPT-converted schedule photos into WHHS RT Schedule.
-
-This is not app source code. It is structured schedule data that the website parses into draft review rows.
-
-## Final Format
+Schedule Code is structured staffing data, not application source code.
 
 ```text
 SCHEDULE_VERSION | label | starts_on | ends_on
@@ -18,120 +14,20 @@ SHORT_SHIFT | date | shift_type | shift_start | shift_end | severity | message
 Example:
 
 ```text
-SCHEDULE_VERSION | Remaining Schedule | 2026-06-24 | 2026-06-25
-
-ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | hlaw | scheduled
-ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available
-ENTRY | 2026-06-24 | night_shift | 18:30 | 07:00 | rodj | scheduled | lead
-
-SHORT_SHIFT | 2026-06-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
+SCHEDULE_VERSION | Week 2 Daily RVU Sheets | 2026-08-23 | 2026-08-26
+ENTRY | 2026-08-23 | day_shift | 06:30 | 19:00 | hlaw | scheduled | lead
+ENTRY | 2026-08-23 | day_shift | 06:30 | 19:00 | robm | available
+SHORT_SHIFT | 2026-08-24 | night_shift | 18:30 | 07:00 | urgent | Night shift short one RT
 ```
 
-Blank lines are ignored. Comments after `#` are ignored:
+`SCHEDULE_VERSION` is optional metadata/date guidance and never creates a schedule version. Dates use `YYYY-MM-DD`. Times accept normalized 24-hour values and are stored consistently. Blank lines and comments after `#` are ignored. Errors identify the source line.
 
-```text
-ENTRY | 2026-06-24 | day_shift | 06:30 | 19:00 | robm | available # Marshall Roberts
-```
+Allowed `shift_type` values are `day_shift`, `night_shift`, `pft`, `pulmonary_rehab`, `rt_aide`, and `flexible`. ENTRY status is `scheduled` or `available`. SHORT_SHIFT severity is `short` or `urgent`, with a message up to 140 characters.
 
-## Shift Lead Markers
+The optional final lead field accepts `lead`, `shift_lead`, or `true`. Inline `(L)`, `(lead)`, `Lead`, `Shift Lead`, and trailing `-L` markers are removed before staff matching and set `is_shift_lead`. This is display metadata, not an application permission role.
 
-Shift Lead is entry-level metadata stored on `schedule_entries.is_shift_lead`.
+Prefer permanent usernames. Matching falls back to exact display name, normalized full name, then last name only when exactly one active Staff Directory profile has that last name. Ambiguous or missing matches require administrator review. Never silently create a profile.
 
-It is public to authenticated schedule viewers and displays as a crown on Schedule cards. It is not the same as the app `lead` role and does not change permissions.
+Rows crossed out in the source should be omitted. If their status or a lead marker is unclear, surface the row for review rather than guessing. Never include patient information, clinical notes, phone numbers, payroll data, EMR data, or unrelated notes.
 
-Supported Schedule Code Import syntax:
-
-```text
-ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | heah | scheduled | lead
-ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | heah(L) | scheduled
-ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | Heather Heath (L) | scheduled
-ENTRY | 2026-06-26 | day_shift | 06:30 | 19:00 | Heather Heath Lead | scheduled
-```
-
-The optional final field can be `lead`, `shift_lead`, or `true`.
-
-Inline lead markers such as `(L)`, `-L`, or `Lead` are removed before staff matching.
-
-## Allowed Values
-
-`shift_type`:
-
-- `day_shift`
-- `night_shift`
-- `pft`
-- `pulmonary_rehab`
-- `flexible`
-
-`entry_status`:
-
-- `scheduled`
-- `available`
-
-Short Shift `severity`:
-
-- `short`
-- `urgent`
-
-Dates must use `YYYY-MM-DD`. Times must use `HH:mm`.
-
-## Username-First Matching
-
-`staff_identifier` should be a permanent username whenever possible.
-
-Matching order:
-
-1. Match against `staff_profiles.username_normalized`.
-2. Fall back to exact display name.
-3. Fall back to exact normalized full name.
-4. Fall back to last name only if it matches exactly one active staff profile.
-5. If no safe match is found, mark Needs Review.
-6. If multiple matches are possible, mark Needs Review.
-
-The import never creates staff profiles silently. After matching, the app stores `staff_profile_id`, not the name text.
-
-## Preferred Name Examples
-
-Staff Directory display names can use preferred names, but imports should use permanent usernames whenever possible.
-
-- John Roberts / Marshall Roberts should import as `robm`.
-- Yiqin Meng / Maggie should import as `yiqm`.
-- Pawanjit Khera / Kinty should import as `pawk`.
-- Harjot Kaur / Joy should import as `kauj`.
-- Bei Yi uses `yibe` as the special short-last-name exception.
-
-Username examples:
-
-```text
-ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | heah | scheduled
-ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | vaya | scheduled
-ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | pawk | scheduled
-ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | yiqm | scheduled
-ENTRY | 2026-06-25 | day_shift | 06:30 | 19:00 | kauj | scheduled
-```
-
-## Daily RVU Sheet Interpretation
-
-When ChatGPT converts Daily RVU sheets:
-
-- The sheet date at the top controls all entries on that image/page.
-- Day shift images use `day_shift` and default time `06:30` to `19:00`.
-- Night shift images use `night_shift` and default time `18:30` to `07:00`.
-- PFT entries use `pft`.
-- Pulmonary Rehab entries use `pulmonary_rehab` if included.
-- Names marked `PD-Avail` should be imported as `available`.
-- Names marked `PD` without `Avail` should be imported as `scheduled` unless the source clearly indicates available.
-- Names with `(L)`, `Lead`, or a clear handwritten `L` next to them should be marked as Shift Lead.
-- If a possible lead marker is unclear, mark the row Needs Review instead of guessing confidently.
-- Names that are crossed out should not be imported.
-- If crossed-out status is uncertain, require manual review rather than importing confidently.
-- SCN, PD, and similar labels can be ignored unless they affect scheduled vs available status.
-- If a handwritten note clearly says someone is not working or removed, do not include that person.
-- If a handwritten note is unclear, do not create a schedule row from it without review.
-
-Do not import phone numbers, hire dates, patient information, clinical notes, or unrelated handwritten notes.
-
-## Review Before Publish
-
-Schedule Code Import creates draft rows. It does not auto-publish.
-
-Admins must review rows, fix unmatched or ambiguous staff identifiers, remove crossed-out names, and then choose Save as Draft/Review or Save and Publish.
+The importer appends to the active published schedule. Exact duplicates are skipped, conflicts require correction/exclusion, and imports are safe to retry. Dates outside the active version range extend it automatically; existing history is never deleted or hidden to avoid a row cap.

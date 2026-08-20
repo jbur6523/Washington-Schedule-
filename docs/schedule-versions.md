@@ -102,23 +102,16 @@ Admins can also open:
 
 `/admin/import-schedule`
 
-The import workflow supports uploading source images/PDF metadata, browser image compression, manual structured paste, editable review rows, roster matching, row removal for crossed-out names, optional Short Shift alerts, schedule version creation, and appending reviewed rows to the current active schedule.
+The normal importer accepts Schedule Code through Paste Code, Review, and Upload. It never creates or publishes a version; it appends to `departments.active_schedule_version_id` after server review and one atomic transaction.
 
-Import results are review-first. They never auto-publish.
-
-Import modes:
-
-- Create new schedule version creates a new version and can be saved as Draft/Review or saved and published.
-- Add to current active schedule inserts reviewed rows into `departments.active_schedule_version_id`.
-
-When appending to the current active schedule:
+During normal import:
 
 - Existing schedule entries are not deleted.
 - Existing Short Shift alerts are not deleted.
 - Exact duplicate schedule rows show as `Already exists / skipped`.
 - Exact duplicate Short Shift alerts are skipped.
-- Conflicting rows for the same staff/date/shift are marked Needs Review.
-- Imported dates outside the current version range require admin confirmation before the version range expands.
+- Conflicting rows for the same staff/date/shift require correction or explicit exclusion.
+- Imported dates extend the active version range automatically and never shrink it.
 
 Appending is useful when adding newly received schedule days to the active schedule without replacing what is already published.
 
@@ -149,7 +142,7 @@ Publishing a version:
 
 Previous published versions are retained. They are not deleted.
 
-Adding rows to the current active schedule does not create a new version and does not republish a different version. It updates the existing active version by inserting reviewed non-duplicate rows and optional Short Shift alerts.
+Adding rows to the current active schedule does not create or republish a version. Schedule Versions remains the emergency/manual version-management interface.
 
 ## Rollback
 
