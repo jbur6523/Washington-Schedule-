@@ -63,7 +63,7 @@ describe("fetchRvuStaffingMetricRows", () => {
 });
 
 describe("fetchProcedureMetricRows", () => {
-  it("loads both comparison months in one bounded canonical department query", async () => {
+  it("loads a bounded canonical department trend payload with stable pagination", async () => {
     const calls: Array<{ method: string; args: unknown[] }> = [];
     const query = {
       select(...args: unknown[]) {
@@ -86,8 +86,8 @@ describe("fetchProcedureMetricRows", () => {
         calls.push({ method: "order", args });
         return query;
       },
-      async limit(...args: unknown[]) {
-        calls.push({ method: "limit", args });
+      async range(...args: unknown[]) {
+        calls.push({ method: "range", args });
         return { data: [], error: null };
       }
     };
@@ -99,20 +99,22 @@ describe("fetchProcedureMetricRows", () => {
     } as unknown as SupabaseClient;
 
     await fetchProcedureMetricRows(client, "department-1", {
-      minimumShiftDate: "2026-07-01",
+      minimumShiftDate: "2026-07-06",
       maximumShiftDate: "2026-08-20"
     });
 
     expect(calls).toContainEqual({ method: "eq", args: ["department_id", "department-1"] });
     expect(calls).toContainEqual({ method: "eq", args: ["is_canonical", true] });
-    expect(calls).toContainEqual({ method: "gte", args: ["shift_date", "2026-07-01"] });
+    expect(calls).toContainEqual({ method: "gte", args: ["shift_date", "2026-07-06"] });
     expect(calls).toContainEqual({ method: "lte", args: ["shift_date", "2026-08-20"] });
-    expect(calls).toContainEqual({ method: "limit", args: [130] });
+    expect(calls).toContainEqual({ method: "order", args: ["id", { ascending: true }] });
+    expect(calls).toContainEqual({ method: "range", args: [0, 499] });
 
     const selectedColumns = String(calls.find((call) => call.method === "select")?.args[0]);
     expect(selectedColumns).toContain("is_canonical");
     expect(selectedColumns).toContain("c_section_count");
     expect(selectedColumns).toContain("other_procedure_count");
+    expect(selectedColumns).toContain("updated_at");
     expect(selectedColumns).not.toContain("updated_by");
     expect(selectedColumns).not.toContain("note");
   });

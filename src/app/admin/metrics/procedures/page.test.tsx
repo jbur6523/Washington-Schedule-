@@ -51,12 +51,12 @@ describe("Procedure Metrics route authorization", () => {
     mocks.fetchRows.mockResolvedValue({ data: [], error: null });
   });
 
-  it("queries only the authorized department for the selected and previous months", async () => {
+  it("queries only the authorized department for the bounded comparison and trend range", async () => {
     render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ month: "2026-08" }) }));
 
-    expect(screen.getByRole("heading", { name: "August 2026" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", {
-      minimumShiftDate: "2026-07-01",
+      minimumShiftDate: "2026-07-06",
       maximumShiftDate: expect.stringMatching(/^2026-08-\d{2}$/)
     });
   });

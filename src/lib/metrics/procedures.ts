@@ -1,9 +1,22 @@
-import { procedureCounts, procedureTotal } from "@/lib/shift-status/procedures";
 import { SHIFT_UPDATE_REPORTING_TIMEZONE } from "@/lib/shift-status/reporting-window";
-import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type { ShiftStatusShiftType } from "@/lib/shift-status/types";
 import { timeZoneParts } from "@/lib/time/zoned-date-time";
 
 export const PROCEDURE_METRICS_TIMEZONE = SHIFT_UPDATE_REPORTING_TIMEZONE;
+export const RELIABLE_PROCEDURE_HISTORY_START_DATE = "2026-07-06";
+
+export const PROCEDURE_TYPES = [
+  { id: "cSections", field: "c_section_count", label: "C-Sections" },
+  { id: "vaginalDeliveries", field: "vaginal_delivery_count", label: "Vaginal Deliveries" },
+  { id: "cabg", field: "cabg_count", label: "CABG" },
+  { id: "bronchs", field: "bronch_count", label: "Bronchs" },
+  { id: "sputumInductions", field: "sputum_induction_count", label: "Sputum Inductions" },
+  { id: "mri", field: "other_procedure_count", label: "MRI" }
+] as const;
+
+export type ProcedureType = (typeof PROCEDURE_TYPES)[number];
+export type ProcedureTypeId = ProcedureType["id"];
+export type ProcedureTypeTotals = Record<ProcedureTypeId, number>;
 
 export type ProcedureMetricRow = {
   id: string;
@@ -20,10 +33,16 @@ export type ProcedureMetricRow = {
   updated_at?: string;
 };
 
+export type ProcedureShiftMetric = {
+  counts: ProcedureTypeTotals;
+  total: number;
+};
+
 export type DailyProcedureMetric = {
   date: string;
-  day: number | null;
-  night: number | null;
+  day: ProcedureShiftMetric | null;
+  night: ProcedureShiftMetric | null;
+  counts: ProcedureTypeTotals;
   total: number;
 };
 
@@ -31,28 +50,96 @@ export type ProcedureMonthSummary = {
   month: string;
   days: DailyProcedureMetric[];
   calendarDaysRepresented: number;
-  completedShifts: number;
+  reportedShifts: number;
+  counts: ProcedureTypeTotals;
   total: number;
   dayTotal: number;
   nightTotal: number;
   dailyAverage: number;
+  reportedShiftAverage: number | null;
+  hasReliableFullMonth: boolean;
 };
 
-export type ProcedureMonthComparison = {
+export type ProcedureChange = {
   difference: number;
   percentage: number | null;
+};
+
+export type ProcedureTypeComparison = ProcedureType & {
+  selectedTotal: number;
+  previousTotal: number;
+  difference: number;
+  percentage: number | null;
+  share: number;
+};
+
+export type ProcedureMonthlyTrend = {
+  month: string;
+  total: number;
+  dailyAverage: number;
+  reportedShifts: number;
+  status: "complete" | "month-to-date" | "partial-coverage";
+  rollingAverage: number | null;
+  rollingAverageMonthCount: number;
+  comparison: ProcedureChange | null;
 };
 
 export type ProcedureMetricsReport = {
   selected: ProcedureMonthSummary;
   previous: ProcedureMonthSummary;
-  comparison: ProcedureMonthComparison;
+  comparison: ProcedureChange;
+  comparisonPeriodLabel: string;
+  selectedPeriodLabel: string;
+  typeComparisons: ProcedureTypeComparison[];
+  threeMonthAverage: number | null;
+  threeMonthAverageMonths: string[];
+  trend: ProcedureMonthlyTrend[];
+  reliableHistoryStartDate: string;
 };
 
 function isoDate(year: number, month: number, day: number) {
   return [year, month, day]
     .map((value, index) => value.toString().padStart(index === 0 ? 4 : 2, "0"))
     .join("-");
+}
+
+function emptyProcedureTotals(): ProcedureTypeTotals {
+  return {
+    cSections: 0,
+    vaginalDeliveries: 0,
+    cabg: 0,
+    bronchs: 0,
+    sputumInductions: 0,
+    mri: 0
+  };
+}
+
+function addProcedureTotals(left: ProcedureTypeTotals, right: ProcedureTypeTotals) {
+  const result = emptyProcedureTotals();
+
+  for (const procedure of PROCEDURE_TYPES) {
+    result[procedure.id] = left[procedure.id] + right[procedure.id];
+  }
+
+  return result;
+}
+
+export function procedureTotal(counts: ProcedureTypeTotals) {
+  return PROCEDURE_TYPES.reduce((total, procedure) => total + counts[procedure.id], 0);
+}
+
+export function procedureCountsForRow(row: ProcedureMetricRow): ProcedureTypeTotals | null {
+  const counts = emptyProcedureTotals();
+
+  for (const procedure of PROCEDURE_TYPES) {
+    const value = row[procedure.field];
+    if (!Number.isInteger(value) || value < 0) {
+      return null;
+    }
+    counts[procedure.id] = value;
+  }
+
+  return counts;
 }
 
 export function monthForInstant(
@@ -63,16 +150,18 @@ export function monthForInstant(
   return isoDate(parts.year, parts.month, 1).slice(0, 7);
 }
 
-export function previousMonth(month: string) {
+export function shiftMonth(month: string, offset: number) {
   const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(Date.UTC(year, monthNumber - 2, 1));
+  const date = new Date(Date.UTC(year, monthNumber - 1 + offset, 1));
   return isoDate(date.getUTCFullYear(), date.getUTCMonth() + 1, 1).slice(0, 7);
 }
 
+export function previousMonth(month: string) {
+  return shiftMonth(month, -1);
+}
+
 export function nextMonth(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const date = new Date(Date.UTC(year, monthNumber, 1));
-  return isoDate(date.getUTCFullYear(), date.getUTCMonth() + 1, 1).slice(0, 7);
+  return shiftMonth(month, 1);
 }
 
 export function daysInMonth(month: string) {
@@ -102,31 +191,16 @@ export function procedureMonthQueryRange(
 ) {
   const currentMonth = monthForInstant(now, timezone);
   const localToday = timeZoneParts(now, timezone);
-  const monthEnd = `${month}-${daysInMonth(month).toString().padStart(2, "0")}`;
+  const earliestTrendDate = `${shiftMonth(month, -23)}-01`;
 
   return {
-    minimumShiftDate: `${previousMonth(month)}-01`,
+    minimumShiftDate: earliestTrendDate < RELIABLE_PROCEDURE_HISTORY_START_DATE
+      ? RELIABLE_PROCEDURE_HISTORY_START_DATE
+      : earliestTrendDate,
     maximumShiftDate: month === currentMonth
       ? isoDate(localToday.year, localToday.month, localToday.day)
-      : monthEnd
+      : `${month}-${daysInMonth(month).toString().padStart(2, "0")}`
   };
-}
-
-function procedureValue(row: ProcedureMetricRow) {
-  const values = [
-    row.c_section_count,
-    row.vaginal_delivery_count,
-    row.cabg_count,
-    row.bronch_count,
-    row.sputum_induction_count,
-    row.other_procedure_count
-  ];
-
-  if (values.some((value) => !Number.isInteger(value) || value < 0)) {
-    return null;
-  }
-
-  return procedureTotal(procedureCounts(row as ShiftStatusUpdate));
 }
 
 export function canonicalProcedureRows(rows: ProcedureMetricRow[]) {
@@ -142,7 +216,7 @@ export function canonicalProcedureRows(rows: ProcedureMetricRow[]) {
 
   for (const row of canonicalRows) {
     const key = `${row.shift_date}:${row.shift_type}`;
-    if (!windows.has(key) && procedureValue(row) !== null) {
+    if (!windows.has(key) && procedureCountsForRow(row) !== null) {
       windows.set(key, row);
     }
   }
@@ -150,24 +224,35 @@ export function canonicalProcedureRows(rows: ProcedureMetricRow[]) {
   return Array.from(windows.values());
 }
 
+function reliableFullMonth(month: string) {
+  return `${month}-01` >= RELIABLE_PROCEDURE_HISTORY_START_DATE;
+}
+
 export function summarizeProcedureMonth(
   rows: ProcedureMetricRow[],
   month: string,
   now = new Date(),
-  timezone = PROCEDURE_METRICS_TIMEZONE
+  timezone = PROCEDURE_METRICS_TIMEZONE,
+  periodEndDay?: number
 ): ProcedureMonthSummary {
   const currentMonth = monthForInstant(now, timezone);
   const localToday = timeZoneParts(now, timezone);
-  const calendarDaysRepresented = month === currentMonth
-    ? localToday.day
-    : daysInMonth(month);
-  const valuesByWindow = new Map<string, number>();
+  const defaultEndDay = month === currentMonth ? localToday.day : daysInMonth(month);
+  const calendarDaysRepresented = Math.max(0, Math.min(
+    periodEndDay ?? defaultEndDay,
+    daysInMonth(month)
+  ));
+  const valuesByWindow = new Map<string, ProcedureShiftMetric>();
 
   for (const row of canonicalProcedureRows(rows)) {
-    if (row.shift_date.startsWith(`${month}-`)) {
-      const value = procedureValue(row);
-      if (value !== null) {
-        valuesByWindow.set(`${row.shift_date}:${row.shift_type}`, value);
+    const day = Number(row.shift_date.slice(-2));
+    if (row.shift_date.startsWith(`${month}-`) && day <= calendarDaysRepresented) {
+      const counts = procedureCountsForRow(row);
+      if (counts !== null) {
+        valuesByWindow.set(`${row.shift_date}:${row.shift_type}`, {
+          counts,
+          total: procedureTotal(counts)
+        });
       }
     }
   }
@@ -176,25 +261,72 @@ export function summarizeProcedureMonth(
     const date = `${month}-${(index + 1).toString().padStart(2, "0")}`;
     const day = valuesByWindow.get(`${date}:day`) ?? null;
     const night = valuesByWindow.get(`${date}:night`) ?? null;
-    return { date, day, night, total: (day ?? 0) + (night ?? 0) };
+    const counts = addProcedureTotals(
+      day?.counts ?? emptyProcedureTotals(),
+      night?.counts ?? emptyProcedureTotals()
+    );
+    return { date, day, night, counts, total: procedureTotal(counts) };
   });
-  const dayTotal = days.reduce((total, day) => total + (day.day ?? 0), 0);
-  const nightTotal = days.reduce((total, day) => total + (day.night ?? 0), 0);
-  const total = dayTotal + nightTotal;
+  const counts = days.reduce(
+    (total, day) => addProcedureTotals(total, day.counts),
+    emptyProcedureTotals()
+  );
+  const dayTotal = days.reduce((total, day) => total + (day.day?.total ?? 0), 0);
+  const nightTotal = days.reduce((total, day) => total + (day.night?.total ?? 0), 0);
+  const total = procedureTotal(counts);
+  const reportedShifts = days.reduce(
+    (count, day) => count + Number(day.day !== null) + Number(day.night !== null),
+    0
+  );
 
   return {
     month,
     days,
     calendarDaysRepresented,
-    completedShifts: days.reduce(
-      (count, day) => count + Number(day.day !== null) + Number(day.night !== null),
-      0
-    ),
+    reportedShifts,
+    counts,
     total,
     dayTotal,
     nightTotal,
-    dailyAverage: calendarDaysRepresented === 0 ? 0 : total / calendarDaysRepresented
+    dailyAverage: calendarDaysRepresented === 0 ? 0 : total / calendarDaysRepresented,
+    reportedShiftAverage: reportedShifts === 0 ? null : total / reportedShifts,
+    hasReliableFullMonth: reliableFullMonth(month)
   };
+}
+
+function calculateChange(current: number, previous: number): ProcedureChange {
+  const difference = current - previous;
+  return {
+    difference,
+    percentage: previous === 0 ? null : (difference / previous) * 100
+  };
+}
+
+function periodLabel(month: string, endDay: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const monthName = new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "long"
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
+  return `${monthName} 1–${endDay}`;
+}
+
+function monthsBetween(startMonth: string, endMonth: string) {
+  const months: string[] = [];
+  let month = startMonth;
+
+  while (month <= endMonth) {
+    months.push(month);
+    month = nextMonth(month);
+  }
+
+  return months;
+}
+
+function average(values: number[]) {
+  return values.length === 0
+    ? null
+    : values.reduce((total, value) => total + value, 0) / values.length;
 }
 
 export function buildProcedureMetricsReport(
@@ -203,25 +335,93 @@ export function buildProcedureMetricsReport(
   now = new Date(),
   timezone = PROCEDURE_METRICS_TIMEZONE
 ): ProcedureMetricsReport {
+  const currentMonth = monthForInstant(now, timezone);
+  const isCurrentMonth = month === currentMonth;
   const selected = summarizeProcedureMonth(rows, month, now, timezone);
-  const previous = summarizeProcedureMonth(rows, previousMonth(month), now, timezone);
-  const difference = selected.total - previous.total;
+  const comparisonMonth = previousMonth(month);
+  const comparisonEndDay = isCurrentMonth
+    ? Math.min(selected.calendarDaysRepresented, daysInMonth(comparisonMonth))
+    : daysInMonth(comparisonMonth);
+  const previous = summarizeProcedureMonth(rows, comparisonMonth, now, timezone, comparisonEndDay);
+  const comparison = calculateChange(selected.total, previous.total);
+  const typeComparisons = PROCEDURE_TYPES.map((procedure): ProcedureTypeComparison => {
+    const selectedTotal = selected.counts[procedure.id];
+    const previousTotal = previous.counts[procedure.id];
+    const change = calculateChange(selectedTotal, previousTotal);
+    return {
+      ...procedure,
+      selectedTotal,
+      previousTotal,
+      ...change,
+      share: selected.total === 0 ? 0 : (selectedTotal / selected.total) * 100
+    };
+  });
+  const rangeStartMonth = rows.reduce(
+    (earliest, row) => row.shift_date.slice(0, 7) < earliest ? row.shift_date.slice(0, 7) : earliest,
+    month
+  );
+  const monthlySummaries = monthsBetween(rangeStartMonth, month).map((summaryMonth) =>
+    summarizeProcedureMonth(rows, summaryMonth, now, timezone)
+  );
+  const availableCompleteMonthsBeforeSelected = monthlySummaries.filter((summary) => (
+    summary.month < month
+    && summary.reportedShifts > 0
+    && summary.hasReliableFullMonth
+    && summary.calendarDaysRepresented === daysInMonth(summary.month)
+  ));
+  const threeMonthSummaries = availableCompleteMonthsBeforeSelected.slice(-3);
+  const availableTrendSummaries = monthlySummaries.filter((summary) => summary.reportedShifts > 0);
+  const trendSummaries = availableTrendSummaries.slice(-12);
+  const trend = trendSummaries.map((summary): ProcedureMonthlyTrend => {
+    const isPartialCurrentMonth = summary.month === currentMonth;
+    const completedThroughThisMonth = availableTrendSummaries.filter((candidate) => (
+      candidate.month <= summary.month
+      && candidate.hasReliableFullMonth
+      && candidate.month !== currentMonth
+    ));
+    const rollingInputs = isPartialCurrentMonth
+      ? completedThroughThisMonth.filter((candidate) => candidate.month < summary.month).slice(-3)
+      : completedThroughThisMonth.slice(-3);
+    const priorMonthSummary = monthlySummaries.find((candidate) => candidate.month === previousMonth(summary.month));
+    const rowComparison = summary.month === month
+      ? comparison
+      : priorMonthSummary && priorMonthSummary.reportedShifts > 0
+        ? calculateChange(summary.total, priorMonthSummary.total)
+        : null;
+
+    return {
+      month: summary.month,
+      total: summary.total,
+      dailyAverage: summary.dailyAverage,
+      reportedShifts: summary.reportedShifts,
+      status: isPartialCurrentMonth
+        ? "month-to-date"
+        : summary.hasReliableFullMonth ? "complete" : "partial-coverage",
+      rollingAverage: average(rollingInputs.map((candidate) => candidate.total)),
+      rollingAverageMonthCount: rollingInputs.length,
+      comparison: rowComparison
+    };
+  });
 
   return {
     selected,
     previous,
-    comparison: {
-      difference,
-      percentage: previous.total === 0 ? null : (difference / previous.total) * 100
-    }
+    comparison,
+    comparisonPeriodLabel: periodLabel(comparisonMonth, comparisonEndDay),
+    selectedPeriodLabel: periodLabel(month, selected.calendarDaysRepresented),
+    typeComparisons,
+    threeMonthAverage: average(threeMonthSummaries.map((summary) => summary.total)),
+    threeMonthAverageMonths: threeMonthSummaries.map((summary) => summary.month),
+    trend,
+    reliableHistoryStartDate: RELIABLE_PROCEDURE_HISTORY_START_DATE
   };
 }
 
-export function monthLabel(month: string) {
+export function monthLabel(month: string, format: "long" | "short" = "long") {
   const [year, monthNumber] = month.split("-").map(Number);
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
-    month: "long",
+    month: format,
     year: "numeric"
   }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }

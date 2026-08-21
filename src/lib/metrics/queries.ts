@@ -60,7 +60,9 @@ const procedureMetricColumns = [
   "cabg_count",
   "bronch_count",
   "sputum_induction_count",
-  "other_procedure_count"
+  "other_procedure_count",
+  "created_at",
+  "updated_at"
 ].join(", ");
 
 export async function fetchProcedureMetricRows(
@@ -68,19 +70,33 @@ export async function fetchProcedureMetricRows(
   departmentId: string,
   filters: { minimumShiftDate: string; maximumShiftDate: string }
 ) {
-  const { data, error } = await supabase
-    .from("shift_status_updates")
-    .select(procedureMetricColumns)
-    .eq("department_id", departmentId)
-    .eq("is_canonical", true)
-    .gte("shift_date", filters.minimumShiftDate)
-    .lte("shift_date", filters.maximumShiftDate)
-    .order("shift_date", { ascending: true })
-    .order("shift_type", { ascending: true })
-    .limit(130);
+  const pageSize = 500;
+  const rows: ProcedureMetricRow[] = [];
 
-  return {
-    data: error ? [] : (data ?? []) as unknown as ProcedureMetricRow[],
-    error
-  };
+  for (let start = 0; ; start += pageSize) {
+    const { data, error } = await supabase
+      .from("shift_status_updates")
+      .select(procedureMetricColumns)
+      .eq("department_id", departmentId)
+      .eq("is_canonical", true)
+      .gte("shift_date", filters.minimumShiftDate)
+      .lte("shift_date", filters.maximumShiftDate)
+      .order("shift_date", { ascending: true })
+      .order("shift_type", { ascending: true })
+      .order("id", { ascending: true })
+      .range(start, start + pageSize - 1);
+
+    if (error) {
+      return { data: [] as ProcedureMetricRow[], error };
+    }
+
+    const page = (data ?? []) as unknown as ProcedureMetricRow[];
+    rows.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+  }
+
+  return { data: rows, error: null };
 }

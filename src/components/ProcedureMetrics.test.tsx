@@ -1,7 +1,7 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ProcedureMetrics } from "@/components/ProcedureMetrics";
-import { buildProcedureMetricsReport, type ProcedureMetricRow } from "@/lib/metrics/procedures";
+import { PROCEDURE_TYPES, buildProcedureMetricsReport, type ProcedureMetricRow } from "@/lib/metrics/procedures";
 
 function row(overrides: Partial<ProcedureMetricRow> = {}): ProcedureMetricRow {
   return {
@@ -20,26 +20,32 @@ function row(overrides: Partial<ProcedureMetricRow> = {}): ProcedureMetricRow {
 }
 
 describe("ProcedureMetrics", () => {
-  it("renders the monthly summary, accessible trend, and daily missing-versus-zero history", () => {
+  it("renders the required summary, procedure types, monthly trend, and traceable shift detail", () => {
     const now = new Date("2026-08-03T19:00:00.000Z");
     const report = buildProcedureMetricsReport([
-      row({ id: "zero", other_procedure_count: 0 }),
-      row({ id: "night", shift_type: "night", other_procedure_count: 5 }),
-      row({ id: "previous", shift_date: "2026-07-01", other_procedure_count: 4 })
+      row({ id: "zero" }),
+      row({ id: "night", shift_type: "night", bronch_count: 3, other_procedure_count: 2 }),
+      row({ id: "previous", shift_date: "2026-07-01", bronch_count: 4 })
     ], "2026-08", now);
 
     render(<ProcedureMetrics report={report} currentMonth="2026-08" />);
 
-    expect(screen.getByRole("heading", { name: "August 2026" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Day Shift Procedures0");
-    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Night Shift Procedures5");
-    expect(screen.getByRole("img", { name: /Daily procedure trend/ })).toBeInTheDocument();
-    expect(screen.getByText("A dash means no canonical Shift Update; 0 means an entered zero-procedure shift.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
+    const summary = screen.getByLabelText("Procedure metrics summary");
+    expect(summary).toHaveTextContent("Average per Day");
+    expect(summary).toHaveTextContent("Average per Reported Shift");
+    expect(summary).toHaveTextContent("Previous-Period Total");
+    expect(summary).toHaveTextContent("Change from Previous Period");
+    expect(summary).toHaveTextContent("Three-Month Average");
 
-    const rows = screen.getAllByRole("row");
-    expect(within(rows[1]).getByText("0")).toBeInTheDocument();
-    expect(within(rows[1]).getAllByText("5")).toHaveLength(2);
-    expect(within(rows[2]).getAllByLabelText("No canonical update")).toHaveLength(3);
+    expect(screen.getByRole("heading", { name: "Procedures by Type" })).toBeInTheDocument();
+    for (const procedure of PROCEDURE_TYPES) {
+      expect(screen.getAllByText(procedure.label).length).toBeGreaterThan(0);
+    }
+    expect(screen.getByRole("img", { name: /Monthly procedure totals and rolling average/ })).toBeInTheDocument();
+    expect(screen.getByText(/A submitted shift showing all zeroes is a reported zero/)).toBeInTheDocument();
+    expect(screen.getAllByText("No update submitted").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("Reconciliation")).toHaveTextContent("Procedure types (5) = daily totals (5) = canonical shift totals (5)");
   });
 
   it("disables future navigation while viewing the current month", () => {
@@ -50,13 +56,13 @@ describe("ProcedureMetrics", () => {
     expect(screen.queryByRole("link", { name: /View September 2026/ })).not.toBeInTheDocument();
   });
 
-  it("uses safe zero-comparison language", () => {
+  it("uses safe zero-denominator language", () => {
     const report = buildProcedureMetricsReport([
-      row({ other_procedure_count: 10 })
-    ], "2026-08", new Date("2026-09-15T19:00:00.000Z"));
-    render(<ProcedureMetrics report={report} currentMonth="2026-09" />);
+      row({ shift_date: "2026-09-01", bronch_count: 10 })
+    ], "2026-09", new Date("2026-10-15T19:00:00.000Z"));
+    render(<ProcedureMetrics report={report} currentMonth="2026-10" />);
 
-    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Change vs Previous MonthUp 10Up from 0 last month");
+    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Up from 0 in August 1–31");
     expect(document.body).not.toHaveTextContent(/Infinity|NaN/);
   });
 });
