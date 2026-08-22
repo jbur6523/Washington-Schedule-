@@ -56,7 +56,7 @@ describe("Procedure Metrics route authorization", () => {
 
     expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", {
-      minimumShiftDate: "2026-07-06",
+      minimumShiftDate: "2026-08-14",
       maximumShiftDate: expect.stringMatching(/^2026-08-\d{2}$/)
     });
   });

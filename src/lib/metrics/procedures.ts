@@ -3,7 +3,7 @@ import type { ShiftStatusShiftType } from "@/lib/shift-status/types";
 import { timeZoneParts } from "@/lib/time/zoned-date-time";
 
 export const PROCEDURE_METRICS_TIMEZONE = SHIFT_UPDATE_REPORTING_TIMEZONE;
-export const RELIABLE_PROCEDURE_HISTORY_START_DATE = "2026-07-06";
+export const RELIABLE_PROCEDURE_HISTORY_START_DATE = "2026-08-14";
 
 export const PROCEDURE_TYPES = [
   { id: "cSections", field: "c_section_count", label: "C-Sections" },
@@ -176,12 +176,13 @@ export function parseProcedureMonth(
 ) {
   const candidate = Array.isArray(value) ? value[0] : value;
   const currentMonth = monthForInstant(now, timezone);
+  const firstTrackedMonth = RELIABLE_PROCEDURE_HISTORY_START_DATE.slice(0, 7);
 
   if (!candidate || !/^\d{4}-(0[1-9]|1[0-2])$/.test(candidate) || candidate > currentMonth) {
     return currentMonth;
   }
 
-  return candidate;
+  return candidate < firstTrackedMonth ? firstTrackedMonth : candidate;
 }
 
 export function procedureMonthQueryRange(
@@ -228,6 +229,14 @@ function reliableFullMonth(month: string) {
   return `${month}-01` >= RELIABLE_PROCEDURE_HISTORY_START_DATE;
 }
 
+function firstTrackedDay(month: string) {
+  const startMonth = RELIABLE_PROCEDURE_HISTORY_START_DATE.slice(0, 7);
+  if (month < startMonth) return null;
+  return month === startMonth
+    ? Number(RELIABLE_PROCEDURE_HISTORY_START_DATE.slice(-2))
+    : 1;
+}
+
 export function summarizeProcedureMonth(
   rows: ProcedureMetricRow[],
   month: string,
@@ -238,15 +247,25 @@ export function summarizeProcedureMonth(
   const currentMonth = monthForInstant(now, timezone);
   const localToday = timeZoneParts(now, timezone);
   const defaultEndDay = month === currentMonth ? localToday.day : daysInMonth(month);
-  const calendarDaysRepresented = Math.max(0, Math.min(
+  const endDay = Math.max(0, Math.min(
     periodEndDay ?? defaultEndDay,
     daysInMonth(month)
   ));
+  const startDay = firstTrackedDay(month);
+  const calendarDaysRepresented = startDay === null || endDay < startDay
+    ? 0
+    : endDay - startDay + 1;
   const valuesByWindow = new Map<string, ProcedureShiftMetric>();
 
   for (const row of canonicalProcedureRows(rows)) {
     const day = Number(row.shift_date.slice(-2));
-    if (row.shift_date.startsWith(`${month}-`) && day <= calendarDaysRepresented) {
+    if (
+      row.shift_date >= RELIABLE_PROCEDURE_HISTORY_START_DATE
+      && row.shift_date.startsWith(`${month}-`)
+      && startDay !== null
+      && day >= startDay
+      && day <= endDay
+    ) {
       const counts = procedureCountsForRow(row);
       if (counts !== null) {
         valuesByWindow.set(`${row.shift_date}:${row.shift_type}`, {
@@ -258,7 +277,7 @@ export function summarizeProcedureMonth(
   }
 
   const days = Array.from({ length: calendarDaysRepresented }, (_, index): DailyProcedureMetric => {
-    const date = `${month}-${(index + 1).toString().padStart(2, "0")}`;
+    const date = `${month}-${((startDay ?? 1) + index).toString().padStart(2, "0")}`;
     const day = valuesByWindow.get(`${date}:day`) ?? null;
     const night = valuesByWindow.get(`${date}:night`) ?? null;
     const counts = addProcedureTotals(
@@ -302,13 +321,13 @@ function calculateChange(current: number, previous: number): ProcedureChange {
   };
 }
 
-function periodLabel(month: string, endDay: number) {
+function periodLabel(month: string, startDay: number, endDay: number) {
   const [year, monthNumber] = month.split("-").map(Number);
   const monthName = new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
     month: "long"
   }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
-  return `${monthName} 1–${endDay}`;
+  return startDay > endDay ? "No tracked prior period" : `${monthName} ${startDay}–${endDay}`;
 }
 
 function monthsBetween(startMonth: string, endMonth: string) {
@@ -407,8 +426,16 @@ export function buildProcedureMetricsReport(
     selected,
     previous,
     comparison,
-    comparisonPeriodLabel: periodLabel(comparisonMonth, comparisonEndDay),
-    selectedPeriodLabel: periodLabel(month, selected.calendarDaysRepresented),
+    comparisonPeriodLabel: periodLabel(
+      comparisonMonth,
+      firstTrackedDay(comparisonMonth) ?? 1,
+      firstTrackedDay(comparisonMonth) === null ? 0 : comparisonEndDay
+    ),
+    selectedPeriodLabel: periodLabel(
+      month,
+      firstTrackedDay(month) ?? 1,
+      firstTrackedDay(month) === null ? 0 : (firstTrackedDay(month) ?? 1) + selected.calendarDaysRepresented - 1
+    ),
     typeComparisons,
     threeMonthAverage: average(threeMonthSummaries.map((summary) => summary.total)),
     threeMonthAverageMonths: threeMonthSummaries.map((summary) => summary.month),
