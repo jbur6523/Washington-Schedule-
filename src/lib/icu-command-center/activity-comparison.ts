@@ -13,6 +13,9 @@ export type IcuActivityAuditState = {
   airway: string;
   settings: string;
   criticalVent: boolean | null;
+  sbt: boolean | null;
+  flolan: boolean | null;
+  prone: boolean | null;
   standby: boolean | null;
   isActive: boolean | null;
 };
@@ -39,6 +42,9 @@ export function icuActivityStateFromRecord(record: IcuPatientRecord): IcuActivit
     airway: formatIcuAirway(record),
     settings: formatIcuSettings(record),
     criticalVent: record.device_type === "vent" ? record.is_critical_vent : null,
+    sbt: record.device_type === "vent" ? record.is_sbt : null,
+    flolan: record.device_type === "vent" ? record.is_flolan : null,
+    prone: record.device_type === "vent" ? record.is_prone : null,
     standby: supportsIcuStandby(record.device_type) ? record.is_standby : null,
     isActive: record.is_active
   };
@@ -63,6 +69,9 @@ export function icuActivityStateFromEvent(
       airway: textValue(state.airway),
       settings: textValue(state.settings) || "Settings not entered",
       criticalVent: booleanValue(state.criticalVent),
+      sbt: booleanValue(state.sbt),
+      flolan: booleanValue(state.flolan),
+      prone: booleanValue(state.prone),
       standby: booleanValue(state.standby),
       isActive: booleanValue(state.isActive)
     };
@@ -79,6 +88,9 @@ export function icuActivityStateFromEvent(
     airway: textValue(data.airway),
     settings: textValue(data.settings) || "Settings not entered",
     criticalVent: booleanValue(data.criticalVent),
+    sbt: booleanValue(data.sbt),
+    flolan: booleanValue(data.flolan),
+    prone: booleanValue(data.prone),
     standby: booleanValue(data.standby),
     isActive: event.event_type === "discontinued" ? false : true
   };
@@ -100,6 +112,16 @@ export function icuActivityStatusChanges(
     previous.criticalVent !== updated.criticalVent
   ) {
     changes.push(`${previous.criticalVent ? "Critical" : "Not Critical"} → ${updated.criticalVent ? "Critical" : "Not Critical"}`);
+  }
+
+  for (const [label, key] of [
+    ["SBT", "sbt"],
+    ["Flolan", "flolan"],
+    ["Prone", "prone"]
+  ] as const) {
+    if (previous[key] !== null && updated[key] !== null && previous[key] !== updated[key]) {
+      changes.push(`${label}: ${previous[key] ? "Active" : "Inactive"} → ${updated[key] ? "Active" : "Inactive"}`);
+    }
   }
 
   if (previous.standby !== null && updated.standby !== null && previous.standby !== updated.standby) {

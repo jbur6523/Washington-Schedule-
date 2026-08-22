@@ -1,6 +1,9 @@
 export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol";
 export type IcuAirwayLocation = "teeth" | "gum" | "nare";
 export type IcuVentMode = "apvcmv" | "scmv" | "spont" | "asv" | "pcmv" | "aprv";
+export type IcuVentStatusKey = "sbt" | "critical" | "flolan" | "prone";
+export type IcuVentShiftEventKey = "ct" | "mri";
+export type IcuOperationalShiftType = "day" | "night";
 export type VentilatorOutcome =
   | "extubation"
   | "trached_aerosol"
@@ -13,7 +16,12 @@ export type IcuPatientEventType =
   | "added"
   | "updated"
   | "critical_status_updated"
+  | "sbt_status_updated"
+  | "flolan_status_updated"
+  | "prone_status_updated"
   | "standby_status_updated"
+  | "ct_noted"
+  | "mri_noted"
   | "discontinued";
 
 export type IcuPatientRecord = {
@@ -40,6 +48,9 @@ export type IcuPatientRecord = {
   cpap: number | null;
   flow: number | null;
   is_critical_vent: boolean;
+  is_sbt: boolean;
+  is_flolan: boolean;
+  is_prone: boolean;
   is_standby: boolean;
   ventilator_outcome: VentilatorOutcome | null;
   discontinued_at: string | null;
@@ -61,6 +72,8 @@ export type IcuPatientEventRecord = {
   event_data: Record<string, unknown> | null;
   created_by_staff_profile_id: string | null;
   created_by_name: string | null;
+  operational_shift_date: string | null;
+  operational_shift_type: IcuOperationalShiftType | null;
   created_at: string;
 };
 

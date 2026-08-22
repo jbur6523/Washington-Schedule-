@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Activity, AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
+import { Activity, ArrowLeft, RefreshCw } from "lucide-react";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import {
   formatIcuAirway,
@@ -11,6 +11,11 @@ import {
   formatIcuSettings,
   getIcuSnapshotCounts
 } from "@/lib/icu-command-center/utils";
+import {
+  activeVentModifierLabels,
+  formatVentCardTitle,
+  ventCardTone
+} from "@/lib/icu-command-center/vent-status";
 import { createClient } from "@/lib/supabase/client";
 import { useOfficialVentCount } from "@/lib/shift-status/use-official-vent-count";
 import {
@@ -42,6 +47,10 @@ const icuPatientSelect = [
   "cpap",
   "flow",
   "is_critical_vent",
+  "is_sbt",
+  "is_flolan",
+  "is_prone",
+  "is_standby",
   "ventilator_outcome",
   "discontinued_at",
   "discontinued_by_staff_profile_id",
@@ -81,7 +90,15 @@ const baseIcuPatientSelect = [
   "created_at",
   "updated_at"
 ].join(", ");
-const optionalIcuColumns = ["ventilator_outcome", "discontinued_at", "discontinued_by_staff_profile_id"];
+const optionalIcuColumns = [
+  "is_sbt",
+  "is_flolan",
+  "is_prone",
+  "is_standby",
+  "ventilator_outcome",
+  "discontinued_at",
+  "discontinued_by_staff_profile_id"
+];
 
 type IcuReadOnlyProps = {
   departmentId: string;
@@ -103,23 +120,31 @@ export function IcuSnapshotCard({ label, value }: { label: string; value: number
 
 export function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
   const airway = formatIcuAirway(record);
+  const modifierLabels = activeVentModifierLabels(record);
+  const tone = ventCardTone(record);
+  const cardClass = tone === "critical"
+    ? "border-rose-300 bg-rose-50"
+    : tone === "sbt"
+      ? "border-blue-300 bg-blue-50"
+      : "border-white bg-white/95";
 
   return (
-    <article className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+    <article className={`rounded-3xl border p-4 shadow-soft ${cardClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{record.bed}</p>
-          <h3 className="mt-1 text-xl font-black text-hospital-ink">{formatIcuDeviceSummary(record)}</h3>
+          <p className={`text-xs font-extrabold uppercase tracking-wide ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-cyan-700"}`}>{record.bed}</p>
+          <h3 className={`mt-1 text-xl font-black ${tone === "critical" ? "text-rose-950" : tone === "sbt" ? "text-blue-950" : "text-hospital-ink"}`}>
+            {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
+          </h3>
+          {modifierLabels.length > 0 ? (
+            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
+              {modifierLabels.join(" · ")}
+            </p>
+          ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
-        {record.is_critical_vent && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700">
-            <AlertTriangle size={13} />
-            Critical
-          </span>
-        )}
       </div>
     </article>
   );
@@ -182,6 +207,9 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecor
     cpap: record.cpap ?? null,
     flow: record.flow ?? null,
     is_critical_vent: Boolean(record.is_critical_vent),
+    is_sbt: Boolean(record.is_sbt),
+    is_flolan: Boolean(record.is_flolan),
+    is_prone: Boolean(record.is_prone),
     is_standby: Boolean(record.is_standby),
     ventilator_outcome: record.ventilator_outcome ?? null,
     discontinued_at: record.discontinued_at ?? null,

@@ -115,7 +115,9 @@ Active ICU cards use these actions:
 - `Discontinue`: opens a confirmation flow and removes the device from the active ICU list without hard-deleting the record.
 - `History`: opens a read-only change history for that ICU record.
 
-Vent cards also show a small top-right Critical toggle. Tapping it switches the active Vent between Critical and Not Critical, updates ICU Snapshot counts, and writes a history event.
+Vent cards show a compact top-right overflow action. Its persistent status toggles are SBT, Critical, Flolan, and Prone. Critical reuses `icu_patients.is_critical_vent`; SBT, Flolan, and Prone use additive boolean fields on the same active ICU row. They persist across refreshes, devices, logins, and shift boundaries until manually cleared. Critical gives the card an accessible red treatment, SBT gives a non-critical card an accessible blue treatment, and active SBT, Proned, and On Flolan modifiers remain visible on a separate status line.
+
+The same menu records CT and MRI as operational board events, not patient locations or transport timestamps. Each event is retained permanently in `icu_patient_events` with an America/Los_Angeles operational date and Day/Night identifier. A partial unique index permits only one CT and one MRI event per Vent per 07:00/19:00 shift. The next shift therefore appears unmarked without deleting history or running a scheduled reset.
 
 The separate Recently Updated section is intentionally not shown. Each card still shows its own last-updated time.
 
@@ -162,13 +164,18 @@ The `icu_patient_events` table stores ICU lifecycle history:
 - `added`
 - `updated`
 - `critical_status_updated`
+- `sbt_status_updated`
+- `flolan_status_updated`
+- `prone_status_updated`
 - `discontinued`
+- `ct_noted`
+- `mri_noted`
 
 History rows store event summaries, safe device/settings details, visible staff attribution, and timestamps. They must not store patient names, MRNs, DOBs, diagnoses, or patient-identifying notes.
 
 Add/Update Patient errors appear as an inline red banner at the top of the modal so the user can see and correct the issue without closing the modal.
 
-`event_time` is the effective time of the ICU event. Discontinued events use the selected Discontinued Date and Discontinued Time. Added, updated, and Critical Vent toggle events default to the current timestamp.
+`event_time` is the effective time of ordinary ICU lifecycle events. Discontinued events use the selected Discontinued Date and Discontinued Time. Status and CT/MRI audit entries use the board-update timestamp and are labeled that way; they never claim a clinical start, stop, prone, or transport time.
 
 Daily activity and previous-date searches use America/Los_Angeles date boundaries. Search Previous Date accepts `MMDDYY` and returns saved ICU activity events for that date, including discontinued devices.
 

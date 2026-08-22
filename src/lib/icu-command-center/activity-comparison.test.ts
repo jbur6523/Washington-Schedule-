@@ -33,6 +33,9 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
     cpap: null,
     flow: null,
     is_critical_vent: true,
+    is_sbt: false,
+    is_flolan: false,
+    is_prone: false,
     is_standby: false,
     ventilator_outcome: null,
     discontinued_at: null,
@@ -57,6 +60,8 @@ function event(eventData: Record<string, unknown>): IcuPatientEventRecord {
     event_data: eventData,
     created_by_staff_profile_id: null,
     created_by_name: "Lead RT",
+    operational_shift_date: null,
+    operational_shift_type: null,
     created_at: "2026-08-08T17:00:00.000Z"
   };
 }
