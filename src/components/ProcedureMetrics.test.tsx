@@ -6,7 +6,7 @@ import { PROCEDURE_TYPES, buildProcedureMetricsReport, type ProcedureMetricRow }
 function row(overrides: Partial<ProcedureMetricRow> = {}): ProcedureMetricRow {
   return {
     id: "row-1",
-    shift_date: "2026-08-01",
+    shift_date: "2026-08-14",
     shift_type: "day",
     is_canonical: true,
     c_section_count: 0,
@@ -21,11 +21,11 @@ function row(overrides: Partial<ProcedureMetricRow> = {}): ProcedureMetricRow {
 
 describe("ProcedureMetrics", () => {
   it("renders the required summary, procedure types, monthly trend, and traceable shift detail", () => {
-    const now = new Date("2026-08-03T19:00:00.000Z");
+    const now = new Date("2026-08-16T19:00:00.000Z");
     const report = buildProcedureMetricsReport([
       row({ id: "zero" }),
       row({ id: "night", shift_type: "night", bronch_count: 3, other_procedure_count: 2 }),
-      row({ id: "previous", shift_date: "2026-07-01", bronch_count: 4 })
+      row({ id: "before-cutoff", shift_date: "2026-08-13", bronch_count: 40 })
     ], "2026-08", now);
 
     render(<ProcedureMetrics report={report} currentMonth="2026-08" />);
@@ -62,7 +62,7 @@ describe("ProcedureMetrics", () => {
     ], "2026-09", new Date("2026-10-15T19:00:00.000Z"));
     render(<ProcedureMetrics report={report} currentMonth="2026-10" />);
 
-    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Up from 0 in August 1–31");
+    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Up from 0 in August 14–31");
     expect(document.body).not.toHaveTextContent(/Infinity|NaN/);
   });
 });

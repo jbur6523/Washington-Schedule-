@@ -214,6 +214,7 @@ export function ProcedureMetrics({
 }) {
   const selectedMonth = report.selected.month;
   const isCurrentMonth = selectedMonth === currentMonth;
+  const firstTrackedMonth = report.reliableHistoryStartDate.slice(0, 7);
   const comparison = changeDetails(report.comparison, report.previous.total, report.comparisonPeriodLabel);
   const selectedColumnLabel = `${monthLabel(selectedMonth, "short")}${isCurrentMonth ? " MTD" : ""}`;
   const averageMonthsLabel = report.threeMonthAverageMonths.length === 0
@@ -248,14 +249,19 @@ export function ProcedureMetrics({
           </div>
 
           <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <Link
-              href={monthHref(previousMonth(selectedMonth))}
-              aria-label={`View ${monthLabel(previousMonth(selectedMonth))}`}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-            >
-              <ChevronLeft size={17} aria-hidden="true" />
-              Previous Month
-            </Link>
+            {selectedMonth <= firstTrackedMonth ? (
+              <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
+                <ChevronLeft size={17} aria-hidden="true" /> Previous Month
+              </span>
+            ) : (
+              <Link
+                href={monthHref(previousMonth(selectedMonth))}
+                aria-label={`View ${monthLabel(previousMonth(selectedMonth))}`}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+              >
+                <ChevronLeft size={17} aria-hidden="true" /> Previous Month
+              </Link>
+            )}
             <p className="text-center text-sm font-black text-hospital-ink">{monthLabel(selectedMonth)}</p>
             {isCurrentMonth ? (
               <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
@@ -450,7 +456,7 @@ export function ProcedureMetrics({
                   </div>
                 </>
               )}
-              <p className="mt-4 text-xs font-bold leading-5 text-slate-500">Reliable type-level history begins {historyStartLabel}. Months without submitted procedure updates are omitted, not treated as zero.</p>
+              <p className="mt-4 text-xs font-bold leading-5 text-slate-500">True procedure metrics tracking begins {historyStartLabel}. Earlier records are excluded. Months without submitted procedure updates are omitted, not treated as zero.</p>
             </section>
 
             <details open className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">

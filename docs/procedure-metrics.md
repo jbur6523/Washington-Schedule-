@@ -17,21 +17,21 @@ The report uses these persisted fields and Shift Update labels:
 
 ## Canonical aggregation
 
-Queries are department-scoped and select only `is_canonical = true` rows. The canonical History migration enforces at most one current row for each department, operational `shift_date`, and Day/Night `shift_type`. `save_shift_status_update` updates that row in place under a transaction lock, so corrections replace the prior contribution. Noncanonical legacy duplicates and audit revisions are retained but excluded.
+Queries are department-scoped and select only `is_canonical = true` rows whose operational `shift_date` is August 14, 2026 or later. The same cutoff is enforced by the aggregation layer. The canonical History migration enforces at most one current row for each department, operational `shift_date`, and Day/Night `shift_type`. `save_shift_status_update` updates that row in place under a transaction lock, so corrections replace the prior contribution. Noncanonical legacy duplicates, audit revisions, and all pre-cutoff records are excluded.
 
 The operational date comes directly from the Shift Update record and is resolved by the existing Pacific reporting-window workflow. Edit timestamps do not move a shift into another month. A canonical row containing six zeroes is a submitted zero shift; the absence of a canonical row is missing data.
 
 ## Formulas
 
 - Monthly total: sum of all six procedure fields across selected-month canonical shifts.
-- Average per day: total divided by elapsed Pacific calendar days for the current month, or all calendar days for a completed month.
+- Average per day: total divided by tracked Pacific calendar days. The initial August 2026 period begins on August 14; later months use elapsed days for the current month or all calendar days for a completed month.
 - Average per reported shift: total divided by canonical Day/Night shifts with a submitted Shift Update, including submitted zeroes.
 - Current-month comparison: month to date versus the same numbered calendar days in the prior month.
 - Historical comparison: full selected month versus the full immediately preceding month.
 - Three-month average: up to the three most recent available, fully reliable, completed months before the selected reporting month. Missing months and a partial current month are excluded, not inserted as zeroes.
 - Trend rolling average: up to three available completed months. The current month uses completed months only.
 
-Type-level history is reliable beginning July 6, 2026, when the final current procedure field (`vaginal_delivery_count`) became persistable. July 2026 is therefore labeled partial coverage and is excluded from completed-month averages. No backfill or monthly summary table is created.
+True procedure metrics tracking begins August 14, 2026. No data with an operational date before that cutoff is queried or aggregated. August 2026 is labeled partial coverage and is excluded from completed-month averages; September 2026 is the first possible complete month. No backfill or monthly summary table is created.
 
 ## Access and query shape
 
