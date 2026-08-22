@@ -2,26 +2,21 @@ import Link from "next/link";
 import {
   ArrowDownRight,
   ArrowUpRight,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   CircleMinus,
   ClipboardList,
-  Moon,
-  Sun,
   TrendingUp
 } from "lucide-react";
+import { ProcedureDailyDetail } from "@/components/ProcedureDailyDetail";
 import {
-  PROCEDURE_TYPES,
-  dateLabel,
   monthHref,
   monthLabel,
   nextMonth,
   previousMonth,
   type ProcedureChange,
   type ProcedureMetricsReport,
-  type ProcedureMonthlyTrend,
-  type ProcedureShiftMetric
+  type ProcedureMonthlyTrend
 } from "@/lib/metrics/procedures";
 
 function SummaryCard({ label, value, helper }: { label: string; value: string; helper: string }) {
@@ -97,20 +92,6 @@ function ChangeText({
     <span className={`inline-flex items-center gap-1 font-extrabold ${isUp ? "text-emerald-700" : "text-rose-700"}`}>
       <Icon size={compact ? 13 : 15} aria-hidden="true" />
       {signedNumber(change.difference)} · {Math.abs(change.percentage ?? 0).toFixed(1)}%
-    </span>
-  );
-}
-
-function ProcedureBreakdown({ shift }: { shift: ProcedureShiftMetric | null }) {
-  if (!shift) {
-    return <span className="font-bold text-slate-400">No update submitted</span>;
-  }
-
-  return (
-    <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold text-slate-600">
-      {PROCEDURE_TYPES.map((procedure) => (
-        <span key={procedure.id}>{procedure.label}: <strong className="text-hospital-ink">{shift.counts[procedure.id]}</strong></span>
-      ))}
     </span>
   );
 }
@@ -459,46 +440,7 @@ export function ProcedureMetrics({
               <p className="mt-4 text-xs font-bold leading-5 text-slate-500">True procedure metrics tracking begins {historyStartLabel}. Earlier records are excluded. Months without submitted procedure updates are omitted, not treated as zero.</p>
             </section>
 
-            <details open className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <summary className="cursor-pointer list-none">
-                <span className="flex items-start gap-3">
-                  <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700"><CalendarDays size={20} aria-hidden="true" /></span>
-                  <span><span className="block text-xl font-black text-hospital-ink">Daily and Shift Detail</span><span className="mt-1 block text-xs font-bold text-slate-500">Trace every category total to its canonical Day and Night shift</span></span>
-                </span>
-              </summary>
-              <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-600">“No update submitted” is missing data. A submitted shift showing all zeroes is a reported zero and counts in the reported-shift average.</p>
-
-              <div className="mt-4 space-y-3 lg:hidden">
-                {report.selected.days.map((day) => (
-                  <article key={day.date} className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center justify-between gap-3"><h3 className="font-black text-hospital-ink">{dateLabel(day.date)}</h3><span className="rounded-xl bg-slate-900 px-3 py-1 text-sm font-black text-white">Total {day.day || day.night ? day.total : "—"}</span></div>
-                    <div className="mt-3 space-y-3">
-                      <section><h4 className="inline-flex items-center gap-1 text-xs font-extrabold uppercase text-cyan-800"><Sun size={13} aria-hidden="true" />Day · {day.day ? `${day.day.total} total` : "missing"}</h4><div className="mt-1"><ProcedureBreakdown shift={day.day} /></div></section>
-                      <section><h4 className="inline-flex items-center gap-1 text-xs font-extrabold uppercase text-violet-800"><Moon size={13} aria-hidden="true" />Night · {day.night ? `${day.night.total} total` : "missing"}</h4><div className="mt-1"><ProcedureBreakdown shift={day.night} /></div></section>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="mt-4 hidden overflow-x-auto lg:block">
-                <table className="w-full min-w-[70rem] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-500"><tr><th className="px-3 py-3">Operational Date</th><th className="px-3 py-3"><span className="inline-flex items-center gap-1"><Sun size={13} aria-hidden="true" />Day procedure counts</span></th><th className="px-3 py-3 text-right">Day Total</th><th className="px-3 py-3"><span className="inline-flex items-center gap-1"><Moon size={13} aria-hidden="true" />Night procedure counts</span></th><th className="px-3 py-3 text-right">Night Total</th><th className="px-3 py-3 text-right">Combined</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {report.selected.days.map((day) => (
-                      <tr key={day.date}>
-                        <th className="px-3 py-3 align-top font-black text-hospital-ink">{dateLabel(day.date)}</th>
-                        <td className="px-3 py-3 align-top"><ProcedureBreakdown shift={day.day} /></td>
-                        <td className="px-3 py-3 text-right align-top font-black text-cyan-800">{day.day?.total ?? <span aria-label="No Day shift update">—</span>}</td>
-                        <td className="px-3 py-3 align-top"><ProcedureBreakdown shift={day.night} /></td>
-                        <td className="px-3 py-3 text-right align-top font-black text-violet-800">{day.night?.total ?? <span aria-label="No Night shift update">—</span>}</td>
-                        <td className="px-3 py-3 text-right align-top font-black text-hospital-ink">{day.day || day.night ? day.total : <span aria-label="No shift updates">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="border-t-2 border-slate-300 bg-slate-50 font-black text-hospital-ink"><tr><th className="px-3 py-3" colSpan={2}>Selected Month Totals</th><td className="px-3 py-3 text-right text-cyan-800">{report.selected.dayTotal}</td><td className="px-3 py-3">Sum of canonical shifts</td><td className="px-3 py-3 text-right text-violet-800">{report.selected.nightTotal}</td><td className="px-3 py-3 text-right">{report.selected.total}</td></tr></tfoot>
-                </table>
-              </div>
-            </details>
+            <ProcedureDailyDetail key={selectedMonth} days={report.selected.days} isCurrentMonth={isCurrentMonth} />
 
             <section aria-label="Reconciliation" className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
               <div className="flex items-start gap-3">

@@ -36,3 +36,9 @@ True procedure metrics tracking begins August 14, 2026. No data with an operatio
 ## Access and query shape
 
 The route verifies the existing admin Metrics authorization on the server before creating the Supabase client. The query remains protected by the existing department-membership RLS policy, requests only canonical rows in a bounded reporting range, and paginates with a deterministic order. All aggregation runs in the Server Component data path; the browser receives only the finished report.
+
+## Daily detail
+
+Daily Detail renders only dates from the selected month and shows at most seven days at once. Current-month reports open on the seven-day page containing today; historical months open on their first page. Previous and Next replace the visible dates without loading or appending data.
+
+Dates are collapsed by default. The collapsed row shows Day/Night totals, positive procedure categories only, and a compact missing-update message. Expanding a date reveals every procedure category, including zero values, for both canonical shifts. Opening another date closes the prior audit detail. A submitted zero remains distinct from a missing shift update.

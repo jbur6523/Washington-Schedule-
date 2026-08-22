@@ -43,8 +43,9 @@ describe("ProcedureMetrics", () => {
       expect(screen.getAllByText(procedure.label).length).toBeGreaterThan(0);
     }
     expect(screen.getByRole("img", { name: /Monthly procedure totals and rolling average/ })).toBeInTheDocument();
-    expect(screen.getByText(/A submitted shift showing all zeroes is a reported zero/)).toBeInTheDocument();
-    expect(screen.getAllByText("No update submitted").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Daily Detail" })).toBeInTheDocument();
+    expect(screen.getAllByText("No procedure updates").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/A submitted shift showing all zeroes is a reported zero/)).not.toBeInTheDocument();
     expect(screen.getByLabelText("Reconciliation")).toHaveTextContent("Procedure types (5) = daily totals (5) = canonical shift totals (5)");
   });
 
