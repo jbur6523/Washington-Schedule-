@@ -544,26 +544,43 @@ export function IcuPatientCard({
   const tone = ventCardTone(record);
   const cardClass = tone === "critical"
     ? "border-rose-300 bg-rose-50"
-    : tone === "sbt"
-      ? "border-blue-300 bg-blue-50"
-      : "border-white bg-white/95";
-  const statusOptions: Array<{ key: IcuVentStatusKey; label: string; active: boolean }> = [
-    { key: "sbt", label: "SBT", active: record.is_sbt },
-    { key: "critical", label: "Critical", active: record.is_critical_vent },
-    { key: "flolan", label: "Flolan", active: record.is_flolan },
-    { key: "prone", label: "Prone", active: record.is_prone }
+    : tone === "standby"
+      ? "border-amber-300 bg-amber-50"
+      : tone === "sbt"
+        ? "border-blue-300 bg-blue-50"
+        : "border-white bg-white/95";
+  const statusOptions: Array<{ key: string; label: string; active: boolean; onToggle: () => void }> = [
+    { key: "sbt", label: "SBT", active: record.is_sbt, onToggle: () => onToggleVentStatus("sbt") },
+    { key: "critical", label: "Critical", active: record.is_critical_vent, onToggle: () => onToggleVentStatus("critical") },
+    { key: "flolan", label: "Flolan", active: record.is_flolan, onToggle: () => onToggleVentStatus("flolan") },
+    { key: "prone", label: "Prone", active: record.is_prone, onToggle: () => onToggleVentStatus("prone") },
+    { key: "standby", label: "Standby", active: record.is_standby, onToggle: onToggleStandby }
   ];
+  const accentTextClass = tone === "critical"
+    ? "text-rose-800"
+    : tone === "standby"
+      ? "text-amber-900"
+      : tone === "sbt"
+        ? "text-blue-800"
+        : "text-cyan-700";
+  const titleTextClass = tone === "critical"
+    ? "text-rose-950"
+    : tone === "standby"
+      ? "text-amber-950"
+      : tone === "sbt"
+        ? "text-blue-950"
+        : "text-hospital-ink";
 
   return (
     <article className={`rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={`text-xs font-extrabold uppercase tracking-wide ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-cyan-700"}`}>{record.bed}</p>
-          <h3 className={`mt-1 text-xl font-black ${tone === "critical" ? "text-rose-950" : tone === "sbt" ? "text-blue-950" : "text-hospital-ink"}`}>
+          <p className={`text-xs font-extrabold uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
+          <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
           {modifierLabels.length > 0 ? (
-            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
+            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
               {modifierLabels.join(" · ")}
             </p>
           ) : null}
@@ -580,7 +597,7 @@ export function IcuPatientCard({
             >
               <section aria-labelledby={`vent-statuses-${record.id}`}>
                 <h3 id={`vent-statuses-${record.id}`} className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  Ongoing statuses
+                  Vent Status
                 </h3>
                 <div className="mt-2 space-y-2">
                   {statusOptions.map((status) => (
@@ -589,7 +606,7 @@ export function IcuPatientCard({
                       type="button"
                       aria-pressed={status.active}
                       disabled={actionSaving}
-                      onClick={() => onToggleVentStatus(status.key)}
+                      onClick={status.onToggle}
                       className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 ${
                         status.active
                           ? "border-cyan-300 bg-cyan-50 text-cyan-950"
@@ -639,7 +656,7 @@ export function IcuPatientCard({
               </section>
             </CardOverflowMenu>
           )}
-          {supportsIcuStandby(record.device_type) && (
+          {record.device_type !== "vent" && supportsIcuStandby(record.device_type) && (
             <button
               type="button"
               onClick={onToggleStandby}

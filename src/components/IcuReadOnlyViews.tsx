@@ -124,20 +124,36 @@ export function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
   const tone = ventCardTone(record);
   const cardClass = tone === "critical"
     ? "border-rose-300 bg-rose-50"
-    : tone === "sbt"
-      ? "border-blue-300 bg-blue-50"
-      : "border-white bg-white/95";
+    : tone === "standby"
+      ? "border-amber-300 bg-amber-50"
+      : tone === "sbt"
+        ? "border-blue-300 bg-blue-50"
+        : "border-white bg-white/95";
+  const accentTextClass = tone === "critical"
+    ? "text-rose-800"
+    : tone === "standby"
+      ? "text-amber-900"
+      : tone === "sbt"
+        ? "text-blue-800"
+        : "text-cyan-700";
+  const titleTextClass = tone === "critical"
+    ? "text-rose-950"
+    : tone === "standby"
+      ? "text-amber-950"
+      : tone === "sbt"
+        ? "text-blue-950"
+        : "text-hospital-ink";
 
   return (
     <article className={`rounded-3xl border p-4 shadow-soft ${cardClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className={`text-xs font-extrabold uppercase tracking-wide ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-cyan-700"}`}>{record.bed}</p>
-          <h3 className={`mt-1 text-xl font-black ${tone === "critical" ? "text-rose-950" : tone === "sbt" ? "text-blue-950" : "text-hospital-ink"}`}>
+          <p className={`text-xs font-extrabold uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
+          <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
           {modifierLabels.length > 0 ? (
-            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
+            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
               {modifierLabels.join(" · ")}
             </p>
           ) : null}

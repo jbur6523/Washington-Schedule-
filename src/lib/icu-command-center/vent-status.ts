@@ -103,7 +103,8 @@ export function activeVentModifierLabels(record: IcuPatientRecord) {
   return [
     record.is_sbt ? "SBT" : null,
     record.is_prone ? "Proned" : null,
-    record.is_flolan ? "On Flolan" : null
+    record.is_flolan ? "On Flolan" : null,
+    record.is_standby ? "Standby" : null
   ].filter((value): value is string => Boolean(value));
 }
 
@@ -116,13 +117,17 @@ export function formatVentCardTitle(record: IcuPatientRecord) {
   return record.vent_mode ? `${device} – ${icuVentModeLabels[record.vent_mode]}` : device;
 }
 
-export function ventCardTone(record: IcuPatientRecord): "critical" | "sbt" | "normal" {
+export function ventCardTone(record: IcuPatientRecord): "critical" | "standby" | "sbt" | "normal" {
   if (record.device_type !== "vent") {
     return "normal";
   }
 
   if (record.is_critical_vent) {
     return "critical";
+  }
+
+  if (record.is_standby) {
+    return "standby";
   }
 
   return record.is_sbt ? "sbt" : "normal";

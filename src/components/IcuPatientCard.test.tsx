@@ -73,14 +73,27 @@ describe("IcuPatientCard Vent actions", () => {
     expect(card).toHaveTextContent("Vent – APVCMV");
     expect(card).toHaveTextContent("SBT");
     expect(card).not.toHaveTextContent("Not Critical");
+    expect(card).not.toHaveTextContent("Not Standby");
     expect(card).not.toHaveTextContent("CT");
     expect(card).not.toHaveTextContent("MRI");
 
     fireEvent.click(screen.getByRole("button", { name: "Open actions for C223 Vent" }));
     const dialog = screen.getByRole("dialog", { name: "C223 Vent" });
+    expect(within(dialog).getByText("Vent Status")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Standby" }));
+    expect(callbacks.onToggleStandby).toHaveBeenCalledOnce();
     expect(within(dialog).getByRole("button", { name: "CT" })).toBeEnabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "CT" }));
     expect(callbacks.onNoteShiftEvent).toHaveBeenCalledWith("ct");
+  });
+
+  it("renders Standby on the status line and gives it yellow priority over SBT", () => {
+    renderCard(record({ is_sbt: true, is_standby: true }));
+    const card = screen.getByRole("article");
+
+    expect(card).toHaveClass("bg-amber-50");
+    expect(card).toHaveTextContent("SBT · Standby");
+    expect(card).not.toHaveTextContent("Not Standby");
   });
 
   it("gives Critical red priority while retaining all non-color modifiers", () => {
@@ -88,13 +101,14 @@ describe("IcuPatientCard Vent actions", () => {
       is_critical_vent: true,
       is_sbt: true,
       is_prone: true,
-      is_flolan: true
+      is_flolan: true,
+      is_standby: true
     }), new Set<"ct" | "mri">(["ct"]));
     const card = screen.getByRole("article");
 
     expect(card).toHaveClass("bg-rose-50");
     expect(card).toHaveTextContent("Critical Vent – APVCMV");
-    expect(card).toHaveTextContent("SBT · Proned · On Flolan");
+    expect(card).toHaveTextContent("SBT · Proned · On Flolan · Standby");
 
     fireEvent.click(screen.getByRole("button", { name: "Open actions for C223 Vent" }));
     expect(screen.getByRole("button", { name: /CT Noted this shift/ })).toBeDisabled();
