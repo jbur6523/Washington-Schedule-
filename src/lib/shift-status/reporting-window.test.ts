@@ -9,7 +9,8 @@ import {
   latestReportingWindowUpdate,
   reportingWindowEndDelay,
   reportingWindowForInstant,
-  shiftRecordOptionsForInstant
+  shiftRecordOptionsForInstant,
+  shiftUpdateSelectionsForInstant
 } from "@/lib/shift-status/reporting-window";
 
 function update(id: string, createdAt: string): ShiftStatusUpdate {
@@ -39,6 +40,16 @@ function update(id: string, createdAt: string): ShiftStatusUpdate {
 }
 
 describe("Shift Update reporting windows", () => {
+  it.each([
+    ["2026-08-25T01:00:00.000Z", [{ shiftDate: "2026-08-24", shiftType: "day" }, { shiftDate: "2026-08-24", shiftType: "night" }]],
+    ["2026-08-25T02:00:00.000Z", [{ shiftDate: "2026-08-24", shiftType: "night" }, { shiftDate: "2026-08-25", shiftType: "day" }]],
+    ["2026-08-25T14:00:00.000Z", [{ shiftDate: "2026-08-25", shiftType: "day" }, { shiftDate: "2026-08-25", shiftType: "night" }]],
+    ["2026-08-25T07:00:00.000Z", [{ shiftDate: "2026-08-24", shiftType: "night" }, { shiftDate: "2026-08-25", shiftType: "day" }]],
+    ["2026-08-25T13:59:59.999Z", [{ shiftDate: "2026-08-24", shiftType: "night" }, { shiftDate: "2026-08-25", shiftType: "day" }]]
+  ] as const)("offers the requested primary shift choices at %s", (instant, expected) => {
+    expect(shiftUpdateSelectionsForInstant(new Date(instant))).toEqual(expected);
+  });
+
   it.each([
     ["2026-08-16T12:00:00.000Z", "2026-08-16", "day", "2026-08-15", "night"],
     ["2026-08-15T23:48:00.000Z", "2026-08-15", "night", "2026-08-15", "day"],

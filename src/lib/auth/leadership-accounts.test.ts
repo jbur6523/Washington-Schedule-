@@ -149,7 +149,8 @@ describe("Leadership account security contracts", () => {
   });
 
   it("keeps navigation inside the Leadership Dashboard", () => {
-    expect(leadershipDashboard).not.toMatch(/href=["'{`]\/(?:admin|command-center|icu-command-center|operations)/);
+    expect(leadershipDashboard).not.toMatch(/href=["'{`]\/(?:command-center|icu-command-center|operations)/);
+    expect(leadershipDashboard.match(/href=["'{`]\/admin[^"'}`]*/g)).toEqual(['href="/admin/metrics']);
     expect(leadershipDashboard).toContain('context={isLeadership(authContext) ? "leadership" : "director"}');
   });
 

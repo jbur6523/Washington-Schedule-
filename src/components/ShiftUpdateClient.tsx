@@ -11,14 +11,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdateForRecord } from "@/lib/shift-status/client-queries";
 import { shiftTypeLabel } from "@/lib/shift-status/utils";
-import {
-  defaultShiftRecordForInstant,
-  reportingWindowEndDelay,
-  reportingWindowForInstant,
-  shiftRecordOptionsForInstant,
-  type ShiftRecordSelection,
-  type ShiftUpdateReportingWindow
-} from "@/lib/shift-status/reporting-window";
+import type { ShiftRecordSelection } from "@/lib/shift-status/reporting-window";
 import {
   optionalShiftStatusNumberValue,
   rtsNeededFromRvus,
@@ -221,21 +214,17 @@ function ProcedureInputTile({
 
 export function ShiftUpdateClient({
   authContext,
-  timezone
+  timezone,
+  selection
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
+  selection: ShiftRecordSelection;
 }) {
   const router = useRouter();
-  const initialSelection = useMemo(
-    () => defaultShiftRecordForInstant(new Date(), timezone),
-    [timezone]
-  );
-  const [reportingWindow, setReportingWindow] = useState<ShiftUpdateReportingWindow>(() => reportingWindowForInstant());
-  const [selection, setSelection] = useState<ShiftRecordSelection>(initialSelection);
   const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
   const [form, setForm] = useState<ShiftUpdateForm>(() =>
-    shiftUpdateFormForSelection(null, initialSelection, authContext)
+    shiftUpdateFormForSelection(null, selection, authContext)
   );
   const [loadingSelection, setLoadingSelection] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -305,50 +294,6 @@ export function ShiftUpdateClient({
     return () => window.clearTimeout(timer);
   }, [loadSelectedShiftUpdate]);
 
-  useEffect(() => {
-    const delay = reportingWindowEndDelay(reportingWindow);
-    const timer = window.setTimeout(() => {
-      const now = new Date();
-      const nextWindow = reportingWindowForInstant(now);
-      setReportingWindow(nextWindow);
-      const nextSelection = defaultShiftRecordForInstant(now, timezone);
-
-      if (
-        dirty
-        && !window.confirm("A new Shift Update workspace is available. Discard unsaved changes and switch?")
-      ) {
-        setError("The new workspace is available. Your unsaved selected-shift values were kept.");
-        return;
-      }
-
-      setLoadingSelection(true);
-      setSelection(nextSelection);
-      setError("");
-    }, delay + 25);
-
-    return () => window.clearTimeout(timer);
-  }, [dirty, reportingWindow, timezone]);
-
-  const selectShiftType = (shiftType: ShiftStatusShiftType) => {
-    const options = shiftRecordOptionsForInstant(new Date(), timezone);
-    const nextSelection = options[shiftType];
-
-    if (
-      nextSelection.shiftDate === selection.shiftDate
-      && nextSelection.shiftType === selection.shiftType
-    ) {
-      return;
-    }
-
-    if (dirty && !window.confirm("Discard unsaved changes and open the other shift?")) {
-      return;
-    }
-
-    setLoadingSelection(true);
-    setSelection(nextSelection);
-    setError("");
-  };
-
   const selectedStaff = useMemo(
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
     [form.updatedByStaffProfileId, staffOptions]
@@ -402,12 +347,6 @@ export function ShiftUpdateClient({
 
   const persistShiftUpdate = async (printAfterSave: boolean) => {
     if (submissionInFlightRef.current) {
-      return;
-    }
-
-    const editableRecords = shiftRecordOptionsForInstant(new Date(), timezone);
-    if (editableRecords[form.shiftType].shiftDate !== form.shiftDate) {
-      setError("This shift is no longer editable from the current workspace. Reopen the applicable Day or Night shift.");
       return;
     }
 
@@ -535,9 +474,9 @@ export function ShiftUpdateClient({
 
         <form onSubmit={saveShiftUpdate} className="space-y-4">
           <section className="rounded-3xl border border-cyan-100 bg-white/95 p-4 shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">Shift</h2>
+            <h2 className="text-lg font-black text-hospital-ink">Selected Shift</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">
-              Select the clinical shift record to update. Workspace defaults change at 04:00 and 16:00.
+              This form will save only to the operational date and shift selected below.
             </p>
             <div className={twoColumnGridClass}>
               <label className="block">
@@ -545,32 +484,31 @@ export function ShiftUpdateClient({
                 <input
                   type="date"
                   value={form.shiftDate}
-                  disabled
-                  className={`${controlClass} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600`}
+                  readOnly
+                  className={`${controlClass} cursor-default bg-slate-100 text-slate-600`}
                 />
               </label>
-              <fieldset disabled={loadingSelection || saving}>
-                <legend className={labelClass}>Shift</legend>
-                <div className="mt-1 grid grid-cols-2 gap-2">
-                  {(["day", "night"] as const).map((shiftType) => (
-                    <button
-                      key={shiftType}
-                      type="button"
-                      aria-pressed={form.shiftType === shiftType}
-                      onClick={() => selectShiftType(shiftType)}
-                      className={`min-h-11 rounded-2xl border px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-600 focus-visible:ring-offset-2 ${
-                        form.shiftType === shiftType
-                          ? "border-cyan-700 bg-cyan-700 text-white"
-                          : "border-slate-300 bg-white text-slate-700"
-                      }`}
-                    >
-                      {shiftTypeLabel(shiftType)}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+              <label className="block">
+                <span className={labelClass}>Shift</span>
+                <input
+                  value={shiftTypeLabel(form.shiftType)}
+                  readOnly
+                  className={`${controlClass} cursor-default bg-slate-100 text-slate-600`}
+                />
+              </label>
             </div>
             {loadingSelection && <p className="mt-3 text-xs font-bold text-cyan-700">Loading selected shift…</p>}
+            <Link
+              href="/command-center/shift-update"
+              onClick={(event) => {
+                if (dirty && !window.confirm("Discard unsaved changes and choose a different shift?")) {
+                  event.preventDefault();
+                }
+              }}
+              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800"
+            >
+              Choose a Different Shift
+            </Link>
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">

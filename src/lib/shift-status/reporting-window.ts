@@ -30,6 +30,35 @@ export type ShiftRecordSelection = {
   shiftType: "day" | "night";
 };
 
+export type ShiftUpdateSelectionOptions = readonly [ShiftRecordSelection, ShiftRecordSelection];
+
+export function shiftUpdateSelectionsForInstant(
+  date = new Date(),
+  timezone = SHIFT_UPDATE_REPORTING_TIMEZONE
+): ShiftUpdateSelectionOptions {
+  const parts = timeZoneParts(date, timezone);
+  const localDate = isoDate(parts.year, parts.month, parts.day);
+
+  if (parts.hour < 7) {
+    return [
+      { shiftDate: addIsoDays(localDate, -1), shiftType: "night" },
+      { shiftDate: localDate, shiftType: "day" }
+    ];
+  }
+
+  if (parts.hour < 19) {
+    return [
+      { shiftDate: localDate, shiftType: "day" },
+      { shiftDate: localDate, shiftType: "night" }
+    ];
+  }
+
+  return [
+    { shiftDate: localDate, shiftType: "night" },
+    { shiftDate: addIsoDays(localDate, 1), shiftType: "day" }
+  ];
+}
+
 export type ShiftRecordOptions = {
   day: ShiftRecordSelection;
   night: ShiftRecordSelection;

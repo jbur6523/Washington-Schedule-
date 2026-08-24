@@ -2,8 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { ShiftUpdateClient } from "@/components/ShiftUpdateClient";
+import { ShiftUpdateSelection } from "@/components/ShiftUpdateSelection";
 import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { shiftUpdateSelectionsForInstant } from "@/lib/shift-status/reporting-window";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,21 @@ function AccessDenied() {
   );
 }
 
-export default async function CommandCenterShiftUpdatePage() {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function validDate(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T12:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
+}
+
+export default async function CommandCenterShiftUpdatePage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const auth = await getAuthenticatedUserContext();
 
   if (auth.status === "unauthenticated") {
@@ -41,17 +57,28 @@ export default async function CommandCenterShiftUpdatePage() {
     return <AccessDenied />;
   }
 
+  const params = (await searchParams) ?? {};
+  const shiftDate = validDate(firstParam(params.date));
+  const requestedShift = firstParam(params.shift);
+  const shiftType = requestedShift === "day" || requestedShift === "night" ? requestedShift : null;
+
+  if (!shiftDate || !shiftType) {
+    return <ShiftUpdateSelection options={shiftUpdateSelectionsForInstant(new Date())} />;
+  }
+
   const supabase = await createClient();
   const { data: department } = await supabase
     .from("departments")
     .select("timezone")
     .eq("id", auth.context.departmentId)
     .maybeSingle();
+  const timezone = (department?.timezone as string | null | undefined) || "America/Los_Angeles";
 
   return (
     <ShiftUpdateClient
       authContext={auth.context}
-      timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
+      timezone={timezone}
+      selection={{ shiftDate, shiftType }}
     />
   );
 }

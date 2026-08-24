@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ShiftUpdateClient } from "@/components/ShiftUpdateClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import type { ShiftRecordSelection } from "@/lib/shift-status/reporting-window";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 
 const mocks = vi.hoisted(() => ({
@@ -9,17 +10,8 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn(),
-  staffOptions: [] as Array<{ id: string; display_name: string }>,
-  reportingWindowEndDelay: vi.fn()
+  staffOptions: [] as Array<{ id: string; display_name: string }>
 }));
-
-vi.mock("@/lib/shift-status/reporting-window", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/shift-status/reporting-window")>();
-  return {
-    ...actual,
-    reportingWindowEndDelay: mocks.reportingWindowEndDelay
-  };
-});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -72,6 +64,21 @@ const authContext: AuthenticatedUserContext = {
   hasLinkedStaffProfile: false
 };
 
+const selectedShift = {
+  shiftDate: "2026-08-08",
+  shiftType: "day" as const
+};
+
+function renderShiftUpdate(selection: ShiftRecordSelection = selectedShift) {
+  return render(
+    <ShiftUpdateClient
+      authContext={authContext}
+      timezone="America/Los_Angeles"
+      selection={selection}
+    />
+  );
+}
+
 function populateRequiredFields() {
   fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
   fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "216" } });
@@ -120,8 +127,6 @@ describe("ShiftUpdateClient submission flow", () => {
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
     mocks.staffOptions = [{ id: "lead-1", display_name: "Lead RT" }];
-    mocks.reportingWindowEndDelay.mockReset();
-    mocks.reportingWindowEndDelay.mockReturnValue(12 * 60 * 60 * 1_000);
     window.sessionStorage.clear();
   });
 
@@ -137,7 +142,7 @@ describe("ShiftUpdateClient submission flow", () => {
       })
     );
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -174,7 +179,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("keeps form values and allows retry when persistence fails", async () => {
     mocks.rpc.mockResolvedValue({ error: { message: "insert failed" } });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -205,7 +210,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("submits a listed lead through the existing staff attribution pathway", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -226,7 +231,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("defaults blank scheduled procedure counts to zero without blocking submission", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -268,7 +273,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("requires a custom updater name for Not Listed and never persists the sentinel", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -298,7 +303,7 @@ describe("ShiftUpdateClient submission flow", () => {
   });
 
   it("hides and clears the custom updater when a listed lead is selected again", async () => {
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -318,7 +323,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -389,7 +394,7 @@ describe("ShiftUpdateClient submission flow", () => {
       error: null
     });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -432,7 +437,7 @@ describe("ShiftUpdateClient submission flow", () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     mocks.rpc.mockResolvedValue({ error: { message: "update failed" } });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -459,7 +464,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -484,7 +489,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -500,73 +505,32 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(savedPayload()).toEqual(expect.objectContaining({ shift_note: null }));
   });
 
-  it("shows Night Shift at 16:52 Pacific even if a saved row has a stale Day Shift label", async () => {
-    vi.setSystemTime(new Date("2026-08-14T23:52:00.000Z"));
+  it("loads and saves the exact explicitly selected operational record", async () => {
     mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
       data: shiftUpdate({
-        shift_date: "2026-08-14",
-        shift_type: "day",
-        created_at: "2026-08-14T23:30:00.000Z",
-        updated_at: "2026-08-14T23:30:00.000Z"
+        shift_date: "2026-08-07",
+        shift_type: "night",
+        rts_on: 9,
+        rvu_total: 188.65,
+        shift_note: "Night note"
       }),
       error: null
     });
-
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-
-    expect(screen.getByRole("button", { name: "Night Shift" })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("protects unsaved values, then loads and saves the selected alternate shift record", async () => {
-    const dayRecord = shiftUpdate({
-      id: "day-status",
-      shift_date: "2026-08-08",
-      shift_type: "day",
-      rts_on: 7,
-      rvu_total: 176.45,
-      shift_note: "Day note"
-    });
-    const nightRecord = shiftUpdate({
-      id: "night-status",
-      shift_date: "2026-08-07",
-      shift_type: "night",
-      rts_on: 9,
-      rvu_total: 188.65,
-      shift_note: "Night note"
-    });
-    mocks.fetchShiftStatusUpdateForRecord
-      .mockResolvedValueOnce({ data: dayRecord, error: null })
-      .mockResolvedValue({ data: nightRecord, error: null });
     mocks.rpc.mockResolvedValue({ error: null });
-    const confirm = vi.spyOn(window, "confirm")
-      .mockReturnValueOnce(false)
-      .mockReturnValueOnce(true);
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate({ shiftDate: "2026-08-07", shiftType: "night" });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
 
-    fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "11" } });
-    fireEvent.click(screen.getByRole("button", { name: "Night Shift" }));
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(11);
-    expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Night Shift" }));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-
-    expect(confirm).toHaveBeenCalledTimes(2);
-    expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenLastCalledWith(
+    expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenCalledWith(
       expect.anything(),
       "department-1",
       "2026-08-07",
       "night"
     );
+    expect(screen.getByLabelText("Date")).toHaveValue("2026-08-07");
+    expect(screen.getByLabelText("Shift")).toHaveValue("Night Shift");
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(9);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Night note");
 
@@ -585,7 +549,7 @@ describe("ShiftUpdateClient submission flow", () => {
   it("shows and submits normally rounded RT need from decimal RVUs", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -620,7 +584,7 @@ describe("ShiftUpdateClient submission flow", () => {
   });
 
   it("does not display or submit an invalid staffing value", async () => {
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -634,106 +598,32 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("clears the editable values when the 16:00 reporting window begins without deleting history", async () => {
-    mocks.reportingWindowEndDelay.mockReturnValue(1_000);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.setSystemTime(new Date("2026-08-08T22:59:59.000Z"));
-    mocks.fetchShiftStatusUpdateForRecord
-      .mockResolvedValueOnce({ data: shiftUpdate({ shift_note: "Day-window note" }), error: null })
-      .mockResolvedValue({ data: null, error: null });
+  it.each([
+    ["2026-08-08T22:59:59.000Z", { shiftDate: "2026-08-08", shiftType: "day" as const }],
+    ["2026-08-09T10:59:59.000Z", { shiftDate: "2026-08-08", shiftType: "night" as const }]
+  ])("does not switch or clear the selected shift at an old reporting boundary (%s)", async (instant, selection) => {
+    vi.setSystemTime(new Date(instant));
+    mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
+      data: shiftUpdate({
+        shift_date: selection.shiftDate,
+        shift_type: selection.shiftType,
+        shift_note: "Keep this selected shift"
+      }),
+      error: null
+    });
 
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
+    renderShiftUpdate(selection);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
-    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
-    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Day-window note");
-    expect(mocks.reportingWindowEndDelay).toHaveBeenCalled();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
 
-    expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenCalledTimes(2);
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
-    expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
-    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(0);
-    expect(screen.getByPlaceholderText("Enter procedure type")).toHaveValue("");
-    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it("clears evening values when the 04:00 reporting window begins", async () => {
-    mocks.reportingWindowEndDelay.mockReturnValue(1_000);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.setSystemTime(new Date("2026-08-09T10:59:59.000Z"));
-    mocks.fetchShiftStatusUpdateForRecord
-      .mockResolvedValueOnce({ data: shiftUpdate({
-        id: "evening-status",
-        shift_date: "2026-08-08",
-        shift_type: "night",
-        shift_note: "Evening-window note",
-        created_at: "2026-08-09T00:00:00.000Z",
-        updated_at: "2026-08-09T00:00:00.000Z"
-      }), error: null })
-      .mockResolvedValue({ data: null, error: null });
-
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
+    expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
-    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Evening-window note");
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
-    expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(null);
-    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("");
-  });
-
-  it("ignores a previous-window load that finishes after the reset boundary", async () => {
-    mocks.reportingWindowEndDelay.mockReturnValue(1_000);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    vi.setSystemTime(new Date("2026-08-08T22:59:59.000Z"));
-    let resolvePreviousLoad: ((value: {
-      data: ShiftStatusUpdate | null;
-      error: null;
-    }) => void) | null = null;
-    mocks.fetchShiftStatusUpdateForRecord
-      .mockImplementationOnce(() => new Promise((resolve) => {
-        resolvePreviousLoad = resolve;
-      }))
-      .mockResolvedValue({ data: null, error: null });
-
-    render(<ShiftUpdateClient authContext={authContext} timezone="America/Los_Angeles" />);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-      await vi.advanceTimersByTimeAsync(2_000);
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
-    });
-
-    await act(async () => {
-      resolvePreviousLoad?.({
-        data: shiftUpdate(),
-        error: null
-      });
-      await Promise.resolve();
-    });
-
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(null);
-    expect(screen.getByLabelText(/Vents/)).toHaveValue(null);
-    expect(screen.getByLabelText(/C-Sections/)).toHaveValue(0);
+    expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Keep this selected shift");
   });
 });
