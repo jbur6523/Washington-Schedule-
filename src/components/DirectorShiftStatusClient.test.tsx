@@ -106,6 +106,8 @@ const prior: ShiftStatusUpdate = {
   rvu_total: null,
   vent_count: null,
   bipap_count: 0,
+  neonatal_high_flow_count: 2,
+  bubble_cpap_count: 1,
   c_section_count: 0,
   vaginal_delivery_count: 0,
   cabg_count: 0,
@@ -175,6 +177,10 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(within(snapshotCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(snapshotCard as HTMLElement).getByText("BiPAPs").parentElement).toHaveTextContent("0");
     expect(within(snapshotCard as HTMLElement).queryByText("No department snapshot has been submitted yet.")).not.toBeInTheDocument();
+    const nurseryCard = screen.getByRole("heading", { name: "Special Care Nursery" }).closest("section") as HTMLElement;
+    expect(within(nurseryCard).getByText("Neonatal High Flow").parentElement).toHaveTextContent("2");
+    expect(within(nurseryCard).getByText("Bubble CPAP").parentElement).toHaveTextContent("1");
+    expect(within(nurseryCard).queryByRole("textbox")).not.toBeInTheDocument();
 
     await act(async () => {
       mocks.realtimeHandler?.();
@@ -446,6 +452,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
 
     expect(screen.getByRole("heading", { name: "Current Shift Status" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Department Snapshot" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Special Care Nursery" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Scheduled Procedures" })).toBeInTheDocument();
   });
 });

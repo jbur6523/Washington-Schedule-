@@ -1,4 +1,4 @@
-import { ClipboardList, Users } from "lucide-react";
+import { Baby, ClipboardList, Users } from "lucide-react";
 import { formatOneDecimal, rtsNeededFromRvus } from "@/lib/metrics/rvu-staffing";
 import type { ShiftHistoryRecord } from "@/lib/shift-history/types";
 import { clinicalShiftTimeLabel } from "@/lib/shift-status/reporting-window";
@@ -84,6 +84,21 @@ export function ShiftRecordDetails({
           </div>
         ))}
       </div>
+
+      <section aria-label="Special Care Nursery">
+        <h3 className="flex items-center gap-2 text-base font-black text-hospital-ink"><Baby size={17} /> Special Care Nursery</h3>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {[
+            ["Neonatal High Flow", historyValue(record.neonatal_high_flow_count)],
+            ["Bubble CPAP", historyValue(record.bubble_cpap_count)]
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-cyan-50/70 px-3 py-2">
+              <p className="text-[10px] font-extrabold uppercase text-slate-500">{label}</p>
+              <p className="text-lg font-black text-slate-800">{value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section aria-label="Staff On Shift roster">
         <h3 className="flex items-center gap-2 text-base font-black text-hospital-ink"><Users size={17} /> Staff On Shift</h3>

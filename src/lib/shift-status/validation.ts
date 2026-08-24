@@ -5,6 +5,8 @@ export type ShiftStatusCountInput = {
   rvuCount: string;
   ventCount: string;
   bipapCount: string;
+  neonatalHighFlowCount: string;
+  bubbleCpapCount: string;
   cSectionCount: string;
   vaginalDeliveryCount: string;
   cabgCount: string;
@@ -17,6 +19,8 @@ const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> =
   ["rtsOn", "RTs On Shift", true],
   ["ventCount", "Vents", false],
   ["bipapCount", "BiPAPs", true],
+  ["neonatalHighFlowCount", "Neonatal High Flow", false],
+  ["bubbleCpapCount", "Bubble CPAP", false],
   ["cSectionCount", "C-Sections", false],
   ["vaginalDeliveryCount", "Vaginal Deliveries", false],
   ["cabgCount", "CABG", false],

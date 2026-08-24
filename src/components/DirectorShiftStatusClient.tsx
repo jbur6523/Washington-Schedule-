@@ -31,6 +31,7 @@ import {
   X
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
+import { BubbleCpapIcon } from "@/components/BubbleCpapIcon";
 import { DepartmentAnnouncementManagerDialog } from "@/components/DepartmentAnnouncement";
 import { ShiftRecordDetails, ShiftRecordIdentity } from "@/components/ShiftRecordDetails";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
@@ -128,6 +129,10 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
     "",
     `Vents: ${displayedVentCount}`,
     `BiPAPs: ${update.bipap_count}`,
+    "",
+    "Special Care Nursery:",
+    `Neonatal High Flow: ${update.neonatal_high_flow_count ?? "No Update"}`,
+    `Bubble CPAP: ${update.bubble_cpap_count ?? "No Update"}`,
     "",
     "Scheduled procedures:",
     `C-Sections: ${update.c_section_count}`,
@@ -418,7 +423,7 @@ export function DirectorShiftStatusClient({
 
     const supabase = createClient();
     const maximumShiftDate = currentShiftStatusWindow(timezone).shiftDate;
-    const [{ data, error: loadError, usedLegacyProcedureSelect }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
+    const [{ data, error: loadError, usedLegacyProcedureSelect, usedLegacyNurserySelect }, { count: rentalCount, error: rentalCountError }] = await Promise.all([
       fetchDirectorShiftStatusUpdates(supabase, authContext.departmentId, maximumShiftDate),
       supabase
         .from("rental_records")
@@ -443,6 +448,9 @@ export function DirectorShiftStatusClient({
       if (process.env.NODE_ENV !== "production") {
         console.warn("Director shift status loaded without vaginal_delivery_count; apply the latest Supabase migration to persist that count.");
       }
+    }
+    if (usedLegacyNurserySelect && process.env.NODE_ENV !== "production") {
+      console.warn("Director shift status loaded without Special Care Nursery fields; apply the latest Supabase migration to persist those counts.");
     }
 
     setUpdates(data);
@@ -1034,6 +1042,41 @@ export function DirectorShiftStatusClient({
           officialVentError={officialVentError}
           timezone={timezone}
         />
+
+        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+              <Baby size={22} aria-hidden="true" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-black leading-tight text-hospital-ink">Special Care Nursery</h2>
+              {statusSourceShift && <p className="mt-1 text-xs font-black text-slate-500">{statusSourceShift}</p>}
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <MetricCard
+              icon={<Wind size={22} />}
+              label="Neonatal High Flow"
+              value={latest?.neonatal_high_flow_count ?? "—"}
+            />
+            <MetricCard
+              icon={<BubbleCpapIcon className="h-[22px] w-[22px]" />}
+              label="Bubble CPAP"
+              value={latest?.bubble_cpap_count ?? "—"}
+            />
+          </div>
+          {latest && (
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+              <p>Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}</p>
+              <p>Updated by: {updatedByName(latest)}</p>
+            </div>
+          )}
+          {!loading && !latest && !error && (
+            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+              No Special Care Nursery counts have been submitted yet.
+            </p>
+          )}
+        </section>
 
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
           <div className="flex items-start gap-3">

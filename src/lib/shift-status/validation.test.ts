@@ -12,6 +12,8 @@ const validCounts: ShiftStatusCountInput = {
   rvuCount: "229.5",
   ventCount: "0",
   bipapCount: "2",
+  neonatalHighFlowCount: "0",
+  bubbleCpapCount: "1",
   cSectionCount: "",
   vaginalDeliveryCount: "0",
   cabgCount: "1",
@@ -48,6 +50,9 @@ describe("shift status count validation", () => {
     expect(
       validateShiftStatusCounts({ ...validCounts, bipapCount: "1.5" })
     ).toBe("BiPAPs must be a whole number of 0 or more.");
+    expect(
+      validateShiftStatusCounts({ ...validCounts, bubbleCpapCount: "1.5" })
+    ).toBe("Bubble CPAP must be a whole number of 0 or more.");
   });
 
   it("calculates RT need from RVUs using 27 and normal one-decimal rounding", () => {

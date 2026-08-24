@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   fetchDirectorShiftStatusUpdates,
   fetchOfficialVentCount,
-  fetchReportingWindowShiftStatusUpdates
+  fetchReportingWindowShiftStatusUpdates,
+  fetchShiftStatusUpdateForRecord
 } from "@/lib/shift-status/client-queries";
 import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
 import type { OfficialVentCountUpdate, ShiftStatusUpdate } from "@/lib/shift-status/types";
@@ -156,6 +157,8 @@ function shiftStatus(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
     rvu_total: null,
     vent_count: 5,
     bipap_count: 2,
+    neonatal_high_flow_count: 1,
+    bubble_cpap_count: 2,
     c_section_count: 0,
     vaginal_delivery_count: 0,
     cabg_count: 0,
@@ -246,7 +249,8 @@ describe("fetchDirectorShiftStatusUpdates", () => {
     expect(result).toEqual({
       data: [current, prior],
       error: null,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect: false
     });
     expect(calls.table).toBe("shift_status_updates");
     expect(calls.filters).toEqual([
@@ -260,6 +264,57 @@ describe("fetchDirectorShiftStatusUpdates", () => {
       { column: "id", ascending: false }
     ]);
     expect(calls.ranges).toEqual([{ from: 0, to: 999 }]);
+  });
+
+  it("falls back safely before the nursery migration without taking Leadership offline", async () => {
+    const legacyRow = shiftStatus({
+      neonatal_high_flow_count: undefined,
+      bubble_cpap_count: undefined
+    });
+    const selectedColumns: string[] = [];
+
+    const client = {
+      from() {
+        let columns = "";
+        const query = {
+          select(value: string) {
+            columns = value;
+            selectedColumns.push(value);
+            return query;
+          },
+          eq() {
+            return query;
+          },
+          lte() {
+            return query;
+          },
+          order() {
+            return query;
+          },
+          async range() {
+            if (columns.includes("neonatal_high_flow_count")) {
+              return {
+                data: null,
+                error: { code: "42703", message: "column neonatal_high_flow_count does not exist" }
+              };
+            }
+
+            return { data: [legacyRow], error: null };
+          }
+        };
+        return query;
+      }
+    } as unknown as SupabaseClient;
+
+    const result = await fetchDirectorShiftStatusUpdates(client, "department-1", "2026-08-09");
+
+    expect(selectedColumns).toHaveLength(2);
+    expect(result.error).toBeNull();
+    expect(result.usedLegacyNurserySelect).toBe(true);
+    expect(result.data[0]).toEqual(expect.objectContaining({
+      neonatal_high_flow_count: null,
+      bubble_cpap_count: null
+    }));
   });
 });
 
@@ -307,5 +362,54 @@ describe("fetchReportingWindowShiftStatusUpdates", () => {
       { column: "created_at", ascending: false },
       { column: "id", ascending: false }
     ]);
+  });
+});
+
+describe("fetchShiftStatusUpdateForRecord", () => {
+  it("marks the safe legacy fallback when production has not applied the nursery migration", async () => {
+    const legacyRow = shiftStatus({
+      neonatal_high_flow_count: undefined,
+      bubble_cpap_count: undefined
+    });
+    const selectedColumns: string[] = [];
+    const client = {
+      from() {
+        let columns = "";
+        const query = {
+          select(value: string) {
+            columns = value;
+            selectedColumns.push(value);
+            return query;
+          },
+          eq() {
+            return query;
+          },
+          match() {
+            return query;
+          },
+          async maybeSingle() {
+            if (columns.includes("neonatal_high_flow_count")) {
+              return {
+                data: null,
+                error: { code: "42703", message: "column bubble_cpap_count does not exist" }
+              };
+            }
+
+            return { data: legacyRow, error: null };
+          }
+        };
+        return query;
+      }
+    } as unknown as SupabaseClient;
+
+    const result = await fetchShiftStatusUpdateForRecord(client, "department-1", "2026-08-08", "night");
+
+    expect(selectedColumns).toHaveLength(2);
+    expect(result.error).toBeNull();
+    expect(result.usedLegacyNurserySelect).toBe(true);
+    expect(result.data).toEqual(expect.objectContaining({
+      neonatal_high_flow_count: null,
+      bubble_cpap_count: null
+    }));
   });
 });

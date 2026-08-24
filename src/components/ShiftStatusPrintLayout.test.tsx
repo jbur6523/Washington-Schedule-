@@ -15,6 +15,8 @@ const reportData: ShiftStatusPrintData = {
   rvuTotal: "190.66",
   vents: "6",
   bipaps: "13",
+  neonatalHighFlow: "2",
+  bubbleCpap: "1",
   cSections: "3",
   vaginalDeliveries: "0",
   cabg: "0",
@@ -39,6 +41,8 @@ describe("ShiftStatusPrintLayout", () => {
     expect(report).toHaveTextContent("RVUs190.66");
     expect(report).toHaveTextContent("Vents6");
     expect(report).toHaveTextContent("BiPAPs13");
+    expect(report).toHaveTextContent("Neonatal High Flow2");
+    expect(report).toHaveTextContent("Bubble CPAP1");
     expect(report).toHaveTextContent("C-Sections3");
     expect(report).toHaveTextContent("Bronchs1");
     expect(report).toHaveTextContent("Four scopes expected");
@@ -53,6 +57,8 @@ describe("ShiftStatusPrintLayout", () => {
         data={{
           ...reportData,
           cSections: "",
+          neonatalHighFlow: "",
+          bubbleCpap: "",
           vaginalDeliveries: "",
           cabg: "",
           bronchs: "",
@@ -65,7 +71,7 @@ describe("ShiftStatusPrintLayout", () => {
     );
     const report = screen.getByTestId("shift-status-print-layout");
 
-    expect(within(report).getAllByText("0")).toHaveLength(6);
+    expect(within(report).getAllByText("0")).toHaveLength(8);
     expect(within(report).getAllByText("None")).toHaveLength(2);
   });
 

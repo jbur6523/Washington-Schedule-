@@ -97,6 +97,8 @@ function shiftUpdate(overrides: Partial<ShiftStatusUpdate> = {}): ShiftStatusUpd
     rvu_total: null,
     vent_count: 6,
     bipap_count: 4,
+    neonatal_high_flow_count: 2,
+    bubble_cpap_count: 1,
     c_section_count: 8,
     vaginal_delivery_count: 2,
     cabg_count: 1,
@@ -270,6 +272,64 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("places Special Care Nursery between current counts and procedures and persists both counts", async () => {
+    mocks.rpc.mockResolvedValue({ error: null });
+
+    renderShiftUpdate();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("Current Counts")).toBeLessThan(headings.indexOf("Special Care Nursery"));
+    expect(headings.indexOf("Special Care Nursery")).toBeLessThan(headings.indexOf("Scheduled Procedures"));
+    expect(screen.getByLabelText(/Neonatal High Flow/)).toHaveValue(0);
+    expect(screen.getByLabelText(/Bubble CPAP/)).toHaveValue(0);
+
+    fireEvent.change(screen.getByLabelText(/Neonatal High Flow/), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText(/Bubble CPAP/), { target: { value: "2" } });
+    populateRequiredFields();
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(savedPayload()).toEqual(expect.objectContaining({
+      neonatal_high_flow_count: 3,
+      bubble_cpap_count: 2
+    }));
+  });
+
+  it("disables nursery entry and omits unsupported fields until the database migration is present", async () => {
+    mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
+      data: shiftUpdate({
+        neonatal_high_flow_count: undefined,
+        bubble_cpap_count: undefined,
+        rvu_total: 189
+      }),
+      error: null,
+      usedLegacyNurserySelect: true
+    });
+    mocks.rpc.mockResolvedValue({ error: null });
+
+    renderShiftUpdate();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    expect(screen.getByLabelText(/Neonatal High Flow/)).toBeDisabled();
+    expect(screen.getByLabelText(/Bubble CPAP/)).toBeDisabled();
+    expect(screen.getByText("Nursery tracking will be available after the database update is applied.")).toBeInTheDocument();
+
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(savedPayload()).not.toHaveProperty("neonatal_high_flow_count");
+    expect(savedPayload()).not.toHaveProperty("bubble_cpap_count");
+  });
+
   it("requires a custom updater name for Not Listed and never persists the sentinel", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
@@ -336,6 +396,8 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
     expect(screen.getByLabelText(/BiPAPs/)).toHaveValue(4);
+    expect(screen.getByLabelText(/Neonatal High Flow/)).toHaveValue(2);
+    expect(screen.getByLabelText(/Bubble CPAP/)).toHaveValue(1);
     expect(screen.getByLabelText(/C-Sections/)).toHaveValue(8);
     expect(screen.getByLabelText(/Bronchs/)).toHaveValue(1);
     expect(screen.getByLabelText(/Vaginal Deliveries/)).toHaveValue(2);
@@ -358,6 +420,8 @@ describe("ShiftUpdateClient submission flow", () => {
       rvu_total: "202.5",
       vent_count: 6,
       bipap_count: 4,
+      neonatal_high_flow_count: 2,
+      bubble_cpap_count: 1,
       c_section_count: 9,
       vaginal_delivery_count: 2,
       cabg_count: 1,

@@ -90,6 +90,7 @@ Fields:
 - RTs Needed, calculated to one decimal place from the entered RVUs using `RVUs / 27` and saved in the existing RTs Needed field. On blur, the RVU input changes to the calculated RT need; focusing it again restores the raw RVUs for editing. Exact raw RVUs are persisted on the canonical reporting-window row and appear as helper text beneath Staff Needed after navigation or refresh.
 - Official Vent count from the persistent `official_vent_count_updates` stream. The newest genuine Lead Vent change or ICU tracked Vent-total change wins across shift and date boundaries; leaving the field blank means no change.
 - BiPAP count
+- Special Care Nursery counts for Neonatal High Flow and Bubble CPAP
 - C-Section count
 - Vaginal Delivery count
 - CABG count
@@ -104,7 +105,9 @@ The `Updated By` selector shows active Lead and Admin users who can act as shift
 
 `Not Listed` is a UI-only selection and is never stored as attribution. When selected, the entered custom name is saved through the existing updater-name pathway. Shift Notes are stored on the latest reporting-window row, prefilled when revisiting the same window, and cleared only when the user saves an intentionally blank note. The Lead Command Board shows `View Shift Note` on Staff Needed only for a nonblank current-window note. The Shift Update form is optimized for mobile shared-phone use with aligned two-column field pairs and shortened labels.
 
-Current Counts and Scheduled Procedures inputs show short last-known helper text beneath each count field. The format is `Last: VALUE · MM/DD HH:mm`, such as `Last: 8 · 07/07 11:34`. If no previous value is available, the helper shows `Last: —`. These values are informational only and do not auto-fill the Shift Update inputs.
+The Special Care Nursery card appears between Current Counts and Scheduled Procedures. Its two counts are saved on the same canonical operational date and Day/Night shift row as the rest of Shift Update; revising the selected shift replaces its current counts rather than creating a second source of truth.
+
+Current Counts, Special Care Nursery, and Scheduled Procedures inputs show short last-known helper text beneath each count field. The format is `Last: VALUE · MM/DD HH:mm`, such as `Last: 8 · 07/07 11:34`. If no previous value is available, the helper shows `Last: —` (including historical shifts from before nursery tracking was introduced).
 
 The Lead Command Board shows `View Procedures` only when the current reporting-window update has at least one procedure count above zero or nonblank Other Procedures text.
 
@@ -144,6 +147,7 @@ The Director view is read-only and uses a polished mobile dashboard layout:
 - `Current Shift Status` card with `Staffed`, `Short`, or `No Update` status pill
 - Main stat cards for RTs On Shift and RTs Needed
 - `Department Snapshot` card with left-aligned shift/date context, official Vent count, BiPAP count, scheduled procedure total, delivered/active Active Rentals count, last-updated metadata, and the official Vent source/timestamp
+- Read-only `Special Care Nursery` card showing Neonatal High Flow and Bubble CPAP counts from the displayed canonical shift
 - Scheduled procedure detail cards for C-Sections, Vaginal Delivery, CABG, Bronchs, Sputum Inductions, and MRI with left-aligned shift/date context
 - Last updated freshness text and updated-by initials/display name
 - `View Shift` action inside the Current Shift Status card. It opens a read-only modal schedule preview where the Director can choose an uploaded schedule date and Day Shift or Night Shift.

@@ -11,6 +11,8 @@ export type ShiftStatusUpdate = {
   rvu_total: number | null;
   vent_count: number | null;
   bipap_count: number;
+  neonatal_high_flow_count?: number | null;
+  bubble_cpap_count?: number | null;
   c_section_count: number;
   vaginal_delivery_count: number;
   cabg_count: number;

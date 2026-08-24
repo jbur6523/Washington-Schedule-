@@ -9,6 +9,8 @@ export type ShiftStatusPrintData = {
   rvuTotal: string;
   vents: string;
   bipaps: string;
+  neonatalHighFlow: string;
+  bubbleCpap: string;
   cSections: string;
   vaginalDeliveries: string;
   cabg: string;
@@ -57,6 +59,10 @@ export function ShiftStatusPrintLayout({ data }: ShiftStatusPrintLayoutProps) {
     { label: "Sputum Inductions", value: procedureValue(data.sputumInductions) },
     { label: "MRI", value: procedureValue(data.mri) }
   ];
+  const nurseryCounts = [
+    { label: "Neonatal High Flow", value: procedureValue(data.neonatalHighFlow) },
+    { label: "Bubble CPAP", value: procedureValue(data.bubbleCpap) }
+  ];
 
   return (
     <article
@@ -93,7 +99,19 @@ export function ShiftStatusPrintLayout({ data }: ShiftStatusPrintLayoutProps) {
       </section>
 
       <section className={styles.section}>
-        <h2>2. Scheduled Procedures</h2>
+        <h2>2. Special Care Nursery</h2>
+        <div className={styles.procedures}>
+          {nurseryCounts.map((count) => (
+            <div key={count.label}>
+              <span>{count.label}</span>
+              <strong>{count.value}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <h2>3. Scheduled Procedures</h2>
         <div className={styles.procedures}>
           {procedures.map((procedure) => (
             <div key={procedure.label}>
@@ -105,12 +123,12 @@ export function ShiftStatusPrintLayout({ data }: ShiftStatusPrintLayoutProps) {
       </section>
 
       <section className={styles.section}>
-        <h2>3. Other Procedures</h2>
+        <h2>4. Other Procedures</h2>
         <div className={styles.textBox}>{printableValue(data.otherProcedures, "None")}</div>
       </section>
 
       <section className={styles.section}>
-        <h2>4. Shift Notes</h2>
+        <h2>5. Shift Notes</h2>
         <div className={`${styles.textBox} ${styles.notes}`}>
           {printableValue(data.shiftNotes, "None")}
         </div>

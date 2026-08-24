@@ -5,7 +5,7 @@ import type {
 } from "@/lib/shift-status/types";
 import type { ShiftUpdateReportingWindow } from "@/lib/shift-status/reporting-window";
 
-const baseShiftStatusColumns = [
+const legacyShiftStatusColumns = [
   "id",
   "department_id",
   "shift_date",
@@ -29,14 +29,23 @@ const baseShiftStatusColumns = [
   "staff_profiles(display_name)"
 ];
 
-const shiftStatusSelect = [
-  ...baseShiftStatusColumns.slice(0, 10),
+const procedureShiftStatusColumns = [
+  ...legacyShiftStatusColumns.slice(0, 10),
   "vaginal_delivery_count",
-  ...baseShiftStatusColumns.slice(10)
-].join(", ");
+  ...legacyShiftStatusColumns.slice(10)
+];
+const shiftStatusColumns = [
+  ...procedureShiftStatusColumns.slice(0, 9),
+  "neonatal_high_flow_count",
+  "bubble_cpap_count",
+  ...procedureShiftStatusColumns.slice(9)
+];
 
-const legacyShiftStatusSelect = baseShiftStatusColumns.join(", ");
+const shiftStatusSelect = shiftStatusColumns.join(", ");
+const procedureShiftStatusSelect = procedureShiftStatusColumns.join(", ");
+const legacyShiftStatusSelect = legacyShiftStatusColumns.join(", ");
 const canonicalShiftStatusSelect = `${shiftStatusSelect}, is_canonical`;
+const procedureCanonicalShiftStatusSelect = `${procedureShiftStatusSelect}, is_canonical`;
 const legacyCanonicalShiftStatusSelect = `${legacyShiftStatusSelect}, is_canonical`;
 
 export type ShiftStatusQueryError = {
@@ -46,8 +55,10 @@ export type ShiftStatusQueryError = {
   hint?: string;
 };
 
-type ShiftStatusRow = Omit<ShiftStatusUpdate, "vaginal_delivery_count" | "shift_note" | "rvu_total"> & {
+type ShiftStatusRow = Omit<ShiftStatusUpdate, "vaginal_delivery_count" | "shift_note" | "rvu_total" | "neonatal_high_flow_count" | "bubble_cpap_count"> & {
   vaginal_delivery_count?: number | null;
+  neonatal_high_flow_count?: number | null;
+  bubble_cpap_count?: number | null;
   shift_note?: string | null;
   rvu_total?: number | null;
 };
@@ -58,10 +69,19 @@ export function isMissingVaginalDeliveryColumn(error: ShiftStatusQueryError | nu
   return errorText.includes("vaginal_delivery_count") && (errorText.includes("does not exist") || errorText.includes("42703"));
 }
 
+export function isMissingSpecialCareNurseryColumn(error: ShiftStatusQueryError | null) {
+  const errorText = [error?.code, error?.message, error?.details, error?.hint].filter(Boolean).join(" ").toLowerCase();
+
+  return (errorText.includes("neonatal_high_flow_count") || errorText.includes("bubble_cpap_count"))
+    && (errorText.includes("does not exist") || errorText.includes("42703"));
+}
+
 function normalizeShiftStatusRows(rows: ShiftStatusRow[] | null) {
   return (rows ?? []).map((row) => ({
     ...row,
     vaginal_delivery_count: row.vaginal_delivery_count ?? 0,
+    neonatal_high_flow_count: row.neonatal_high_flow_count ?? null,
+    bubble_cpap_count: row.bubble_cpap_count ?? null,
     shift_note: row.shift_note ?? null,
     rvu_total: row.rvu_total ?? null
   })) as ShiftStatusUpdate[];
@@ -148,19 +168,27 @@ async function queryDirectorShiftStatusUpdates(
 }
 
 export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departmentId: string, limit = 30) {
-  const primary = await queryShiftStatusUpdates(supabase, departmentId, shiftStatusSelect, limit);
+  let primary = await queryShiftStatusUpdates(supabase, departmentId, shiftStatusSelect, limit);
+  let usedLegacyNurserySelect = false;
+
+  if (primary.error && isMissingSpecialCareNurseryColumn(primary.error)) {
+    primary = await queryShiftStatusUpdates(supabase, departmentId, procedureShiftStatusSelect, limit);
+    usedLegacyNurserySelect = !primary.error;
+  }
 
   if (!primary.error) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
   if (!isMissingVaginalDeliveryColumn(primary.error)) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
@@ -168,7 +196,8 @@ export async function fetchShiftStatusUpdates(supabase: SupabaseClient, departme
 
   return {
     ...legacy,
-    usedLegacyProcedureSelect: !legacy.error
+    usedLegacyProcedureSelect: !legacy.error,
+    usedLegacyNurserySelect: !legacy.error || usedLegacyNurserySelect
   };
 }
 
@@ -176,16 +205,24 @@ export async function fetchLatestCanonicalShiftStatusUpdate(
   supabase: SupabaseClient,
   departmentId: string
 ) {
-  const { data, error } = await supabase
-    .from("shift_status_updates")
-    .select(canonicalShiftStatusSelect)
-    .eq("department_id", departmentId)
-    .eq("is_canonical", true)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const runQuery = (selectColumns: string) => supabase
+      .from("shift_status_updates")
+      .select(selectColumns)
+      .eq("department_id", departmentId)
+      .eq("is_canonical", true)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+  let { data, error } = await runQuery(canonicalShiftStatusSelect);
+
+  if (error && isMissingSpecialCareNurseryColumn(error)) {
+    ({ data, error } = await runQuery(procedureCanonicalShiftStatusSelect));
+  }
+  if (error && isMissingVaginalDeliveryColumn(error)) {
+    ({ data, error } = await runQuery(legacyCanonicalShiftStatusSelect));
+  }
 
   return {
     data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
@@ -197,17 +234,25 @@ export async function fetchLatestCanonicalVentStatusUpdate(
   supabase: SupabaseClient,
   departmentId: string
 ) {
-  const { data, error } = await supabase
-    .from("shift_status_updates")
-    .select(canonicalShiftStatusSelect)
-    .eq("department_id", departmentId)
-    .eq("is_canonical", true)
-    .not("vent_count", "is", null)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const runQuery = (selectColumns: string) => supabase
+      .from("shift_status_updates")
+      .select(selectColumns)
+      .eq("department_id", departmentId)
+      .eq("is_canonical", true)
+      .not("vent_count", "is", null)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+  let { data, error } = await runQuery(canonicalShiftStatusSelect);
+
+  if (error && isMissingSpecialCareNurseryColumn(error)) {
+    ({ data, error } = await runQuery(procedureCanonicalShiftStatusSelect));
+  }
+  if (error && isMissingVaginalDeliveryColumn(error)) {
+    ({ data, error } = await runQuery(legacyCanonicalShiftStatusSelect));
+  }
 
   return {
     data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
@@ -221,17 +266,32 @@ export async function fetchShiftStatusUpdateForRecord(
   shiftDate: string,
   shiftType: ShiftStatusUpdate["shift_type"]
 ) {
-  const { data, error } = await supabase
-    .from("shift_status_updates")
-    .select(canonicalShiftStatusSelect)
-    .eq("department_id", departmentId)
-    .match({ shift_date: shiftDate, shift_type: shiftType })
-    .eq("is_canonical", true)
-    .maybeSingle();
+  const runQuery = (selectColumns: string) => supabase
+      .from("shift_status_updates")
+      .select(selectColumns)
+      .eq("department_id", departmentId)
+      .match({ shift_date: shiftDate, shift_type: shiftType })
+      .eq("is_canonical", true)
+      .maybeSingle();
+  let { data, error } = await runQuery(canonicalShiftStatusSelect);
+  let usedLegacyNurserySelect = false;
+  let usedLegacyProcedureSelect = false;
+
+  if (error && isMissingSpecialCareNurseryColumn(error)) {
+    ({ data, error } = await runQuery(procedureCanonicalShiftStatusSelect));
+    usedLegacyNurserySelect = !error;
+  }
+  if (error && isMissingVaginalDeliveryColumn(error)) {
+    ({ data, error } = await runQuery(legacyCanonicalShiftStatusSelect));
+    usedLegacyProcedureSelect = !error;
+    usedLegacyNurserySelect = !error || usedLegacyNurserySelect;
+  }
 
   return {
     data: data ? normalizeShiftStatusRows([data as unknown as ShiftStatusRow])[0] ?? null : null,
-    error: error as ShiftStatusQueryError | null
+    error: error as ShiftStatusQueryError | null,
+    usedLegacyNurserySelect,
+    usedLegacyProcedureSelect
   };
 }
 
@@ -240,24 +300,37 @@ export async function fetchReportingWindowShiftStatusUpdates(
   departmentId: string,
   window: ShiftUpdateReportingWindow
 ) {
-  const primary = await queryReportingWindowShiftStatusUpdates(
+  let primary = await queryReportingWindowShiftStatusUpdates(
     supabase,
     departmentId,
     shiftStatusSelect,
     window
   );
+  let usedLegacyNurserySelect = false;
+
+  if (primary.error && isMissingSpecialCareNurseryColumn(primary.error)) {
+    primary = await queryReportingWindowShiftStatusUpdates(
+      supabase,
+      departmentId,
+      procedureShiftStatusSelect,
+      window
+    );
+    usedLegacyNurserySelect = !primary.error;
+  }
 
   if (!primary.error) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
   if (!isMissingVaginalDeliveryColumn(primary.error)) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
@@ -270,7 +343,8 @@ export async function fetchReportingWindowShiftStatusUpdates(
 
   return {
     ...legacy,
-    usedLegacyProcedureSelect: !legacy.error
+    usedLegacyProcedureSelect: !legacy.error,
+    usedLegacyNurserySelect: !legacy.error || usedLegacyNurserySelect
   };
 }
 
@@ -279,24 +353,37 @@ export async function fetchDirectorShiftStatusUpdates(
   departmentId: string,
   maximumShiftDate: string
 ) {
-  const primary = await queryDirectorShiftStatusUpdates(
+  let primary = await queryDirectorShiftStatusUpdates(
     supabase,
     departmentId,
     canonicalShiftStatusSelect,
     maximumShiftDate
   );
+  let usedLegacyNurserySelect = false;
+
+  if (primary.error && isMissingSpecialCareNurseryColumn(primary.error)) {
+    primary = await queryDirectorShiftStatusUpdates(
+      supabase,
+      departmentId,
+      procedureCanonicalShiftStatusSelect,
+      maximumShiftDate
+    );
+    usedLegacyNurserySelect = !primary.error;
+  }
 
   if (!primary.error) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
   if (!isMissingVaginalDeliveryColumn(primary.error)) {
     return {
       ...primary,
-      usedLegacyProcedureSelect: false
+      usedLegacyProcedureSelect: false,
+      usedLegacyNurserySelect
     };
   }
 
@@ -309,7 +396,8 @@ export async function fetchDirectorShiftStatusUpdates(
 
   return {
     ...legacy,
-    usedLegacyProcedureSelect: !legacy.error
+    usedLegacyProcedureSelect: !legacy.error,
+    usedLegacyNurserySelect: !legacy.error || usedLegacyNurserySelect
   };
 }
 
