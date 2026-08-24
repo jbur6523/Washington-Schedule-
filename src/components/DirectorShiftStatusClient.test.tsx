@@ -402,7 +402,12 @@ describe("DirectorShiftStatusClient persistent cards", () => {
   });
 
   it("moves every Leadership utility action into the menu and closes it after selection", async () => {
-    render(<DirectorShiftStatusClient authContext={authContext} timezone="America/Los_Angeles" />);
+    render(
+      <DirectorShiftStatusClient
+        authContext={{ ...authContext, role: "staff", operationsRole: "leadership" }}
+        timezone="America/Los_Angeles"
+      />
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
@@ -414,6 +419,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(within(directorMenu).getByRole("button", { name: "Respiratory Directory" })).toBeInTheDocument();
     expect(within(directorMenu).getByRole("button", { name: "Lead Communication Board" })).toBeInTheDocument();
     expect(within(directorMenu).getByRole("button", { name: "Announcement Board" })).toBeInTheDocument();
+    expect(within(directorMenu).getByRole("link", { name: "Metrics" })).toHaveAttribute("href", "/admin/metrics");
     expect(within(directorMenu).getByRole("button", { name: "Sign Out" })).toBeInTheDocument();
 
     fireEvent.click(within(directorMenu).getByRole("button", { name: "Respiratory Directory" }));

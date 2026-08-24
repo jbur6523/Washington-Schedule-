@@ -12,4 +12,14 @@ describe("MetricsLanding", () => {
     expect(screen.getByText("View RVU and staffing-demand metrics.")).toBeInTheDocument();
     expect(screen.getByText("Track monthly procedure volume and shift trends.")).toBeInTheDocument();
   });
+
+  it("returns Leadership users to their dashboard", () => {
+    render(<MetricsLanding context="leadership" />);
+
+    expect(screen.getByText("Leadership View")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to Leadership Dashboard" })).toHaveAttribute(
+      "href",
+      "/director/shift-status"
+    );
+  });
 });

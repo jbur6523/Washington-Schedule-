@@ -36,11 +36,13 @@ export function canViewDirectorShiftStatus(context: Pick<AuthenticatedUserContex
   return context.role === "admin" || context.role === "lead" || isDirector(context) || isLeadership(context);
 }
 
-export function canViewMetrics(context: Pick<AuthenticatedUserContext, "role">) {
-  return context.role === "admin";
+export function canViewMetrics(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
+  return context.role === "admin" || isLeadership(context);
 }
 
-export function canViewRvuStaffingMetrics(context: Pick<AuthenticatedUserContext, "role">) {
+export function canViewRvuStaffingMetrics(
+  context: Pick<AuthenticatedUserContext, "role" | "operationsRole">
+) {
   return canViewMetrics(context);
 }
 

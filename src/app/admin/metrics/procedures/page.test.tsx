@@ -61,6 +61,18 @@ describe("Procedure Metrics route authorization", () => {
     });
   });
 
+  it("allows Leadership to query procedure metrics for their department", async () => {
+    mocks.getAuthenticatedUserContext.mockResolvedValue({
+      status: "authenticated",
+      context: { ...adminContext, role: "staff", operationsRole: "leadership" }
+    });
+
+    render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ month: "2026-08" }) }));
+
+    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
+    expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", expect.any(Object));
+  });
+
   it("denies unauthorized users before creating a data client or querying metrics", async () => {
     mocks.getAuthenticatedUserContext.mockResolvedValue({
       status: "authenticated",

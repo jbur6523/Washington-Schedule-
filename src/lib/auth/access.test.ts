@@ -97,8 +97,8 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(leadership)).toBe(false);
     expect(canEditIcuCommandCenter(leadership)).toBe(false);
     expect(canViewIcuCommandCenter(leadership)).toBe(false);
-    expect(canViewMetrics(leadership)).toBe(false);
-    expect(canViewRvuStaffingMetrics(leadership)).toBe(false);
+    expect(canViewMetrics(leadership)).toBe(true);
+    expect(canViewRvuStaffingMetrics(leadership)).toBe(true);
   });
 
   it("retains administrator access across management surfaces", () => {

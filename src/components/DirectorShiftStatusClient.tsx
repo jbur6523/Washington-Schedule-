@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
+  BarChart3,
   Baby,
   Bed,
   Bone,
@@ -36,7 +38,7 @@ import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoard
 import { createClient } from "@/lib/supabase/client";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
-import { isLeadership } from "@/lib/auth/access";
+import { canViewMetrics, isLeadership } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { activeRentalStatuses } from "@/lib/rental-management/status";
 import { fetchShiftRosterSnapshot } from "@/lib/shift-history/client-queries";
@@ -1181,6 +1183,19 @@ export function DirectorShiftStatusClient({
                   </span>
                   <span className="text-sm font-black text-hospital-ink">Announcement Board</span>
                 </button>
+
+                {canViewMetrics(authContext) && (
+                  <Link
+                    href="/admin/metrics"
+                    onClick={() => setUtilityMenuOpen(false)}
+                    className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-3 py-2.5 text-left outline-none transition active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                  >
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700 shadow-sm">
+                      <BarChart3 size={19} aria-hidden="true" />
+                    </span>
+                    <span className="text-sm font-black text-hospital-ink">Metrics</span>
+                  </Link>
+                )}
 
                 <button
                   type="button"

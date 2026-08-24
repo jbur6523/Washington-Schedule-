@@ -64,7 +64,19 @@ describe("RVU staffing metrics route authorization", () => {
     expect(screen.getByLabelText("Shift")).toHaveValue("all");
   });
 
-  it("denies a direct non-admin request before any metrics data query", async () => {
+  it("allows Leadership to query RVU metrics for their department", async () => {
+    mocks.getAuthenticatedUserContext.mockResolvedValue({
+      status: "authenticated",
+      context: { ...adminContext, role: "staff", operationsRole: "leadership" }
+    });
+
+    render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
+    expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", expect.any(Object));
+  });
+
+  it("denies a direct request outside Admin and Leadership before any metrics data query", async () => {
     mocks.getAuthenticatedUserContext.mockResolvedValue({
       status: "authenticated",
       context: { ...adminContext, role: "lead" }

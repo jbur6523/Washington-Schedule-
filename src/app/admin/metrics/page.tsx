@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { MetricsLanding } from "@/components/MetricsLanding";
-import { canViewMetrics } from "@/lib/auth/access";
+import { canViewMetrics, isLeadership } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -21,5 +21,5 @@ export default async function MetricsPage() {
     notFound();
   }
 
-  return <MetricsLanding />;
+  return <MetricsLanding context={isLeadership(auth.context) ? "leadership" : "admin"} />;
 }

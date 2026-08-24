@@ -20,11 +20,15 @@ const metricCategories = [
   }
 ] as const;
 
-export function MetricsLanding() {
+export function MetricsLanding({ context = "admin" }: { context?: "admin" | "leadership" }) {
+  const isLeadershipView = context === "leadership";
+
   return (
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-3xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Admin</p>
+        <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
+          {isLeadershipView ? "Leadership View" : "Admin"}
+        </p>
         <h1 className="mt-2 text-3xl font-black text-hospital-ink">Metrics</h1>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
           Choose a reporting category. Additional metrics can be added here as reporting grows.
@@ -55,10 +59,10 @@ export function MetricsLanding() {
         </div>
 
         <Link
-          href="/admin"
+          href={isLeadershipView ? "/director/shift-status" : "/admin"}
           className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
         >
-          Back to Admin
+          {isLeadershipView ? "Back to Leadership Dashboard" : "Back to Admin"}
         </Link>
       </section>
     </main>

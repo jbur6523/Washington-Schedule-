@@ -42,10 +42,24 @@ describe("Metrics landing route authorization", () => {
     expect(screen.getByRole("heading", { name: "Metrics" })).toBeInTheDocument();
   });
 
-  it("preserves the existing admin-only Metrics access boundary", async () => {
+  it("renders the Metrics page for Leadership with a dashboard return link", async () => {
     mocks.getAuthenticatedUserContext.mockResolvedValue({
       status: "authenticated",
       context: { ...adminContext, role: "staff", operationsRole: "leadership" }
+    });
+
+    render(await MetricsPage());
+    expect(screen.getByText("Leadership View")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to Leadership Dashboard" })).toHaveAttribute(
+      "href",
+      "/director/shift-status"
+    );
+  });
+
+  it("denies users outside Admin and Leadership", async () => {
+    mocks.getAuthenticatedUserContext.mockResolvedValue({
+      status: "authenticated",
+      context: { ...adminContext, role: "lead", operationsRole: "none" }
     });
 
     await expect(MetricsPage()).rejects.toThrow("not-found");
