@@ -129,8 +129,8 @@ function lastKnownHelper(update: ShiftStatusUpdate | null, value: number | null 
 const labelClass = "block min-h-4 text-[11px] font-extrabold uppercase leading-4 tracking-normal text-slate-500";
 const controlClass =
   "mt-1 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100";
-const cyanControlClass =
-  "mt-1 h-11 w-full rounded-2xl border border-cyan-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100";
+const emphasizedControlClass =
+  "mt-2 h-12 w-full rounded-2xl border-2 border-cyan-300 bg-white px-3 text-sm font-bold text-hospital-ink shadow-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100";
 const twoColumnGridClass = "mt-3 grid grid-cols-1 gap-2.5 min-[420px]:grid-cols-2";
 
 function isValidManualUpdater(value: string) {
@@ -548,14 +548,14 @@ export function ShiftUpdateClient({
               />
               <CountInputCard
                 icon={<User size={18} />}
-                label="RTs Needed"
+                label="RVU Count"
                 value={editingRvus
                   ? form.rvuCount
                   : calculatedRtsNeeded?.toFixed(1) ?? ""}
                 step="any"
                 inputMode="decimal"
                 placeholder="Enter RVUs"
-                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_required, timezone)}
+                helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rvu_total, timezone)}
                 onBlur={() => setEditingRvus(false)}
                 onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
                 onFocus={() => setEditingRvus(true)}
@@ -679,14 +679,33 @@ export function ShiftUpdateClient({
             </label>
           </section>
 
-          <section className="rounded-3xl border border-cyan-100 bg-cyan-50/80 p-4 shadow-soft">
+          <section className="rounded-3xl border-2 border-cyan-200 bg-white p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Shift Notes</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">Optional operational notes for the selected shift</p>
+            <label className="mt-3 block">
+              <span className={labelClass}>Notes</span>
+              <textarea
+                aria-label="Shift Notes"
+                value={form.shiftNote}
+                onChange={(event) => setForm((current) => ({ ...current, shiftNote: event.target.value.slice(0, 500) }))}
+                maxLength={500}
+                rows={4}
+                placeholder="Add an optional note about this shift"
+                className="mt-2 w-full resize-y rounded-2xl border-2 border-cyan-300 bg-white px-3 py-3 text-sm font-bold leading-5 text-hospital-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100"
+              />
+              <span className="mt-2 block text-xs font-bold text-slate-500">No patient information.</span>
+            </label>
+          </section>
+
+          <section className="rounded-3xl border-2 border-cyan-200 bg-white p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Updated By</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">Identify the lead submitting this update</p>
             <label className="mt-3 block">
               <span className={labelClass}>Select Lead</span>
               <select
                 value={form.updatedByStaffProfileId}
                 onChange={(event) => setForm((current) => ({ ...current, updatedByStaffProfileId: event.target.value, updatedByName: "" }))}
-                className={cyanControlClass}
+                className={emphasizedControlClass}
               >
                 <option value="">Select lead updating shift</option>
                 {staffOptions.map((staff) => (
@@ -710,7 +729,7 @@ export function ShiftUpdateClient({
                   onChange={(event) => setForm((current) => ({ ...current, updatedByName: event.target.value.slice(0, 120) }))}
                   required
                   placeholder="Enter your name"
-                  className={cyanControlClass}
+                  className={emphasizedControlClass}
                 />
                 {form.updatedByName && !manualUpdatedByName && (
                   <span className="mt-1 block text-xs font-bold text-amber-700">
@@ -719,18 +738,6 @@ export function ShiftUpdateClient({
                 )}
               </label>
             )}
-            <label className="mt-3 block border-t border-cyan-100 pt-3">
-              <span className={labelClass}>Shift Notes</span>
-              <textarea
-                value={form.shiftNote}
-                onChange={(event) => setForm((current) => ({ ...current, shiftNote: event.target.value.slice(0, 500) }))}
-                maxLength={500}
-                rows={4}
-                placeholder="Add an optional note about this shift"
-                className="mt-1 w-full resize-y rounded-2xl border border-cyan-200 bg-white px-3 py-3 text-sm font-bold leading-5 text-hospital-ink outline-none transition placeholder:text-slate-400 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100"
-              />
-              <span className="mt-1 block text-xs font-bold text-slate-500">No patient information.</span>
-            </label>
           </section>
 
           {error && <p role="alert" className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700">{error}</p>}

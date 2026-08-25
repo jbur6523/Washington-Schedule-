@@ -81,7 +81,7 @@ function renderShiftUpdate(selection: ShiftRecordSelection = selectedShift) {
 
 function populateRequiredFields() {
   fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
-  fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "216" } });
+  fireEvent.change(screen.getByLabelText(/RVU Count/), { target: { value: "216" } });
   fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
   fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
 }
@@ -300,6 +300,20 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("shows RVU Count and places emphasized Shift Notes above Updated By", async () => {
+    renderShiftUpdate();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("Shift Notes")).toBeLessThan(headings.indexOf("Updated By"));
+    expect(screen.getByLabelText(/RVU Count/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/RTs Needed/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Shift Notes")).toHaveClass("border-2", "border-cyan-300", "shadow-sm");
+    expect(screen.getByLabelText("Select Lead", { exact: true })).toHaveClass("border-2", "border-cyan-300", "shadow-sm");
+  });
+
   it("disables nursery entry and omits unsupported fields until the database migration is present", async () => {
     mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
       data: shiftUpdate({
@@ -389,9 +403,9 @@ describe("ShiftUpdateClient submission flow", () => {
     });
 
     expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
-    expect(screen.getByLabelText(/RTs Needed/)).toHaveValue(202.5);
-    expect(screen.getByText(/Last: 7\.5 ·/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Enter RVUs")).toBe(screen.getByLabelText(/RTs Needed/));
+    expect(screen.getByLabelText(/RVU Count/)).toHaveValue(202.5);
+    expect(screen.getByText(/Last: 202\.5 ·/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter RVUs")).toBe(screen.getByLabelText(/RVU Count/));
     expect(screen.queryByText("Enter RVUs")).not.toBeInTheDocument();
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Vents/)).toHaveValue(6);
@@ -534,7 +548,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
 
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Cover the north pod after 19:00.");
-    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
+    fireEvent.change(screen.getByLabelText(/RVU Count/), { target: { value: "202.5" } });
     fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
@@ -559,7 +573,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
 
     fireEvent.change(screen.getByLabelText(/Shift Notes/), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText(/RTs Needed/), { target: { value: "202.5" } });
+    fireEvent.change(screen.getByLabelText(/RVU Count/), { target: { value: "202.5" } });
     fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {
@@ -619,7 +633,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     populateRequiredFields();
 
-    const rvuInput = screen.getByLabelText(/RTs Needed/) as HTMLInputElement;
+    const rvuInput = screen.getByLabelText(/RVU Count/) as HTMLInputElement;
     fireEvent.change(rvuInput, { target: { value: "188.65" } });
 
     expect(rvuInput).toHaveValue(188.65);
