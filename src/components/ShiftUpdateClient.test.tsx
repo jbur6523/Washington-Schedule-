@@ -624,7 +624,7 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
-  it("shows and submits normally rounded RT need from decimal RVUs", async () => {
+  it("keeps decimal RVUs visible while submitting the calculated RT need", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 
     renderShiftUpdate();
@@ -638,13 +638,13 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(rvuInput).toHaveValue(188.65);
     fireEvent.blur(rvuInput);
-    expect(rvuInput.value).toBe("7.0");
+    expect(rvuInput.value).toBe("188.65");
     expect(screen.queryByText(/Calculated:/)).not.toBeInTheDocument();
 
     fireEvent.focus(rvuInput);
     expect(rvuInput.value).toBe("188.65");
     fireEvent.blur(rvuInput);
-    expect(rvuInput.value).toBe("7.0");
+    expect(rvuInput.value).toBe("188.65");
 
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
     await act(async () => {

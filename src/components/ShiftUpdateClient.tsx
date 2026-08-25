@@ -245,7 +245,6 @@ export function ShiftUpdateClient({
   const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
   const [nurseryTrackingAvailable, setNurseryTrackingAvailable] = useState(true);
   const [error, setError] = useState("");
-  const [editingRvus, setEditingRvus] = useState(true);
   const submissionInFlightRef = useRef(false);
   const latestLoadRequestIdRef = useRef(0);
   const [cleanFormSignature, setCleanFormSignature] = useState(() => formSignature(form));
@@ -297,7 +296,6 @@ export function ShiftUpdateClient({
     setLastKnownUpdate(selectedUpdate);
     setForm(nextForm);
     setCleanFormSignature(formSignature(nextForm));
-    setEditingRvus(true);
     setLoadingSelection(false);
     setError("");
   }, [authContext, selection]);
@@ -549,16 +547,12 @@ export function ShiftUpdateClient({
               <CountInputCard
                 icon={<User size={18} />}
                 label="RVU Count"
-                value={editingRvus
-                  ? form.rvuCount
-                  : calculatedRtsNeeded?.toFixed(1) ?? ""}
+                value={form.rvuCount}
                 step="any"
                 inputMode="decimal"
                 placeholder="Enter RVUs"
                 helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rvu_total, timezone)}
-                onBlur={() => setEditingRvus(false)}
                 onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
-                onFocus={() => setEditingRvus(true)}
               />
               <CountInputCard
                 icon={<Wind size={18} />}
