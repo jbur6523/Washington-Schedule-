@@ -448,7 +448,7 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
-  it("waits for a successful canonical update before printing the persisted visible values", async () => {
+  it("waits for a successful canonical update before printing the persisted visible values and returning to the main page", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     let resolveUpdate: ((value: { error: null }) => void) | null = null;
     mocks.rpc.mockImplementation(
@@ -483,12 +483,12 @@ describe("ShiftUpdateClient submission flow", () => {
     fireEvent.change(screen.getByPlaceholderText("Enter procedure type"), {
       target: { value: "Four scopes expected" }
     });
-    const updateAndPrintButton = screen.getByRole("button", { name: "Update & Print" });
-    fireEvent.click(updateAndPrintButton);
+    const printButton = screen.getByRole("button", { name: "Print" });
+    fireEvent.click(printButton);
 
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(print).not.toHaveBeenCalled();
-    expect(updateAndPrintButton).toBeDisabled();
+    expect(printButton).toBeDisabled();
 
     await act(async () => {
       resolveUpdate?.({ error: null });
@@ -504,14 +504,14 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(report).toHaveTextContent("Four scopes expected");
     expect(report).toHaveTextContent("Visible unsaved note");
     expect(print).toHaveBeenCalledTimes(1);
-    expect(updateAndPrintButton).toBeEnabled();
-    expect(mocks.replace).not.toHaveBeenCalled();
-    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(printButton).toBeEnabled();
+    expect(mocks.replace).toHaveBeenCalledWith("/command-center?shiftUpdate=saved");
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
 
     print.mockRestore();
   });
 
-  it("does not print or navigate when Update & Print persistence fails", async () => {
+  it("does not print or navigate when Print persistence fails", async () => {
     const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
     mocks.rpc.mockResolvedValue({ error: { message: "update failed" } });
 
@@ -521,7 +521,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     populateRequiredFields();
 
-    fireEvent.click(screen.getByRole("button", { name: "Update & Print" }));
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
     await act(async () => {
       await Promise.resolve();
     });
@@ -530,7 +530,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(print).not.toHaveBeenCalled();
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(mocks.refresh).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Update & Print" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Print" })).toBeEnabled();
 
     print.mockRestore();
   });

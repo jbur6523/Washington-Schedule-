@@ -446,6 +446,8 @@ export function ShiftUpdateClient({
 
         try {
           window.print();
+          router.replace("/command-center?shiftUpdate=saved");
+          router.refresh();
         } catch (printError) {
           if (process.env.NODE_ENV !== "production") {
             console.error("Shift update printing failed", printError);
@@ -743,7 +745,7 @@ export function ShiftUpdateClient({
               className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-800 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
             >
               <Printer size={18} aria-hidden="true" />
-              Update &amp; Print
+              Print
             </button>
             <button
               type="submit"
