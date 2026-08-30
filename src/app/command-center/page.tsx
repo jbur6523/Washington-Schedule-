@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { CommandCenterClient } from "@/components/CommandCenterClient";
 import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
+import { prominentBackActionClass } from "@/lib/ui/action-styles";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +21,9 @@ function AccessDenied() {
         </p>
         <Link
           href="/"
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          className={`${prominentBackActionClass} mt-5 w-full`}
         >
+          <ArrowLeft size={18} aria-hidden="true" />
           Back to Schedule
         </Link>
       </section>

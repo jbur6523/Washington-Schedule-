@@ -22,6 +22,7 @@ import {
   formatShiftStatusTime,
   officialVentSourceLabel
 } from "@/lib/shift-status/utils";
+import { noticeableSecondaryActionClass, prominentBackActionClass } from "@/lib/ui/action-styles";
 
 const icuPatientSelect = [
   "id",
@@ -423,7 +424,7 @@ export function IcuReadOnlyPage({
             <button
               type="button"
               onClick={() => void reload()}
-              className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              className={`${noticeableSecondaryActionClass} min-h-10 px-3 text-xs`}
             >
               <RefreshCw size={15} />
               Refresh
@@ -477,7 +478,7 @@ export function IcuReadOnlyPage({
 
         <Link
           href={backHref}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          className={`${prominentBackActionClass} w-full`}
         >
           <ArrowLeft size={16} />
           {backLabel}

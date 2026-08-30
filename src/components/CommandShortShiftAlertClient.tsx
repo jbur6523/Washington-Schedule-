@@ -2,10 +2,12 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type { ShiftStatusStaffOption } from "@/lib/shift-status/types";
 import { createClient } from "@/lib/supabase/client";
 import { currentShiftStatusWindow, formatShiftStatusNumber, getStaffingStatus, staffingStatusLabel } from "@/lib/shift-status/utils";
+import { prominentBackActionClass } from "@/lib/ui/action-styles";
 
 type ShortShiftForm = {
   shiftDate: string;
@@ -148,8 +150,9 @@ export function CommandShortShiftAlertClient({
           </p>
           <Link
             href="/command-center"
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            className={`${prominentBackActionClass} mt-4 w-full`}
           >
+            <ArrowLeft size={18} aria-hidden="true" />
             Back to Command Center
           </Link>
         </section>

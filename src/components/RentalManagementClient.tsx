@@ -24,6 +24,7 @@ import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { isActiveRentalStatus } from "@/lib/rental-management/status";
 import { createClient } from "@/lib/supabase/client";
 import { wallTimeToIso } from "@/lib/time/zoned-date-time";
+import { prominentBackActionClass } from "@/lib/ui/action-styles";
 
 type RentalVendor = {
   id: string;
@@ -2412,8 +2413,9 @@ export function RentalManagementClient({ authContext, mode = "overview", pending
 
           <Link
             href={dashboardBackHref}
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            className={`${prominentBackActionClass} w-full`}
           >
+            <ArrowLeft size={18} aria-hidden="true" />
             {dashboardBackLabel}
           </Link>
         </div>

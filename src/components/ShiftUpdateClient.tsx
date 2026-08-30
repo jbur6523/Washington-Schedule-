@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, Baby, Bed, Bone, ClipboardList, Droplet, Heart, Printer, Stethoscope, User, Users, Wind } from "lucide-react";
+import { Activity, ArrowLeft, Baby, Bed, Bone, CalendarDays, ClipboardList, Droplet, Heart, Printer, Stethoscope, User, Users, Wind } from "lucide-react";
 import { ShiftStatusPrintLayout, type ShiftStatusPrintData } from "@/components/ShiftStatusPrintLayout";
 import { BubbleCpapIcon } from "@/components/BubbleCpapIcon";
 import printStyles from "@/components/ShiftStatusPrintLayout.module.css";
@@ -20,6 +20,7 @@ import {
   validateShiftStatusCounts
 } from "@/lib/shift-status/validation";
 import { rememberSessionRvu } from "@/lib/shift-status/session-rvu";
+import { noticeableSecondaryActionClass, prominentBackActionClass } from "@/lib/ui/action-styles";
 
 type ShiftUpdateForm = {
   shiftDate: string;
@@ -490,8 +491,9 @@ export function ShiftUpdateClient({
                 event.preventDefault();
               }
             }}
-            className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+            className={`${prominentBackActionClass} mt-4 w-full`}
           >
+            <ArrowLeft size={18} aria-hidden="true" />
             Back to Command Center
           </Link>
         </section>
@@ -529,8 +531,9 @@ export function ShiftUpdateClient({
                   event.preventDefault();
                 }
               }}
-              className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-cyan-200 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-800"
+              className={`${noticeableSecondaryActionClass} mt-3 w-full`}
             >
+              <CalendarDays size={18} aria-hidden="true" />
               Choose a Different Shift
             </Link>
           </section>

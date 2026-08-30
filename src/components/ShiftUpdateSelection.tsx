@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { CalendarDays, ChevronRight, Moon, Search, Sun } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronRight, Moon, Search, Sun } from "lucide-react";
 import type { ShiftRecordSelection, ShiftUpdateSelectionOptions } from "@/lib/shift-status/reporting-window";
 import { shiftTypeLabel } from "@/lib/shift-status/utils";
+import { prominentBackActionClass } from "@/lib/ui/action-styles";
 
 function shortDateLabel(dateValue: string) {
   const [, month, day] = dateValue.split("-");
@@ -140,8 +141,9 @@ export function ShiftUpdateSelection({ options }: { options: ShiftUpdateSelectio
 
         <Link
           href="/command-center"
-          className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+          className={`${prominentBackActionClass} mt-5 w-full`}
         >
+          <ArrowLeft size={18} aria-hidden="true" />
           Back to Command Center
         </Link>
       </section>

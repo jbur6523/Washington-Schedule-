@@ -13,6 +13,7 @@ import { ArrowLeft, Check, LoaderCircle, Phone, Printer, Save, Users } from "luc
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { PhoneListPrintLayout } from "@/components/PhoneListPrintLayout";
 import printStyles from "@/components/PhoneListPrintLayout.module.css";
+import { noticeableSecondaryActionClass, prominentBackActionClass } from "@/lib/ui/action-styles";
 import { phoneListSections } from "@/lib/phone-list/rows";
 import type {
   PhoneListAssignment,
@@ -487,7 +488,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
           <button
             type="button"
             onClick={() => void returnToCommandBoard()}
-            className="inline-flex min-h-10 items-center gap-2 rounded-xl text-sm font-extrabold text-cyan-800"
+            className={`${prominentBackActionClass} w-full sm:w-auto`}
           >
             <ArrowLeft size={18} />
             Lead Command Board
@@ -686,7 +687,7 @@ export function PhoneListClient({ authContext, timezone }: PhoneListClientProps)
               type="button"
               onClick={() => void printPhoneList()}
               disabled={loading || saveState === "saving" || Boolean(loadError)}
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 text-sm font-black text-slate-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className={`${noticeableSecondaryActionClass} min-h-12 w-full px-5 disabled:cursor-not-allowed disabled:opacity-50`}
             >
               <Printer size={18} />
               Print Sheet
