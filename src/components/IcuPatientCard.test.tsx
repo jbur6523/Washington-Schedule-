@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IcuPatientCard } from "@/components/IcuCommandCenterClient";
 import { IcuReadOnlyCard } from "@/components/IcuReadOnlyViews";
@@ -48,7 +48,7 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
 
 function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "mri">()) {
   const callbacks = {
-    onSaveNote: vi.fn(),
+    onSaveNote: vi.fn().mockResolvedValue(true),
     onUpdate: vi.fn(),
     onDiscontinue: vi.fn(),
     onHistory: vi.fn(),
@@ -127,42 +127,84 @@ describe("IcuPatientCard Vent actions", () => {
   });
 
   it.each(["vent", "bipap", "cpap", "hfnc", "cool_aerosol"] as const)(
-    "renders the inline Notes editor for %s patients",
+    "renders the compact Add Note action for %s patients",
     (deviceType) => {
       renderCard(record({
         device_type: deviceType,
         vent_mode: deviceType === "vent" ? "apvcmv" : null
       }));
 
-      expect(screen.getByLabelText("Notes")).toHaveAttribute("placeholder", "Add note…");
+      expect(screen.getByRole("button", { name: "+ Add Note" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Save Note" })).not.toBeInTheDocument();
     }
   );
 
-  it("prepopulates a saved note after settings and saves only after it changes", () => {
+  it("expands an empty editor and cancels without saving", () => {
+    const callbacks = renderCard(record());
+
+    fireEvent.click(screen.getByRole("button", { name: "+ Add Note" }));
+    expect(screen.getByLabelText("Notes")).toHaveAttribute("placeholder", "Add note…");
+    expect(screen.getByRole("button", { name: "Save Note" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Unsaved note" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ Add Note" })).toBeInTheDocument();
+    expect(callbacks.onSaveNote).not.toHaveBeenCalled();
+  });
+
+  it("shows a saved note compactly, then prepopulates and saves an edit", async () => {
     const callbacks = renderCard(record({ notes: "Weaning trial planned after rounds" }));
     const card = screen.getByRole("article");
     const settings = within(card).getByText(/Rate 16/);
-    const note = within(card).getByLabelText("Notes");
+    const noteDisplay = within(card).getByText("Note:").closest("p");
     const updated = within(card).getByText(/Updated/);
 
+    expect(card).toHaveTextContent("Note: Weaning trial planned after rounds");
+    expect(noteDisplay).not.toBeNull();
+    if (!noteDisplay) {
+      throw new Error("Expected the saved note display.");
+    }
+    expect(settings.compareDocumentPosition(noteDisplay) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(noteDisplay.compareDocumentPosition(updated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(card).queryByLabelText("Notes")).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Edit note" }));
+    const note = within(card).getByLabelText("Notes");
     expect(note).toHaveValue("Weaning trial planned after rounds");
-    expect(settings.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(note.compareDocumentPosition(updated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(card).queryByRole("button", { name: "Save Note" })).not.toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Save Note" })).toBeDisabled();
 
     fireEvent.change(note, { target: { value: "Weaning trial after rounds" } });
     fireEvent.click(within(card).getByRole("button", { name: "Save Note" }));
-    expect(callbacks.onSaveNote).toHaveBeenCalledWith("Weaning trial after rounds");
+    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("Weaning trial after rounds"));
+    await waitFor(() => expect(within(card).queryByLabelText("Notes")).not.toBeInTheDocument());
   });
 
-  it("allows an existing note to be cleared", () => {
+  it("restores the saved display when an edit is canceled", () => {
     const callbacks = renderCard(record({ notes: "Existing ICU note" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit note" }));
+    fireEvent.change(screen.getByLabelText("Notes"), { target: { value: "Unsaved replacement" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.getByRole("article")).toHaveTextContent("Note: Existing ICU note");
+    expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument();
+    expect(callbacks.onSaveNote).not.toHaveBeenCalled();
+  });
+
+  it("allows an existing note to be cleared", async () => {
+    const callbacks = renderCard(record({ notes: "Existing ICU note" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit note" }));
     const note = screen.getByLabelText("Notes");
 
     fireEvent.change(note, { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
 
-    expect(callbacks.onSaveNote).toHaveBeenCalledWith("   ");
+    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("   "));
   });
 });
 

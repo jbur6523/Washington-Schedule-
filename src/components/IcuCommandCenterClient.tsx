@@ -547,7 +547,7 @@ export function IcuPatientCard({
   record: IcuPatientRecord;
   shiftEvents: ReadonlySet<IcuVentShiftEventKey>;
   actionSaving: boolean;
-  onSaveNote: (notes: string) => void;
+  onSaveNote: (notes: string) => Promise<boolean>;
   onUpdate: () => void;
   onDiscontinue: () => void;
   onHistory: () => void;
@@ -558,6 +558,7 @@ export function IcuPatientCard({
   const airway = formatIcuAirway(record);
   const savedNotes = record.notes?.trim() ?? "";
   const [noteDraft, setNoteDraft] = useState(savedNotes);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
   const noteChanged = noteDraft.trim() !== savedNotes;
   const modifierLabels = activeVentModifierLabels(record);
   const tone = ventCardTone(record);
@@ -605,38 +606,78 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
-          <form
-            className="mt-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (noteChanged) {
-                onSaveNote(noteDraft);
-              }
-            }}
-          >
-            <label htmlFor={`icu-patient-note-${record.id}`} className="block">
-              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes</span>
-              <textarea
-                id={`icu-patient-note-${record.id}`}
-                value={noteDraft}
-                onChange={(event) => setNoteDraft(event.target.value)}
-                disabled={actionSaving}
-                rows={2}
-                placeholder="Add note…"
-                className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            {noteChanged ? (
+          {noteEditorOpen ? (
+            <form
+              className="mt-2"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (noteChanged && await onSaveNote(noteDraft)) {
+                  setNoteEditorOpen(false);
+                }
+              }}
+            >
+              <label htmlFor={`icu-patient-note-${record.id}`} className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes</span>
+                <textarea
+                  id={`icu-patient-note-${record.id}`}
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  disabled={actionSaving}
+                  rows={2}
+                  placeholder="Add note…"
+                  className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={actionSaving || !noteChanged}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-xs font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save size={15} />
+                  {actionSaving ? "Saving..." : "Save Note"}
+                </button>
+                <button
+                  type="button"
+                  disabled={actionSaving}
+                  onClick={() => {
+                    setNoteDraft(savedNotes);
+                    setNoteEditorOpen(false);
+                  }}
+                  className="min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : savedNotes ? (
+            <div className="mt-2">
+              <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
+                <span className="font-black">Note:</span> {savedNotes}
+              </p>
               <button
-                type="submit"
-                disabled={actionSaving}
-                className="mt-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-xs font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                onClick={() => {
+                  setNoteDraft(savedNotes);
+                  setNoteEditorOpen(true);
+                }}
+                className="mt-1 text-xs font-black text-cyan-700"
               >
-                <Save size={15} />
-                {actionSaving ? "Saving..." : "Save Note"}
+                Edit note
               </button>
-            ) : null}
-          </form>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setNoteDraft("");
+                setNoteEditorOpen(true);
+              }}
+              className="mt-2 text-xs font-black text-cyan-700"
+            >
+              + Add Note
+            </button>
+          )}
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -1121,7 +1162,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     const previousNotes = record.notes?.trim() || null;
     const notes = noteDraft.trim() || null;
     if (notes === previousNotes) {
-      return;
+      return true;
     }
 
     setActionSaving(true);
@@ -1142,7 +1183,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     if (updateError || !data) {
       setActionSaving(false);
       setError("Could not save ICU note. Please try again.");
-      return;
+      return false;
     }
 
     const updatedRecord = data as unknown as IcuPatientRecord;
@@ -1165,6 +1206,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setActionSaving(false);
     setMessage(eventResult.error ? "ICU note saved, but history could not be recorded." : "ICU note saved.");
     await loadTodayActivity(false);
+    return true;
   };
 
   const openDiscontinue = (record: IcuPatientRecord) => {
@@ -1561,11 +1603,11 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           {!loading &&
             records.map((record) => (
               <IcuPatientCard
-                key={`${record.id}:${record.notes ?? ""}`}
+                key={record.id}
                 record={record}
                 shiftEvents={shiftEventMap.get(record.id) ?? emptyVentShiftEvents}
                 actionSaving={actionSaving}
-                onSaveNote={(notes) => void savePatientNote(record, notes)}
+                onSaveNote={(notes) => savePatientNote(record, notes)}
                 onUpdate={() => openEdit(record)}
                 onDiscontinue={() => openDiscontinue(record)}
                 onHistory={() => void openHistory(record)}

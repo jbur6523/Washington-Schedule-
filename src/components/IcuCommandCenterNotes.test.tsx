@@ -231,7 +231,7 @@ describe("ICU patient notes", () => {
   ])("prepopulates and %s an existing note on update", async (_action, editedNote, expectedNote) => {
     mocks.activeRecords = [patientRecord({ notes: "Existing ICU note" })];
     render(<IcuCommandCenterClient authContext={authContext} />);
-    await screen.findByDisplayValue("Existing ICU note");
+    await screen.findByRole("button", { name: "Edit note" });
 
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     const dialog = screen.getByRole("dialog", { name: "Update Patient" });
@@ -246,12 +246,14 @@ describe("ICU patient notes", () => {
   });
 
   it.each([
-    ["updates", "  Updated inline note  ", "Updated inline note", "ICU note updated."],
-    ["clears", "   ", null, "ICU note cleared."]
-  ])("%s a note directly from the patient card without updating device settings", async (_action, noteDraft, expectedNote, eventSummary) => {
-    mocks.activeRecords = [patientRecord({ notes: "Existing ICU note" })];
+    ["adds", null, "  New inline note  ", "New inline note", "ICU note updated."],
+    ["updates", "Existing ICU note", "  Updated inline note  ", "Updated inline note", "ICU note updated."],
+    ["clears", "Existing ICU note", "   ", null, "ICU note cleared."]
+  ])("%s a note directly from the compact patient card without updating device settings", async (_action, initialNote, noteDraft, expectedNote, eventSummary) => {
+    mocks.activeRecords = [patientRecord({ notes: initialNote })];
     render(<IcuCommandCenterClient authContext={authContext} />);
-    const note = await screen.findByDisplayValue("Existing ICU note");
+    fireEvent.click(await screen.findByRole("button", { name: initialNote ? "Edit note" : "+ Add Note" }));
+    const note = screen.getByLabelText("Notes");
 
     fireEvent.change(note, { target: { value: noteDraft } });
     fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
@@ -266,11 +268,19 @@ describe("ICU patient notes", () => {
       event_summary: eventSummary,
       event_data: expect.objectContaining({
         action: "note_updated",
-        previousNotes: "Existing ICU note",
+        previousNotes: initialNote,
         notes: expectedNote
       })
     }));
     expect(screen.queryByRole("dialog", { name: "Update Patient" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument());
+    if (expectedNote) {
+      expect(screen.getByRole("article")).toHaveTextContent(`Note: ${expectedNote}`);
+      expect(screen.getByRole("button", { name: "Edit note" })).toBeInTheDocument();
+    } else {
+      expect(screen.getByRole("button", { name: "+ Add Note" })).toBeInTheDocument();
+      expect(screen.getByRole("article")).not.toHaveTextContent("Note:");
+    }
   });
 
   it("labels note-only activity as a note update rather than a settings update", async () => {
