@@ -82,6 +82,7 @@ type IcuPatientForm = {
   epap: string;
   cpap: string;
   flow: string;
+  notes: string;
   is_standby: boolean;
 };
 
@@ -106,6 +107,7 @@ const emptyForm: IcuPatientForm = {
   epap: "",
   cpap: "",
   flow: "",
+  notes: "",
   is_standby: false
 };
 
@@ -132,6 +134,7 @@ const icuPatientSelect = [
   "epap",
   "cpap",
   "flow",
+  "notes",
   "is_critical_vent",
   "is_sbt",
   "is_flolan",
@@ -255,6 +258,7 @@ function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
     epap: record.epap?.toString() ?? "",
     cpap: record.cpap?.toString() ?? "",
     flow: record.flow?.toString() ?? "",
+    notes: record.notes ?? "",
     is_standby: record.is_standby
   };
 }
@@ -284,6 +288,7 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     epap: deviceType === "bipap" ? numericOrNull(form.epap) : null,
     cpap: deviceType === "cpap" ? numericOrNull(form.cpap) : null,
     flow: deviceType === "hfnc" || deviceType === "cool_aerosol" ? numericOrNull(form.flow) : null,
+    notes: form.notes.trim() || null,
     is_standby: supportsIcuStandby(deviceType) ? form.is_standby : false,
     ventilator_outcome: null,
     updated_by_staff_profile_id: authContext.staffProfileId
@@ -296,6 +301,7 @@ function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unk
     device: formatIcuDeviceSummary(record),
     airway: formatIcuAirway(record) || null,
     settings: formatIcuSettings(record),
+    notes: record.notes?.trim() || null,
     ...(record.device_type === "vent" ? {
       criticalVent: record.is_critical_vent,
       sbt: record.is_sbt,
@@ -413,6 +419,7 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   const device = eventDataText(event, "device");
   const airway = eventDataText(event, "airway");
   const settings = eventDataText(event, "settings");
+  const notes = eventDataText(event, "notes");
   const outcome = eventDataText(event, "ventilatorOutcome");
   const criticalVent = eventDataBoolean(event, "criticalVent");
   const sbt = eventDataBoolean(event, "sbt");
@@ -428,6 +435,9 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   }
   if (settings) {
     lines.push(`Settings: ${settings}`);
+  }
+  if (notes) {
+    lines.push(`Note: ${notes}`);
   }
   if (criticalVent !== null) {
     lines.push(`Critical Vent: ${criticalVent ? "Yes" : "No"}`);
@@ -540,6 +550,7 @@ export function IcuPatientCard({
   onToggleStandby: () => void;
 }) {
   const airway = formatIcuAirway(record);
+  const notes = record.notes?.trim();
   const modifierLabels = activeVentModifierLabels(record);
   const tone = ventCardTone(record);
   const cardClass = tone === "critical"
@@ -586,6 +597,11 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
+          {notes ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
+              <span className="font-black">Note:</span> {notes}
+            </p>
+          ) : null}
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -1879,6 +1895,21 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                   </div>
                 </section>
               )}
+
+              {form.device_type ? (
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Notes <span className="normal-case tracking-normal text-slate-400">(optional)</span>
+                  </span>
+                  <textarea
+                    value={form.notes}
+                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    rows={3}
+                    placeholder="Add an optional patient/device note"
+                    className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  />
+                </label>
+              ) : null}
 
               {supportsIcuStandby(form.device_type) && (
                 <label className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-sm font-black text-hospital-ink">

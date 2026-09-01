@@ -47,6 +47,7 @@ export type IcuPatientRecord = {
   epap: number | null;
   cpap: number | null;
   flow: number | null;
+  notes: string | null;
   is_critical_vent: boolean;
   is_sbt: boolean;
   is_flolan: boolean;

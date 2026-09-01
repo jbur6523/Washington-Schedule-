@@ -35,6 +35,7 @@ function record(id: string, deviceType: IcuDeviceType): IcuPatientRecord {
     epap: null,
     cpap: null,
     flow: null,
+    notes: null,
     is_critical_vent: false,
     is_sbt: false,
     is_flolan: false,

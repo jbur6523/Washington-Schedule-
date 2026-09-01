@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IcuPatientCard } from "@/components/IcuCommandCenterClient";
+import { IcuReadOnlyCard } from "@/components/IcuReadOnlyViews";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 
 function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
@@ -27,6 +28,7 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
     epap: null,
     cpap: null,
     flow: null,
+    notes: null,
     is_critical_vent: false,
     is_sbt: false,
     is_flolan: false,
@@ -53,7 +55,7 @@ function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "m
     onNoteShiftEvent: vi.fn(),
     onToggleStandby: vi.fn()
   };
-  render(
+  const view = render(
     <IcuPatientCard
       record={icuRecord}
       shiftEvents={shiftEvents}
@@ -61,7 +63,7 @@ function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "m
       {...callbacks}
     />
   );
-  return callbacks;
+  return { ...callbacks, unmount: view.unmount };
 }
 
 describe("IcuPatientCard Vent actions", () => {
@@ -121,5 +123,36 @@ describe("IcuPatientCard Vent actions", () => {
     expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Discontinue" })).toBeInTheDocument();
+  });
+
+  it("shows a saved note after settings and hides blank notes", () => {
+    const { unmount } = renderCard(record({ notes: "Weaning trial planned after rounds" }));
+    const card = screen.getByRole("article");
+    const settings = within(card).getByText(/Rate 16/);
+    const note = within(card).getByText("Weaning trial planned after rounds").closest("p");
+    const updated = within(card).getByText(/Updated/);
+
+    expect(note).not.toBeNull();
+    if (!note) {
+      throw new Error("Expected the saved note paragraph.");
+    }
+    expect(note).toHaveTextContent("Note: Weaning trial planned after rounds");
+    expect(settings.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(updated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    unmount();
+    renderCard(record({ notes: "   " }));
+    expect(screen.queryByText(/Note:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("IcuReadOnlyCard notes", () => {
+  it("shows a saved note and omits an empty note row", () => {
+    const { unmount } = render(<IcuReadOnlyCard record={record({ notes: "Family update after rounds" })} />);
+    expect(screen.getByRole("article")).toHaveTextContent("Note: Family update after rounds");
+
+    unmount();
+    render(<IcuReadOnlyCard record={record({ notes: null })} />);
+    expect(screen.queryByText(/Note:/)).not.toBeInTheDocument();
   });
 });

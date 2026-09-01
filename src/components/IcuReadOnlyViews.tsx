@@ -47,6 +47,7 @@ const icuPatientSelect = [
   "epap",
   "cpap",
   "flow",
+  "notes",
   "is_critical_vent",
   "is_sbt",
   "is_flolan",
@@ -98,7 +99,8 @@ const optionalIcuColumns = [
   "is_standby",
   "ventilator_outcome",
   "discontinued_at",
-  "discontinued_by_staff_profile_id"
+  "discontinued_by_staff_profile_id",
+  "notes"
 ];
 
 type IcuReadOnlyProps = {
@@ -121,6 +123,7 @@ export function IcuSnapshotCard({ label, value }: { label: string; value: number
 
 export function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
   const airway = formatIcuAirway(record);
+  const notes = record.notes?.trim();
   const modifierLabels = activeVentModifierLabels(record);
   const tone = ventCardTone(record);
   const cardClass = tone === "critical"
@@ -160,6 +163,11 @@ export function IcuReadOnlyCard({ record }: { record: IcuPatientRecord }) {
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
+          {notes ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
+              <span className="font-black">Note:</span> {notes}
+            </p>
+          ) : null}
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
       </div>
@@ -223,6 +231,7 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecor
     epap: record.epap ?? null,
     cpap: record.cpap ?? null,
     flow: record.flow ?? null,
+    notes: record.notes ?? null,
     is_critical_vent: Boolean(record.is_critical_vent),
     is_sbt: Boolean(record.is_sbt),
     is_flolan: Boolean(record.is_flolan),

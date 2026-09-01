@@ -32,6 +32,7 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
     epap: null,
     cpap: null,
     flow: null,
+    notes: null,
     is_critical_vent: true,
     is_sbt: false,
     is_flolan: false,
