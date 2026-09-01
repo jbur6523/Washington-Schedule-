@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ProcedureMetricsPage from "./page";
 
 const mocks = vi.hoisted(() => ({
@@ -42,6 +42,8 @@ const adminContext = {
 
 describe("Procedure Metrics route authorization", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-20T19:00:00.000Z"));
     mocks.getAuthenticatedUserContext.mockReset();
     mocks.fetchRows.mockReset();
     mocks.createClient.mockReset();
@@ -49,6 +51,10 @@ describe("Procedure Metrics route authorization", () => {
     mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
     mocks.createClient.mockResolvedValue({});
     mocks.fetchRows.mockResolvedValue({ data: [], error: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("queries only the authorized department for the bounded comparison and trend range", async () => {

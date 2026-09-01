@@ -377,8 +377,12 @@ async function createIcuPatientEvent(
   });
 }
 
-function historyEventLabel(eventType: IcuPatientEventRecord["event_type"]) {
-  switch (eventType) {
+function historyEventLabel(eventRecord: IcuPatientEventRecord) {
+  if (eventRecord.event_type === "updated" && eventRecord.event_data?.action === "note_updated") {
+    return "Note updated";
+  }
+
+  switch (eventRecord.event_type) {
     case "added":
       return "Added";
     case "updated":
@@ -532,6 +536,7 @@ export function IcuPatientCard({
   record,
   shiftEvents,
   actionSaving,
+  onSaveNote,
   onUpdate,
   onDiscontinue,
   onHistory,
@@ -542,6 +547,7 @@ export function IcuPatientCard({
   record: IcuPatientRecord;
   shiftEvents: ReadonlySet<IcuVentShiftEventKey>;
   actionSaving: boolean;
+  onSaveNote: (notes: string) => void;
   onUpdate: () => void;
   onDiscontinue: () => void;
   onHistory: () => void;
@@ -550,7 +556,9 @@ export function IcuPatientCard({
   onToggleStandby: () => void;
 }) {
   const airway = formatIcuAirway(record);
-  const notes = record.notes?.trim();
+  const savedNotes = record.notes?.trim() ?? "";
+  const [noteDraft, setNoteDraft] = useState(savedNotes);
+  const noteChanged = noteDraft.trim() !== savedNotes;
   const modifierLabels = activeVentModifierLabels(record);
   const tone = ventCardTone(record);
   const cardClass = tone === "critical"
@@ -585,7 +593,7 @@ export function IcuPatientCard({
   return (
     <article className={`rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className={`text-xs font-extrabold uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
           <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
@@ -597,11 +605,38 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
-          {notes ? (
-            <p className="mt-2 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
-              <span className="font-black">Note:</span> {notes}
-            </p>
-          ) : null}
+          <form
+            className="mt-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (noteChanged) {
+                onSaveNote(noteDraft);
+              }
+            }}
+          >
+            <label htmlFor={`icu-patient-note-${record.id}`} className="block">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes</span>
+              <textarea
+                id={`icu-patient-note-${record.id}`}
+                value={noteDraft}
+                onChange={(event) => setNoteDraft(event.target.value)}
+                disabled={actionSaving}
+                rows={2}
+                placeholder="Add note…"
+                className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+            </label>
+            {noteChanged ? (
+              <button
+                type="submit"
+                disabled={actionSaving}
+                className="mt-2 inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-xs font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Save size={15} />
+                {actionSaving ? "Saving..." : "Save Note"}
+              </button>
+            ) : null}
+          </form>
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -760,7 +795,7 @@ function IcuActivityCard({
   const device = eventDataText(eventRecord, "device") || "Device";
   const settings = eventDataText(eventRecord, "settings");
   const outcome = eventDataText(eventRecord, "ventilatorOutcome");
-  const action = historyEventLabel(eventRecord.event_type);
+  const action = historyEventLabel(eventRecord);
   const boardUpdate = isBoardUpdateEvent(eventRecord.event_type);
 
   return (
@@ -1080,6 +1115,56 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     setForm(emptyForm);
     await loadRecords();
     await loadTodayActivity();
+  };
+
+  const savePatientNote = async (record: IcuPatientRecord, noteDraft: string) => {
+    const previousNotes = record.notes?.trim() || null;
+    const notes = noteDraft.trim() || null;
+    if (notes === previousNotes) {
+      return;
+    }
+
+    setActionSaving(true);
+    setMessage("");
+    setError("");
+    const supabase = createClient();
+    const { data, error: updateError } = await supabase
+      .from("icu_patients")
+      .update({
+        notes,
+        updated_by_staff_profile_id: authContext.staffProfileId
+      })
+      .eq("id", record.id)
+      .eq("department_id", authContext.departmentId)
+      .select(icuPatientSelect)
+      .maybeSingle();
+
+    if (updateError || !data) {
+      setActionSaving(false);
+      setError("Could not save ICU note. Please try again.");
+      return;
+    }
+
+    const updatedRecord = data as unknown as IcuPatientRecord;
+    setRecords((current) => current.map((item) => item.id === updatedRecord.id ? updatedRecord : item));
+    const eventResult = await createIcuPatientEvent(
+      supabase,
+      authContext,
+      updatedRecord,
+      "updated",
+      notes ? "ICU note updated." : "ICU note cleared.",
+      {
+        action: "note_updated",
+        previousNotes,
+        notes
+      },
+      undefined,
+      record
+    );
+
+    setActionSaving(false);
+    setMessage(eventResult.error ? "ICU note saved, but history could not be recorded." : "ICU note saved.");
+    await loadTodayActivity(false);
   };
 
   const openDiscontinue = (record: IcuPatientRecord) => {
@@ -1476,10 +1561,11 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           {!loading &&
             records.map((record) => (
               <IcuPatientCard
-                key={record.id}
+                key={`${record.id}:${record.notes ?? ""}`}
                 record={record}
                 shiftEvents={shiftEventMap.get(record.id) ?? emptyVentShiftEvents}
                 actionSaving={actionSaving}
+                onSaveNote={(notes) => void savePatientNote(record, notes)}
                 onUpdate={() => openEdit(record)}
                 onDiscontinue={() => openDiscontinue(record)}
                 onHistory={() => void openHistory(record)}
@@ -1611,7 +1697,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                   {activityDetailUpdatedState?.device || eventDataText(activityDetailEvent, "device") || "Device"}
                 </h2>
                 <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-                  {isBoardUpdateEvent(activityDetailEvent.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(activityDetailEvent.event_time)} · {historyEventLabel(activityDetailEvent.event_type)}
+                  {isBoardUpdateEvent(activityDetailEvent.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(activityDetailEvent.event_time)} · {historyEventLabel(activityDetailEvent)}
                   {activityDetailEvent.created_by_name ? ` by ${activityDetailEvent.created_by_name}` : ""}
                 </p>
               </div>
@@ -2129,7 +2215,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                       </span>
                       <div className="min-w-0">
                         <p className="text-sm font-black text-hospital-ink">
-                          {isBoardUpdateEvent(eventRecord.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(eventRecord.event_time)} - {historyEventLabel(eventRecord.event_type)}
+                          {isBoardUpdateEvent(eventRecord.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(eventRecord.event_time)} - {historyEventLabel(eventRecord)}
                         </p>
                         <p className="mt-1 text-xs font-bold text-slate-500">
                           By {eventRecord.created_by_name || "Unknown"}

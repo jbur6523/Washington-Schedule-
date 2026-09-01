@@ -48,6 +48,7 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
 
 function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "mri">()) {
   const callbacks = {
+    onSaveNote: vi.fn(),
     onUpdate: vi.fn(),
     onDiscontinue: vi.fn(),
     onHistory: vi.fn(),
@@ -125,24 +126,43 @@ describe("IcuPatientCard Vent actions", () => {
     expect(screen.getByRole("button", { name: "Discontinue" })).toBeInTheDocument();
   });
 
-  it("shows a saved note after settings and hides blank notes", () => {
-    const { unmount } = renderCard(record({ notes: "Weaning trial planned after rounds" }));
+  it.each(["vent", "bipap", "cpap", "hfnc", "cool_aerosol"] as const)(
+    "renders the inline Notes editor for %s patients",
+    (deviceType) => {
+      renderCard(record({
+        device_type: deviceType,
+        vent_mode: deviceType === "vent" ? "apvcmv" : null
+      }));
+
+      expect(screen.getByLabelText("Notes")).toHaveAttribute("placeholder", "Add note…");
+    }
+  );
+
+  it("prepopulates a saved note after settings and saves only after it changes", () => {
+    const callbacks = renderCard(record({ notes: "Weaning trial planned after rounds" }));
     const card = screen.getByRole("article");
     const settings = within(card).getByText(/Rate 16/);
-    const note = within(card).getByText("Weaning trial planned after rounds").closest("p");
+    const note = within(card).getByLabelText("Notes");
     const updated = within(card).getByText(/Updated/);
 
-    expect(note).not.toBeNull();
-    if (!note) {
-      throw new Error("Expected the saved note paragraph.");
-    }
-    expect(note).toHaveTextContent("Note: Weaning trial planned after rounds");
+    expect(note).toHaveValue("Weaning trial planned after rounds");
     expect(settings.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(note.compareDocumentPosition(updated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(card).queryByRole("button", { name: "Save Note" })).not.toBeInTheDocument();
 
-    unmount();
-    renderCard(record({ notes: "   " }));
-    expect(screen.queryByText(/Note:/)).not.toBeInTheDocument();
+    fireEvent.change(note, { target: { value: "Weaning trial after rounds" } });
+    fireEvent.click(within(card).getByRole("button", { name: "Save Note" }));
+    expect(callbacks.onSaveNote).toHaveBeenCalledWith("Weaning trial after rounds");
+  });
+
+  it("allows an existing note to be cleared", () => {
+    const callbacks = renderCard(record({ notes: "Existing ICU note" }));
+    const note = screen.getByLabelText("Notes");
+
+    fireEvent.change(note, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
+
+    expect(callbacks.onSaveNote).toHaveBeenCalledWith("   ");
   });
 });
 

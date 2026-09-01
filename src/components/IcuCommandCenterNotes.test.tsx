@@ -2,10 +2,11 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { IcuDeviceType, IcuPatientRecord } from "@/lib/icu-command-center/types";
+import type { IcuDeviceType, IcuPatientEventRecord, IcuPatientRecord } from "@/lib/icu-command-center/types";
 
 const mocks = vi.hoisted(() => ({
   activeRecords: [] as IcuPatientRecord[],
+  activityEvents: [] as IcuPatientEventRecord[],
   patientInserts: vi.fn(),
   patientUpdates: vi.fn(),
   eventInserts: vi.fn()
@@ -53,12 +54,36 @@ function patientRecord(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRec
   };
 }
 
+function activityEvent(overrides: Partial<IcuPatientEventRecord> = {}): IcuPatientEventRecord {
+  return {
+    id: "event-1",
+    department_id: "department-1",
+    icu_patient_id: "patient-1",
+    event_type: "updated",
+    event_time: "2026-09-01T20:39:00.000Z",
+    event_summary: "ICU note updated.",
+    event_data: {
+      action: "note_updated",
+      bed: "C223",
+      device: "HFNC",
+      settings: "Flow 40 L/min - FiO2 40%",
+      notes: "Updated note"
+    },
+    created_by_staff_profile_id: "staff-1",
+    created_by_name: "ICU Command Center",
+    operational_shift_date: null,
+    operational_shift_type: null,
+    created_at: "2026-09-01T20:39:00.000Z",
+    ...overrides
+  };
+}
+
 function queryBuilder(table: string) {
   let operation: "select" | "insert" | "update" = "select";
   let payload: Record<string, unknown> | null = null;
 
   const selectedResult = () => ({
-    data: table === "icu_patients" ? mocks.activeRecords : [],
+    data: table === "icu_patients" ? mocks.activeRecords : mocks.activityEvents,
     error: null
   });
   const savedPatientResult = () => ({
@@ -156,6 +181,7 @@ const authContext: AuthenticatedUserContext = {
 describe("ICU patient notes", () => {
   beforeEach(() => {
     mocks.activeRecords = [];
+    mocks.activityEvents = [];
     mocks.patientInserts.mockReset();
     mocks.patientUpdates.mockReset();
     mocks.eventInserts.mockReset();
@@ -205,7 +231,7 @@ describe("ICU patient notes", () => {
   ])("prepopulates and %s an existing note on update", async (_action, editedNote, expectedNote) => {
     mocks.activeRecords = [patientRecord({ notes: "Existing ICU note" })];
     render(<IcuCommandCenterClient authContext={authContext} />);
-    await screen.findByText("Existing ICU note");
+    await screen.findByDisplayValue("Existing ICU note");
 
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     const dialog = screen.getByRole("dialog", { name: "Update Patient" });
@@ -217,5 +243,41 @@ describe("ICU patient notes", () => {
 
     await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledOnce());
     expect(mocks.patientUpdates).toHaveBeenCalledWith(expect.objectContaining({ notes: expectedNote }));
+  });
+
+  it.each([
+    ["updates", "  Updated inline note  ", "Updated inline note", "ICU note updated."],
+    ["clears", "   ", null, "ICU note cleared."]
+  ])("%s a note directly from the patient card without updating device settings", async (_action, noteDraft, expectedNote, eventSummary) => {
+    mocks.activeRecords = [patientRecord({ notes: "Existing ICU note" })];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    const note = await screen.findByDisplayValue("Existing ICU note");
+
+    fireEvent.change(note, { target: { value: noteDraft } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
+
+    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledOnce());
+    expect(mocks.patientUpdates).toHaveBeenCalledWith({
+      notes: expectedNote,
+      updated_by_staff_profile_id: "staff-1"
+    });
+    expect(mocks.eventInserts).toHaveBeenCalledWith(expect.objectContaining({
+      event_type: "updated",
+      event_summary: eventSummary,
+      event_data: expect.objectContaining({
+        action: "note_updated",
+        previousNotes: "Existing ICU note",
+        notes: expectedNote
+      })
+    }));
+    expect(screen.queryByRole("dialog", { name: "Update Patient" })).not.toBeInTheDocument();
+  });
+
+  it("labels note-only activity as a note update rather than a settings update", async () => {
+    mocks.activityEvents = [activityEvent()];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+
+    expect(await screen.findByText(/C223 HFNC note updated by ICU Command Center/)).toBeInTheDocument();
+    expect(screen.queryByText(/C223 HFNC updated settings by ICU Command Center/)).not.toBeInTheDocument();
   });
 });
