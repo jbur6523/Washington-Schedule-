@@ -49,6 +49,7 @@ export type ScheduleEntry = {
 
 export type ShiftPost = {
   id: string;
+  shiftDate?: string;
   day: string;
   shiftTime: string;
   shiftCategory?: "day" | "night";

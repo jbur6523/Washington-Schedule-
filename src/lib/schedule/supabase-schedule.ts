@@ -319,6 +319,7 @@ function shortageToPost(shortage: ShiftShortageRow): ShiftPost {
 
   return {
     id: shortage.id,
+    shiftDate: shortage.shift_date,
     day: `${dayName} ${dateLabel}`,
     shiftTime: formatShiftTime(shortage.shift_start, shortage.shift_end),
     shiftCategory: shiftCategoryForType(shortage.shift_type),
@@ -486,6 +487,7 @@ function requestToPost(request: ShiftRequestRow): ShiftPost | null {
 
   return {
     id: request.id,
+    shiftDate: shift.shift_date,
     day: `${dayName} ${dateLabel}`,
     shiftTime: formatShiftTime(shift.shift_start, shift.shift_end),
     shiftCategory: shiftCategoryForType(shift.shift_type),

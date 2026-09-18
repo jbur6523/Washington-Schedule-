@@ -54,6 +54,7 @@ import {
   type UserScheduleOverrideRow
 } from "@/lib/schedule/supabase-schedule";
 import { allShiftPosts, fallbackSchedule, type ShiftPost } from "@/data/mockSchedule";
+import { useCurrentCoveragePosts } from "@/lib/schedule/use-current-coverage-posts";
 
 const scheduleFilterOptions: Array<{ id: ScheduleShiftFilter; label: string }> = [
   { id: "day", label: "Day" },
@@ -1753,6 +1754,7 @@ function ManageScheduleScreen({
 function ShiftBoardScreen({
   authContext,
   schedule,
+  timezone,
   loading,
   error,
   developmentFallback,
@@ -1760,6 +1762,7 @@ function ShiftBoardScreen({
 }: {
   authContext: AuthenticatedUserContext;
   schedule: ActiveSchedule | null;
+  timezone: string;
   loading: boolean;
   error: string;
   developmentFallback?: boolean;
@@ -1782,7 +1785,10 @@ function ShiftBoardScreen({
   const [actionError, setActionError] = useState("");
   const [success, setSuccess] = useState("");
   const canManageShortShift = authContext.role === "admin" || authContext.role === "lead";
-  const posts = developmentFallback ? allShiftPosts : schedule?.shiftPosts ?? emptyShiftPosts;
+  const posts = useCurrentCoveragePosts(
+    developmentFallback ? allShiftPosts : schedule?.shiftPosts ?? emptyShiftPosts,
+    timezone
+  );
   const ownScheduledShifts = useMemo(() => {
     if (!schedule || !authContext.staffProfileId) {
       return [];
@@ -3382,6 +3388,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
             <ShiftBoardScreen
               authContext={authContext}
               schedule={scheduleState.activeSchedule}
+              timezone={scheduleState.timezone}
               loading={scheduleState.loading}
               error={scheduleState.error}
               developmentFallback={developmentFallback}
