@@ -8,7 +8,10 @@ import {
   type FormEvent,
   type ReactNode
 } from "react";
-import { Megaphone, X } from "lucide-react";
+import { ArrowRight, Megaphone, Pencil, X } from "lucide-react";
+import { canManageDepartmentAnnouncement } from "@/lib/auth/access";
+import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import { boardTextActionClass } from "@/components/LeadBoardPreviews";
 import {
   announcementMessageLimit,
   announcementTitleLimit,
@@ -21,6 +24,29 @@ import { LeadActionCardContent, leadActionCardClass } from "@/components/LeadAct
 
 const announcementSelect =
   "id, department_id, title, message, updated_by_staff_profile_id, updated_by_name, created_at, updated_at";
+
+export function DepartmentAnnouncementStrip({ authContext, timezone }: { authContext: AuthenticatedUserContext; timezone: string }) {
+  const { announcement, loading, error, refresh } = useDepartmentAnnouncement(authContext.departmentId);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const closeDetails = useCallback(() => setDetailsOpen(false), []);
+  const closeEditor = useCallback(() => { setEditorOpen(false); void refresh(); }, [refresh]);
+  return <>
+    <section aria-label="Announcements" className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2">
+      <h2 className="flex items-center gap-2 text-sm font-bold text-hospital-ink"><Megaphone size={19} className="text-amber-600" aria-hidden="true" />Announcements</h2>
+      <p className="min-w-0 basis-full text-sm text-slate-600 sm:flex-1 sm:basis-0"><span className="line-clamp-2 break-words [overflow-wrap:anywhere]">{loading ? "Loading announcement…" : error || (announcement ? `${announcement.title} — ${announcement.message}` : "There are no current announcements.")}</span></p>
+      <div className="ml-auto flex items-center gap-1">
+        {canManageDepartmentAnnouncement(authContext) && <button type="button" onClick={() => setEditorOpen(true)} aria-label="Edit announcement" className={boardTextActionClass}><Pencil size={13} aria-hidden="true" />Edit</button>}
+        <button type="button" onClick={() => setDetailsOpen(true)} aria-label="View All announcements" className={boardTextActionClass}>View All <ArrowRight size={14} aria-hidden="true" /></button>
+      </div>
+    </section>
+    <AnnouncementModal open={detailsOpen} titleId="announcement-preview-title" closeLabel="Close announcements" onClose={closeDetails}>
+      <h2 id="announcement-preview-title" className="break-words text-xl font-bold text-hospital-ink">{announcement?.title ?? "Announcements"}</h2>
+      {announcement ? <><AnnouncementMessage message={announcement.message} /><p className="mt-4 text-xs text-slate-500">Updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}</p></> : <p className="mt-3 text-sm text-slate-500">{error || (loading ? "Loading announcement…" : "There are no current announcements.")}</p>}
+    </AnnouncementModal>
+    <DepartmentAnnouncementManagerDialog departmentId={authContext.departmentId} timezone={timezone} open={editorOpen} onClose={closeEditor} />
+  </>;
+}
 
 const focusableSelector =
   "button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";

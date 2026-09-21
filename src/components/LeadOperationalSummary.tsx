@@ -2,21 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Activity,
   Baby,
   Bed,
   Bone,
-  Building2,
   CalendarCheck,
   ClipboardList,
   Droplet,
   Heart,
   Stethoscope,
-  User,
   Users,
   Wind,
   X
 } from "lucide-react";
+import { boardPanelClass, boardTextActionClass } from "@/components/LeadBoardPreviews";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { activeRentalStatuses } from "@/lib/rental-management/status";
@@ -37,40 +35,14 @@ import {
 } from "@/lib/shift-status/utils";
 import { readSessionRvu, type SessionRvu } from "@/lib/shift-status/session-rvu";
 
-type SummaryMetricCardProps = {
-  icon: ReactNode;
-  label: string;
-  value: string | number;
-  iconClass: string;
-  helperText?: string;
-  children?: ReactNode;
-};
-
-function SummaryMetricCard({ icon, label, value, iconClass, helperText, children }: SummaryMetricCardProps) {
-  return (
-    <article
-      data-testid="operational-summary-tile"
-      className="flex h-full min-h-20 min-w-0 cursor-default flex-wrap items-center gap-3 rounded-2xl border-2 border-slate-950 bg-white/95 px-3.5 py-2.5 shadow-sm xl:min-h-[4.5rem] xl:border xl:border-slate-400 xl:px-3 xl:py-2 xl:shadow-md"
-    >
-      <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl ring-1 ring-inset ${iconClass}`}>
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <h2 className="text-[10px] font-extrabold uppercase leading-4 tracking-wide text-slate-500">
-          {label}
-          {helperText && ` · ${helperText}`}
-        </h2>
-        <p
-          data-testid="operational-summary-value"
-          aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`}
-          className="text-2xl font-black leading-none text-hospital-ink sm:text-3xl"
-        >
-          {value}
-        </p>
-      </div>
-      {children && <div className="w-full min-[640px]:ml-auto min-[640px]:w-auto">{children}</div>}
-    </article>
-  );
+function SummaryMetricRow({ label, value, helperText, children }: {
+  label: string; value: string | number; helperText?: string; children?: ReactNode;
+}) {
+  return <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-100 py-2 last:border-0">
+    <h3 className="text-sm font-normal text-slate-500">{label}{helperText && <span className="ml-1 text-xs"> · {helperText}</span>}</h3>
+    <p data-testid="operational-summary-value" aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`} className="text-xl font-semibold tabular-nums text-hospital-ink">{value}</p>
+    {children && <div className="w-full">{children}</div>}
+  </div>;
 }
 
 function ProcedureDetailCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
@@ -296,10 +268,12 @@ function ShiftNoteModal({
 
 export function LeadOperationalSummary({
   authContext,
-  timezone
+  timezone,
+  children
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
+  children?: ReactNode;
 }) {
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
   const [latestVentUpdate, setLatestVentUpdate] = useState<ShiftStatusUpdate | null>(null);
@@ -414,6 +388,7 @@ export function LeadOperationalSummary({
     };
   }, [updates]);
 
+  const coverage = resolved.latest ? Math.round((resolved.latest.rts_on - resolved.latest.rts_required) * 10) / 10 : null;
   const availabilityNotes = [shiftError, rentalError].filter(Boolean);
   const staffNeeded = resolved.latest
     ? resolved.latest.rts_required.toFixed(1)
@@ -447,67 +422,29 @@ export function LeadOperationalSummary({
   return (
     <>
       <section aria-label="Operational Summary" className="space-y-2.5">
-        <div
-          data-testid="operational-summary-grid"
-          className="grid auto-rows-fr grid-cols-1 gap-2 min-[380px]:grid-cols-2 lg:grid-cols-3 xl:mx-auto xl:w-[88%] xl:gap-3"
-        >
-          <SummaryMetricCard
-            icon={<User size={18} aria-hidden="true" />}
-            label="Staff Needed"
-            value={staffNeeded}
-            iconClass="bg-teal-50 text-teal-700 ring-teal-100"
-            helperText={staffNeededRvu}
-          >
-            {shiftNote && (
-              <button
-                type="button"
-                onClick={() => setShiftNoteOpen(true)}
-                className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-teal-300 bg-white px-2.5 text-[11px] font-extrabold text-teal-700 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
-              >
-                View Shift Note
-              </button>
-            )}
-          </SummaryMetricCard>
-          <SummaryMetricCard
-            icon={<Users size={18} aria-hidden="true" />}
-            label="Staff On Shift"
-            value={staffOnShift}
-            iconClass="bg-cyan-50 text-cyan-700 ring-cyan-100"
-          />
-          <SummaryMetricCard
-            icon={<Wind size={18} aria-hidden="true" />}
-            label="Vent Count"
-            value={ventCount}
-            iconClass="bg-sky-50 text-sky-700 ring-sky-100"
-          />
-          <SummaryMetricCard
-            icon={<Activity size={18} aria-hidden="true" />}
-            label="BiPAP Count"
-            value={bipapCount}
-            iconClass="bg-teal-50 text-teal-700 ring-teal-100"
-          />
-          <SummaryMetricCard
-            icon={<Building2 size={18} aria-hidden="true" />}
-            label="Active Rentals"
-            value={rentalCount}
-            iconClass="bg-emerald-50 text-emerald-700 ring-emerald-100"
-          />
-          <SummaryMetricCard
-            icon={<CalendarCheck size={18} aria-hidden="true" />}
-            label="Procedures"
-            value={procedures}
-            iconClass="bg-violet-50 text-violet-700 ring-violet-100"
-          >
-            {hasProcedureDetails && (
-              <button
-                type="button"
-                onClick={() => setProceduresOpen(true)}
-                className="inline-flex min-h-8 w-full items-center justify-center rounded-xl border border-violet-300 bg-white px-2.5 text-[11px] font-extrabold text-violet-700 shadow-sm transition hover:border-violet-400 hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2 min-[640px]:w-auto"
-              >
-                View Procedures
-              </button>
-            )}
-          </SummaryMetricCard>
+        <div data-testid="operational-summary-grid" className={`grid grid-cols-1 gap-5 md:grid-cols-2 ${children ? "lg:grid-cols-3" : ""}`}>
+          <section aria-labelledby="staffing-heading" className={boardPanelClass}>
+            <h2 id="staffing-heading" className="mb-4 flex items-center gap-3 text-lg font-bold text-hospital-ink"><Users size={24} className="text-blue-600" aria-hidden="true" />Staffing</h2>
+            <SummaryMetricRow label="Staff Needed" value={staffNeeded} helperText={staffNeededRvu} />
+            <SummaryMetricRow label="Staff On Shift" value={staffOnShift} />
+            <div className="flex items-center justify-between gap-3 py-2">
+              <span className="text-sm text-slate-500">Coverage</span>
+              <span aria-label={`Coverage: ${coverage === null ? "Unavailable" : coverage.toFixed(1)}`} className={`text-xl font-semibold tabular-nums ${coverage === null ? "text-slate-500" : coverage >= 0 ? "text-emerald-700" : "text-amber-700"}`}>{coverage === null ? "—" : `${coverage >= 0 ? "+" : ""}${coverage.toFixed(1)}`}</span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${coverage === null ? "bg-slate-100 text-slate-500" : coverage >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{coverage === null ? "Coverage unavailable" : coverage >= 0 ? "Adequate" : "Below required"}</span>
+              {shiftNote && <button type="button" onClick={() => setShiftNoteOpen(true)} className={boardTextActionClass}>View Shift Note</button>}
+            </div>
+          </section>
+          <section aria-labelledby="respiratory-heading" className={boardPanelClass}>
+            <h2 id="respiratory-heading" className="mb-4 flex items-center gap-3 text-lg font-bold text-hospital-ink"><Wind size={24} className="text-blue-600" aria-hidden="true" />Respiratory Load</h2>
+            <SummaryMetricRow label="Vent Count" value={ventCount} />
+            <SummaryMetricRow label="BiPAP Count" value={bipapCount} />
+            <SummaryMetricRow label="Active Rentals" value={rentalCount} />
+            <SummaryMetricRow label="Procedures" value={procedures} />
+            {hasProcedureDetails && <div className="mt-1 text-right"><button type="button" onClick={() => setProceduresOpen(true)} className={boardTextActionClass}>View Procedures</button></div>}
+          </section>
+          {children}
         </div>
 
         {availabilityNotes.length > 0 && (

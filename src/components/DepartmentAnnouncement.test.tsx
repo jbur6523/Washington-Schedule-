@@ -3,13 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DepartmentAnnouncementBoard,
   DepartmentAnnouncementEditor,
-  DepartmentAnnouncementManagerCard
+  DepartmentAnnouncementManagerCard,
+  DepartmentAnnouncementStrip
 } from "@/components/DepartmentAnnouncement";
 import {
   announcementMessageLimit,
   announcementTitleLimit,
   type DepartmentAnnouncement
 } from "@/lib/announcements/types";
+import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
 const mocks = vi.hoisted(() => ({
   loadResult: { data: null as unknown, error: null as unknown },
@@ -73,6 +75,27 @@ describe("department announcement UI", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("previews the full current announcement and preserves both details and authorized editing", async () => {
+    mocks.loadResult = { data: activeAnnouncement, error: null };
+    const authContext = { departmentId: "department-1", role: "lead", operationsRole: "command_center" } as AuthenticatedUserContext;
+    render(<DepartmentAnnouncementStrip authContext={authContext} timezone="America/Los_Angeles" />);
+    expect(await screen.findByText(/Department meeting — First line/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View All announcements" }));
+    expect(screen.getByRole("dialog", { name: "Department meeting" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close announcements" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit announcement" }));
+    expect(screen.getByRole("dialog", { name: "Manage Announcement" })).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Department meeting")).toBeInTheDocument();
+  });
+
+  it("hides announcement editing for an unauthorized viewer", async () => {
+    const authContext = { departmentId: "department-1", role: "staff", operationsRole: "none" } as AuthenticatedUserContext;
+    render(<DepartmentAnnouncementStrip authContext={authContext} timezone="America/Los_Angeles" />);
+    expect(await screen.findByText("There are no current announcements.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit announcement" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View All announcements" })).toBeInTheDocument();
   });
 
   it("shows the employee empty state and scopes the read to the employee department", async () => {

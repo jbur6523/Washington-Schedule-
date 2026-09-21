@@ -11,11 +11,16 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/LeadOperationalSummary", () => ({
-  LeadOperationalSummary: () => <section aria-label="Operational Summary">Operational Summary</section>
+  LeadOperationalSummary: ({ children }: { children: React.ReactNode }) => <section aria-label="Operational Summary">{children}</section>
 }));
 
 vi.mock("@/components/DepartmentAnnouncement", () => ({
-  DepartmentAnnouncementManagerCard: () => <button type="button">Announcement Board</button>
+  DepartmentAnnouncementStrip: () => <section aria-label="Announcements">Announcements</section>
+}));
+
+vi.mock("@/components/LeadBoardPreviews", () => ({
+  LeadNotePreview: ({ onOpen, newCount }: { onOpen: () => void; newCount: number }) => <section aria-label="Lead Note"><button onClick={onOpen}>View All Lead Communication Board notes</button>{newCount > 0 && <span className="bg-red-600">{newCount} new</span>}</section>,
+  IcuSnapshotPreview: () => <section aria-label="ICU Snapshot"><a href="/command-center/icu-snapshot">View All ICU Snapshot</a></section>
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -66,59 +71,18 @@ describe("CommandCenterClient desktop dashboard", () => {
     vi.useRealTimers();
   });
 
-  it("places the summary below the unchanged header and renders action cards in the required pairs", () => {
+  it("preserves navigation and arranges announcements, panels, quick operations, and ICU preview", () => {
     render(<CommandCenterClient authContext={authContext} timezone="America/Los_Angeles" />);
-
-    const heading = screen.getByRole("heading", { name: "Lead Command Board" });
-    const summary = screen.getByRole("region", { name: "Operational Summary" });
+    const sections = [screen.getByRole("navigation"), screen.getByRole("region", { name: "Announcements" }), screen.getByRole("region", { name: "Operational Summary" }), screen.getByTestId("lead-action-grid"), screen.getByRole("region", { name: "ICU Snapshot" })];
+    for (let i = 1; i < sections.length; i++) expect(sections[i - 1].compareDocumentPosition(sections[i]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const grid = screen.getByTestId("lead-action-grid");
-    const position = heading.compareDocumentPosition(summary);
-    const gridPosition = summary.compareDocumentPosition(grid);
-
-    expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(gridPosition & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(grid).toHaveClass("md:grid-cols-2");
-    expect(heading.closest("header")).not.toBeNull();
-    expect(heading.closest("section")).toBeNull();
-
-    const actionNames = [
-      "Shift Update",
-      "Lead Communication Board",
-      "Phone List",
-      "ICU Snapshot",
-      "Aide Communication Board",
-      "Rental Management",
-      "Short Shift Alert",
-      "Announcement Board"
-    ];
-    const renderedOrder = Array.from(grid.children).map((card) =>
-      actionNames.find((name) => card.textContent?.includes(name))
-    );
-
-    expect(renderedOrder).toEqual(actionNames);
-
-    const unifiedActionCards = Array.from(grid.children).slice(0, 7);
-    for (const card of unifiedActionCards) {
-      expect(card).toHaveClass("bg-white/95", "border-2", "border-blue-900", "focus-visible:ring-2");
-      expect(card.className).not.toMatch(/bg-(sky|blue|cyan|teal|purple|violet|amber|red)-50/);
+    expect(grid.children).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "Aide Communication Board" })).toBeInTheDocument();
+    expect(grid).not.toHaveTextContent("Lead Communication Board");
+    expect(grid).not.toHaveTextContent("Announcement Board");
+    for (const [name, href] of [["Live Board", "/command-center"], ["Schedule", "/command-center/schedule"], ["History", "/command-center/history"], ["Shift Update", "/command-center/shift-update"], ["Phone List", "/command-center/phone-list"], ["Rental Management", "/operations/rental-management"], ["Short Shift Alert", "/command-center/short-shift-alert"], ["ICU Snapshot", "/command-center/icu-snapshot"]]) {
+      expect(screen.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
     }
-    for (const accent of screen.getAllByTestId("lead-action-accent")) {
-      expect(accent).toHaveClass("inset-x-0", "bottom-0", "h-1");
-      expect(accent).not.toHaveClass("inset-y-0", "left-0", "w-1");
-    }
-    expect(screen.getAllByTestId("lead-action-chevron")).toHaveLength(7);
-    expect(screen.getByRole("link", { name: /Shift Update/ })).toHaveAttribute(
-      "href",
-      "/command-center/shift-update"
-    );
-    expect(screen.getByRole("link", { name: /Phone List/ })).toHaveAttribute(
-      "href",
-      "/command-center/phone-list"
-    );
-    expect(screen.getByRole("link", { name: /ICU Snapshot/ })).toHaveAttribute(
-      "href",
-      "/command-center/icu-snapshot"
-    );
   });
 
   it("shows a queued Shift Update success toast once and dismisses it automatically", async () => {
