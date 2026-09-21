@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, ChevronRight, ClipboardList, LogOut, Phone, ShoppingCart, Users, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronRight, ClipboardList, LogOut, Phone, ShoppingCart, Users, Zap, type LucideIcon } from "lucide-react";
 import { DepartmentAnnouncementStrip } from "@/components/DepartmentAnnouncement";
 import { IcuSnapshotPreview, LeadNotePreview } from "@/components/LeadBoardPreviews";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
@@ -87,8 +87,11 @@ export function CommandCenterClient({
           <LeadNotePreview authContext={authContext} timezone={timezone} onOpen={() => setLeadNotesOpen(true)} newCount={leadNewNoteCount} revision={previewRevision} />
         </LeadOperationalSummary>
 
-        <section aria-labelledby="quick-operations-heading">
-          <h2 id="quick-operations-heading" className="mb-3 text-lg font-bold text-hospital-ink">Quick Operations</h2>
+        <section aria-labelledby="quick-operations-heading" className="rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 id="quick-operations-heading" className="flex items-center gap-3 text-xl font-bold text-hospital-ink"><Zap size={25} className="fill-blue-600 text-blue-600" aria-hidden="true" />Quick Operations</h2>
+            <p className="text-sm font-medium text-slate-600">Common tools for lead shift operations</p>
+          </div>
           <div data-testid="lead-action-grid" aria-label="Lead command actions" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Link href="/command-center/shift-update" className={quickOperationClass}><QuickOperation icon={ClipboardList} title="Shift Update" description="Log shift information" /></Link>
             <Link href="/command-center/phone-list" className={quickOperationClass}><QuickOperation icon={Phone} title="Phone List" description="Staff & extensions" /></Link>
@@ -129,12 +132,12 @@ export function CommandCenterClient({
   );
 }
 
-const quickOperationClass = "flex min-h-20 w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50/40 px-3 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50/50 focus-visible:ring-2 focus-visible:ring-blue-600";
+const quickOperationClass = "group relative flex min-h-24 w-full items-center gap-3 rounded-xl border border-blue-200 bg-white p-4 pr-9 text-left shadow-sm transition hover:border-blue-500 hover:bg-sky-50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 lg:min-h-44 lg:flex-col lg:items-start lg:gap-3";
 
 function QuickOperation({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
   return <>
-    <Icon size={23} className="shrink-0 text-blue-600" aria-hidden="true" />
-    <span className="min-w-0 flex-1"><span className="block text-sm font-bold leading-5 text-hospital-ink">{title}</span><span className="mt-0.5 block text-xs leading-4 text-slate-500">{description}</span></span>
-    <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden="true" />
+    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-blue-100 text-blue-700"><Icon size={27} strokeWidth={2.25} aria-hidden="true" /></span>
+    <span className="min-w-0 flex-1"><span className="block text-base font-bold leading-6 text-hospital-ink">{title}</span><span className="mt-1 block text-sm font-medium leading-5 text-slate-600">{description}</span></span>
+    <ChevronRight size={20} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-700" aria-hidden="true" />
   </>;
 }

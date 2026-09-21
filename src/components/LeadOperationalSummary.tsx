@@ -39,8 +39,8 @@ function SummaryMetricRow({ label, value, helperText, children }: {
   label: string; value: string | number; helperText?: string; children?: ReactNode;
 }) {
   return <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-100 py-2 last:border-0">
-    <h3 className="text-sm font-normal text-slate-500">{label}{helperText && <span className="ml-1 text-xs"> · {helperText}</span>}</h3>
-    <p data-testid="operational-summary-value" aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`} className="text-xl font-semibold tabular-nums text-hospital-ink">{value}</p>
+    <h3 className="text-base font-semibold text-slate-700">{label}{helperText && <span className="ml-1 text-sm font-semibold"> · {helperText}</span>}</h3>
+    <p data-testid="operational-summary-value" aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`} className="text-2xl font-bold tabular-nums text-hospital-ink">{value}</p>
     {children && <div className="w-full">{children}</div>}
   </div>;
 }
@@ -428,11 +428,11 @@ export function LeadOperationalSummary({
             <SummaryMetricRow label="Staff Needed" value={staffNeeded} helperText={staffNeededRvu} />
             <SummaryMetricRow label="Staff On Shift" value={staffOnShift} />
             <div className="flex items-center justify-between gap-3 py-2">
-              <span className="text-sm text-slate-500">Coverage</span>
-              <span aria-label={`Coverage: ${coverage === null ? "Unavailable" : coverage.toFixed(1)}`} className={`text-xl font-semibold tabular-nums ${coverage === null ? "text-slate-500" : coverage >= 0 ? "text-emerald-700" : "text-amber-700"}`}>{coverage === null ? "—" : `${coverage >= 0 ? "+" : ""}${coverage.toFixed(1)}`}</span>
+              <span className="text-base font-semibold text-slate-700">Coverage</span>
+              <span aria-label={`Coverage: ${coverage === null ? "Unavailable" : coverage.toFixed(1)}`} className={`text-2xl font-bold tabular-nums ${coverage === null ? "text-slate-600" : coverage >= 0 ? "text-emerald-700" : "text-amber-700"}`}>{coverage === null ? "—" : `${coverage >= 0 ? "+" : ""}${coverage.toFixed(1)}`}</span>
             </div>
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${coverage === null ? "bg-slate-100 text-slate-500" : coverage >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{coverage === null ? "Coverage unavailable" : coverage >= 0 ? "Adequate" : "Below required"}</span>
+              <span className={`rounded-full px-3 py-1 text-sm font-bold ${coverage === null ? "bg-slate-100 text-slate-600" : coverage >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{coverage === null ? "Coverage unavailable" : coverage >= 0 ? "Adequate" : "Below required"}</span>
               {shiftNote && <button type="button" onClick={() => setShiftNoteOpen(true)} className={boardTextActionClass}>View Shift Note</button>}
             </div>
           </section>
