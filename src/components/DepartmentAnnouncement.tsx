@@ -147,8 +147,11 @@ export function useDepartmentAnnouncement(departmentId: string, enabled = true) 
     }
 
     const supabase = createClient();
+    // The strip and editor can be mounted together. Supabase reuses channels by
+    // topic and rejects new postgres listeners on an already subscribed channel.
+    // Each effect owns a fresh topic, including during rapid close/reopen cycles.
     const channel = supabase
-      .channel(`department-announcement:${departmentId}`)
+      .channel(`department-announcement:${departmentId}:${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         {

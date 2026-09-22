@@ -13,10 +13,19 @@ import {
 } from "@/lib/announcements/types";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
+type AnnouncementPayload = { eventType: string; new?: unknown };
+type MockAnnouncementChannel = {
+  subscribed: boolean;
+  callback?: (payload: AnnouncementPayload) => void;
+  on: (kind: string, filter: unknown, callback: (payload: AnnouncementPayload) => void) => MockAnnouncementChannel;
+  subscribe: () => MockAnnouncementChannel;
+};
+
 const mocks = vi.hoisted(() => ({
   loadResult: { data: null as unknown, error: null as unknown },
   realtimeCallback: null as null | ((payload: { eventType: string; new?: unknown }) => void),
   eq: vi.fn(),
+  channels: new Map<string, MockAnnouncementChannel>(),
   removeChannel: vi.fn()
 }));
 
@@ -34,22 +43,31 @@ function queryBuilder() {
 
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => {
-    const channel = {
-      on: (
-        _kind: string,
-        _filter: unknown,
-        callback: (payload: { eventType: string; new?: unknown }) => void
-      ) => {
-        mocks.realtimeCallback = callback;
-        return channel;
-      },
-      subscribe: () => channel
+    const makeChannel = () => {
+      const channel: MockAnnouncementChannel = {
+        subscribed: false,
+        on: (_kind, _filter, callback) => {
+          if (channel.subscribed) throw new Error("cannot add `postgres_changes` callbacks after `subscribe()`.");
+          channel.callback = callback;
+          mocks.realtimeCallback = callback;
+          return channel;
+        },
+        subscribe: () => { channel.subscribed = true; return channel; }
+      };
+      return channel;
     };
 
     return {
       from: () => queryBuilder(),
-      channel: () => channel,
-      removeChannel: mocks.removeChannel
+      channel: (name: string) => {
+        // Match Supabase's topic reuse and connected-channel listener restriction.
+        if (!mocks.channels.has(name)) mocks.channels.set(name, makeChannel());
+        return mocks.channels.get(name);
+      },
+      removeChannel: (channel: unknown) => {
+        mocks.removeChannel(channel);
+        for (const [name, existing] of mocks.channels) if (existing === channel) mocks.channels.delete(name);
+      }
     };
   }
 }));
@@ -71,6 +89,7 @@ describe("department announcement UI", () => {
     mocks.realtimeCallback = null;
     mocks.eq.mockReset();
     mocks.removeChannel.mockReset();
+    mocks.channels.clear();
   });
 
   afterEach(() => {
@@ -96,6 +115,28 @@ describe("department announcement UI", () => {
     expect(await screen.findByText("There are no current announcements.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit announcement" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "View All announcements" })).toBeInTheDocument();
+  });
+
+  it("keeps the strip subscription alive when the editor closes and reopens", async () => {
+    mocks.loadResult = { data: activeAnnouncement, error: null };
+    const authContext = { departmentId: "department-1", role: "lead", operationsRole: "command_center" } as AuthenticatedUserContext;
+    const view = render(<DepartmentAnnouncementStrip authContext={authContext} timezone="America/Los_Angeles" />);
+    await screen.findByText(/Department meeting — First line/);
+    const stripChannel = Array.from(mocks.channels.values())[0];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      fireEvent.click(screen.getByRole("button", { name: "Edit announcement" }));
+      await screen.findByDisplayValue("Department meeting");
+      expect(mocks.channels.size).toBe(2);
+      fireEvent.click(screen.getByRole("button", { name: "Close announcement editor" }));
+      await waitFor(() => expect(mocks.channels.size).toBe(1));
+      expect(Array.from(mocks.channels.values())[0]).toBe(stripChannel);
+    }
+    await act(async () => {
+      stripChannel.callback?.({ eventType: "UPDATE", new: { ...activeAnnouncement, title: "Live update" } });
+    });
+    expect(screen.getByText(/Live update — First line/)).toBeInTheDocument();
+    view.unmount();
+    expect(mocks.channels.size).toBe(0);
   });
 
   it("shows the employee empty state and scopes the read to the employee department", async () => {
