@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, ChevronRight, ClipboardList, LogOut, Phone, ShoppingCart, Users, Zap, type LucideIcon } from "lucide-react";
 import { DepartmentAnnouncementStrip } from "@/components/DepartmentAnnouncement";
-import { IcuSnapshotPreview, LeadNotePreview } from "@/components/LeadBoardPreviews";
+import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
+import { LeadNotePreview } from "@/components/LeadBoardPreviews";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
-import { canViewIcuCommandCenter } from "@/lib/auth/access";
+import { canManageIcuLifecycle } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { fetchLeadCommunicationNewCount, LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { RtAideNotesModal } from "@/components/RtAideNotesModal";
@@ -101,7 +102,7 @@ export function CommandCenterClient({
           </div>
         </section>
 
-        <IcuSnapshotPreview departmentId={authContext.departmentId} enabled={canViewIcuCommandCenter(authContext)} />
+        {canManageIcuLifecycle(authContext) && <IcuCommandCenterClient authContext={authContext} surface="lead" />}
 
         <button
           type="button"

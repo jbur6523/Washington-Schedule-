@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Bed, Check, ChevronRight, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
+import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
+import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { CardOverflowMenu } from "@/components/CardOverflowMenu";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
@@ -30,7 +34,6 @@ import {
   formatIcuSettings,
   getIcuSnapshotCounts,
   icuAirwayLocationLabels,
-  icuBedOptions,
   icuDeviceLabels,
   icuVentModeLabels,
   supportsIcuStandby,
@@ -59,6 +62,7 @@ import {
 
 type IcuCommandCenterClientProps = {
   authContext: AuthenticatedUserContext;
+  surface?: "full" | "lead";
 };
 
 type IcuPatientForm = {
@@ -867,7 +871,11 @@ function IcuActivityCard({
   );
 }
 
-export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientProps) {
+export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCommandCenterClientProps) {
+  const isLeadSurface = surface === "lead";
+  const Container = isLeadSurface ? "div" : "main";
+  const [roomRecords, setRoomRecords] = useState<Array<Pick<IcuPatientRecord, "bed">>>([]);
+  const roomOptions = useMemo(() => availableIcuBeds(roomRecords), [roomRecords]);
   const [records, setRecords] = useState<IcuPatientRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -926,12 +934,16 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
     const supabase = createClient();
     const shift = currentIcuOperationalShift();
-    const patientQuery = supabase
+    const patientQuery = fetchAllPages<IcuPatientRecord>((from, to) => supabase
       .from("icu_patients")
       .select(icuPatientSelect)
       .eq("department_id", authContext.departmentId)
       .eq("is_active", true)
-      .order("bed", { ascending: true });
+      .order("bed", { ascending: true }).order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: IcuPatientRecord[] | null; error: { message: string } | null }>);
+    // Existing saved rooms remain available after discontinuation on either surface.
+    const roomQuery = fetchAllPages<Pick<IcuPatientRecord, "bed">>((from, to) => supabase
+      .from("icu_patients").select("bed").eq("department_id", authContext.departmentId)
+      .order("id", { ascending: true }).range(from, to));
     const shiftEventQuery = supabase
       .from("icu_patient_events")
       .select(icuPatientEventSelect)
@@ -939,7 +951,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
       .eq("operational_shift_date", shift.shiftDate)
       .eq("operational_shift_type", shift.shiftType)
       .in("event_type", ["ct_noted", "mri_noted"]);
-    const [patientResult, shiftEventResult] = await Promise.all([patientQuery, shiftEventQuery]);
+    const [patientResult, shiftEventResult, roomResult] = await Promise.all([patientQuery, shiftEventQuery, roomQuery]);
+    if (!roomResult.error) setRoomRecords(roomResult.data ?? []);
 
     setLoading(false);
 
@@ -1020,7 +1033,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     scheduleShiftBoundaryRefresh();
     const supabase = createClient();
     const channel = supabase
-      .channel(`icu-command-center-${authContext.departmentId}`)
+      .channel(`icu-command-center-${authContext.departmentId}-${crypto.randomUUID()}`)
       .on(
         "postgres_changes",
         {
@@ -1052,6 +1065,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   }, [authContext.departmentId, loadRecords, loadTodayActivity]);
 
   const openAdd = () => {
+    if (!canManageIcuLifecycle(authContext)) return;
     setEditingRecord(null);
     setForm(emptyForm);
     setFormOpen(true);
@@ -1061,6 +1075,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   };
 
   const openEdit = (record: IcuPatientRecord) => {
+    if (isLeadSurface || !canEditIcuCommandCenter(authContext)) return;
     setEditingRecord(record);
     setForm(formFromRecord(record));
     setFormOpen(true);
@@ -1071,6 +1086,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
 
   const savePatient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!canManageIcuLifecycle(authContext) || (editingRecord && (isLeadSurface || !canEditIcuCommandCenter(authContext)))) return;
     setMessage("");
     setError("");
     setFormError("");
@@ -1108,13 +1124,15 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           .eq("department_id", authContext.departmentId)
           .select(icuPatientSelect)
           .maybeSingle()
-      : await supabase.from("icu_patients").insert({
-          ...payload,
-          is_critical_vent: false,
-          created_by_staff_profile_id: authContext.staffProfileId
-        })
-          .select(icuPatientSelect)
-          .maybeSingle();
+      : await supabase.rpc("manage_icu_device", {
+          target_department_id: authContext.departmentId,
+          target_action: "add",
+          target_payload: payload,
+          target_event_data: eventDataFromRecord({
+            ...payload, device_type: form.device_type as IcuDeviceType,
+            is_active: true, is_critical_vent: false, is_sbt: false, is_flolan: false, is_prone: false
+          } as IcuPatientRecord, { action: "added" })
+        });
 
     setSaving(false);
 
@@ -1128,7 +1146,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     }
 
     const savedRecord = result.data as unknown as IcuPatientRecord | null;
-    if (savedRecord) {
+    if (savedRecord && editingRecord) {
       const eventResult = await createIcuPatientEvent(
         supabase,
         authContext,
@@ -1210,6 +1228,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   };
 
   const openDiscontinue = (record: IcuPatientRecord) => {
+    if (!canManageIcuLifecycle(authContext)) return;
     const defaults = defaultIcuDateTime();
     setDiscontinueTarget(record);
     setVentilatorOutcome("");
@@ -1248,57 +1267,33 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
     const supabase = createClient();
     const outcome: VentilatorOutcome | null =
       discontinueTarget.device_type === "vent" ? (ventilatorOutcome as VentilatorOutcome) : null;
-    const { data, error: discontinueUpdateError } = await supabase
-      .from("icu_patients")
-      .update({
-        is_active: false,
-        discontinued_at: discontinuedAt,
-        discontinued_by_staff_profile_id: authContext.staffProfileId,
-        ventilator_outcome: outcome,
-        updated_by_staff_profile_id: authContext.staffProfileId
-      })
-      .eq("id", discontinueTarget.id)
-      .eq("department_id", authContext.departmentId)
-      .select(icuPatientSelect)
-      .maybeSingle();
-
-    setActionSaving(false);
-
-    if (discontinueUpdateError || !data) {
-      setDiscontinueError("Could not discontinue ICU device. Please try again.");
-      return;
-    }
-
-    const discontinuedRecord = (data as unknown as IcuPatientRecord | null) ?? {
-      ...discontinueTarget,
-      is_active: false,
-      discontinued_at: discontinuedAt,
-      discontinued_by_staff_profile_id: authContext.staffProfileId,
-      ventilator_outcome: outcome
-    };
-    const eventResult = await createIcuPatientEvent(
-      supabase,
-      authContext,
-      discontinuedRecord,
-      "discontinued",
-      outcome ? `Discontinued. Outcome: ${ventilatorOutcomeLabels[outcome]}.` : "Device discontinued.",
-      {
+    const discontinuedRecord = { ...discontinueTarget, is_active: false, discontinued_at: discontinuedAt, ventilator_outcome: outcome };
+    const { error: discontinueUpdateError } = await supabase.rpc("manage_icu_device", {
+      target_department_id: authContext.departmentId,
+      target_action: "discontinue",
+      target_patient_id: discontinueTarget.id,
+      expected_updated_at: discontinueTarget.updated_at,
+      target_payload: { discontinued_at: discontinuedAt, ventilator_outcome: outcome },
+      target_event_data: eventDataFromRecord(discontinuedRecord, {
+        previousState: icuActivityStateFromRecord(discontinueTarget),
         ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
         discontinuedAt
-      },
-      discontinuedAt,
-      discontinueTarget
-    );
+      })
+    });
+    setActionSaving(false);
+    if (discontinueUpdateError) {
+      setDiscontinueError(discontinueUpdateError.code === "40001"
+        ? "This device changed. Close this dialog and review the refreshed record before discontinuing."
+        : "Could not discontinue ICU device. Please try again.");
+      await loadRecords(false);
+      return;
+    }
 
     setDiscontinueTarget(null);
     setVentilatorOutcome("");
     setDiscontinuedDate("");
     setDiscontinuedTime("");
-    setMessage(
-      eventResult.error
-        ? `${discontinuedRecord.bed} discontinued, but history could not be recorded.`
-        : "Device discontinued."
-    );
+    setMessage("Device discontinued.");
     await loadRecords();
     await loadTodayActivity();
   };
@@ -1514,8 +1509,8 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
   };
 
   return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-xl space-y-4">
+    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
+      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">ICU Command Center</h1>
@@ -1720,7 +1715,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
           <LogOut size={16} />
           Sign out
         </button>
-      </div>
+      </div>}
 
       {activityDetailEvent && (
         <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
@@ -1819,7 +1814,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
                 <h2 id="icu-form-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  {editingRecord ? "Update Patient" : "Add Patient"}
+                  {editingRecord ? "Update Patient" : isLeadSurface ? "Add Device" : "Add Patient"}
                 </h2>
               </div>
               <button
@@ -1851,7 +1846,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                     className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                   >
                     <option value="">Select bed</option>
-                    {icuBedOptions.map((bedOption) => (
+                    {roomOptions.map((bedOption) => (
                       <option key={bedOption} value={bedOption}>
                         {bedOption}
                       </option>
@@ -1874,7 +1869,7 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
                     className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                   >
                     <option value="">Select device</option>
-                    {(["vent", "bipap", "cpap", "hfnc", "cool_aerosol"] as IcuDeviceType[]).map((device) => (
+                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).map((device) => (
                       <option key={device} value={device}>
                         {icuDeviceLabels[device]}
                       </option>
@@ -2359,6 +2354,6 @@ export function IcuCommandCenterClient({ authContext }: IcuCommandCenterClientPr
         onClose={() => setLeadNotesOpen(false)}
         context="icu"
       />
-    </main>
+    </Container>
   );
 }

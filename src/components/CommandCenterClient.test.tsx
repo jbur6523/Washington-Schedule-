@@ -19,8 +19,11 @@ vi.mock("@/components/DepartmentAnnouncement", () => ({
 }));
 
 vi.mock("@/components/LeadBoardPreviews", () => ({
-  LeadNotePreview: ({ onOpen, newCount }: { onOpen: () => void; newCount: number }) => <section aria-label="Lead Note"><button onClick={onOpen}>View All Lead Communication Board notes</button>{newCount > 0 && <span className="bg-red-600">{newCount} new</span>}</section>,
-  IcuSnapshotPreview: () => <section aria-label="ICU Snapshot"><a href="/command-center/icu-snapshot">View All ICU Snapshot</a></section>
+  LeadNotePreview: ({ onOpen, newCount }: { onOpen: () => void; newCount: number }) => <section aria-label="Lead Note"><button onClick={onOpen}>View All Lead Communication Board notes</button>{newCount > 0 && <span className="bg-red-600">{newCount} new</span>}</section>
+}));
+
+vi.mock("@/components/IcuCommandCenterClient", () => ({
+  IcuCommandCenterClient: ({ surface }: { surface: string }) => <section aria-label="ICU Snapshot" data-surface={surface}><button>Add Device</button></section>
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -80,7 +83,7 @@ describe("CommandCenterClient desktop dashboard", () => {
     expect(screen.getByRole("button", { name: "Aide Communication Board" })).toBeInTheDocument();
     expect(grid).not.toHaveTextContent("Lead Communication Board");
     expect(grid).not.toHaveTextContent("Announcement Board");
-    for (const [name, href] of [["Live Board", "/command-center"], ["Schedule", "/command-center/schedule"], ["History", "/command-center/history"], ["Shift Update", "/command-center/shift-update"], ["Phone List", "/command-center/phone-list"], ["Rental Management", "/operations/rental-management"], ["Short Shift Alert", "/command-center/short-shift-alert"], ["ICU Snapshot", "/command-center/icu-snapshot"]]) {
+    for (const [name, href] of [["Live Board", "/command-center"], ["Schedule", "/command-center/schedule"], ["History", "/command-center/history"], ["Shift Update", "/command-center/shift-update"], ["Phone List", "/command-center/phone-list"], ["Rental Management", "/operations/rental-management"], ["Short Shift Alert", "/command-center/short-shift-alert"]]) {
       expect(screen.getByRole("link", { name: new RegExp(name) })).toHaveAttribute("href", href);
     }
   });

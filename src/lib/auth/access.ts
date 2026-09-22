@@ -56,8 +56,13 @@ export function canEditIcuCommandCenter(context: Pick<AuthenticatedUserContext, 
   return context.role === "admin" || isIcuCommandCenter(context);
 }
 
+// Lifecycle only: this does not grant ICU settings, notes, or status editing.
+export function canManageIcuLifecycle(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
+  return canEditIcuCommandCenter(context) || context.role === "lead" || isCommandCenter(context);
+}
+
 export function canViewIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
-  return canEditIcuCommandCenter(context) || isDirector(context) || isCommandCenter(context);
+  return canManageIcuLifecycle(context) || isDirector(context);
 }
 
 export function canCreateLeadCommunication(

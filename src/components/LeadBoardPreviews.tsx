@@ -1,21 +1,17 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, FileText, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { canCreateLeadCommunication } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { IcuDeviceType } from "@/lib/icu-command-center/types";
-import { icuDeviceLabels } from "@/lib/icu-command-center/utils";
 import { formatShiftStatusTime } from "@/lib/shift-status/utils";
 
 type LeadPreview = { id: string; note_text: string; created_by_name: string | null; updated_at: string; priority: string };
-type IcuPreview = { id: string; bed: string; device_type: IcuDeviceType; notes: string | null; is_standby: boolean };
 
 // Read-only previews share the full boards' department and active-record filters.
 // Polling covers reconnects; realtime updates keep an open dashboard current.
-function useBoardPreview<T>(departmentId: string, table: "lead_communication_notes" | "icu_patients", revision = 0, enabled = true) {
+function useBoardPreview<T>(departmentId: string, table: "lead_communication_notes", revision = 0, enabled = true) {
   const [state, setState] = useState<{ rows: T[]; loading: boolean; error: boolean }>({ rows: [], loading: true, error: false });
   useEffect(() => {
     if (!enabled) return;
@@ -25,9 +21,7 @@ function useBoardPreview<T>(departmentId: string, table: "lead_communication_not
     const load = async () => {
       const currentRequest = ++request;
       try {
-        const query = table === "lead_communication_notes"
-          ? supabase.from(table).select("id, note_text, created_by_name, updated_at, priority").eq("department_id", departmentId).neq("status", "closed").order("created_at", { ascending: false }).limit(1)
-          : supabase.from(table).select("id, bed, device_type, notes, is_standby").eq("department_id", departmentId).eq("is_active", true).order("bed", { ascending: true }).limit(6);
+        const query = supabase.from(table).select("id, note_text, created_by_name, updated_at, priority").eq("department_id", departmentId).neq("status", "closed").order("created_at", { ascending: false }).limit(1);
         const { data, error } = await query;
         if (!cancelled && currentRequest === request) setState({ rows: error ? [] : (data ?? []) as unknown as T[], loading: false, error: Boolean(error) });
       } catch {
@@ -65,23 +59,5 @@ export function LeadNotePreview({ authContext, timezone, onOpen, newCount, revis
       {canCreateLeadCommunication(authContext) && <button type="button" onClick={onOpen} className={boardTextActionClass}><Plus size={14} aria-hidden="true" />Add note</button>}
       <button type="button" onClick={onOpen} aria-label="View All Lead Communication Board notes" className={boardTextActionClass}>View All <ArrowRight size={14} aria-hidden="true" /></button>
     </div>
-  </section>;
-}
-
-export function IcuSnapshotPreview({ departmentId, enabled = true }: { departmentId: string; enabled?: boolean }) {
-  const { rows, loading, error } = useBoardPreview<IcuPreview>(departmentId, "icu_patients", 0, enabled);
-  return <section aria-labelledby="icu-preview-heading" className="border-t border-slate-200 pt-4">
-    <div className="mb-2 flex items-center justify-between gap-3">
-      <h2 id="icu-preview-heading" className="text-lg font-bold text-hospital-ink">ICU Snapshot</h2>
-      <Link href="/command-center/icu-snapshot" aria-label="View All ICU Snapshot" className={boardTextActionClass}>View All <ArrowRight size={14} aria-hidden="true" /></Link>
-    </div>
-    <table className="w-full table-fixed text-left text-sm">
-      <caption className="sr-only">Current ICU respiratory devices and notes, up to six rooms</caption>
-      <thead className="bg-slate-100/80 text-xs text-slate-500"><tr><th scope="col" className="w-1/4 px-3 py-2 font-semibold">Room Number</th><th scope="col" className="w-1/4 px-3 py-2 font-semibold">Device</th><th scope="col" className="px-3 py-2 font-semibold">Notes</th></tr></thead>
-      <tbody className="divide-y divide-slate-100 text-slate-700">
-        {rows.map(row => <tr key={row.id}><td className="px-3 py-2 align-top font-medium">{row.bed}</td><td className="px-3 py-2 align-top">{icuDeviceLabels[row.device_type] ?? row.device_type}{row.is_standby && <span className="block text-xs text-slate-500">Standby</span>}</td><td className="break-words px-3 py-2 [overflow-wrap:anywhere]"><span className="line-clamp-2 whitespace-pre-wrap">{row.notes || "—"}</span></td></tr>)}
-        {!rows.length && <tr><td colSpan={3} className="px-3 py-6 text-center text-slate-500">{!enabled ? "ICU Snapshot requires Command Center access." : loading ? "Loading ICU snapshot…" : error ? "ICU snapshot unavailable." : "No active ICU records."}</td></tr>}
-      </tbody>
-    </table>
   </section>;
 }

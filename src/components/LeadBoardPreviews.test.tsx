@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { IcuSnapshotPreview, LeadNotePreview } from "@/components/LeadBoardPreviews";
+import { LeadNotePreview } from "@/components/LeadBoardPreviews";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 
 const mocks = vi.hoisted(() => ({ rows: [] as unknown[], error: null as unknown, filters: vi.fn(), order: vi.fn(), limit: vi.fn(), changed: () => {}, remove: vi.fn() }));
@@ -36,35 +36,6 @@ describe("Lead board previews", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add note" }));
     fireEvent.click(screen.getByRole("button", { name: /View All/ }));
     expect(onOpen).toHaveBeenCalledTimes(2);
-  });
-
-  it("refreshes the preview after realtime changes and cleans up the subscription", async () => {
-    const view = render(<IcuSnapshotPreview departmentId="department-1" />);
-    expect(await screen.findByText("No active ICU records.")).toBeInTheDocument();
-    mocks.rows = [{ id: "icu-1", bed: "C220", device_type: "vent", notes: "Transport ready", is_standby: true }];
-    await act(async () => mocks.changed());
-    expect(await screen.findByText("C220")).toBeInTheDocument();
-    expect(screen.getByText("Vent")).toBeInTheDocument();
-    expect(screen.getByText("Standby")).toBeInTheDocument();
-    expect(screen.getAllByRole("columnheader").map(node => node.textContent)).toEqual(["Room Number", "Device", "Notes"]);
-    expect(mocks.filters).toHaveBeenCalledWith("is_active", true);
-    expect(mocks.limit).toHaveBeenCalledWith(6);
-    expect(screen.getByRole("link", { name: /View All/ })).toHaveAttribute("href", "/command-center/icu-snapshot");
-    view.unmount();
-    expect(mocks.remove).toHaveBeenCalled();
-  });
-
-  it("distinguishes a failed query from an empty board", async () => {
-    mocks.error = { message: "unavailable" };
-    render(<IcuSnapshotPreview departmentId="department-1" />);
-    expect(await screen.findByText("ICU snapshot unavailable.")).toBeInTheDocument();
-    expect(screen.queryByText("No active ICU records.")).not.toBeInTheDocument();
-  });
-
-  it("does not load ICU records without existing ICU access", () => {
-    render(<IcuSnapshotPreview departmentId="department-1" enabled={false} />);
-    expect(screen.getByText("ICU Snapshot requires Command Center access.")).toBeInTheDocument();
-    expect(mocks.filters).not.toHaveBeenCalled();
   });
 
   it("does not offer note creation to an unauthorized viewer", async () => {

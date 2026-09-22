@@ -6,7 +6,10 @@ const supabaseOrigin = (() => {
   }
 })();
 
-const connectSources = ["'self'", "https://*.supabase.co", "wss://*.supabase.co", supabaseOrigin]
+// Realtime uses the WebSocket counterpart of the configured API origin,
+// including the local Supabase stack used for review.
+const supabaseRealtimeOrigin = supabaseOrigin.replace(/^http/, "ws");
+const connectSources = ["'self'", "https://*.supabase.co", "wss://*.supabase.co", supabaseOrigin, supabaseRealtimeOrigin]
   .filter(Boolean)
   .join(" ");
 

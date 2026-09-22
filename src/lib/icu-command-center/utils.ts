@@ -35,7 +35,26 @@ export const icuBedOptions = [
   "E246",
   "E247",
   "E248",
-  "E249"
+  "E249",
+  "IMC - 201",
+  "IMC - 202",
+  "IMC - 203",
+  "IMC - 204",
+  "IMC - 205",
+  "IMC - 206",
+  "IMC - 207",
+  "IMC - 208",
+  "IMC - 209",
+  "IMC - 210",
+  "IMC - 211",
+  "IMC - 212",
+  "IMC - 213",
+  "IMC - 214",
+  "IMC - 215",
+  "IMC - 216",
+  "IMC - 217",
+  "IMC - 218",
+  "IMC - 219"
 ] as const;
 
 export const icuDeviceLabels: Record<IcuDeviceType, string> = {

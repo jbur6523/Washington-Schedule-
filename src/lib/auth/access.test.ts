@@ -3,6 +3,7 @@ import {
   authenticatedLandingPath,
   canCreateLeadCommunication,
   canEditIcuCommandCenter,
+  canManageIcuLifecycle,
   canManageDepartmentAnnouncement,
   canManageShiftStatus,
   canReplyToLeadCommunication,
@@ -32,6 +33,7 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(staff)).toBe(false);
     expect(canViewDirectorShiftStatus(staff)).toBe(false);
     expect(canEditIcuCommandCenter(staff)).toBe(false);
+    expect(canManageIcuLifecycle(staff)).toBe(false);
     expect(canViewIcuCommandCenter(staff)).toBe(false);
     expect(canViewMetrics(staff)).toBe(false);
     expect(canViewRvuStaffingMetrics(staff)).toBe(false);
@@ -47,6 +49,8 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(lead)).toBe(true);
     expect(canViewDirectorShiftStatus(lead)).toBe(true);
     expect(canEditIcuCommandCenter(lead)).toBe(false);
+    expect(canManageIcuLifecycle(lead)).toBe(true);
+    expect(canViewIcuCommandCenter(lead)).toBe(true);
     expect(canViewMetrics(lead)).toBe(false);
     expect(canViewRvuStaffingMetrics(lead)).toBe(false);
   });
@@ -73,6 +77,7 @@ describe("role permission matrix", () => {
     expect(canManageDepartmentAnnouncement(director)).toBe(true);
     expect(canViewIcuCommandCenter(director)).toBe(true);
     expect(canEditIcuCommandCenter(director)).toBe(false);
+    expect(canManageIcuLifecycle(director)).toBe(false);
     expect(canUseNotifications(director)).toBe(true);
 
     expect(canEditIcuCommandCenter(icu)).toBe(true);

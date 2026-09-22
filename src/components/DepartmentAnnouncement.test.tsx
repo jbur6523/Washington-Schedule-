@@ -66,7 +66,7 @@ vi.mock("@/lib/supabase/client", () => ({
       },
       removeChannel: (channel: unknown) => {
         mocks.removeChannel(channel);
-        for (const [name, existing] of mocks.channels) if (existing === channel) mocks.channels.delete(name);
+        for (const [name, existing] of Array.from(mocks.channels)) if (existing === channel) mocks.channels.delete(name);
       }
     };
   }

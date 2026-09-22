@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   activityEvents: [] as IcuPatientEventRecord[],
   patientInserts: vi.fn(),
   patientUpdates: vi.fn(),
-  eventInserts: vi.fn()
+  eventInserts: vi.fn(),
+  rpc: vi.fn(),
+  changed: [] as Array<() => void>,
+  remove: vi.fn()
 }));
 
 function patientRecord(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
@@ -113,6 +116,7 @@ function queryBuilder(table: string) {
     in() {
       return builder;
     },
+    range() { return builder; },
     order() {
       return builder;
     },
@@ -149,7 +153,8 @@ function queryBuilder(table: string) {
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => {
     const channel = {
-      on() {
+      on(_event: unknown, _filter: unknown, callback: () => void) {
+        mocks.changed.push(callback);
         return channel;
       },
       subscribe() {
@@ -160,8 +165,8 @@ vi.mock("@/lib/supabase/client", () => ({
     return {
       from: (table: string) => queryBuilder(table),
       channel: () => channel,
-      removeChannel: vi.fn(),
-      rpc: vi.fn()
+      removeChannel: mocks.remove,
+      rpc: mocks.rpc
     };
   }
 }));
@@ -185,6 +190,15 @@ describe("ICU patient notes", () => {
     mocks.patientInserts.mockReset();
     mocks.patientUpdates.mockReset();
     mocks.eventInserts.mockReset();
+    mocks.changed = [];
+    mocks.remove.mockClear();
+    mocks.rpc.mockReset().mockImplementation(async (_name, args) => {
+      const record = args.target_action === "add"
+        ? patientRecord({ ...args.target_payload, id: "patient-new" })
+        : patientRecord({ ...mocks.activeRecords[0], ...args.target_payload, is_active: false });
+      mocks.activeRecords = args.target_action === "add" ? [record] : [];
+      return { data: record, error: null };
+    });
   });
 
   it("shows the optional Notes field after every supported device settings section and saves a trimmed note", async () => {
@@ -216,13 +230,13 @@ describe("ICU patient notes", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(mocks.patientInserts).toHaveBeenCalledOnce());
-    expect(mocks.patientInserts).toHaveBeenCalledWith(expect.objectContaining({
-      notes: "Weaning trial planned after rounds"
-    }));
-    await waitFor(() => expect(mocks.eventInserts).toHaveBeenCalledWith(expect.objectContaining({
-      event_data: expect.objectContaining({ notes: "Weaning trial planned after rounds" })
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_action: "add",
+      target_payload: expect.objectContaining({ notes: "Weaning trial planned after rounds" }),
+      target_event_data: expect.objectContaining({ notes: "Weaning trial planned after rounds", action: "added" })
     })));
+    expect(mocks.patientInserts).not.toHaveBeenCalled();
+    expect(mocks.eventInserts).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -290,4 +304,60 @@ describe("ICU patient notes", () => {
     expect(await screen.findByText(/C223 HFNC note updated by ICU Command Center/)).toBeInTheDocument();
     expect(screen.queryByText(/C223 HFNC updated settings by ICU Command Center/)).not.toBeInTheDocument();
   });
+  it("allows a Lead to add through the shared ICU form and atomic record/history action", async () => {
+    render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
+    await screen.findAllByText("No active respiratory devices.");
+    fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
+    const dialog = screen.getByRole("dialog", { name: "Add Device" });
+    fireEvent.change(within(dialog).getByLabelText("Bed"), { target: { value: "IMC - 201" } });
+    fireEvent.change(within(dialog).getByLabelText("Device"), { target: { value: "hfnc" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_action: "add", target_department_id: "department-1",
+      target_payload: expect.objectContaining({ bed: "IMC - 201", device_type: "hfnc" }),
+      target_event_data: expect.objectContaining({ action: "added", bed: "IMC - 201" })
+    })));
+    expect(await screen.findByRole("button", { name: "Discontinue IMC - 201" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Update" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Edit note" })).not.toBeInTheDocument();
+  });
+
+  it.each(["vent", "hfnc"] as const)("discontinues a %s through the shared lifecycle dialog", async device_type => {
+    mocks.activeRecords = [patientRecord({ device_type, vent_mode: device_type === "vent" ? "apvcmv" : null })];
+    render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Discontinue C223" }));
+    const dialog = screen.getByRole("dialog", { name: device_type === "vent" ? "Ventilator Outcome" : "Discontinue Device?" });
+    const confirm = within(dialog).getByRole("button", { name: /^Discontinue/ });
+    if (device_type === "vent") {
+      fireEvent.click(confirm);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(within(dialog).getByText(/Select a ventilator outcome before/)).toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole("radio", { name: "Extubation" }));
+    } else {
+      expect(within(dialog).queryByLabelText("Ventilator Outcome")).not.toBeInTheDocument();
+    }
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_action: "discontinue", target_patient_id: "patient-1", expected_updated_at: "2026-09-01T19:00:00.000Z",
+      target_payload: { discontinued_at: expect.any(String), ventilator_outcome: device_type === "vent" ? "extubation" : null },
+      target_event_data: expect.objectContaining({ previousState: expect.objectContaining({ isActive: true }), updatedState: expect.objectContaining({ isActive: false }) })
+    })));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Discontinue C223" })).not.toBeInTheDocument());
+    expect(mocks.patientUpdates).not.toHaveBeenCalled();
+    expect(mocks.eventInserts).not.toHaveBeenCalled();
+  });
+
+  it("refetches shared ICU settings, notes and statuses after realtime changes and cleans up", async () => {
+    mocks.activeRecords = [patientRecord()];
+    const view = render(<IcuCommandCenterClient authContext={authContext} surface="lead" />);
+    await screen.findByText("C223");
+    mocks.activeRecords = [patientRecord({ flow: 55, notes: "Changed in ICU", is_standby: true })];
+    await act(async () => { mocks.changed[0](); });
+    expect(await screen.findByText("Note: Changed in ICU")).toBeInTheDocument();
+    expect(screen.getByText("Standby")).toBeInTheDocument();
+    expect(screen.getByText(/Flow 55/)).toBeInTheDocument();
+    view.unmount();
+    expect(mocks.remove).toHaveBeenCalled();
+  });
+
 });
