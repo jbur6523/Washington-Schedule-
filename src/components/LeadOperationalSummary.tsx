@@ -35,12 +35,12 @@ import {
 } from "@/lib/shift-status/utils";
 import { readSessionRvu, type SessionRvu } from "@/lib/shift-status/session-rvu";
 
-function SummaryMetricRow({ label, value, helperText, children }: {
-  label: string; value: string | number; helperText?: string; children?: ReactNode;
+function SummaryMetricRow({ label, value, helperText, valueClassName = "text-hospital-ink", children }: {
+  label: string; value: string | number; helperText?: string; valueClassName?: string; children?: ReactNode;
 }) {
   return <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-slate-100 py-2 last:border-0">
     <h3 className="text-base font-semibold text-slate-700">{label}{helperText && <span className="ml-1 text-sm font-semibold"> · {helperText}</span>}</h3>
-    <p data-testid="operational-summary-value" aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`} className="text-2xl font-bold tabular-nums text-hospital-ink">{value}</p>
+    <p data-testid="operational-summary-value" aria-label={`${label}: ${value === "—" ? "Unavailable" : value}`} className={`text-2xl font-bold tabular-nums ${valueClassName}`}>{value}</p>
     {children && <div className="w-full">{children}</div>}
   </div>;
 }
@@ -176,6 +176,40 @@ function ProcedureDetailsModal({
           </p>
         )}
       </section>
+    </div>
+  );
+}
+
+function ShiftNotePreview({ note, loading, unavailable, onViewMore }: {
+  note: string; loading: boolean; unavailable: boolean; onViewMore: () => void;
+}) {
+  const textRef = useRef<HTMLParagraphElement | null>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  useEffect(() => {
+    const element = textRef.current;
+    if (!element) return;
+    const measure = () => setTruncated(Boolean(note) && element.scrollHeight > element.clientHeight + 1);
+    const frame = window.requestAnimationFrame(measure);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [note, loading, unavailable]);
+
+  return (
+    <div className="mt-2 h-20 min-w-0">
+      <div className="flex h-10 items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-slate-700">Shift Note</h3>
+        {truncated && <button type="button" aria-label="View more of shift note" aria-haspopup="dialog" onClick={onViewMore} className={boardTextActionClass}>View more</button>}
+      </div>
+      <p ref={textRef} className="line-clamp-2 whitespace-pre-wrap break-words text-sm font-semibold leading-5 text-slate-700 [overflow-wrap:anywhere]">
+        {loading ? "Loading shift note…" : unavailable ? "Shift note unavailable." : note || "No shift note for the latest update."}
+      </p>
     </div>
   );
 }
@@ -388,7 +422,6 @@ export function LeadOperationalSummary({
     };
   }, [updates]);
 
-  const coverage = resolved.latest ? Math.round((resolved.latest.rts_on - resolved.latest.rts_required) * 10) / 10 : null;
   const availabilityNotes = [shiftError, rentalError].filter(Boolean);
   const staffNeeded = resolved.latest
     ? resolved.latest.rts_required.toFixed(1)
@@ -426,15 +459,8 @@ export function LeadOperationalSummary({
           <section aria-labelledby="staffing-heading" className={boardPanelClass}>
             <h2 id="staffing-heading" className="mb-4 flex items-center gap-3 text-lg font-bold text-hospital-ink"><Users size={24} className="text-blue-600" aria-hidden="true" />Staffing</h2>
             <SummaryMetricRow label="Staff Needed" value={staffNeeded} helperText={staffNeededRvu} />
-            <SummaryMetricRow label="Staff On Shift" value={staffOnShift} />
-            <div className="flex items-center justify-between gap-3 py-2">
-              <span className="text-base font-semibold text-slate-700">Coverage</span>
-              <span aria-label={`Coverage: ${coverage === null ? "Unavailable" : coverage.toFixed(1)}`} className={`text-2xl font-bold tabular-nums ${coverage === null ? "text-slate-600" : coverage >= 0 ? "text-emerald-700" : "text-amber-700"}`}>{coverage === null ? "—" : `${coverage >= 0 ? "+" : ""}${coverage.toFixed(1)}`}</span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span className={`rounded-full px-3 py-1 text-sm font-bold ${coverage === null ? "bg-slate-100 text-slate-600" : coverage >= 0 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{coverage === null ? "Coverage unavailable" : coverage >= 0 ? "Adequate" : "Below required"}</span>
-              {shiftNote && <button type="button" onClick={() => setShiftNoteOpen(true)} className={boardTextActionClass}>View Shift Note</button>}
-            </div>
+            <SummaryMetricRow label="Staff On Shift" value={staffOnShift} valueClassName={resolved.latest ? resolved.latest.rts_on < resolved.latest.rts_required ? "text-red-700" : "text-green-700" : undefined} />
+            <ShiftNotePreview note={shiftNote} loading={loading} unavailable={Boolean(shiftError) && !resolved.latest} onViewMore={() => setShiftNoteOpen(true)} />
           </section>
           <section aria-labelledby="respiratory-heading" className={boardPanelClass}>
             <h2 id="respiratory-heading" className="mb-4 flex items-center gap-3 text-lg font-bold text-hospital-ink"><Wind size={24} className="text-blue-600" aria-hidden="true" />Respiratory Load</h2>

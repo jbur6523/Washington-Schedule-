@@ -85,6 +85,8 @@ const currentUpdate: ShiftStatusUpdate = {
 describe("LeadOperationalSummary", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => window.setTimeout(() => callback(0), 0));
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => window.clearTimeout(id));
     vi.setSystemTime(new Date("2026-08-09T16:00:00.000Z"));
     mocks.fetchLatestCanonical.mockReset();
     mocks.fetchLatestCanonical.mockResolvedValue({ data: currentUpdate, error: null });
@@ -96,14 +98,16 @@ describe("LeadOperationalSummary", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
   async function renderLoadedSummary() {
     render(<LeadOperationalSummary authContext={authContext} timezone="America/Los_Angeles" />);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1);
+      await vi.advanceTimersByTimeAsync(20);
     });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
   }
 
   it("groups the six canonical metrics by staffing and respiratory load and preserves confirmed zero values", async () => {
@@ -114,6 +118,7 @@ describe("LeadOperationalSummary", () => {
       "Staffing",
       "Staff Needed",
       "Staff On Shift",
+      "Shift Note",
       "Respiratory Load",
       "Vent Count",
       "BiPAP Count",
@@ -129,8 +134,9 @@ describe("LeadOperationalSummary", () => {
 
     const grid = screen.getByTestId("operational-summary-grid");
     expect(grid).toHaveClass("grid-cols-1", "md:grid-cols-2");
-    expect(within(summary).getByLabelText("Coverage: -1.5")).toBeInTheDocument();
-    expect(within(summary).getByText("Below required")).toBeInTheDocument();
+    expect(within(summary).queryByText("Coverage")).not.toBeInTheDocument();
+    expect(within(summary).queryByText("Below required")).not.toBeInTheDocument();
+    expect(within(summary).getByText("No shift note for the latest update.")).toBeInTheDocument();
 
   });
 
@@ -163,7 +169,9 @@ describe("LeadOperationalSummary", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("shows the current shift note on Staff Needed and opens the read-only modal", async () => {
+  it("opens the full shift note only when its preview overflows", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(80);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(40);
     mocks.fetchLatestCanonical.mockResolvedValue({
       data: { ...currentUpdate, shift_note: "Move one RT to the north pod after 19:00.\nConfirm at huddle." },
       error: null
@@ -171,7 +179,7 @@ describe("LeadOperationalSummary", () => {
 
     await renderLoadedSummary();
 
-    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
+    fireEvent.click(screen.getByRole("button", { name: "View more of shift note" }));
     const dialog = screen.getByRole("dialog", { name: "Shift Note" });
     expect(dialog).toHaveTextContent("Move one RT to the north pod after 19:00. Confirm at huddle.");
     expect(document.body.style.overflow).toBe("hidden");
@@ -181,12 +189,12 @@ describe("LeadOperationalSummary", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("hides View Shift Note when the current update has no nonblank note", async () => {
+  it("hides View more of shift note when the current update has no nonblank note", async () => {
     mocks.fetchLatestCanonical.mockResolvedValue({ data: { ...currentUpdate, shift_note: "   " }, error: null });
 
     await renderLoadedSummary();
 
-    expect(screen.queryByRole("button", { name: "View Shift Note" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View more of shift note" })).not.toBeInTheDocument();
   });
 
   it("hides View Procedures when all counts are zero and Other Procedures is blank", async () => {
@@ -256,7 +264,7 @@ describe("LeadOperationalSummary", () => {
     const summary = screen.getByRole("region", { name: "Operational Summary" });
     expect(within(summary).getByLabelText("Staff On Shift: 8")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Vent Count: 0")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "View Shift Note" })).toBeInTheDocument();
+    expect(screen.getByText(note)).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_500);
@@ -268,8 +276,8 @@ describe("LeadOperationalSummary", () => {
     expect(within(summary).getByLabelText("BiPAP Count: 3")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Procedures: 5")).toBeInTheDocument();
     expect(within(summary).getByLabelText("Active Rentals: 2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
-    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent(note);
+    expect(screen.getByText(note)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View more of shift note" })).not.toBeInTheDocument();
   });
 
   it("shows a newly submitted Night update immediately before the Leadership handoff", async () => {
@@ -292,8 +300,8 @@ describe("LeadOperationalSummary", () => {
 
     expect(screen.getByLabelText("Staff Needed: 7.0")).toBeInTheDocument();
     expect(screen.getByLabelText("Staff On Shift: 6")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
-    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent("Early Night handoff note");
+    expect(screen.getByText("Early Night handoff note")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View more of shift note" })).not.toBeInTheDocument();
   });
 
   it("uses the latest non-null submitted Vent value without changing the record behind other controls", async () => {
@@ -309,8 +317,8 @@ describe("LeadOperationalSummary", () => {
     await renderLoadedSummary();
 
     expect(screen.getByLabelText("Vent Count: 4")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "View Shift Note" }));
-    expect(screen.getByRole("dialog", { name: "Shift Note" })).toHaveTextContent("Newest note");
+    expect(screen.getByText("Newest note")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View more of shift note" })).not.toBeInTheDocument();
   });
 
   it("shows the evening window's submitted values after the 17:00 update", async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   optionalShiftStatusNumberValue,
+  normalizeShiftRvuInput,
   rtsNeededFromRvus,
   shiftStatusNumberValue,
   validateShiftStatusCounts,
@@ -23,6 +24,13 @@ const validCounts: ShiftStatusCountInput = {
 };
 
 describe("shift status count validation", () => {
+  it.each([
+    ["8.7", "234.9"], ["14.9", "402.3"], ["15", "15"], ["158", "158"],
+    ["188.65", "188.65"], ["0", "0"], ["0.1", "2.7"], ["", ""],
+    ["-1", "-1"], ["not-a-number", "not-a-number"]
+  ])("normalizes entered staffing or RVUs %s to %s", (input, expected) => {
+    expect(normalizeShiftRvuInput(input)).toBe(expected);
+  });
   it("accepts zero, optional blanks, and fractional staffing needs", () => {
     expect(validateShiftStatusCounts(validCounts)).toBeNull();
     expect(shiftStatusNumberValue("")).toBe(0);

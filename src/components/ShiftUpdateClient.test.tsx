@@ -661,6 +661,57 @@ describe("ShiftUpdateClient submission flow", () => {
     );
   });
 
+  it.each([false, true])("uses converted RVUs for saving, session summary and printing (print=%s)", async (printAfterSave) => {
+    mocks.rpc.mockResolvedValue({ error: null });
+    const print = vi.spyOn(window, "print").mockImplementation(() => undefined);
+    renderShiftUpdate();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    populateRequiredFields();
+    const input = screen.getByLabelText(/RVU Count/);
+    fireEvent.change(input, { target: { value: "8.7" } });
+    fireEvent.blur(input);
+    expect(input).toHaveValue(234.9);
+    expect(screen.getByTestId("shift-status-print-layout")).toHaveTextContent("234.9");
+    if (printAfterSave) fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    else fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => { await Promise.resolve(); });
+    expect(savedPayload()).toEqual(expect.objectContaining({ rts_required: 8.7, rvu_total: "234.9" }));
+    expect(JSON.parse(window.sessionStorage.getItem("whhs:last-submitted-shift-rvu") ?? "null")).toEqual(
+      expect.objectContaining({ rtsNeeded: 8.7, rvuCount: 234.9 })
+    );
+    expect(print).toHaveBeenCalledTimes(printAfterSave ? 1 : 0);
+    print.mockRestore();
+  });
+
+  it.each([
+    ["8.7", 234.9], ["182", 182], ["15", 15], ["0.1", 2.7]
+  ])("commits %s on Enter without submitting or converting again on blur", async (entry, expected) => {
+    renderShiftUpdate();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    populateRequiredFields();
+    const input = screen.getByLabelText(/RVU Count/);
+    fireEvent.change(input, { target: { value: entry } });
+    expect(input).toHaveValue(Number(entry));
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(input).toHaveValue(expected);
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    fireEvent.blur(input);
+    expect(input).toHaveValue(expected);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("preserves stored RVUs below 15 when editing another field", async () => {
+    mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({ data: shiftUpdate({ rvu_total: 2.7 }), error: null });
+    mocks.rpc.mockResolvedValue({ error: null });
+    renderShiftUpdate();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    fireEvent.change(screen.getByLabelText(/Shift Notes/), { target: { value: "Updated note" } });
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => { await Promise.resolve(); });
+    expect(savedPayload()).toEqual(expect.objectContaining({ rts_required: 0.1, rvu_total: "2.7" }));
+  });
+
   it("does not display or submit an invalid staffing value", async () => {
     renderShiftUpdate();
     await act(async () => {

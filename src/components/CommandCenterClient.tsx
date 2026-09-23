@@ -85,7 +85,7 @@ export function CommandCenterClient({
         <DepartmentAnnouncementStrip authContext={authContext} timezone={timezone} />
 
         <LeadOperationalSummary authContext={authContext} timezone={timezone}>
-          <LeadNotePreview authContext={authContext} timezone={timezone} onOpen={() => setLeadNotesOpen(true)} newCount={leadNewNoteCount} revision={previewRevision} />
+          <LeadNotePreview authContext={authContext} timezone={timezone} onOpen={() => setLeadNotesOpen(true)} onOpenAide={() => setRtAideNotesOpen(true)} newCount={leadNewNoteCount} revision={previewRevision} />
         </LeadOperationalSummary>
 
         <section aria-labelledby="quick-operations-heading" className="rounded-2xl border border-blue-100 bg-blue-50 p-4 sm:p-5">
@@ -116,7 +116,8 @@ export function CommandCenterClient({
       <RtAideNotesModal
         authContext={authContext}
         open={rtAideNotesOpen}
-        onClose={() => setRtAideNotesOpen(false)}
+        onClose={() => { setRtAideNotesOpen(false); setPreviewRevision(value => value + 1); }}
+        onNotesChanged={() => setPreviewRevision(value => value + 1)}
         context="lead"
       />
       <LeadCommunicationBoardModal

@@ -15,6 +15,7 @@ import { shiftTypeLabel } from "@/lib/shift-status/utils";
 import type { ShiftRecordSelection } from "@/lib/shift-status/reporting-window";
 import {
   optionalShiftStatusNumberValue,
+  normalizeShiftRvuInput,
   rtsNeededFromRvus,
   shiftStatusNumberValue,
   validateShiftStatusCounts
@@ -27,6 +28,7 @@ type ShiftUpdateForm = {
   shiftType: ShiftStatusShiftType;
   rtsOn: string;
   rvuCount: string;
+  rvuEntryIsManual: boolean;
   ventCount: string;
   bipapCount: string;
   neonatalHighFlowCount: string;
@@ -59,6 +61,7 @@ function shiftUpdateFormForSelection(
     shiftType: selection.shiftType,
     rtsOn: update ? String(update.rts_on) : "",
     rvuCount: update?.rvu_total === null || update?.rvu_total === undefined ? "" : String(update.rvu_total),
+    rvuEntryIsManual: false,
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
     bipapCount: update ? String(update.bipap_count) : "",
     neonatalHighFlowCount: update?.neonatal_high_flow_count === null || update?.neonatal_high_flow_count === undefined
@@ -149,6 +152,7 @@ function CountInputCard({
   helperText,
   onBlur,
   onChange,
+  onEnter,
   onFocus
 }: {
   icon: ReactNode;
@@ -160,6 +164,7 @@ function CountInputCard({
   helperText?: string;
   onBlur?: () => void;
   onChange: (value: string) => void;
+  onEnter?: () => void;
   onFocus?: () => void;
 }) {
   return (
@@ -178,6 +183,12 @@ function CountInputCard({
         onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && onEnter) {
+            event.preventDefault();
+            onEnter();
+          }
+        }}
         className="mt-2 h-11 w-full rounded-2xl border border-slate-400 bg-white px-2 text-center text-3xl font-black leading-none text-hospital-ink shadow-sm outline-none transition placeholder:text-base placeholder:font-bold placeholder:text-slate-400/70 focus:border-slate-500 focus:ring-2 focus:ring-slate-100"
       />
       {helperText && <span className="mt-1 text-[10px] font-bold leading-tight text-slate-400">{helperText}</span>}
@@ -331,14 +342,18 @@ export function ShiftUpdateClient({
     ? form.updatedByName.trim()
     : "";
   const updatedByName = selectedStaff?.display_name ?? manualUpdatedByName;
-  const calculatedRtsNeeded = rtsNeededFromRvus(form.rvuCount);
+  const effectiveRvuCount = form.rvuEntryIsManual ? normalizeShiftRvuInput(form.rvuCount) : form.rvuCount;
+  const calculatedRtsNeeded = rtsNeededFromRvus(effectiveRvuCount);
+  const commitRvuEntry = () => setForm((current) => current.rvuEntryIsManual
+    ? { ...current, rvuCount: normalizeShiftRvuInput(current.rvuCount), rvuEntryIsManual: false }
+    : current);
   const printData: ShiftStatusPrintData = {
     shiftDate: form.shiftDate,
     shiftType: form.shiftType,
     updatedByName: updatedByName || lastKnownUpdate?.updated_by_name?.trim() || "",
     rtsOnShift: form.rtsOn,
     rtsNeeded: calculatedRtsNeeded?.toFixed(1) ?? "",
-    rvuTotal: form.rvuCount,
+    rvuTotal: effectiveRvuCount,
     vents: form.ventCount,
     bipaps: form.bipapCount,
     neonatalHighFlow: form.neonatalHighFlowCount,
@@ -391,7 +406,7 @@ export function ShiftUpdateClient({
       shift_type: normalizedForm.shiftType,
       rts_on: shiftStatusNumberValue(normalizedForm.rtsOn),
       rts_required: calculatedRtsNeeded,
-      rvu_total: normalizedForm.rvuCount.trim(),
+      rvu_total: effectiveRvuCount.trim(),
       vent_count: optionalShiftStatusNumberValue(normalizedForm.ventCount),
       bipap_count: shiftStatusNumberValue(normalizedForm.bipapCount),
       ...(nurseryTrackingAvailable
@@ -433,7 +448,7 @@ export function ShiftUpdateClient({
         shiftDate: form.shiftDate,
         shiftType: form.shiftType,
         rtsNeeded: calculatedRtsNeeded,
-        rvuCount: Number(form.rvuCount)
+        rvuCount: Number(effectiveRvuCount)
       });
 
       if (printAfterSave) {
@@ -557,7 +572,9 @@ export function ShiftUpdateClient({
                 inputMode="decimal"
                 placeholder="Enter RVUs"
                 helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rvu_total, timezone)}
-                onChange={(value) => setForm((current) => ({ ...current, rvuCount: value }))}
+                onBlur={commitRvuEntry}
+                onEnter={commitRvuEntry}
+                onChange={(value) => setForm((current) => ({ ...current, rvuCount: value, rvuEntryIsManual: true }))}
               />
               <CountInputCard
                 icon={<Wind size={18} />}
@@ -574,6 +591,7 @@ export function ShiftUpdateClient({
                 onChange={(value) => setForm((current) => ({ ...current, bipapCount: value }))}
               />
             </div>
+            <p className="mt-3 text-sm font-semibold text-slate-600">Entries below 15 are treated as RTs needed. Press Enter or leave the field to convert to RVUs.</p>
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">

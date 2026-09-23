@@ -1,4 +1,12 @@
-import { rtsNeededFromRvus } from "@/lib/metrics/rvu-staffing";
+import { RVUS_PER_RT, rtsNeededFromRvus } from "@/lib/metrics/rvu-staffing";
+
+// Interpret only new form entries; persisted RVUs are already normalized.
+export function normalizeShiftRvuInput(value: string) {
+  const trimmed = value.trim();
+  const amount = Number(trimmed);
+  if (!trimmed || !Number.isFinite(amount) || amount < 0 || amount >= 15) return trimmed;
+  return String(Number((amount * RVUS_PER_RT).toPrecision(15)));
+}
 
 export type ShiftStatusCountInput = {
   rtsOn: string;
