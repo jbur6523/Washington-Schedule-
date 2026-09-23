@@ -24,6 +24,9 @@ function patientRecord(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRec
     airway_size: null,
     airway_at: null,
     airway_location: null,
+    airway_type: null,
+    trach_type: null,
+    trach_xlt: false,
     vent_mode: null,
     rate: null,
     tidal_volume: null,
@@ -199,6 +202,70 @@ describe("ICU patient notes", () => {
       mocks.activeRecords = args.target_action === "add" ? [record] : [];
       return { data: record, error: null };
     });
+  });
+
+  it.each(["full", "lead"] as const)("adds a trach with shared airway details from the %s board", async (surface) => {
+    render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
+    const addLabel = surface === "lead" ? "Add Device" : "Add Patient";
+    fireEvent.click(await screen.findByRole("button", { name: addLabel }));
+    const dialog = within(screen.getByRole("dialog", { name: addLabel }));
+    fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
+    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "vent" } });
+    expect(dialog.getByRole("radio", { name: "ETT", exact: true })).toBeChecked();
+    fireEvent.change(dialog.getByLabelText("Airway size"), { target: { value: "7.5" } });
+    fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });
+    fireEvent.change(dialog.getByLabelText("Location"), { target: { value: "teeth" } });
+    fireEvent.click(dialog.getByRole("radio", { name: "Trach", exact: true }));
+    expect(dialog.queryByLabelText("At")).not.toBeInTheDocument();
+    expect(dialog.queryByLabelText("Location")).not.toBeInTheDocument();
+    expect(dialog.getByLabelText("Trach size")).toHaveValue("");
+    expect(within(dialog.getByLabelText("Trach size")).getAllByRole("option").map(o => o.textContent)).toEqual(["Select size", "4", "5", "6", "7", "8"]);
+    expect(within(dialog.getByLabelText("Trach type")).getAllByRole("option").map(o => o.textContent)).toEqual(["Select type", "Shiley", "Portex", "Other"]);
+    fireEvent.change(dialog.getByLabelText("Trach size"), { target: { value: "6" } });
+    fireEvent.change(dialog.getByLabelText("Trach type"), { target: { value: "shiley" } });
+    fireEvent.click(dialog.getByRole("checkbox", { name: "XLT" }));
+    fireEvent.change(dialog.getByLabelText("Vent Mode"), { target: { value: "apvcmv" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_action: "add",
+      target_payload: expect.objectContaining({ airway_type: "trach", airway_size: "6", trach_type: "shiley", trach_xlt: true, airway_at: null, airway_location: null }),
+      target_event_data: expect.objectContaining({ airway: "Trach 6 Shiley XLT", updatedState: expect.objectContaining({ airway: "Trach 6 Shiley XLT" }) })
+    })));
+    expect(await screen.findByText("Trach 6 Shiley XLT")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: surface === "lead" ? "Discontinue C223" : "Discontinue", exact: true }));
+    expect(within(screen.getByRole("dialog", { name: "Ventilator Outcome" })).getByText("Trach 6 Shiley XLT")).toBeInTheDocument();
+  });
+
+  it.each(["ett", "hfnc"] as const)("loads saved trach details and clears them when changed to %s", async (nextType) => {
+    mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv", airway_type: "trach", airway_size: "8", trach_type: "portex", trach_xlt: true })];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Update" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Update Patient" }));
+    expect(dialog.getByRole("radio", { name: "Trach", exact: true })).toBeChecked();
+    expect(dialog.getByLabelText("Trach size")).toHaveValue("8");
+    expect(dialog.getByLabelText("Trach type")).toHaveValue("portex");
+    expect(dialog.getByLabelText("XLT")).toBeChecked();
+    if (nextType === "ett") {
+      fireEvent.click(dialog.getByRole("radio", { name: "ETT", exact: true }));
+      expect(dialog.getByLabelText("Airway size")).toHaveValue("");
+      fireEvent.change(dialog.getByLabelText("Airway size"), { target: { value: "7.5" } });
+      fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });
+      fireEvent.change(dialog.getByLabelText("Location"), { target: { value: "teeth" } });
+    } else {
+      fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "hfnc" } });
+    }
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledWith(expect.objectContaining({
+      airway_type: nextType === "ett" ? "ett" : null,
+      airway_size: nextType === "ett" ? "7.5" : null,
+      airway_at: nextType === "ett" ? "23" : null,
+      airway_location: nextType === "ett" ? "teeth" : null,
+      trach_type: null, trach_xlt: false
+    })));
+    expect(mocks.eventInserts).toHaveBeenCalledWith(expect.objectContaining({ event_data: expect.objectContaining({
+      previousState: expect.objectContaining({ airway: "Trach 8 Portex XLT" }),
+      updatedState: expect.objectContaining({ airway: nextType === "ett" ? "ETT 7.5 @ 23 Teeth" : "" })
+    }) }));
   });
 
   it("shows the optional Notes field after every supported device settings section and saves a trimmed note", async () => {

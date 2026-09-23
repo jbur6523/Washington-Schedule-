@@ -11,6 +11,8 @@ import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoard
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type {
+  IcuAirwayType,
+  IcuTrachType,
   IcuDeviceType,
   IcuPatientEventRecord,
   IcuPatientRecord,
@@ -28,6 +30,8 @@ import {
 import {
   airwayLocationOptions,
   airwaySizeOptions,
+  trachSizeOptions,
+  trachTypeLabels,
   formatIcuAirway,
   formatIcuDeviceSummary,
   formatIcuLastUpdated,
@@ -71,6 +75,9 @@ type IcuPatientForm = {
   airway_size: string;
   airway_at: string;
   airway_location: string;
+  airway_type: IcuAirwayType;
+  trach_type: IcuTrachType | "";
+  trach_xlt: boolean;
   vent_mode: IcuVentMode | "";
   rate: string;
   tidal_volume: string;
@@ -96,6 +103,9 @@ const emptyForm: IcuPatientForm = {
   airway_size: "",
   airway_at: "",
   airway_location: "",
+  airway_type: "ett",
+  trach_type: "",
+  trach_xlt: false,
   vent_mode: "",
   rate: "",
   tidal_volume: "",
@@ -123,6 +133,9 @@ const icuPatientSelect = [
   "airway_size",
   "airway_at",
   "airway_location",
+  "airway_type",
+  "trach_type",
+  "trach_xlt",
   "vent_mode",
   "rate",
   "tidal_volume",
@@ -247,6 +260,9 @@ function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
     airway_size: record.airway_size ?? "",
     airway_at: record.airway_at ?? "",
     airway_location: record.airway_location ?? "",
+    airway_type: record.airway_type ?? "ett",
+    trach_type: record.trach_type ?? "",
+    trach_xlt: record.trach_xlt ?? false,
     vent_mode: record.vent_mode ?? "",
     rate: record.rate?.toString() ?? "",
     tidal_volume: record.tidal_volume?.toString() ?? "",
@@ -275,8 +291,11 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     bed: form.bed,
     device_type: deviceType,
     airway_size: deviceType === "vent" ? form.airway_size || null : null,
-    airway_at: deviceType === "vent" ? form.airway_at.trim() || null : null,
-    airway_location: deviceType === "vent" ? form.airway_location || null : null,
+    airway_type: deviceType === "vent" ? form.airway_type : null,
+    airway_at: deviceType === "vent" && form.airway_type === "ett" ? form.airway_at.trim() || null : null,
+    airway_location: deviceType === "vent" && form.airway_type === "ett" ? form.airway_location || null : null,
+    trach_type: deviceType === "vent" && form.airway_type === "trach" ? form.trach_type || null : null,
+    trach_xlt: deviceType === "vent" && form.airway_type === "trach" && form.trach_xlt,
     vent_mode: deviceType === "vent" ? form.vent_mode || null : null,
     rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
     tidal_volume: deviceType === "vent" ? numericOrNull(form.tidal_volume) : null,
@@ -1107,6 +1126,12 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       return;
     }
 
+    if (form.device_type === "vent" && form.airway_type === "trach" &&
+      (!trachSizeOptions.some((size) => size === form.airway_size) || !form.trach_type)) {
+      setFormError("Select a trach size and type.");
+      return;
+    }
+
     const numericValidationError = validateIcuNumericFields(form);
     if (numericValidationError) {
       setFormError(numericValidationError);
@@ -1883,42 +1908,81 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                   <section className="rounded-3xl border border-cyan-100 bg-cyan-50/60 p-3">
                     <h3 className="text-sm font-black text-hospital-ink">Airway</h3>
                     <div className="mt-3 grid gap-3">
+                      <fieldset>
+                        <legend className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Airway type</legend>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {(["ett", "trach"] as const).map((airwayType) => (
+                            <label key={airwayType} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-bold ${form.airway_type === airwayType ? "border-cyan-600 bg-white text-hospital-ink" : "border-slate-200 text-slate-700"}`}>
+                              <input type="radio" name="airway-type" value={airwayType}
+                                checked={form.airway_type === airwayType}
+                                onChange={() => setForm({ ...form, airway_type: airwayType, airway_size: "", airway_at: "", airway_location: "", trach_type: "", trach_xlt: false })}
+                                className="h-4 w-4 accent-cyan-700" />
+                              {airwayType === "ett" ? "ETT" : "Trach"}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
                       <label className="block">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Airway size</span>
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{form.airway_type === "trach" ? "Trach size" : "Airway size"}</span>
                         <select
                           value={form.airway_size}
                           onChange={(event) => setForm({ ...form, airway_size: event.target.value })}
+                          required={form.airway_type === "trach"}
                           className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
                         >
                           <option value="">Select size</option>
-                          {airwaySizeOptions.map((size) => (
+                          {(form.airway_type === "trach" ? trachSizeOptions : airwaySizeOptions).map((size) => (
                             <option key={size} value={size}>
                               {size}
                             </option>
                           ))}
                         </select>
                       </label>
-                      <IcuNumberInput
-                        label="At"
-                        value={form.airway_at}
-                        onChange={(value) => setForm({ ...form, airway_at: value })}
-                        placeholder="Example: 23"
-                      />
-                      <label className="block">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Location</span>
-                        <select
-                          value={form.airway_location}
-                          onChange={(event) => setForm({ ...form, airway_location: event.target.value })}
-                          className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
-                        >
-                          <option value="">Select location</option>
-                          {airwayLocationOptions.map((location) => (
-                            <option key={location} value={location}>
-                              {icuAirwayLocationLabels[location]}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                      {form.airway_type === "trach" ? (
+                        <>
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Trach type</span>
+                            <select value={form.trach_type} required
+                              onChange={(event) => setForm({ ...form, trach_type: event.target.value as IcuTrachType | "" })}
+                              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300">
+                              <option value="">Select type</option>
+                              {(Object.keys(trachTypeLabels) as IcuTrachType[]).map((type) => (
+                                <option key={type} value={type}>{trachTypeLabels[type]}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold text-hospital-ink">
+                            <input type="checkbox" checked={form.trach_xlt}
+                              onChange={(event) => setForm({ ...form, trach_xlt: event.target.checked })}
+                              className="h-5 w-5 accent-cyan-700" />
+                            XLT
+                          </label>
+                        </>
+                      ) : (
+                        <>
+                          <IcuNumberInput
+                            label="At"
+                            value={form.airway_at}
+                            onChange={(value) => setForm({ ...form, airway_at: value })}
+                            placeholder="Example: 23"
+                          />
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Location</span>
+                            <select
+                              value={form.airway_location}
+                              onChange={(event) => setForm({ ...form, airway_location: event.target.value })}
+                              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                            >
+                              <option value="">Select location</option>
+                              {airwayLocationOptions.map((location) => (
+                                <option key={location} value={location}>
+                                  {icuAirwayLocationLabels[location]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
+                      )}
                     </div>
                   </section>
 

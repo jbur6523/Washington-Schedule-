@@ -6,7 +6,7 @@ import type {
   IcuPatientRecord,
   IcuSnapshotCounts
 } from "@/lib/icu-command-center/types";
-import { formatIcuSettings, getIcuSnapshotCounts, supportsIcuStandby } from "@/lib/icu-command-center/utils";
+import { formatIcuAirway, formatIcuSettings, getIcuSnapshotCounts, supportsIcuStandby } from "@/lib/icu-command-center/utils";
 
 function record(
   id: string,
@@ -21,6 +21,9 @@ function record(
     airway_size: null,
     airway_at: null,
     airway_location: null,
+    airway_type: null,
+    trach_type: null,
+    trach_xlt: false,
     vent_mode: null,
     rate: null,
     tidal_volume: null,
@@ -53,6 +56,19 @@ function record(
     ...overrides
   };
 }
+
+describe("shared airway display", () => {
+  it("keeps legacy ETT airway details", () => {
+    expect(formatIcuAirway(record("1", "vent", { airway_size: "7.5", airway_at: "23", airway_location: "teeth" }))).toBe("ETT 7.5 @ 23 Teeth");
+  });
+  it.each(["shiley", "portex", "other"] as const)("formats %s trachs with and without XLT, never ETT location", (trach_type) => {
+    const trach = record("1", "vent", { airway_type: "trach", airway_size: "4", trach_type, airway_at: "23", airway_location: "teeth" });
+    const label = `Trach 4 ${trach_type[0].toUpperCase()}${trach_type.slice(1)}`;
+    expect(formatIcuAirway(trach)).toBe(label);
+    expect(formatIcuAirway({ ...trach, trach_xlt: true })).toBe(`${label} XLT`);
+    expect(formatIcuAirway({ ...trach, device_type: "hfnc" })).toBe("");
+  });
+});
 
 function operationalCounts(counts: IcuSnapshotCounts) {
   return {

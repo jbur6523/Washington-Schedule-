@@ -1,5 +1,7 @@
 export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol";
 export type IcuAirwayLocation = "teeth" | "gum" | "nare";
+export type IcuAirwayType = "ett" | "trach";
+export type IcuTrachType = "shiley" | "portex" | "other";
 export type IcuVentMode = "apvcmv" | "scmv" | "spont" | "asv" | "pcmv" | "aprv";
 export type IcuVentStatusKey = "sbt" | "critical" | "flolan" | "prone";
 export type IcuVentShiftEventKey = "ct" | "mri";
@@ -32,6 +34,9 @@ export type IcuPatientRecord = {
   airway_size: string | null;
   airway_at: string | null;
   airway_location: IcuAirwayLocation | null;
+  airway_type: IcuAirwayType | null;
+  trach_type: IcuTrachType | null;
+  trach_xlt: boolean;
   vent_mode: IcuVentMode | null;
   rate: number | null;
   tidal_volume: number | null;

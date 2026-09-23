@@ -64,9 +64,9 @@ Supported devices:
 
 Vent entries can include:
 
-- Airway size
-- Airway at
-- Airway location
+- Airway type: ETT (the default for existing records) or Trach
+- ETT: existing airway size, At, and location fields
+- Trach: size 4–8, type Shiley / Portex / Other, and an XLT checkbox; no At or location
 - Vent mode
 - Mode-specific settings
 - Critical Vent flag
@@ -156,6 +156,10 @@ Each ICU card includes a `History` button. History records show added, updated, 
 ## Data Model
 
 The `icu_patients` table stores active and discontinued ICU operational entries. Discontinue actions set `is_active = false`; records are not hard-deleted.
+
+Airway details are shared by the Lead Board and ICU Command Center. `airway_type` distinguishes ETT from Trach, `airway_size` holds the selected size, and `trach_type` / `trach_xlt` hold trach details. Older rows with no airway type retain ETT behavior. The shared formatter includes these details in snapshots, discontinue dialogs, and subsequent history events without rewriting old history. Apply `20260922221135_icu_trach_airway.sql` before deploying the airway selector UI.
+
+Production migration status: applied to WHHS (`xkhqdcxnllogiogahdmd`) on September 22, 2026 via the SQL Editor in a single transaction, with version `20260922221135` recorded in `supabase_migrations.schema_migrations`. Read-only checks confirmed all three columns, both validated constraints, trach support in the shared lifecycle function, denied anonymous execution, retained authenticated execution, and enabled row-level security.
 
 The table includes department scope, bed, device type, device settings, Critical Vent, Discontinued At, Discontinued By, Ventilator Outcome when a Vent is discontinued, active state, created/updated staff profile IDs, and timestamps.
 

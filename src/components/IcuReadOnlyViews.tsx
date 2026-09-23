@@ -32,6 +32,9 @@ const icuPatientSelect = [
   "airway_size",
   "airway_at",
   "airway_location",
+  "airway_type",
+  "trach_type",
+  "trach_xlt",
   "vent_mode",
   "rate",
   "tidal_volume",
@@ -93,6 +96,9 @@ const baseIcuPatientSelect = [
   "updated_at"
 ].join(", ");
 const optionalIcuColumns = [
+  "airway_type",
+  "trach_type",
+  "trach_xlt",
   "is_sbt",
   "is_flolan",
   "is_prone",
@@ -216,6 +222,9 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecor
     airway_size: record.airway_size ?? null,
     airway_at: record.airway_at ?? null,
     airway_location: record.airway_location ?? null,
+    airway_type: record.airway_type ?? null,
+    trach_type: record.trach_type ?? null,
+    trach_xlt: record.trach_xlt ?? false,
     vent_mode: record.vent_mode ?? null,
     rate: record.rate ?? null,
     tidal_volume: record.tidal_volume ?? null,

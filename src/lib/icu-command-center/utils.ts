@@ -1,5 +1,6 @@
 import type {
   IcuAirwayLocation,
+  IcuTrachType,
   IcuDeviceType,
   IcuPatientRecord,
   IcuSnapshotCounts,
@@ -91,6 +92,12 @@ export const ventilatorOutcomeLabels: Record<VentilatorOutcome, string> = {
 };
 
 export const airwaySizeOptions = ["6", "6.5", "7", "7.5", "8"] as const;
+export const trachSizeOptions = ["4", "5", "6", "7", "8"] as const;
+export const trachTypeLabels: Record<IcuTrachType, string> = {
+  shiley: "Shiley",
+  portex: "Portex",
+  other: "Other"
+};
 export const airwayLocationOptions: IcuAirwayLocation[] = ["teeth", "gum", "nare"];
 export const ventModeOptions: IcuVentMode[] = ["apvcmv", "scmv", "spont", "asv", "pcmv", "aprv"];
 export const ventilatorOutcomeOptions: VentilatorOutcome[] = [
@@ -145,6 +152,12 @@ export function formatIcuAirway(record: IcuPatientRecord) {
     return "";
   }
 
+  if (record.airway_type === "trach") {
+    return ["Trach", record.airway_size, record.trach_type ? trachTypeLabels[record.trach_type] : null,
+      record.trach_xlt ? "XLT" : null].filter(Boolean).join(" ");
+  }
+
+  // Existing records without an airway type use the original ETT flow.
   const parts = [`ETT ${record.airway_size}`];
 
   if (record.airway_at) {
