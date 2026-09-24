@@ -138,7 +138,7 @@ describe("ShiftUpdateClient submission flow", () => {
     vi.useRealTimers();
   });
 
-  it("waits for one successful save, then immediately returns to a refreshed Lead Command Board", async () => {
+  it("waits for one successful save, then navigates once to the Lead Command Board", async () => {
     let resolveInsert: ((value: { error: null }) => void) | null = null;
     mocks.rpc.mockImplementation(
       () => new Promise<{ error: null }>((resolve) => {
@@ -170,12 +170,9 @@ describe("ShiftUpdateClient submission flow", () => {
 
     expect(submitButton).toBeDisabled();
     expect(mocks.replace).toHaveBeenCalledWith("/command-center?shiftUpdate=saved");
-    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.replace.mock.invocationCallOrder[0]
-    );
-    expect(mocks.replace.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.refresh.mock.invocationCallOrder[0]
     );
     expect(screen.queryByText("Update Submitted")).not.toBeInTheDocument();
   });
@@ -508,7 +505,7 @@ describe("ShiftUpdateClient submission flow", () => {
     expect(print).toHaveBeenCalledTimes(1);
     expect(printButton).toBeEnabled();
     expect(mocks.replace).toHaveBeenCalledWith("/command-center?shiftUpdate=saved");
-    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.refresh).not.toHaveBeenCalled();
 
     print.mockRestore();
   });

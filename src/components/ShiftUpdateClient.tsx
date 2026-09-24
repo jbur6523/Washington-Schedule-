@@ -503,7 +503,6 @@ export function ShiftUpdateClient({
         try {
           window.print();
           router.replace("/command-center?shiftUpdate=saved");
-          router.refresh();
         } catch (printError) {
           if (process.env.NODE_ENV !== "production") {
             console.error("Shift update printing failed", printError);
@@ -514,7 +513,6 @@ export function ShiftUpdateClient({
       }
 
       router.replace("/command-center?shiftUpdate=saved");
-      router.refresh();
     } catch (saveException) {
       if (process.env.NODE_ENV !== "production") {
         console.error("Shift update submission failed", saveException);
