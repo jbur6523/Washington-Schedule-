@@ -286,7 +286,7 @@ export function LoginForm() {
     setLoading(false);
 
     if (sessionStatus.state !== "active") {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       setError("Unable to verify account access. Please try again.");
       return;
     }
@@ -360,7 +360,7 @@ export function LoginForm() {
     setLoading(false);
 
     if (sessionStatus.state !== "active") {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       setError("Unable to verify account access. Please try again.");
       return;
     }

@@ -13,7 +13,7 @@ export function clearAppSessionState() {
 export async function clearAndSignOut() {
   clearAppSessionState();
   const supabase = createClient();
-  await supabase.auth.signOut();
+  await supabase.auth.signOut({ scope: "local" });
   clearAppSessionState();
 }
 
