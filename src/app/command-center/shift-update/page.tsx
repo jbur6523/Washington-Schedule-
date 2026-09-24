@@ -2,13 +2,16 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
-import { ShiftUpdateClient } from "@/components/ShiftUpdateClient";
+import { ShiftUpdateClient, type ShiftUpdateInitialData } from "@/components/ShiftUpdateClient";
 import { ShiftUpdateSelection } from "@/components/ShiftUpdateSelection";
 import { canManageShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { fetchShiftStatusUpdateForRecord } from "@/lib/shift-status/client-queries";
 import { shiftUpdateSelectionsForInstant } from "@/lib/shift-status/reporting-window";
+import type { ShiftStatusStaffOption } from "@/lib/shift-status/types";
 import { createClient } from "@/lib/supabase/server";
 import { prominentBackActionClass } from "@/lib/ui/action-styles";
+import { saveShiftStatusUpdate } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -70,18 +73,45 @@ export default async function CommandCenterShiftUpdatePage({
   }
 
   const supabase = await createClient();
-  const { data: department } = await supabase
-    .from("departments")
-    .select("timezone")
-    .eq("id", auth.context.departmentId)
-    .maybeSingle();
+  const [departmentResult, staffResult, shiftResult] = await Promise.all([
+    supabase
+      .from("departments")
+      .select("timezone")
+      .eq("id", auth.context.departmentId)
+      .maybeSingle(),
+    supabase
+      .from("staff_profiles")
+      .select("id, display_name")
+      .eq("department_id", auth.context.departmentId)
+      .eq("is_active", true)
+      .in("assigned_role", ["admin", "lead"])
+      .eq("operations_role", "none")
+      .order("display_name", { ascending: true }),
+    fetchShiftStatusUpdateForRecord(
+      supabase,
+      auth.context.departmentId,
+      shiftDate,
+      shiftType
+    )
+  ]);
+  const department = departmentResult.data;
   const timezone = (department?.timezone as string | null | undefined) || "America/Los_Angeles";
+  const initialData: ShiftUpdateInitialData = {
+    staffOptions: (staffResult.data ?? []) as ShiftStatusStaffOption[],
+    selectedUpdate: shiftResult.error ? null : shiftResult.data,
+    nurseryTrackingAvailable: !shiftResult.usedLegacyNurserySelect,
+    error: staffResult.error || shiftResult.error
+      ? "The selected shift could not be loaded. Try again."
+      : ""
+  };
 
   return (
     <ShiftUpdateClient
       authContext={auth.context}
       timezone={timezone}
       selection={{ shiftDate, shiftType }}
+      initialData={initialData}
+      saveShiftUpdateOnServer={saveShiftStatusUpdate}
     />
   );
 }

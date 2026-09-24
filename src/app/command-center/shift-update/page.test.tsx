@@ -20,12 +20,30 @@ vi.mock("@/lib/supabase/server", () => ({
       eq() {
         return query;
       },
+      in() {
+        return query;
+      },
+      async order() {
+        return { data: [{ id: "lead-1", display_name: "Lead RT" }], error: null };
+      },
       async maybeSingle() {
         return { data: { timezone: "America/Los_Angeles" }, error: null };
       }
     };
     return { from: () => query };
   }
+}));
+
+vi.mock("@/lib/shift-status/client-queries", () => ({
+  fetchShiftStatusUpdateForRecord: vi.fn().mockResolvedValue({
+    data: null,
+    error: null,
+    usedLegacyNurserySelect: false
+  })
+}));
+
+vi.mock("./actions", () => ({
+  saveShiftStatusUpdate: vi.fn()
 }));
 
 vi.mock("next/navigation", () => ({ redirect: vi.fn() }));

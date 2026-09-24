@@ -33,6 +33,32 @@ export type ShiftStatusStaffOption = {
   display_name: string;
 };
 
+export type ShiftStatusSavePayload = {
+  shift_date: string;
+  shift_type: ShiftStatusShiftType;
+  rts_on: number;
+  rts_required: number;
+  rvu_total: string;
+  vent_count: number | null;
+  bipap_count: number;
+  neonatal_high_flow_count?: number;
+  bubble_cpap_count?: number;
+  c_section_count: number;
+  vaginal_delivery_count: number;
+  cabg_count: number;
+  bronch_count: number;
+  sputum_induction_count: number;
+  other_procedure_count: number;
+  other_procedure_note: string | null;
+  shift_note: string | null;
+  updated_by_staff_profile_id: string | null;
+  updated_by_name: string;
+};
+
+export type ShiftStatusSaveResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
 export type OfficialVentCountSource = "lead_command_center" | "icu_command_center";
 
 export type OfficialVentCountUpdate = {

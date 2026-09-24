@@ -8,6 +8,7 @@ import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 const mocks = vi.hoisted(() => ({
   fetchShiftStatusUpdateForRecord: vi.fn(),
   rpc: vi.fn(),
+  serverSave: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn(),
   staffOptions: [] as Array<{ id: string; display_name: string }>
@@ -126,6 +127,7 @@ describe("ShiftUpdateClient submission flow", () => {
     mocks.fetchShiftStatusUpdateForRecord.mockReset();
     mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({ data: null, error: null });
     mocks.rpc.mockReset();
+    mocks.serverSave.mockReset();
     mocks.replace.mockReset();
     mocks.refresh.mockReset();
     mocks.staffOptions = [{ id: "lead-1", display_name: "Lead RT" }];
@@ -681,6 +683,41 @@ describe("ShiftUpdateClient submission flow", () => {
     );
     expect(print).toHaveBeenCalledTimes(printAfterSave ? 1 : 0);
     print.mockRestore();
+  });
+
+  it("uses server-loaded data and the authenticated server save pathway", async () => {
+    mocks.serverSave.mockResolvedValue({ ok: true });
+
+    render(
+      <ShiftUpdateClient
+        authContext={authContext}
+        timezone="America/Los_Angeles"
+        selection={selectedShift}
+        initialData={{
+          staffOptions: [{ id: "lead-1", display_name: "Lead RT" }],
+          selectedUpdate: null,
+          nurseryTrackingAvailable: true,
+          error: ""
+        }}
+        saveShiftUpdateOnServer={mocks.serverSave}
+      />
+    );
+    populateRequiredFields();
+
+    fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mocks.fetchShiftStatusUpdateForRecord).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.serverSave).toHaveBeenCalledWith(expect.objectContaining({
+      shift_date: "2026-08-08",
+      shift_type: "day",
+      updated_by_staff_profile_id: "lead-1",
+      updated_by_name: "Lead RT"
+    }));
+    expect(mocks.replace).toHaveBeenCalledWith("/command-center?shiftUpdate=saved");
   });
 
   it.each([

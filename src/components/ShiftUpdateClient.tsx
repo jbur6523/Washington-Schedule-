@@ -9,7 +9,13 @@ import { BubbleCpapIcon } from "@/components/BubbleCpapIcon";
 import printStyles from "@/components/ShiftStatusPrintLayout.module.css";
 import { createClient } from "@/lib/supabase/client";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type { ShiftStatusShiftType, ShiftStatusStaffOption, ShiftStatusUpdate } from "@/lib/shift-status/types";
+import type {
+  ShiftStatusSavePayload,
+  ShiftStatusSaveResult,
+  ShiftStatusShiftType,
+  ShiftStatusStaffOption,
+  ShiftStatusUpdate
+} from "@/lib/shift-status/types";
 import { fetchShiftStatusUpdateForRecord } from "@/lib/shift-status/client-queries";
 import { shiftTypeLabel } from "@/lib/shift-status/utils";
 import type { ShiftRecordSelection } from "@/lib/shift-status/reporting-window";
@@ -46,6 +52,13 @@ type ShiftUpdateForm = {
 };
 
 const notListedLeadValue = "__not_listed__";
+
+export type ShiftUpdateInitialData = {
+  staffOptions: ShiftStatusStaffOption[];
+  selectedUpdate: ShiftStatusUpdate | null;
+  nurseryTrackingAvailable: boolean;
+  error: string;
+};
 
 function shiftUpdateFormForSelection(
   update: ShiftStatusUpdate | null,
@@ -241,28 +254,36 @@ function ProcedureInputTile({
 export function ShiftUpdateClient({
   authContext,
   timezone,
-  selection
+  selection,
+  initialData,
+  saveShiftUpdateOnServer
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
   selection: ShiftRecordSelection;
+  initialData?: ShiftUpdateInitialData;
+  saveShiftUpdateOnServer?: (payload: ShiftStatusSavePayload) => Promise<ShiftStatusSaveResult>;
 }) {
   const router = useRouter();
-  const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>([]);
+  const [staffOptions, setStaffOptions] = useState<ShiftStatusStaffOption[]>(initialData?.staffOptions ?? []);
   const [form, setForm] = useState<ShiftUpdateForm>(() =>
-    shiftUpdateFormForSelection(null, selection, authContext)
+    shiftUpdateFormForSelection(initialData?.selectedUpdate ?? null, selection, authContext)
   );
-  const [loadingSelection, setLoadingSelection] = useState(true);
+  const [loadingSelection, setLoadingSelection] = useState(!initialData);
   const [saving, setSaving] = useState(false);
-  const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(null);
-  const [nurseryTrackingAvailable, setNurseryTrackingAvailable] = useState(true);
-  const [error, setError] = useState("");
+  const [lastKnownUpdate, setLastKnownUpdate] = useState<ShiftStatusUpdate | null>(initialData?.selectedUpdate ?? null);
+  const [nurseryTrackingAvailable, setNurseryTrackingAvailable] = useState(initialData?.nurseryTrackingAvailable ?? true);
+  const [error, setError] = useState(initialData?.error ?? "");
   const submissionInFlightRef = useRef(false);
   const latestLoadRequestIdRef = useRef(0);
   const [cleanFormSignature, setCleanFormSignature] = useState(() => formSignature(form));
   const dirty = formSignature(form) !== cleanFormSignature;
 
   useEffect(() => {
+    if (initialData) {
+      return undefined;
+    }
+
     const timer = window.setTimeout(async () => {
       const supabase = createClient();
       const { data } = await supabase
@@ -278,7 +299,7 @@ export function ShiftUpdateClient({
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [authContext.departmentId]);
+  }, [authContext.departmentId, initialData]);
 
   const loadSelectedShiftUpdate = useCallback(async () => {
     const requestId = latestLoadRequestIdRef.current + 1;
@@ -313,12 +334,16 @@ export function ShiftUpdateClient({
   }, [authContext, selection]);
 
   useEffect(() => {
+    if (initialData) {
+      return undefined;
+    }
+
     const timer = window.setTimeout(() => {
       void loadSelectedShiftUpdate();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadSelectedShiftUpdate]);
+  }, [initialData, loadSelectedShiftUpdate]);
 
   const selectedStaff = useMemo(
     () => staffOptions.find((staff) => staff.id === form.updatedByStaffProfileId) ?? null,
@@ -400,8 +425,7 @@ export function ShiftUpdateClient({
     setSaving(true);
     setError("");
 
-    const basePayload = {
-      department_id: authContext.departmentId,
+    const basePayload: Omit<ShiftStatusSavePayload, "vaginal_delivery_count"> = {
       shift_date: normalizedForm.shiftDate,
       shift_type: normalizedForm.shiftType,
       rts_on: shiftStatusNumberValue(normalizedForm.rtsOn),
@@ -427,18 +451,34 @@ export function ShiftUpdateClient({
     };
 
     try {
-      const supabase = createClient();
-      const { error: saveError } = await supabase.rpc("save_shift_status_update", {
-        shift_payload: {
-          ...basePayload,
-          vaginal_delivery_count: shiftStatusNumberValue(normalizedForm.vaginalDeliveryCount)
+      const shiftPayload: ShiftStatusSavePayload = {
+        ...basePayload,
+        vaginal_delivery_count: shiftStatusNumberValue(normalizedForm.vaginalDeliveryCount)
+      };
+      let saveError = false;
+      let saveErrorMessage = "Unable to save shift update.";
+
+      if (saveShiftUpdateOnServer) {
+        const result = await saveShiftUpdateOnServer(shiftPayload);
+        saveError = !result.ok;
+        if (!result.ok) {
+          saveErrorMessage = result.message;
         }
-      });
+      } else {
+        const supabase = createClient();
+        const result = await supabase.rpc("save_shift_status_update", {
+          shift_payload: {
+            ...shiftPayload,
+            department_id: authContext.departmentId
+          }
+        });
+        saveError = Boolean(result.error);
+      }
 
       if (saveError) {
         submissionInFlightRef.current = false;
         setSaving(false);
-        setError("Unable to save shift update.");
+        setError(saveErrorMessage);
         return;
       }
 
