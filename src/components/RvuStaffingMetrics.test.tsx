@@ -34,7 +34,9 @@ describe("RvuStaffingMetrics", () => {
     expect(screen.getByRole("img", { name: /Staffing trend by reporting window/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /RVU trend by reporting window/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Reporting-Window Detail" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Day vs Night Comparison" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Day vs Night Comparison" })).not.toBeInTheDocument();
+    expect(screen.getByText("Average Day Staff On Shift").parentElement).toHaveTextContent("7.0");
+    expect(screen.getByText("Average Night Staff On Shift").parentElement).toHaveTextContent("6.0");
     expect(screen.queryByRole("heading", { name: "Seasonal Summary" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).at(-1)).toHaveTextContent("Reporting-Window Detail");
     expect(screen.getByText("Below Need")).toBeInTheDocument();
@@ -61,7 +63,7 @@ it("does not present an unreported shift as zero coverage", () => {
   const night = screen.getByLabelText("Night Shift summary");
   expect(night).toHaveTextContent("No reported shifts");
   expect(night).not.toHaveTextContent("0.0%");
-  expect(within(night).getAllByText("—")).toHaveLength(3);
+  expect(within(night).getAllByText("—")).toHaveLength(4);
 });
 
 it("shows a recoverable error instead of charts or summaries when loading fails", () => {
