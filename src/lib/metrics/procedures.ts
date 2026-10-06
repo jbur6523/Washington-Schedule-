@@ -465,3 +465,38 @@ export function dateLabel(dateValue: string) {
 export function monthHref(month: string) {
   return `/admin/metrics/procedures?month=${month}`;
 }
+
+export function precedingProcedurePeriod(start: string, end: string) {
+  const day = 86400000;
+  const first = Date.parse(`${start}T00:00:00Z`);
+  const length = Date.parse(`${end}T00:00:00Z`) - first + day;
+  return { start: new Date(first - length).toISOString().slice(0, 10), end: new Date(first - day).toISOString().slice(0, 10) };
+}
+
+export function buildProcedureRangeReport(rows: ProcedureMetricRow[], start: string, end: string, now = new Date()): ProcedureMetricsReport {
+  const summarize = (from: string, to: string): ProcedureMonthSummary => {
+    const effectiveStart = from < RELIABLE_PROCEDURE_HISTORY_START_DATE ? RELIABLE_PROCEDURE_HISTORY_START_DATE : from;
+    const days = monthsBetween(effectiveStart.slice(0, 7), to.slice(0, 7)).flatMap(month =>
+      summarizeProcedureMonth(rows, month, now).days.filter(day => day.date >= effectiveStart && day.date <= to)
+    );
+    const counts = days.reduce((total, day) => addProcedureTotals(total, day.counts), emptyProcedureTotals());
+    const total = procedureTotal(counts);
+    const reportedShifts = days.reduce((sum, day) => sum + Number(day.day !== null) + Number(day.night !== null), 0);
+    return { month: to.slice(0, 7), days, counts, total, reportedShifts, calendarDaysRepresented: days.length,
+      dayTotal: days.reduce((sum, day) => sum + (day.day?.total ?? 0), 0),
+      nightTotal: days.reduce((sum, day) => sum + (day.night?.total ?? 0), 0),
+      dailyAverage: days.length ? total / days.length : 0,
+      reportedShiftAverage: reportedShifts ? total / reportedShifts : null, hasReliableFullMonth: false };
+  };
+  const prior = precedingProcedurePeriod(start, end);
+  const selected = summarize(start, end);
+  const previous = summarize(prior.start, prior.end);
+  const report = buildProcedureMetricsReport(rows, end.slice(0, 7), now);
+  return { ...report, selected, previous, comparison: calculateChange(selected.total, previous.total),
+    selectedPeriodLabel: `${start} to ${end}`, comparisonPeriodLabel: `${prior.start} to ${prior.end}`,
+    typeComparisons: PROCEDURE_TYPES.map(procedure => ({ ...procedure,
+      selectedTotal: selected.counts[procedure.id], previousTotal: previous.counts[procedure.id],
+      ...calculateChange(selected.counts[procedure.id], previous.counts[procedure.id]),
+      share: selected.total ? selected.counts[procedure.id] / selected.total * 100 : 0
+    })) };
+}

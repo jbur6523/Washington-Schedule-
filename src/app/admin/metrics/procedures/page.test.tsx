@@ -60,7 +60,7 @@ describe("Procedure Metrics route authorization", () => {
   it("queries only the authorized department for the bounded comparison and trend range", async () => {
     render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ month: "2026-08" }) }));
 
-    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
+    expect(screen.getByText("August 2026", { exact: true })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", {
       minimumShiftDate: "2026-08-14",
       maximumShiftDate: expect.stringMatching(/^2026-08-\d{2}$/)
@@ -75,7 +75,7 @@ describe("Procedure Metrics route authorization", () => {
 
     render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ month: "2026-08" }) }));
 
-    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
+    expect(screen.getByText("August 2026", { exact: true })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", expect.any(Object));
   });
 
@@ -87,6 +87,26 @@ describe("Procedure Metrics route authorization", () => {
 
     await expect(ProcedureMetricsPage({ searchParams: Promise.resolve({}) })).rejects.toThrow("not-found");
     expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.fetchRows).not.toHaveBeenCalled();
+  });
+
+  it("uses the selected custom period and keeps monthly trend query bounds", async () => {
+    vi.setSystemTime(new Date("2026-10-06T19:00:00Z"));
+    render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ range: "custom", start: "2026-08-31", end: "2026-09-01" }) }));
+    expect(screen.getByLabelText("Start Date")).toHaveValue("2026-08-31");
+    expect(screen.getByLabelText("End Date")).toHaveValue("2026-09-01");
+    expect(screen.getByRole("heading", { name: "Change vs Previous Period" })).toBeInTheDocument();
+    expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", { minimumShiftDate: "2026-08-14", maximumShiftDate: "2026-09-30" });
+  });
+
+  it.each([
+    { start: "2026-02-30", end: "2026-03-01" },
+    { start: "2026-08-20", end: "2026-08-19" },
+    { start: "", end: "2026-08-20" },
+    { start: "2026-08-20", end: "2099-08-20" }
+  ])("rejects invalid custom periods without querying", async dates => {
+    render(await ProcedureMetricsPage({ searchParams: Promise.resolve({ range: "custom", ...dates }) }));
+    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
     expect(mocks.fetchRows).not.toHaveBeenCalled();
   });
 });

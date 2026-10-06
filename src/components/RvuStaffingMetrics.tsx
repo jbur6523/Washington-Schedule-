@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RvuStaffingFilters } from "@/components/RvuStaffingFilters";
+import { MetricsDateNavigation } from "@/components/MetricsDateNavigation";
 import { RvuStaffingDownload } from "@/components/RvuStaffingDownload";
 import { RvuStaffingDetail } from "@/components/RvuStaffingDetail";
 import { RvuStaffingTrendChart } from "@/components/RvuStaffingTrendChart";
@@ -22,7 +23,8 @@ function SummaryCard({ label, value, helper }: { label: string; value: string; h
   </div>;
 }
 
-export function RvuStaffingMetrics({ rows, range, start, end, rangeError = "", loadError = false }: {
+export function RvuStaffingMetrics({ rows, range, start, end, navigation, rangeError = "", loadError = false }: {
+  navigation?: { month: string; currentMonth: string; custom: boolean };
   rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; start?: string; end?: string; rangeError?: string; loadError?: boolean;
 }) {
   const shiftGroups = shifts.map((type) => ({ type, name: type === "day" ? "Day" : "Night", summary: summarizeMetricRows(rows.filter((row) => row.shift_type === type)) }));
@@ -35,13 +37,13 @@ export function RvuStaffingMetrics({ rows, range, start, end, rangeError = "", l
           <p className="mt-2 text-sm text-slate-500">A simple view of staffing performance by shift.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <RvuStaffingDownload rows={rows} range={range} disabled={loadError || Boolean(rangeError) || rows.length === 0} rangeLabel={range === "custom" ? `Custom: ${start} to ${end}` : undefined} />
+          <RvuStaffingDownload rows={rows} range={range} disabled={loadError || Boolean(rangeError) || rows.length === 0} rangeLabel={navigation ? `${navigation.custom ? "Custom" : "Monthly"}: ${start} to ${end}` : range === "custom" ? `Custom: ${start} to ${end}` : undefined} />
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
         </div>
       </header>
-      <section aria-label="Report filters" className="w-fit max-w-full rounded-2xl border border-white bg-white/95 p-3 shadow-soft">
+      {navigation ? <MetricsDateNavigation key={`${navigation.month}-${start}-${end}`} path="/admin/rvu-staffing-metrics" {...navigation} start={start ?? ""} end={end ?? ""} /> : <section aria-label="Report filters" className="w-fit max-w-full rounded-2xl border border-white bg-white/95 p-3 shadow-soft">
         <RvuStaffingFilters key={`${range}-${start}-${end}`} range={range} start={start} end={end} />
-      </section>
+      </section>}
       {rangeError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
         <h2 className="font-bold text-rose-900">Metrics are temporarily unavailable.</h2><p className="mt-2 text-sm text-rose-700">Please try again.</p>
       </section> : rows.length === 0 ? <section className={`${panel} text-center`}>

@@ -51,7 +51,7 @@ describe("RVU staffing metrics route authorization", () => {
     mocks.fetchRows.mockResolvedValue({ data: [], error: null });
   });
 
-  it("lets an admin query only their department and uses 30 Days / All Shifts by default", async () => {
+  it("lets an admin query only their department and uses Monthly / All Shifts by default", async () => {
     render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
@@ -60,7 +60,7 @@ describe("RVU staffing metrics route authorization", () => {
       maximumShiftDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       shift: "all"
     });
-    expect(screen.getByLabelText("Date Range")).toHaveValue("30");
+    expect(screen.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByLabelText("Shift")).not.toBeInTheDocument();
   });
 
@@ -110,6 +110,6 @@ it.each([
   mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
   mocks.fetchRows.mockClear();
   render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "custom", ...dates }) }));
-  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
   expect(mocks.fetchRows).not.toHaveBeenCalled();
 });

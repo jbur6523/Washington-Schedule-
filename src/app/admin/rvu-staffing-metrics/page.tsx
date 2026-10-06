@@ -11,6 +11,7 @@ import {
 import { fetchRvuStaffingMetricRows } from "@/lib/metrics/queries";
 import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
 import { createClient } from "@/lib/supabase/server";
+import { parseProcedureMonth, daysInMonth } from "@/lib/metrics/procedures";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,12 @@ export default async function RvuStaffingMetricsPage({
   const parameters = await searchParams;
   const range = parseMetricDateRange(parameters?.range);
   const currentReportingDate = reportingWindowForInstant().localStartDate;
-  const window = metricReportingWindow(range, currentReportingDate, parameters?.start, parameters?.end);
-  if (window.error) return <RvuStaffingMetrics rows={[]} range={range} start={window.start} end={window.end} rangeError={window.error} />;
+  const currentMonth = currentReportingDate.slice(0, 7);
+  const month = parseProcedureMonth(parameters?.month, new Date(`${currentReportingDate}T20:00:00Z`));
+  const monthly = parameters?.range !== "custom";
+  const window = monthly ? { start: `${month}-01`, end: month === currentMonth ? currentReportingDate : `${month}-${daysInMonth(month)}`, error: "" } : metricReportingWindow(range, currentReportingDate, parameters?.start, parameters?.end);
+  const navigation = { month, currentMonth, custom: !monthly };
+  if (window.error) return <RvuStaffingMetrics rows={[]} range={range} start={window.start} end={window.end} rangeError={window.error} navigation={navigation} />;
   const supabase = await createClient();
   const result = await fetchRvuStaffingMetricRows(supabase, auth.context.departmentId, {
     minimumShiftDate: window.start,
@@ -49,6 +54,7 @@ export default async function RvuStaffingMetricsPage({
     <RvuStaffingMetrics
       rows={calculateMetricRows(result.data)}
       range={range}
+      navigation={navigation}
       start={window.start}
       end={window.end}
       loadError={Boolean(result.error)}

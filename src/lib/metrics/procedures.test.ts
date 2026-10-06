@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   PROCEDURE_TYPES,
   buildProcedureMetricsReport,
+  buildProcedureRangeReport,
   monthForInstant,
   parseProcedureMonth,
   previousMonth,
@@ -31,6 +32,27 @@ function procedureRow(overrides: Partial<ProcedureMetricRow> = {}): ProcedureMet
 }
 
 const septemberNow = new Date("2026-09-15T19:00:00.000Z");
+
+it("summarizes an inclusive custom range across months and compares equal calendar periods", () => {
+  const rows = [
+    procedureRow({ id: "prior", shift_date: "2026-08-30", bronch_count: 2 }),
+    procedureRow({ id: "start", shift_date: "2026-08-31", bronch_count: 3 }),
+    procedureRow({ id: "end", shift_date: "2026-09-01", shift_type: "night", bronch_count: 5 }),
+    procedureRow({ id: "outside", shift_date: "2026-09-02", bronch_count: 20 })
+  ];
+  const report = buildProcedureRangeReport(rows, "2026-08-31", "2026-09-01", septemberNow);
+  expect(report.selected.days.map(day => day.date)).toEqual(["2026-08-31", "2026-09-01"]);
+  expect(report.selected.total).toBe(8);
+  expect(report.selected.dayTotal).toBe(3);
+  expect(report.selected.nightTotal).toBe(5);
+  expect(report.selected.dailyAverage).toBe(4);
+  expect(report.previous.total).toBe(2);
+  expect(report.comparison.difference).toBe(6);
+  expect(report.comparisonPeriodLabel).toBe("2026-08-29 to 2026-08-30");
+  const single = buildProcedureRangeReport(rows, "2026-09-01", "2026-09-01", septemberNow);
+  expect(single.selected.dailyAverage).toBe(5);
+  expect(single.selected.calendarDaysRepresented).toBe(1);
+});
 
 describe("procedure metric canonical aggregation", () => {
   it("includes every persisted Shift Update procedure type with its current label", () => {

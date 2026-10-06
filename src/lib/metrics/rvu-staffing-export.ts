@@ -10,7 +10,7 @@ export function metricExportData(rows: CalculatedRvuStaffingRow[], range: Metric
   const rangeLabel = appliedRangeLabel ?? metricDateRanges.find(option => option.value === range)!.label;
   const generated = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Los_Angeles" }).format(now) + " PT";
   const summary = (["day", "night"] as const).map(shift => ({ name: shiftName(shift), ...summarizeMetricRows(sorted.filter(row => row.shift_type === shift)) }));
-  return { sorted, dates, rangeLabel, generated, summary, filename: `WHHS-RVU-Staffing-${range}-${sorted[0]?.shift_date ?? "empty"}-to-${sorted[sorted.length - 1]?.shift_date ?? "empty"}` };
+  return { sorted, dates, rangeLabel, generated, summary, filename: `WHHS-RVU-Staffing-${appliedRangeLabel?.startsWith("Monthly:") ? "monthly" : range}-${sorted[0]?.shift_date ?? "empty"}-to-${sorted[sorted.length - 1]?.shift_date ?? "empty"}` };
 }
 
 export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string) {

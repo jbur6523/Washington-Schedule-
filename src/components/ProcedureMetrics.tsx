@@ -1,11 +1,10 @@
+import { MetricsDateNavigation } from "@/components/MetricsDateNavigation";
 import Link from "next/link";
 import {
   CheckCircle2,
   ArrowLeft,
   ArrowDownRight,
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   ClipboardList,
   TrendingUp
 } from "lucide-react";
@@ -13,8 +12,6 @@ import { ProcedureDailyDetail } from "@/components/ProcedureDailyDetail";
 import {
   monthHref,
   monthLabel,
-  nextMonth,
-  previousMonth,
   type ProcedureChange,
   type ProcedureMetricsReport,
   type ProcedureMonthlyTrend
@@ -102,17 +99,18 @@ function MonthlyTrendChart({ trend, selectedMonth }: { trend: ProcedureMonthlyTr
 export function ProcedureMetrics({
   report,
   currentMonth,
+  customRange, rangeError = "",
   loadError = false
 }: {
   report: ProcedureMetricsReport;
   currentMonth: string;
-  loadError?: boolean;
+  customRange?: { start: string; end: string }; rangeError?: string; loadError?: boolean;
 }) {
   const selectedMonth = report.selected.month;
   const isCurrentMonth = selectedMonth === currentMonth;
   const firstTrackedMonth = report.reliableHistoryStartDate.slice(0, 7);
   const comparisonDirection = report.comparison.difference > 0 ? "up" : report.comparison.difference < 0 ? "down" : "neutral";
-  const selectedColumnLabel = `${monthLabel(selectedMonth, "short")}${isCurrentMonth ? " MTD" : ""}`;
+  const selectedColumnLabel = customRange ? "Selected Range" : `${monthLabel(selectedMonth, "short")}${isCurrentMonth ? " MTD" : ""}`;
   const historyStartLabel = new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
     month: "long",
@@ -135,41 +133,11 @@ export function ProcedureMetrics({
           </div>
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
         </header>
-        <section aria-label="Reporting month" className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            {selectedMonth <= firstTrackedMonth ? (
-              <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
-                <ChevronLeft size={17} aria-hidden="true" /> Previous Month
-              </span>
-            ) : (
-              <Link
-                href={monthHref(previousMonth(selectedMonth))}
-                aria-label={`View ${monthLabel(previousMonth(selectedMonth))}`}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-              >
-                <ChevronLeft size={17} aria-hidden="true" /> Previous Month
-              </Link>
-            )}
-            <div className="text-center"><p className="text-xs font-semibold text-slate-500">Reporting Month</p><p className="mt-1 text-lg font-extrabold text-hospital-ink">{monthLabel(selectedMonth)}</p>{isCurrentMonth && <span className="mt-1 inline-flex rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">Month to Date</span>}</div>
-            {isCurrentMonth ? (
-              <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
-                Next Month <ChevronRight size={17} aria-hidden="true" />
-              </span>
-            ) : (
-              <Link
-                href={monthHref(nextMonth(selectedMonth))}
-                aria-label={`View ${monthLabel(nextMonth(selectedMonth))}`}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-              >
-                Next Month <ChevronRight size={17} aria-hidden="true" />
-              </Link>
-            )}
-          </div>
-        </section>
+        <MetricsDateNavigation key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} path="/admin/metrics/procedures" custom={Boolean(customRange)} month={selectedMonth} currentMonth={currentMonth} firstMonth={firstTrackedMonth} start={customRange?.start ?? `${selectedMonth}-01`} end={customRange?.end ?? report.selected.days.at(-1)?.date ?? `${selectedMonth}-01`} />
 
-        {!isCurrentMonth && <div className="flex justify-end"><Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800">Return to Current Month</Link></div>}
+        {(!isCurrentMonth || customRange) && <div className="flex justify-end"><Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800">Return to Current Month</Link></div>}
 
-        {loadError ? (
+        {rangeError ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? (
           <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center shadow-soft">
             <h2 className="font-extrabold text-rose-900">Procedure metrics are temporarily unavailable.</h2>
             <p className="mt-1 text-sm font-bold text-rose-700">Please try again.</p>
@@ -180,7 +148,7 @@ export function ProcedureMetrics({
               <SummaryCard label="Total Procedures" value={String(report.selected.total)} />
               <SummaryCard label="Day Shift Procedures" value={String(report.selected.dayTotal)} />
               <SummaryCard label="Night Shift Procedures" value={String(report.selected.nightTotal)} />
-              <SummaryCard label="Change vs Previous Month" value={report.comparison.difference === 0 ? "No change" : signedNumber(report.comparison.difference)} tone={comparisonDirection} />
+              <SummaryCard label={customRange ? "Change vs Previous Period" : "Change vs Previous Month"} value={report.comparison.difference === 0 ? "No change" : signedNumber(report.comparison.difference)} tone={comparisonDirection} />
               <SummaryCard label="Average per Day" value={report.selected.dailyAverage.toFixed(1)} />
             </section>
 
@@ -290,7 +258,7 @@ export function ProcedureMetrics({
             </section>
 
 
-            <ProcedureDailyDetail key={selectedMonth} days={report.selected.days} isCurrentMonth={isCurrentMonth} />
+            <ProcedureDailyDetail key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} days={report.selected.days} isCurrentMonth={isCurrentMonth} />
             <div role="status" className="flex items-center gap-2 px-1 text-xs font-semibold">
               {verified ? <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800"><CheckCircle2 size={15} aria-hidden="true" />Data Verified</span> : <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-800">Data verification pending</span>}
             </div>
