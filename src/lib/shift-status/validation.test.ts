@@ -63,6 +63,15 @@ describe("shift status count validation", () => {
     ).toBe("Bubble CPAP must be a whole number of 0 or more.");
   });
 
+  it.each(["stayedOver", "calledIn"] as const)("validates %s as an optional nonnegative whole count", (field) => {
+    for (const value of ["-1", "1.5", "NaN"]) {
+      expect(validateShiftStatusCounts({ ...validCounts, [field]: value })).toContain("whole number");
+    }
+    for (const value of ["", "0", "3"]) {
+      expect(validateShiftStatusCounts({ ...validCounts, [field]: value })).toBeNull();
+    }
+  });
+
   it("calculates RT need from RVUs using 27 and normal one-decimal rounding", () => {
     expect(rtsNeededFromRvus("154")).toBe(5.7);
     expect(rtsNeededFromRvus("184")).toBe(6.8);

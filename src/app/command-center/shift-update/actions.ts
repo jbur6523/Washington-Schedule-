@@ -26,6 +26,9 @@ function validPayload(payload: ShiftStatusSavePayload) {
     /^\d{4}-\d{2}-\d{2}$/.test(payload.shift_date)
     && (payload.shift_type === "day" || payload.shift_type === "night")
     && numericValues.every((value) => Number.isFinite(value) && value >= 0)
+    && [payload.stayed_over_count, payload.called_in_count].every(
+      (value) => value === undefined || (Number.isInteger(value) && value >= 0 && value <= 2147483647)
+    )
     && Boolean(payload.updated_by_name.trim())
   );
 }

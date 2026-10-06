@@ -33,6 +33,8 @@ type ShiftUpdateForm = {
   shiftDate: string;
   shiftType: ShiftStatusShiftType;
   rtsOn: string;
+  stayedOver: string;
+  calledIn: string;
   rvuCount: string;
   rvuEntryIsManual: boolean;
   ventCount: string;
@@ -73,6 +75,8 @@ function shiftUpdateFormForSelection(
     shiftDate: selection.shiftDate,
     shiftType: selection.shiftType,
     rtsOn: update ? String(update.rts_on) : "",
+    stayedOver: String(update?.stayed_over_count ?? 0),
+    calledIn: String(update?.called_in_count ?? 0),
     rvuCount: update?.rvu_total === null || update?.rvu_total === undefined ? "" : String(update.rvu_total),
     rvuEntryIsManual: false,
     ventCount: update?.vent_count === null || update?.vent_count === undefined ? "" : String(update.vent_count),
@@ -103,6 +107,8 @@ function formSignature(form: ShiftUpdateForm) {
 function withDefaultTrackedCounts(form: ShiftUpdateForm): ShiftUpdateForm {
   return {
     ...form,
+    stayedOver: form.stayedOver.trim() || "0",
+    calledIn: form.calledIn.trim() || "0",
     neonatalHighFlowCount: form.neonatalHighFlowCount.trim() || "0",
     bubbleCpapCount: form.bubbleCpapCount.trim() || "0",
     cSectionCount: form.cSectionCount.trim() || "0",
@@ -429,6 +435,8 @@ export function ShiftUpdateClient({
       shift_date: normalizedForm.shiftDate,
       shift_type: normalizedForm.shiftType,
       rts_on: shiftStatusNumberValue(normalizedForm.rtsOn),
+      stayed_over_count: shiftStatusNumberValue(normalizedForm.stayedOver),
+      called_in_count: shiftStatusNumberValue(normalizedForm.calledIn),
       rts_required: calculatedRtsNeeded,
       rvu_total: effectiveRvuCount.trim(),
       vent_count: optionalShiftStatusNumberValue(normalizedForm.ventCount),
@@ -630,6 +638,27 @@ export function ShiftUpdateClient({
               />
             </div>
             <p className="mt-3 text-sm font-semibold text-slate-600">Entries below 15 are treated as RTs needed. Press Enter or leave the field to convert to RVUs.</p>
+          </section>
+
+          <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+            <h2 className="text-lg font-black text-hospital-ink">Additional Staffing</h2>
+            <p className="mt-1 text-xs font-bold text-slate-500">RTs who stayed over or were called in for additional staffing</p>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <CountInputCard
+                icon={<Users size={18} />}
+                label="Stayed Over"
+                value={form.stayedOver}
+                onBlur={() => setForm((current) => ({ ...current, stayedOver: current.stayedOver.trim() || "0" }))}
+                onChange={(value) => setForm((current) => ({ ...current, stayedOver: value }))}
+              />
+              <CountInputCard
+                icon={<Users size={18} />}
+                label="Called In"
+                value={form.calledIn}
+                onBlur={() => setForm((current) => ({ ...current, calledIn: current.calledIn.trim() || "0" }))}
+                onChange={(value) => setForm((current) => ({ ...current, calledIn: value }))}
+              />
+            </div>
           </section>
 
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">

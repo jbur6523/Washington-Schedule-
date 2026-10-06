@@ -229,6 +229,42 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
+  it("saves additional staffing separately without changing RTs or RVUs", async () => {
+    mocks.rpc.mockResolvedValue({ error: null });
+    renderShiftUpdate();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings.indexOf("Additional Staffing")).toBe(headings.indexOf("Current Counts") + 1);
+    expect(screen.getByLabelText("Stayed Over")).toHaveValue(0);
+    expect(screen.getByLabelText("Called In")).toHaveValue(0);
+    populateRequiredFields();
+    fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Called In"), { target: { value: "3" } });
+    await act(async () => {
+      fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form")!);
+    });
+    expect(savedPayload()).toEqual(expect.objectContaining({
+      stayed_over_count: 2, called_in_count: 3, rts_on: 8, rts_required: 8, rvu_total: "216"
+    }));
+  });
+
+  it("reloads saved additional staffing and saves cleared fields as zero", async () => {
+    mocks.fetchShiftStatusUpdateForRecord.mockResolvedValue({
+      data: shiftUpdate({ stayed_over_count: 2, called_in_count: 3, rvu_total: 216 }), error: null
+    });
+    mocks.rpc.mockResolvedValue({ error: null });
+    renderShiftUpdate();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(screen.getByLabelText("Stayed Over")).toHaveValue(2);
+    expect(screen.getByLabelText("Called In")).toHaveValue(3);
+    fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Called In"), { target: { value: "" } });
+    await act(async () => {
+      fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form")!);
+    });
+    expect(savedPayload()).toEqual(expect.objectContaining({ stayed_over_count: 0, called_in_count: 0 }));
+  });
+
   it("defaults blank scheduled procedure counts to zero without blocking submission", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
 

@@ -7,6 +7,8 @@ export type ShiftStatusUpdate = {
   shift_type: ShiftStatusShiftType;
   is_canonical?: boolean;
   rts_on: number;
+  stayed_over_count?: number;
+  called_in_count?: number;
   rts_required: number;
   rvu_total: number | null;
   vent_count: number | null;
@@ -37,6 +39,8 @@ export type ShiftStatusSavePayload = {
   shift_date: string;
   shift_type: ShiftStatusShiftType;
   rts_on: number;
+  stayed_over_count?: number;
+  called_in_count?: number;
   rts_required: number;
   rvu_total: string;
   vent_count: number | null;

@@ -10,6 +10,8 @@ export function normalizeShiftRvuInput(value: string) {
 
 export type ShiftStatusCountInput = {
   rtsOn: string;
+  stayedOver?: string;
+  calledIn?: string;
   rvuCount: string;
   ventCount: string;
   bipapCount: string;
@@ -25,6 +27,8 @@ export type ShiftStatusCountInput = {
 
 const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> = [
   ["rtsOn", "RTs On Shift", true],
+  ["stayedOver", "Stayed Over", false],
+  ["calledIn", "Called In", false],
   ["ventCount", "Vents", false],
   ["bipapCount", "BiPAPs", true],
   ["neonatalHighFlowCount", "Neonatal High Flow", false],
@@ -39,7 +43,7 @@ const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> =
 
 export function validateShiftStatusCounts(input: ShiftStatusCountInput) {
   for (const [field, label, required] of wholeNumberFields) {
-    const value = input[field].trim();
+    const value = (input[field] ?? "").trim();
 
     if (!value && !required) {
       continue;

@@ -38,7 +38,9 @@ const shiftStatusColumns = [
   ...procedureShiftStatusColumns.slice(0, 9),
   "neonatal_high_flow_count",
   "bubble_cpap_count",
-  ...procedureShiftStatusColumns.slice(9)
+  ...procedureShiftStatusColumns.slice(9),
+  "stayed_over_count",
+  "called_in_count"
 ];
 
 const shiftStatusSelect = shiftStatusColumns.join(", ");
