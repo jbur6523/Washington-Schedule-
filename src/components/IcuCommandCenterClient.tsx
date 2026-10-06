@@ -8,7 +8,7 @@ import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
-import { printIcuRoundingReport } from "@/lib/icu-command-center/print-report";
+import { printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
 import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -850,6 +850,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [discontinuedDate, setDiscontinuedDate] = useState("");
   const [discontinuedTime, setDiscontinuedTime] = useState("");
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
+  const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
   const [historyEvents, setHistoryEvents] = useState<IcuPatientEventRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -1377,11 +1378,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
         <button
           type="button"
           disabled={loading || records.length === 0}
-          onClick={() => {
-            if (!printIcuRoundingReport(records, authContext.departmentName)) {
-              setError("Allow pop-ups for this site, then select Print Report again.");
-            }
-          }}
+          onClick={() => setPrintOptionsOpen(open => !open)}
+          aria-expanded={printOptionsOpen}
+          aria-controls="icu-print-options"
           className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60"
         >
           <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
@@ -1393,6 +1392,17 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </span>
           <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
         </button>
+
+        {printOptionsOpen && <section id="icu-print-options" aria-label="Print options" className="grid gap-3 rounded-2xl border-2 border-sky-700 bg-white p-3 sm:grid-cols-2">
+          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
+            <span className="flex items-center gap-2 font-black"><Printer size={18} />SBAR</span>
+            <span className="mt-1 block text-xs font-semibold">Quick board sheet: beds, modalities and current settings.</span>
+          </button>
+          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuRoundingReport(records, authContext.departmentName); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
+            <span className="flex items-center gap-2 font-black"><Printer size={18} />ICU Report</span>
+            <span className="mt-1 block text-xs font-semibold">Full rounding details, notes, current and previous settings.</span>
+          </button>
+        </section>}
 
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <div className="flex items-center justify-between gap-3">
@@ -2126,6 +2136,19 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               </button>
             </div>
 
+            <button type="button" disabled={historyLoading || Boolean(historyError) || historyEvents.length === 0}
+              onClick={() => printIcuDocument(buildIcuHistoryReport(historyTarget.bed, authContext.departmentName, historyEvents.map(event => {
+                const changes = icuHistoryChanges(event);
+                const lines = changes !== null
+                  ? changes.length ? changes.map(change => `${change.label}\nPrevious: ${change.previous}\nCurrent: ${change.current}`) : ["No changes recorded."]
+                  : [event.event_summary || "", ...(event.event_type === "added" || event.event_type === "discontinued" ? historyDetailLines(event) : []),
+                    ...(event.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(event.event_data?.action)) ? ["Previous values were not recorded for this entry."] : []),
+                    ...(event.event_data?.action === "note_updated" && eventDataText(event, "notes") ? [`Note: ${eventDataText(event, "notes")}`] : [])].filter(Boolean);
+                return { title: `${formatIcuLastUpdated(event.event_time)} PT — ${historyEventLabel(event)}`, author: event.created_by_name || "Unknown", lines };
+              })))}
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-sky-700 bg-sky-200 px-4 font-bold text-sky-950 hover:bg-sky-300 disabled:opacity-50">
+              <Printer size={18} />Print History
+            </button>
             <div className="mt-4 space-y-3">
               {historyLoading && (
                 <p className="rounded-2xl bg-white px-3 py-4 text-sm font-bold text-slate-500">Loading ICU history...</p>

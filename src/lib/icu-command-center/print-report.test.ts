@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildIcuRoundingReport, printIcuRoundingReport } from "./print-report";
+import { buildIcuRoundingReport, printIcuRoundingReport, buildIcuSbarReport, buildIcuHistoryReport } from "./print-report";
 import type { IcuPatientRecord } from "./types";
 
 const patient = {
@@ -33,16 +33,37 @@ describe("ICU rounding print report", () => {
     for (const label of ["SBT Started", "Critical", "Last Procedure", "Previous Settings"]) expect(doc.body.textContent).not.toContain(label);
   });
 
-  it("opens the report and invokes printing, with a retry button in the report", () => {
-    const doc = document.implementation.createHTMLDocument();
-    const print = vi.fn();
-    const open = vi.spyOn(window, "open").mockReturnValue({ document: doc, print, focus: vi.fn(), opener: window } as unknown as Window);
+  it("prints inside this tab and removes the frame after printing", () => {
+    const open = vi.spyOn(window, "open");
     expect(printIcuRoundingReport([patient], "RT")).toBe(true);
+    const frame = document.querySelector<HTMLIFrameElement>("#icu-print-frame")!;
+    const print = vi.spyOn(frame.contentWindow!, "print").mockImplementation(() => {});
+    vi.spyOn(frame.contentWindow!, "focus").mockImplementation(() => {});
+    vi.spyOn(window, "focus").mockImplementation(() => {});
+    frame.dispatchEvent(new Event("load"));
     expect(print).toHaveBeenCalledOnce();
-    doc.getElementById("print-report")?.click();
-    expect(print).toHaveBeenCalledTimes(2);
-    open.mockReturnValue(null);
-    expect(printIcuRoundingReport([patient], "RT")).toBe(false);
-    open.mockRestore();
+    expect(open).not.toHaveBeenCalled();
+    expect(frame.srcdoc).toContain("WHHS ICU Rounding Report");
+    frame.contentWindow!.dispatchEvent(new Event("afterprint"));
+    expect(document.querySelector("#icu-print-frame")).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it("keeps SBAR to active beds, modalities and current settings only", () => {
+    const html = buildIcuSbarReport([patient, { ...patient, bed: "OLD", is_active: false }], "RT");
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    expect(doc.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(doc.body.textContent).toContain("D239");
+    expect(doc.body.textContent).toContain("PS 8");
+    for (const excluded of ["OLD", "Previous Settings", "Bronch", patient.notes!]) expect(doc.body.textContent).not.toContain(excluded);
+  });
+
+  it("prints only the selected history and escapes notes and changes", () => {
+    const html = buildIcuHistoryReport("D239", "RT", [{ title: "Updated settings", author: "RT", lines: ["ETT size\nPrevious: 7.5\nCurrent: 6.0", "<script>unsafe</script>"] }]);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    expect(doc.body.textContent).toContain("Previous: 7.5");
+    expect(doc.body.textContent).toContain("Current: 6.0");
+    expect(doc.querySelector("script")).toBeNull();
+    expect(doc.querySelectorAll("article")).toHaveLength(1);
   });
 });

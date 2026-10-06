@@ -48,15 +48,50 @@ export function buildIcuRoundingReport(records: IcuPatientRecord[], department: 
   </body></html>`;
 }
 
-export function printIcuRoundingReport(records: IcuPatientRecord[], department: string) {
-  const report = window.open("", "_blank");
-  if (!report) return false;
-  report.opener = null;
-  report.document.open();
-  report.document.write(buildIcuRoundingReport(records, department));
-  report.document.close();
-  report.document.getElementById("print-report")?.addEventListener("click", () => report.print());
-  report.focus();
-  report.print();
+/** Print an isolated document inside this tab; no popup or preview tab is created. */
+export function printIcuDocument(html: string) {
+  document.getElementById("icu-print-frame")?.remove();
+  const frame = document.createElement("iframe");
+  frame.id = "icu-print-frame";
+  frame.title = "ICU print document";
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText = "position:fixed;left:-10000px;top:0;width:816px;height:1056px;border:0";
+  frame.onload = () => {
+    const report = frame.contentWindow;
+    if (!report) { frame.remove(); return; }
+    report.addEventListener("afterprint", () => { frame.remove(); window.focus(); }, { once: true });
+    report.focus();
+    report.print();
+  };
+  frame.srcdoc = html;
+  document.body.appendChild(frame);
   return true;
+}
+
+export function printIcuRoundingReport(records: IcuPatientRecord[], department: string) {
+  return printIcuDocument(buildIcuRoundingReport(records, department));
+}
+
+function simpleReport(title: string, subtitle: string, content: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+    @page { size: letter portrait; margin: .4in; }
+    * { box-sizing: border-box; } body { color: #111; background: white; font: 10pt/1.35 Arial,sans-serif; margin: 0; }
+    h1 { font-size: 17pt; margin: 0 0 4px; } h2 { font-size: 11pt; margin: 0 0 4px; }
+    .subtitle { margin: 0 0 12px; font-size: 9pt; } table { border-collapse: collapse; width: 100%; }
+    th,td { text-align: left; border: 1px solid #666; padding: 7px; vertical-align: top; overflow-wrap: anywhere; }
+    th { background: #eee; } tr,article { break-inside: avoid; } thead { display: table-header-group; }
+    article { border-bottom: 1px solid #888; padding: 8px 0; } p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style></head><body><h1>${escapeHtml(title)}</h1><p class="subtitle">${escapeHtml(subtitle)}</p>${content}</body></html>`;
+}
+
+export function buildIcuSbarReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
+  const active = records.filter(record => record.is_active);
+  return simpleReport("WHHS ICU SBAR", `${department} · ${active.length} active patients · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`,
+    `<table><thead><tr><th>Bed</th><th>Modality / Mode</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`).join("")}</tbody></table>`);
+}
+
+export type IcuPrintableHistoryEntry = { title: string; author: string; lines: string[] };
+export function buildIcuHistoryReport(bed: string, department: string, entries: IcuPrintableHistoryEntry[], generatedAt = new Date()) {
+  return simpleReport(`WHHS ICU History — ${bed}`, `${department} · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT · Most recent first`,
+    entries.map(entry => `<article><h2>${escapeHtml(entry.title)}</h2><p>By ${escapeHtml(entry.author)}</p>${entry.lines.map(line => `<p>${escapeHtml(line)}</p>`).join("")}</article>`).join("") || "<p>No history events recorded.</p>");
 }
