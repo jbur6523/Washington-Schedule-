@@ -1378,8 +1378,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
         <button
           type="button"
           disabled={loading || records.length === 0}
-          onClick={() => setPrintOptionsOpen(open => !open)}
-          aria-expanded={printOptionsOpen}
+          onClick={() => setPrintOptionsOpen(true)}
+          aria-haspopup="dialog"
           aria-controls="icu-print-options"
           className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60"
         >
@@ -1393,7 +1393,18 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
         </button>
 
-        {printOptionsOpen && <section id="icu-print-options" aria-label="Print options" className="grid gap-3 rounded-2xl border-2 border-sky-700 bg-white p-3 sm:grid-cols-2">
+        {printOptionsOpen && <dialog id="icu-print-options" aria-labelledby="icu-print-title"
+          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
+          onClose={() => setPrintOptionsOpen(false)}
+          onClick={event => { if (event.target === event.currentTarget) setPrintOptionsOpen(false); }}
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border-2 border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45 backdrop:backdrop-blur-sm">
+          <div className="p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 id="icu-print-title" className="text-xl font-black">Print Report</h2>
+              <button type="button" onClick={() => setPrintOptionsOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-100"><X size={18} />Close</button>
+            </div>
+            <p className="mb-4 text-sm font-semibold text-slate-600">Choose a report to print.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
             <span className="flex items-center gap-2 font-black"><Printer size={18} />SBAR</span>
             <span className="mt-1 block text-xs font-semibold">Quick board sheet: beds, modalities and current settings.</span>
@@ -1402,7 +1413,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             <span className="flex items-center gap-2 font-black"><Printer size={18} />ICU Report</span>
             <span className="mt-1 block text-xs font-semibold">Full rounding details, notes, current and previous settings.</span>
           </button>
-        </section>}
+            </div>
+          </div>
+        </dialog>}
 
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <div className="flex items-center justify-between gap-3">
