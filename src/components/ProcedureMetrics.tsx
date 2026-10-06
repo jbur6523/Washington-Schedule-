@@ -20,52 +20,17 @@ import {
   type ProcedureMonthlyTrend
 } from "@/lib/metrics/procedures";
 
-function SummaryCard({ label, value, helper, tone = "neutral" }: { label: string; value: string; helper: string; tone?: "up" | "down" | "neutral" }) {
+function SummaryCard({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "up" | "down" | "neutral" }) {
   return (
     <article className="rounded-2xl border border-slate-200/80 bg-white p-4">
       <h2 className="min-h-10 text-xs font-semibold leading-5 text-slate-600">{label}</h2>
       <p className={`mt-2 text-3xl font-extrabold tabular-nums tracking-tight ${tone === "up" ? "text-emerald-700" : tone === "down" ? "text-rose-700" : "text-hospital-ink"}`}>{value}</p>
-      <p className="mt-2 text-xs leading-5 text-slate-500">{helper}</p>
     </article>
   );
 }
 
 function signedNumber(value: number) {
   return value > 0 ? `+${value}` : String(value);
-}
-
-function changeDetails(change: ProcedureChange, previousTotal: number, comparisonLabel: string) {
-  if (previousTotal === 0) {
-    if (change.difference > 0) {
-      return {
-        direction: "up" as const,
-        value: `Up ${change.difference} procedures`,
-        helper: `Up from 0 in ${comparisonLabel}`
-      };
-    }
-
-    return {
-      direction: "neutral" as const,
-      value: "No change",
-      helper: "No procedures recorded in either period"
-    };
-  }
-
-  if (change.difference === 0) {
-    return {
-      direction: "neutral" as const,
-      value: "No change",
-      helper: `Same total as ${comparisonLabel}`
-    };
-  }
-
-  const direction = change.difference > 0 ? "up" as const : "down" as const;
-  const word = direction === "up" ? "Up" : "Down";
-  return {
-    direction,
-    value: `${word} ${Math.abs(change.difference)} procedures`,
-    helper: `${Math.abs(change.percentage ?? 0).toFixed(1)}% vs ${comparisonLabel}`
-  };
 }
 
 function ChangeText({
@@ -146,7 +111,7 @@ export function ProcedureMetrics({
   const selectedMonth = report.selected.month;
   const isCurrentMonth = selectedMonth === currentMonth;
   const firstTrackedMonth = report.reliableHistoryStartDate.slice(0, 7);
-  const comparison = changeDetails(report.comparison, report.previous.total, report.comparisonPeriodLabel);
+  const comparisonDirection = report.comparison.difference > 0 ? "up" : report.comparison.difference < 0 ? "down" : "neutral";
   const selectedColumnLabel = `${monthLabel(selectedMonth, "short")}${isCurrentMonth ? " MTD" : ""}`;
   const historyStartLabel = new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC",
@@ -158,7 +123,6 @@ export function ProcedureMetrics({
   const verified = report.selected.total === report.typeComparisons.reduce((total, item) => total + item.selectedTotal, 0)
     && report.selected.total === report.selected.days.reduce((total, day) => total + day.total, 0)
     && report.selected.total === report.selected.dayTotal + report.selected.nightTotal;
-  const shiftShare = (total: number) => report.selected.total === 0 ? "0.0% of total" : `${(total / report.selected.total * 100).toFixed(1)}% of total`;
 
   return (
     <main className="min-h-screen px-4 py-6 sm:py-8">
@@ -213,11 +177,11 @@ export function ProcedureMetrics({
         ) : (
           <>
             <section aria-label="Procedure metrics summary" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <SummaryCard label="Total Procedures" value={String(report.selected.total)} helper={report.selectedPeriodLabel} />
-              <SummaryCard label="Day Shift Procedures" value={String(report.selected.dayTotal)} helper={shiftShare(report.selected.dayTotal)} />
-              <SummaryCard label="Night Shift Procedures" value={String(report.selected.nightTotal)} helper={shiftShare(report.selected.nightTotal)} />
-              <SummaryCard label="Change vs Previous Month" value={report.comparison.difference === 0 ? "No change" : signedNumber(report.comparison.difference)} helper={comparison.helper} tone={comparison.direction} />
-              <SummaryCard label="Average per Day" value={report.selected.dailyAverage.toFixed(1)} helper={`${report.selected.total} ÷ ${report.selected.calendarDaysRepresented} calendar days`} />
+              <SummaryCard label="Total Procedures" value={String(report.selected.total)} />
+              <SummaryCard label="Day Shift Procedures" value={String(report.selected.dayTotal)} />
+              <SummaryCard label="Night Shift Procedures" value={String(report.selected.nightTotal)} />
+              <SummaryCard label="Change vs Previous Month" value={report.comparison.difference === 0 ? "No change" : signedNumber(report.comparison.difference)} tone={comparisonDirection} />
+              <SummaryCard label="Average per Day" value={report.selected.dailyAverage.toFixed(1)} />
             </section>
 
 

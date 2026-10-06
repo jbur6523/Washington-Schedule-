@@ -65,7 +65,7 @@ describe("ProcedureMetrics", () => {
     ], "2026-09", new Date("2026-10-15T19:00:00.000Z"));
     render(<ProcedureMetrics report={report} currentMonth="2026-10" />);
 
-    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Up from 0 in August 14–31");
+    expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("+10");
     expect(document.body).not.toHaveTextContent(/Infinity|NaN/);
   });
 });
