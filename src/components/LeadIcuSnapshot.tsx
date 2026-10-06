@@ -24,12 +24,12 @@ export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd,
           <h3 id={`lead-icu-${group.id}`} className="bg-blue-50 px-3 py-3 font-bold text-hospital-ink">{group.label}<span className="ml-2 text-sm font-medium text-slate-600">({active.length} active {active.length === 1 ? "room" : "rooms"})</span></h3>
           <div className="overflow-x-auto"><table aria-label={`${group.label} active devices`} className="block w-full text-left text-sm sm:table sm:min-w-[460px]">
             <thead className="hidden sm:table-header-group bg-slate-50 text-xs text-slate-600"><tr>{["Room Number", "Device (Settings)", "Status", "Action"].map(label => <th key={label} scope="col" className="px-3 py-2 font-semibold">{label}</th>)}</tr></thead>
-            <tbody className="block sm:table-row-group divide-y divide-slate-100">
+            <tbody className="block sm:table-row-group divide-y-2 divide-slate-400">
               {active.map(record => {
                 const statuses = record.device_type === "vent" ? [...(record.is_critical_vent ? ["Critical"] : []), ...activeVentModifierLabels(record)] : supportsIcuStandby(record.device_type) && record.is_standby ? ["Standby"] : [];
                 const tone = ventCardTone(record);
                 const statusClass = tone === "critical" ? "bg-rose-50 text-rose-800" : tone === "standby" || record.is_standby ? "bg-amber-50 text-amber-900" : "bg-blue-50 text-blue-800";
-                return <tr key={record.id} className="grid grid-cols-[minmax(0,1fr)_auto] sm:table-row">
+                return <tr key={record.id} className="grid grid-cols-[minmax(0,1fr)_auto] odd:bg-white even:bg-blue-50 sm:table-row">
                   <th scope="row" className="col-span-2 px-3 pb-1 pt-3 sm:py-3 align-top font-semibold text-slate-800">{record.bed}</th>
                   <td className="col-start-1 row-start-2 min-w-0 px-3 py-2 align-top text-slate-700 sm:py-3"><p className="font-semibold">{formatIcuDeviceSummary(record)}</p>{formatIcuAirway(record) && <p className="text-xs">{formatIcuAirway(record)}</p>}<p className="mt-1 leading-5">{formatIcuSettings(record)}</p>{record.notes?.trim() && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">Note: {record.notes}</p>}</td>
                   <td className="col-start-1 row-start-3 px-3 pb-3 align-top sm:py-3"><div className="flex flex-wrap gap-1">{statuses.length ? statuses.map(status => <span key={status} className={`rounded px-2 py-1 text-xs font-semibold ${statusClass}`}>{status}</span>) : <span className="text-slate-400">—</span>}</div></td>
