@@ -1382,15 +1382,16 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               setError("Allow pop-ups for this site, then select Print Report again.");
             }
           }}
-          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-slate-400 bg-slate-200 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99] disabled:opacity-60"
+          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60"
         >
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-800 shadow-sm">
-            <Printer size={20} />
+          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+            <Printer size={26} strokeWidth={2.5} aria-hidden="true" />
           </span>
-          <span>
-            <span className="block text-sm font-black text-hospital-ink">Print Report</span>
-            <span className="mt-0.5 block text-xs font-bold text-slate-700">Active ICU patients and rounding details.</span>
+          <span className="flex-1">
+            <span className="block text-lg font-black text-sky-950">Print Report</span>
+            <span className="mt-0.5 block text-xs font-bold text-sky-900">Active ICU patients and rounding details.</span>
           </span>
+          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
         </button>
 
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
