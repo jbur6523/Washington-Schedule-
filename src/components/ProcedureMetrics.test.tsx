@@ -33,20 +33,22 @@ describe("ProcedureMetrics", () => {
     expect(screen.getByRole("heading", { name: "Procedure Metrics" })).toBeInTheDocument();
     const summary = screen.getByLabelText("Procedure metrics summary");
     expect(summary).toHaveTextContent("Average per Day");
-    expect(summary).toHaveTextContent("Average per Reported Shift");
-    expect(summary).toHaveTextContent("Previous-Period Total");
-    expect(summary).toHaveTextContent("Change from Previous Period");
-    expect(summary).toHaveTextContent("Three-Month Average");
+    expect(summary).toHaveTextContent("Day Shift Procedures");
+    expect(summary).toHaveTextContent("Night Shift Procedures");
+    expect(summary).toHaveTextContent("Change vs Previous Month");
+    expect(summary).toHaveTextContent("Total Procedures");
+    expect(summary.querySelectorAll("article")).toHaveLength(5);
 
     expect(screen.getByRole("heading", { name: "Procedures by Type" })).toBeInTheDocument();
     for (const procedure of PROCEDURE_TYPES) {
       expect(screen.getAllByText(procedure.label).length).toBeGreaterThan(0);
     }
-    expect(screen.getByRole("img", { name: /Monthly procedure totals and rolling average/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Monthly procedure totals/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Daily Detail" })).toBeInTheDocument();
     expect(screen.getAllByText("No procedure updates").length).toBeGreaterThan(0);
     expect(screen.queryByText(/A submitted shift showing all zeroes is a reported zero/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Reconciliation")).toHaveTextContent("Procedure types (5) = daily totals (5) = canonical shift totals (5)");
+    expect(screen.getByRole("status")).toHaveTextContent("Data Verified");
+    expect(screen.queryByText(/canonical shift totals/)).not.toBeInTheDocument();
   });
 
   it("disables future navigation while viewing the current month", () => {
@@ -66,4 +68,12 @@ describe("ProcedureMetrics", () => {
     expect(screen.getByLabelText("Procedure metrics summary")).toHaveTextContent("Up from 0 in August 14–31");
     expect(document.body).not.toHaveTextContent(/Infinity|NaN/);
   });
+});
+
+it("does not show verified status when report totals disagree", () => {
+  const report = buildProcedureMetricsReport([row({ bronch_count: 2 })], "2026-08", new Date("2026-08-20T19:00:00Z"));
+  report.selected.dayTotal = 9;
+  render(<ProcedureMetrics report={report} currentMonth="2026-08" />);
+  expect(screen.getByRole("status")).toHaveTextContent("Data verification pending");
+  expect(screen.queryByText("Data Verified")).not.toBeInTheDocument();
 });
