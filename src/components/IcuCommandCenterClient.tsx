@@ -550,7 +550,7 @@ function IcuNumberInput({
         onChange={(event) => onChange(event.target.value)}
         inputMode="decimal"
         placeholder={placeholder}
-        className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
       />
     </label>
   );
@@ -650,7 +650,7 @@ export function IcuPatientCard({
                   rows={2}
                   maxLength={2000}
                   placeholder="Add note…"
-                  className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </label>
               <div className="mt-2 flex items-center gap-2">
@@ -1724,7 +1724,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     value={form.bed}
                     onChange={(event) => setForm({ ...form, bed: event.target.value })}
                     required
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   >
                     <option value="">Select bed</option>
                     {roomOptions.map((bedOption) => (
@@ -1747,7 +1747,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       })
                     }
                     required
-                    className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   >
                     <option value="">Select device</option>
                     {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).map((device) => (
@@ -1784,7 +1784,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                           value={form.airway_size}
                           onChange={(event) => setForm({ ...form, airway_size: event.target.value })}
                           required={form.airway_type === "trach"}
-                          className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                          className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                         >
                           <option value="">Select size</option>
                           {(form.airway_type === "trach" ? trachSizeOptions : airwaySizeOptions).map((size) => (
@@ -1800,7 +1800,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Trach type</span>
                             <select value={form.trach_type} required
                               onChange={(event) => setForm({ ...form, trach_type: event.target.value as IcuTrachType | "" })}
-                              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300">
+                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200">
                               <option value="">Select type</option>
                               {(Object.keys(trachTypeLabels) as IcuTrachType[]).map((type) => (
                                 <option key={type} value={type}>{trachTypeLabels[type]}</option>
@@ -1827,7 +1827,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                             <select
                               value={form.airway_location}
                               onChange={(event) => setForm({ ...form, airway_location: event.target.value })}
-                              className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                             >
                               <option value="">Select location</option>
                               {airwayLocationOptions.map((location) => (
@@ -1850,7 +1850,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                         value={form.vent_mode}
                         onChange={(event) => setForm({ ...form, vent_mode: event.target.value as IcuVentMode | "" })}
                         required
-                        className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                       >
                         <option value="">Select mode</option>
                         {ventModeOptions.map((mode) => (
@@ -1949,7 +1949,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     onChange={(event) => setForm({ ...form, notes: event.target.value })}
                     rows={3}
                     placeholder="Add an optional patient/device note"
-                    className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                    className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   />
                 </label>
               ) : null}
@@ -2052,7 +2052,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     setDiscontinueError("");
                   }}
                   required
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                 />
               </label>
               <label className="block">
@@ -2065,7 +2065,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     setDiscontinueError("");
                   }}
                   required
-                  className="mt-1 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300"
+                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                 />
               </label>
             </div>
@@ -2257,7 +2257,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                   onChange={(event) => setPreviousDateInput(event.target.value)}
                   inputMode="numeric"
                   placeholder="070626"
-                  className="mt-1 min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-base font-black text-hospital-ink outline-none focus:border-cyan-300"
+                  className="mt-1 min-h-12 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-base font-black text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                 />
               </label>
               <button
