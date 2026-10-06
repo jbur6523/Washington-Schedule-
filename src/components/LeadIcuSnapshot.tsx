@@ -11,8 +11,8 @@ export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd,
   onAdd: () => void; onDiscontinue: (record: IcuPatientRecord) => void;
 }) {
   return <section aria-labelledby="lead-icu-heading" className="border-t border-slate-200 pt-5">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div><h2 id="lead-icu-heading" className="flex items-center gap-2 text-xl font-bold text-hospital-ink"><BarChart3 size={23} className="text-blue-600" aria-hidden="true" />ICU Snapshot</h2><p className="mt-1 text-sm text-slate-600">Active respiratory support by unit. Manage devices directly from here.</p></div>
+    <div className="mb-4 grid justify-items-center gap-3">
+      <h2 id="lead-icu-heading" className="flex w-full items-center gap-2 text-xl font-bold text-hospital-ink"><BarChart3 size={23} className="text-blue-600" aria-hidden="true" />ICU Snapshot</h2>
       <button type="button" onClick={onAdd} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700"><Plus size={18} aria-hidden="true" />Add Device</button>
     </div>
     {message && <p role="status" className="mb-3 text-sm font-semibold text-emerald-800">{message}</p>}
