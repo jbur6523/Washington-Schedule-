@@ -62,9 +62,9 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
                 <Icon size={27} aria-hidden="true" /><div><h2 className="text-lg font-extrabold">{name} Shift</h2><p className="mt-1 text-xs">{summary.shiftCount ? `${summary.shiftCount} reported shifts` : "No reported shifts"}</p></div>
               </div>
               <dl className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <SummaryCard label={`Average ${name} Shift RVU`} value={formatOneDecimal(summary.averageRvus)} helper="RVUs per reported shift" />
-                <SummaryCard label={`Average ${name} Staff Needed`} value={formatOneDecimal(summary.averageRtsNeeded)} helper="RTs per reported shift" />
                 <SummaryCard label={`Average ${name} Staff On Shift`} value={formatOneDecimal(summary.averageRtsOn)} helper="RTs per reported shift" />
+                <SummaryCard label={`Average ${name} Staff Needed`} value={formatOneDecimal(summary.averageRtsNeeded)} helper="RTs per reported shift" />
+                <SummaryCard label={`Average ${name} Shift RVU`} value={formatOneDecimal(summary.averageRvus)} helper="RVUs per reported shift" />
                 <SummaryCard label={`${name} Shift Coverage Rate`} value={formatPercentage(summary.percentageMeetingNeed)} helper="Reported shifts meeting need" />
               </dl>
             </section>;
