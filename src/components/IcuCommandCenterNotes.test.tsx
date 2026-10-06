@@ -196,6 +196,11 @@ describe("ICU patient notes", () => {
     mocks.changed = [];
     mocks.remove.mockClear();
     mocks.rpc.mockReset().mockImplementation(async (_name, args) => {
+      if (_name === "record_icu_rounding_action") {
+        const record = patientRecord({ ...mocks.activeRecords[0], notes: args.target_payload.notes || null });
+        mocks.activeRecords = [record];
+        return { data: record, error: null };
+      }
       const record = args.target_action === "add"
         ? patientRecord({ ...args.target_payload, id: "patient-new" })
         : patientRecord({ ...mocks.activeRecords[0], ...args.target_payload, is_active: false });
@@ -327,10 +332,10 @@ describe("ICU patient notes", () => {
   });
 
   it.each([
-    ["adds", null, "  New inline note  ", "New inline note", "ICU note updated."],
-    ["updates", "Existing ICU note", "  Updated inline note  ", "Updated inline note", "ICU note updated."],
-    ["clears", "Existing ICU note", "   ", null, "ICU note cleared."]
-  ])("%s a note directly from the compact patient card without updating device settings", async (_action, initialNote, noteDraft, expectedNote, eventSummary) => {
+    ["adds", null, "  New inline note  ", "New inline note"],
+    ["updates", "Existing ICU note", "  Updated inline note  ", "Updated inline note"],
+    ["clears", "Existing ICU note", "   ", null]
+  ])("%s a note directly from the compact patient card without updating device settings", async (_action, initialNote, noteDraft, expectedNote) => {
     mocks.activeRecords = [patientRecord({ notes: initialNote })];
     render(<IcuCommandCenterClient authContext={authContext} />);
     fireEvent.click(await screen.findByRole("button", { name: initialNote ? "Edit note" : "+ Add Note" }));
@@ -339,20 +344,11 @@ describe("ICU patient notes", () => {
     fireEvent.change(note, { target: { value: noteDraft } });
     fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
 
-    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledOnce());
-    expect(mocks.patientUpdates).toHaveBeenCalledWith({
-      notes: expectedNote,
-      updated_by_staff_profile_id: "staff-1"
-    });
-    expect(mocks.eventInserts).toHaveBeenCalledWith(expect.objectContaining({
-      event_type: "updated",
-      event_summary: eventSummary,
-      event_data: expect.objectContaining({
-        action: "note_updated",
-        previousNotes: initialNote,
-        notes: expectedNote
-      })
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("record_icu_rounding_action", {
+      target_patient_id: "patient-1", target_action: "note", target_payload: { notes: expectedNote ?? "" }, expected_updated_at: "2026-09-01T19:00:00.000Z"
     }));
+    expect(mocks.patientUpdates).not.toHaveBeenCalled();
+    expect(mocks.eventInserts).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog", { name: "Update Patient" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText("Notes")).not.toBeInTheDocument());
     if (expectedNote) {

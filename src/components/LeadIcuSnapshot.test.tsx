@@ -81,7 +81,7 @@ describe("Lead ICU Snapshot", () => {
   });
 
   it("shows all saved statuses rather than an invented summary", () => {
-    render(<LeadIcuSnapshot {...props} records={[patientRecord({ device_type: "vent", is_critical_vent: true, is_sbt: true, is_flolan: true, is_prone: true, is_standby: true })]} />);
+    render(<LeadIcuSnapshot {...props} records={[patientRecord({ device_type: "vent", is_critical_vent: true, is_sbt: true, vent_mode: "spont", rounding_data: { sbt: { result: "Pass", at: "2026-10-06T15:00:00Z" } }, is_flolan: true, is_prone: true, is_standby: true })]} />);
     for (const status of ["Critical", "SBT", "On Flolan", "Proned", "Standby"]) expect(screen.getByText(status)).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });

@@ -27,6 +27,12 @@ export type IcuPatientEventType =
   | "discontinued";
 
 export type IcuPatientRecord = {
+  rounding_data?: {
+    sbt?: { result: "Pass" | "Fail"; at: string; reason?: string | null };
+    criticalOther?: string | null;
+    procedure?: { name: string; at: string; other?: string | null; trachType?: string; size?: string; xlt?: boolean; date?: string | null };
+    previousSettings?: Partial<IcuPatientRecord>;
+  };
   id: string;
   department_id: string;
   bed: string;

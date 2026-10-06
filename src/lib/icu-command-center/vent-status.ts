@@ -6,6 +6,7 @@ import type {
   IcuVentStatusKey
 } from "@/lib/icu-command-center/types";
 import { icuVentModeLabels } from "@/lib/icu-command-center/utils";
+import { activeSbt } from "./rounding";
 import { addIsoDays } from "@/lib/shift-status/reporting-window";
 import { timeZoneParts, wallTimeToIso } from "@/lib/time/zoned-date-time";
 
@@ -101,7 +102,7 @@ export function ventShiftEventSummary(event: IcuVentShiftEventKey) {
 
 export function activeVentModifierLabels(record: IcuPatientRecord) {
   return [
-    record.is_sbt ? "SBT" : null,
+    activeSbt(record) ? "SBT" : null,
     record.is_prone ? "Proned" : null,
     record.is_flolan ? "On Flolan" : null,
     record.is_standby ? "Standby" : null
@@ -114,7 +115,7 @@ export function formatVentCardTitle(record: IcuPatientRecord) {
   }
 
   const device = record.is_critical_vent ? "Critical Vent" : "Vent";
-  return record.vent_mode ? `${device} – ${icuVentModeLabels[record.vent_mode]}` : device;
+  return record.vent_mode ? `${device} – ${record.vent_mode === "spont" ? "Pressure Support" : icuVentModeLabels[record.vent_mode]}` : device;
 }
 
 export function ventCardTone(record: IcuPatientRecord): "critical" | "standby" | "sbt" | "normal" {
@@ -130,7 +131,7 @@ export function ventCardTone(record: IcuPatientRecord): "critical" | "standby" |
     return "standby";
   }
 
-  return record.is_sbt ? "sbt" : "normal";
+  return activeSbt(record) ? "sbt" : "normal";
 }
 
 export function ventShiftEventState(

@@ -49,20 +49,18 @@ function record(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRecord {
   };
 }
 
-function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "mri">()) {
+function renderCard(icuRecord: IcuPatientRecord) {
   const callbacks = {
     onSaveNote: vi.fn().mockResolvedValue(true),
     onUpdate: vi.fn(),
     onDiscontinue: vi.fn(),
     onHistory: vi.fn(),
-    onToggleVentStatus: vi.fn(),
-    onNoteShiftEvent: vi.fn(),
+    onRoundingAction: vi.fn().mockResolvedValue(true),
     onToggleStandby: vi.fn()
   };
   const view = render(
     <IcuPatientCard
       record={icuRecord}
-      shiftEvents={shiftEvents}
       actionSaving={false}
       {...callbacks}
     />
@@ -71,53 +69,57 @@ function renderCard(icuRecord: IcuPatientRecord, shiftEvents = new Set<"ct" | "m
 }
 
 describe("IcuPatientCard Vent actions", () => {
-  it("renders an SBT Vent blue and keeps CT/MRI inside the overflow menu", () => {
-    const callbacks = renderCard(record({ is_sbt: true }));
-    const card = screen.getByRole("article");
-
-    expect(card).toHaveClass("bg-blue-50");
-    expect(card).toHaveTextContent("Vent – APVCMV");
-    expect(card).toHaveTextContent("SBT");
-    expect(card).not.toHaveTextContent("Not Critical");
-    expect(card).not.toHaveTextContent("Not Standby");
-    expect(card).not.toHaveTextContent("CT");
-    expect(card).not.toHaveTextContent("MRI");
-
-    fireEvent.click(screen.getByRole("button", { name: "Open actions for C223 Vent" }));
-    const dialog = screen.getByRole("dialog", { name: "C223 Vent" });
-    expect(within(dialog).getByText("Vent Status")).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Standby" }));
-    expect(callbacks.onToggleStandby).toHaveBeenCalledOnce();
-    expect(within(dialog).getByRole("button", { name: "CT" })).toBeEnabled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "CT" }));
-    expect(callbacks.onNoteShiftEvent).toHaveBeenCalledWith("ct");
+  it("shows visible actions without inferring SBT from Pressure Support", () => {
+    renderCard(record({ vent_mode: "spont" }));
+    expect(screen.getByRole("button", { name: "SBT" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Critical" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Procedure" })).toBeVisible();
+    expect(screen.queryByText("Last SBT:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Critical:")).not.toBeInTheDocument();
+    expect(screen.queryByText("Last Procedure:")).not.toBeInTheDocument();
   });
 
-  it("renders Standby on the status line and gives it yellow priority over SBT", () => {
-    renderCard(record({ is_sbt: true, is_standby: true }));
-    const card = screen.getByRole("article");
-
-    expect(card).toHaveClass("bg-amber-50");
-    expect(card).toHaveTextContent("SBT · Standby");
-    expect(card).not.toHaveTextContent("Not Standby");
+  it("retains a passed SBT on continuous Pressure Support and prevents repeat Pass", () => {
+    renderCard(record({ vent_mode: "spont", is_sbt: true, rounding_data: { sbt: { result: "Pass", at: "2026-10-06T15:00:00Z" } } }));
+    expect(screen.getByRole("button", { name: "SBT" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("article")).toHaveTextContent("SBT Started: 10/06/2026");
+    fireEvent.click(screen.getByRole("button", { name: "SBT" }));
+    expect(screen.getByRole("radio", { name: "Pass" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Fail" })).toBeEnabled();
   });
 
-  it("gives Critical red priority while retaining all non-color modifiers", () => {
-    renderCard(record({
-      is_critical_vent: true,
-      is_sbt: true,
-      is_prone: true,
-      is_flolan: true,
-      is_standby: true
-    }), new Set<"ct" | "mri">(["ct"]));
-    const card = screen.getByRole("article");
+  it("records a failure with required Other text, without changing settings", async () => {
+    const callbacks = renderCard(record());
+    fireEvent.click(screen.getByRole("button", { name: "SBT" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Fail" }));
+    fireEvent.change(screen.getByLabelText("Failure reason"), { target: { value: "Other" } });
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Other reason"), { target: { value: "Trial not tolerated" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(callbacks.onRoundingAction).toHaveBeenCalledWith("sbt", { result: "Fail", reason: "Other", other: "Trial not tolerated" }, expect.any(String)));
+  });
 
-    expect(card).toHaveClass("bg-rose-50");
-    expect(card).toHaveTextContent("Critical Vent – APVCMV");
-    expect(card).toHaveTextContent("SBT · Proned · On Flolan · Standby");
+  it("supports multiple Critical options and explicit clearing", async () => {
+    const callbacks = renderCard(record({ is_critical_vent: true, is_flolan: true, is_prone: true }));
+    expect(screen.getByRole("article")).toHaveTextContent("Critical: Flolan · Proned");
+    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    expect(screen.getByLabelText("Flolan")).toBeChecked();
+    expect(screen.getByLabelText("Proned")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Turn Critical off" }));
+    await waitFor(() => expect(callbacks.onRoundingAction).toHaveBeenCalledWith("critical", { flolan: false, proned: false, other: "" }, expect.any(String)));
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Open actions for C223 Vent" }));
-    expect(screen.getByRole("button", { name: /CT Noted this shift/ })).toBeDisabled();
+  it("records trach details with an optional date and no persistent Procedure highlight", async () => {
+    const callbacks = renderCard(record({ rounding_data: { procedure: { name: "Bronch", at: "2026-10-06T15:00:00Z" } } }));
+    expect(screen.getByRole("article")).toHaveTextContent("Last Procedure: Bronch — 10/06/2026");
+    expect(screen.getByRole("button", { name: "Procedure" })).not.toHaveAttribute("aria-pressed");
+    fireEvent.click(screen.getByRole("button", { name: "Procedure" }));
+    fireEvent.change(screen.getByLabelText("Procedure"), { target: { value: "Trach" } });
+    fireEvent.change(screen.getByLabelText("Type"), { target: { value: "Shiley" } });
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "6" } });
+    fireEvent.click(screen.getByLabelText("XLT"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(callbacks.onRoundingAction).toHaveBeenCalledWith("procedure", { name: "Trach", other: "", trachType: "Shiley", size: "6", xlt: true, date: "" }, expect.any(String)));
   });
 
   it("does not render an empty overflow menu for non-Vent equipment", () => {
@@ -127,6 +129,18 @@ describe("IcuPatientCard Vent actions", () => {
     expect(screen.getByRole("button", { name: "Update" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "History" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Discontinue" })).toBeInTheDocument();
+  });
+
+  it("keeps the opening version when realtime refreshes an open action editor", async () => {
+    const onRoundingAction = vi.fn().mockResolvedValue(false);
+    const props = { actionSaving: false, onRoundingAction, onSaveNote: vi.fn(), onUpdate: vi.fn(), onDiscontinue: vi.fn(), onHistory: vi.fn(), onToggleStandby: vi.fn() };
+    const view = render(<IcuPatientCard record={record()} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    fireEvent.click(screen.getByLabelText("Flolan"));
+    view.rerender(<IcuPatientCard record={record({ updated_at: "2026-10-06T16:00:00Z" })} {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onRoundingAction).toHaveBeenCalledWith("critical", { flolan: true, proned: false, other: "" }, "2026-08-22T15:00:00.000Z"));
+    expect(screen.getByLabelText("Flolan")).toBeChecked();
   });
 
   it.each(["vent", "bipap", "cpap", "hfnc", "cool_aerosol"] as const)(
@@ -182,7 +196,7 @@ describe("IcuPatientCard Vent actions", () => {
 
     fireEvent.change(note, { target: { value: "Weaning trial after rounds" } });
     fireEvent.click(within(card).getByRole("button", { name: "Save Note" }));
-    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("Weaning trial after rounds"));
+    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("Weaning trial after rounds", expect.any(String)));
     await waitFor(() => expect(within(card).queryByLabelText("Notes")).not.toBeInTheDocument());
   });
 
@@ -207,7 +221,7 @@ describe("IcuPatientCard Vent actions", () => {
     fireEvent.change(note, { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: "Save Note" }));
 
-    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("   "));
+    await waitFor(() => expect(callbacks.onSaveNote).toHaveBeenCalledWith("   ", expect.any(String)));
   });
 });
 

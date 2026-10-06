@@ -99,18 +99,18 @@ describe("ICU 07:00/19:00 operational shifts", () => {
 
 describe("Vent status presentation", () => {
   it("uses Critical, Standby, and SBT color priority while retaining every modifier", () => {
-    const sbt = vent({ is_sbt: true });
+    const sbt = vent({ is_sbt: true, vent_mode: "spont", rounding_data: { sbt: { result: "Pass", at: "2026-10-06T15:00:00Z" } } });
     expect(ventCardTone(sbt)).toBe("sbt");
-    expect(formatVentCardTitle(sbt)).toBe("Vent – APVCMV");
+    expect(formatVentCardTitle(sbt)).toBe("Vent – Pressure Support");
     expect(activeVentModifierLabels(sbt)).toEqual(["SBT"]);
 
-    const standby = vent({ is_sbt: true, is_standby: true });
+    const standby = vent({ ...sbt, is_standby: true });
     expect(ventCardTone(standby)).toBe("standby");
     expect(activeVentModifierLabels(standby)).toEqual(["SBT", "Standby"]);
 
-    const critical = vent({ is_critical_vent: true, is_sbt: true, is_prone: true, is_flolan: true, is_standby: true });
+    const critical = vent({ ...sbt, is_critical_vent: true, is_sbt: true, is_prone: true, is_flolan: true, is_standby: true });
     expect(ventCardTone(critical)).toBe("critical");
-    expect(formatVentCardTitle(critical)).toBe("Critical Vent – APVCMV");
+    expect(formatVentCardTitle(critical)).toBe("Critical Vent – Pressure Support");
     expect(activeVentModifierLabels(critical)).toEqual(["SBT", "Proned", "On Flolan", "Standby"]);
   });
 

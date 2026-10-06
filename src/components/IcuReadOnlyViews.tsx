@@ -51,6 +51,7 @@ const icuPatientSelect = [
   "cpap",
   "flow",
   "notes",
+  "rounding_data",
   "is_critical_vent",
   "is_sbt",
   "is_flolan",
@@ -96,6 +97,7 @@ const baseIcuPatientSelect = [
   "updated_at"
 ].join(", ");
 const optionalIcuColumns = [
+  "rounding_data",
   "airway_type",
   "trach_type",
   "trach_xlt",
@@ -241,6 +243,7 @@ function normalizeIcuRecord(record: Partial<IcuPatientRecord>): IcuReadOnlyRecor
     cpap: record.cpap ?? null,
     flow: record.flow ?? null,
     notes: record.notes ?? null,
+    rounding_data: record.rounding_data,
     is_critical_vent: Boolean(record.is_critical_vent),
     is_sbt: Boolean(record.is_sbt),
     is_flolan: Boolean(record.is_flolan),

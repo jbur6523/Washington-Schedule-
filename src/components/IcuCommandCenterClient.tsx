@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Bed, Check, ChevronRight, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Bed, ChevronRight, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
-import { CardOverflowMenu } from "@/components/CardOverflowMenu";
+import { IcuRoundingActions } from "@/components/IcuRoundingActions";
+import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -16,8 +17,6 @@ import type {
   IcuDeviceType,
   IcuPatientEventRecord,
   IcuPatientRecord,
-  IcuVentShiftEventKey,
-  IcuVentStatusKey,
   IcuVentMode,
   VentilatorOutcome
 } from "@/lib/icu-command-center/types";
@@ -47,16 +46,10 @@ import {
 } from "@/lib/icu-command-center/utils";
 import {
   activeVentModifierLabels,
-  currentIcuOperationalShift,
   formatVentCardTitle,
-  isVentStatusActive,
   isBoardUpdateEvent,
   nextIcuOperationalShiftBoundaryDelay,
   ventCardTone,
-  ventShiftEventState,
-  ventShiftEventSummary,
-  ventStatusEventSummary,
-  withVentStatus
 } from "@/lib/icu-command-center/vent-status";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -152,6 +145,7 @@ const icuPatientSelect = [
   "cpap",
   "flow",
   "notes",
+  "rounding_data",
   "is_critical_vent",
   "is_sbt",
   "is_flolan",
@@ -183,7 +177,6 @@ const icuPatientEventSelect = [
 ].join(", ");
 
 const icuTimezone = "America/Los_Angeles";
-const emptyVentShiftEvents = new Set<IcuVentShiftEventKey>();
 
 function formatIcuSnapshotUpdatedAt(value: string | null) {
   if (!value) {
@@ -401,6 +394,7 @@ async function createIcuPatientEvent(
 }
 
 function historyEventLabel(eventRecord: IcuPatientEventRecord) {
+  if (eventRecord.event_data?.action === "procedure_recorded") return "Procedure recorded";
   if (eventRecord.event_type === "updated" && eventRecord.event_data?.action === "note_updated") {
     return "Note updated";
   }
@@ -432,6 +426,12 @@ function historyEventLabel(eventRecord: IcuPatientEventRecord) {
 }
 
 function eventDataText(event: IcuPatientEventRecord, key: string) {
+  const rawRecord = event.event_data?.record as IcuPatientRecord | undefined;
+  if (rawRecord?.device_type) {
+    if (key === "device") return formatIcuDeviceSummary(rawRecord);
+    if (key === "airway") return formatIcuAirway(rawRecord);
+    if (key === "settings") return formatIcuSettings(rawRecord);
+  }
   const value = event.event_data?.[key];
   return typeof value === "string" && value.trim() ? value : "";
 }
@@ -557,31 +557,28 @@ function IcuNumberInput({
 
 export function IcuPatientCard({
   record,
-  shiftEvents,
   actionSaving,
+  onRoundingAction,
   onSaveNote,
   onUpdate,
   onDiscontinue,
   onHistory,
-  onToggleVentStatus,
-  onNoteShiftEvent,
   onToggleStandby
 }: {
   record: IcuPatientRecord;
-  shiftEvents: ReadonlySet<IcuVentShiftEventKey>;
+  onRoundingAction: SaveRoundingAction;
   actionSaving: boolean;
-  onSaveNote: (notes: string) => Promise<boolean>;
+  onSaveNote: (notes: string, expectedUpdatedAt: string) => Promise<boolean>;
   onUpdate: () => void;
   onDiscontinue: () => void;
   onHistory: () => void;
-  onToggleVentStatus: (status: IcuVentStatusKey) => void;
-  onNoteShiftEvent: (event: IcuVentShiftEventKey) => void;
   onToggleStandby: () => void;
 }) {
   const airway = formatIcuAirway(record);
   const savedNotes = record.notes?.trim() ?? "";
   const [noteDraft, setNoteDraft] = useState(savedNotes);
   const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [noteVersion, setNoteVersion] = useState(record.updated_at);
   const noteChanged = noteDraft.trim() !== savedNotes;
   const modifierLabels = activeVentModifierLabels(record);
   const tone = ventCardTone(record);
@@ -592,13 +589,6 @@ export function IcuPatientCard({
       : tone === "sbt"
         ? "border-blue-300 bg-blue-50"
         : "border-white bg-white/95";
-  const statusOptions: Array<{ key: string; label: string; active: boolean; onToggle: () => void }> = [
-    { key: "sbt", label: "SBT", active: record.is_sbt, onToggle: () => onToggleVentStatus("sbt") },
-    { key: "critical", label: "Critical", active: record.is_critical_vent, onToggle: () => onToggleVentStatus("critical") },
-    { key: "flolan", label: "Flolan", active: record.is_flolan, onToggle: () => onToggleVentStatus("flolan") },
-    { key: "prone", label: "Prone", active: record.is_prone, onToggle: () => onToggleVentStatus("prone") },
-    { key: "standby", label: "Standby", active: record.is_standby, onToggle: onToggleStandby }
-  ];
   const accentTextClass = tone === "critical"
     ? "text-rose-800"
     : tone === "standby"
@@ -615,8 +605,8 @@ export function IcuPatientCard({
         : "text-hospital-ink";
 
   return (
-    <article className={`rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
-      <div className="flex items-start justify-between gap-3">
+    <article className={`relative rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
+      <div>
         <div className="min-w-0 flex-1">
           <p className={`text-xs font-extrabold uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
           <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
@@ -628,13 +618,23 @@ export function IcuPatientCard({
             </p>
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(record)}</p>
+          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} />
+          <div className="mt-3 rounded-2xl bg-cyan-50/70 px-3 py-2">
+            <p className="text-xs font-bold text-cyan-800">Current Settings</p>
+            <p className="text-sm font-bold leading-6 text-hospital-ink">{formatIcuSettings(record)}</p>
+          </div>
+          <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
+            <p className="text-xs font-bold text-cyan-800">Rounding Snapshot</p>
+            {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
+            {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
+            {record.is_critical_vent && <p><strong>Critical:</strong> {criticalDetail(record)}</p>}
+            {record.rounding_data?.procedure && <p><strong>Last Procedure:</strong> {procedureDetail(record.rounding_data.procedure)}</p>}
           {noteEditorOpen ? (
             <form
               className="mt-2"
               onSubmit={async (event) => {
                 event.preventDefault();
-                if (noteChanged && await onSaveNote(noteDraft)) {
+                if (noteChanged && await onSaveNote(noteDraft, noteVersion)) {
                   setNoteEditorOpen(false);
                 }
               }}
@@ -647,6 +647,7 @@ export function IcuPatientCard({
                   onChange={(event) => setNoteDraft(event.target.value)}
                   disabled={actionSaving}
                   rows={2}
+                  maxLength={2000}
                   placeholder="Add note…"
                   className="mt-1 w-full resize-y rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-hospital-ink outline-none focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
                 />
@@ -682,6 +683,7 @@ export function IcuPatientCard({
                 type="button"
                 onClick={() => {
                   setNoteDraft(savedNotes);
+                  setNoteVersion(record.updated_at);
                   setNoteEditorOpen(true);
                 }}
                 className="mt-1 text-xs font-black text-cyan-700"
@@ -694,6 +696,7 @@ export function IcuPatientCard({
               type="button"
               onClick={() => {
                 setNoteDraft("");
+                setNoteVersion(record.updated_at);
                 setNoteEditorOpen(true);
               }}
               className="mt-2 text-xs font-black text-cyan-700"
@@ -701,80 +704,15 @@ export function IcuPatientCard({
               + Add Note
             </button>
           )}
+          </div>
           <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          {record.device_type === "vent" && (
-            <CardOverflowMenu
-              ariaLabel={`Open actions for ${record.bed} Vent`}
-              title={`${record.bed} Vent`}
-              subtitle="Statuses and current-shift events"
-            >
-              <section aria-labelledby={`vent-statuses-${record.id}`}>
-                <h3 id={`vent-statuses-${record.id}`} className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  Vent Status
-                </h3>
-                <div className="mt-2 space-y-2">
-                  {statusOptions.map((status) => (
-                    <button
-                      key={status.key}
-                      type="button"
-                      aria-pressed={status.active}
-                      disabled={actionSaving}
-                      onClick={status.onToggle}
-                      className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 ${
-                        status.active
-                          ? "border-cyan-300 bg-cyan-50 text-cyan-950"
-                          : "border-slate-200 bg-white text-slate-700"
-                      }`}
-                    >
-                      <span>{status.label}</span>
-                      {status.active ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-cyan-800">
-                          <Check size={16} /> Active
-                        </span>
-                      ) : null}
-                    </button>
-                  ))}
-                </div>
-              </section>
-
-              <section aria-labelledby={`vent-shift-events-${record.id}`}>
-                <h3 id={`vent-shift-events-${record.id}`} className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                  Shift events
-                </h3>
-                <div className="mt-2 space-y-2">
-                  {(["ct", "mri"] as IcuVentShiftEventKey[]).map((eventKey) => {
-                    const noted = shiftEvents.has(eventKey);
-                    return (
-                      <button
-                        key={eventKey}
-                        type="button"
-                        disabled={actionSaving || noted}
-                        onClick={() => onNoteShiftEvent(eventKey)}
-                        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-black disabled:cursor-not-allowed ${
-                          noted
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-950"
-                            : "border-slate-200 bg-white text-slate-700 disabled:opacity-60"
-                        }`}
-                      >
-                        <span>{eventKey.toUpperCase()}</span>
-                        {noted ? (
-                          <span className="inline-flex items-center gap-1 text-xs text-emerald-800">
-                            <Check size={16} /> Noted this shift
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </section>
-            </CardOverflowMenu>
-          )}
-          {record.device_type !== "vent" && supportsIcuStandby(record.device_type) && (
+        <div className="absolute right-4 top-3">
+          {supportsIcuStandby(record.device_type) && (
             <button
               type="button"
               onClick={onToggleStandby}
+              disabled={actionSaving}
               aria-pressed={record.is_standby}
               className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-black ${
                 record.is_standby
@@ -923,7 +861,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
   const [todayActivityLoading, setTodayActivityLoading] = useState(true);
   const [todayActivityError, setTodayActivityError] = useState("");
-  const [shiftEventMap, setShiftEventMap] = useState<Map<string, Set<IcuVentShiftEventKey>>>(() => new Map());
   const [activityDetailEvent, setActivityDetailEvent] = useState<IcuPatientEventRecord | null>(null);
   const [activityDetailPreviousState, setActivityDetailPreviousState] = useState<IcuActivityAuditState | null>(null);
   const [activityDetailLoading, setActivityDetailLoading] = useState(false);
@@ -952,7 +889,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setError("");
 
     const supabase = createClient();
-    const shift = currentIcuOperationalShift();
     const patientQuery = fetchAllPages<IcuPatientRecord>((from, to) => supabase
       .from("icu_patients")
       .select(icuPatientSelect)
@@ -963,38 +899,18 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     const roomQuery = fetchAllPages<Pick<IcuPatientRecord, "bed">>((from, to) => supabase
       .from("icu_patients").select("bed").eq("department_id", authContext.departmentId)
       .order("id", { ascending: true }).range(from, to));
-    const shiftEventQuery = supabase
-      .from("icu_patient_events")
-      .select(icuPatientEventSelect)
-      .eq("department_id", authContext.departmentId)
-      .eq("operational_shift_date", shift.shiftDate)
-      .eq("operational_shift_type", shift.shiftType)
-      .in("event_type", ["ct_noted", "mri_noted"]);
-    const [patientResult, shiftEventResult, roomResult] = await Promise.all([patientQuery, shiftEventQuery, roomQuery]);
+    const [patientResult, roomResult] = await Promise.all([patientQuery, roomQuery]);
     if (!roomResult.error) setRoomRecords(roomResult.data ?? []);
 
     setLoading(false);
 
     if (patientResult.error) {
       setRecords([]);
-      setShiftEventMap(new Map());
       setError("Could not load ICU Command Center.");
       return;
     }
 
     setRecords((patientResult.data ?? []) as unknown as IcuPatientRecord[]);
-    if (shiftEventResult.error) {
-      setShiftEventMap(new Map());
-      setError("ICU devices loaded, but current-shift Vent events could not be loaded.");
-      return;
-    }
-
-    setShiftEventMap(
-      ventShiftEventState(
-        (shiftEventResult.data ?? []) as unknown as IcuPatientEventRecord[],
-        shift
-      )
-    );
   }, [authContext.departmentId]);
 
   const loadTodayActivity = useCallback(async (showLoading = true) => {
@@ -1201,56 +1117,36 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     await loadTodayActivity();
   };
 
-  const savePatientNote = async (record: IcuPatientRecord, noteDraft: string) => {
-    const previousNotes = record.notes?.trim() || null;
-    const notes = noteDraft.trim() || null;
-    if (notes === previousNotes) {
-      return true;
-    }
-
+  const saveRoundingAction = async (record: IcuPatientRecord, action: RoundingAction, payload: Record<string, unknown>) => {
     setActionSaving(true);
     setMessage("");
     setError("");
-    const supabase = createClient();
-    const { data, error: updateError } = await supabase
-      .from("icu_patients")
-      .update({
-        notes,
-        updated_by_staff_profile_id: authContext.staffProfileId
-      })
-      .eq("id", record.id)
-      .eq("department_id", authContext.departmentId)
-      .select(icuPatientSelect)
-      .maybeSingle();
-
-    if (updateError || !data) {
-      setActionSaving(false);
-      setError("Could not save ICU note. Please try again.");
+    try {
+      const { data, error: saveError } = await createClient().rpc("record_icu_rounding_action", {
+        target_patient_id: record.id,
+        target_action: action,
+        target_payload: payload,
+        expected_updated_at: record.updated_at
+      });
+      if (saveError || !data) {
+        if (saveError?.code === "40001") await loadRecords(false);
+        setError(saveError?.code === "40001" ? "This patient changed. Close and reopen the editor to review the refreshed card before saving." : "Could not save this rounding update. Please try again.");
+        return false;
+      }
+      const updatedRecord = data as unknown as IcuPatientRecord;
+      setRecords(current => current.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      setMessage(action === "note" ? "ICU note saved." : "Rounding update saved.");
+      await loadTodayActivity(false);
+      return true;
+    } catch {
+      setError("Could not save this rounding update. Please try again.");
       return false;
+    } finally {
+      setActionSaving(false);
     }
-
-    const updatedRecord = data as unknown as IcuPatientRecord;
-    setRecords((current) => current.map((item) => item.id === updatedRecord.id ? updatedRecord : item));
-    const eventResult = await createIcuPatientEvent(
-      supabase,
-      authContext,
-      updatedRecord,
-      "updated",
-      notes ? "ICU note updated." : "ICU note cleared.",
-      {
-        action: "note_updated",
-        previousNotes,
-        notes
-      },
-      undefined,
-      record
-    );
-
-    setActionSaving(false);
-    setMessage(eventResult.error ? "ICU note saved, but history could not be recorded." : "ICU note saved.");
-    await loadTodayActivity(false);
-    return true;
   };
+
+  const savePatientNote = (record: IcuPatientRecord, notes: string) => saveRoundingAction(record, "note", { notes: notes.trim() });
 
   const openDiscontinue = (record: IcuPatientRecord) => {
     if (!canManageIcuLifecycle(authContext)) return;
@@ -1321,73 +1217,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setMessage("Device discontinued.");
     await loadRecords();
     await loadTodayActivity();
-  };
-
-  const toggleVentStatus = async (record: IcuPatientRecord, status: IcuVentStatusKey) => {
-    if (record.device_type !== "vent") {
-      return;
-    }
-
-    setActionSaving(true);
-    setMessage("");
-    setError("");
-    const nextActive = !isVentStatusActive(record, status);
-    const pendingRecord = withVentStatus(record, status, nextActive);
-    const supabase = createClient();
-    const { data, error: updateError } = await supabase.rpc("set_icu_vent_status", {
-      target_patient_id: record.id,
-      target_status: status,
-      target_active: nextActive,
-      target_event_data: eventDataFromRecord(pendingRecord, {
-        previousState: icuActivityStateFromRecord(record)
-      })
-    });
-
-    setActionSaving(false);
-
-    if (updateError || !data) {
-      setError(`Could not update ${status === "sbt" ? "SBT" : status} status. Please try again.`);
-      return;
-    }
-
-    const updatedRecord = data as unknown as IcuPatientRecord;
-    setRecords((current) => current.map((item) => item.id === updatedRecord.id ? updatedRecord : item));
-    setMessage(`${ventStatusEventSummary(status, nextActive)}.`);
-    await loadRecords(false);
-    await loadTodayActivity();
-  };
-
-  const noteVentShiftEvent = async (record: IcuPatientRecord, eventKey: IcuVentShiftEventKey) => {
-    if (record.device_type !== "vent" || shiftEventMap.get(record.id)?.has(eventKey)) {
-      return;
-    }
-
-    setActionSaving(true);
-    setMessage("");
-    setError("");
-    const supabase = createClient();
-    const { data, error: noteError } = await supabase.rpc("note_icu_vent_shift_event", {
-      target_patient_id: record.id,
-      target_event: eventKey,
-      target_event_data: eventDataFromRecord(record)
-    });
-    setActionSaving(false);
-
-    if (noteError || !data) {
-      setError(`Could not note ${eventKey.toUpperCase()} for this shift. Please try again.`);
-      return;
-    }
-
-    setShiftEventMap((current) => {
-      const next = new Map(current);
-      const patientEvents = new Set(next.get(record.id) ?? []);
-      patientEvents.add(eventKey);
-      next.set(record.id, patientEvents);
-      return next;
-    });
-    setMessage(`${ventShiftEventSummary(eventKey)}.`);
-    await loadRecords(false);
-    await loadTodayActivity(false);
   };
 
   const toggleStandbyStatus = async (record: IcuPatientRecord) => {
@@ -1625,14 +1454,12 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               <IcuPatientCard
                 key={record.id}
                 record={record}
-                shiftEvents={shiftEventMap.get(record.id) ?? emptyVentShiftEvents}
                 actionSaving={actionSaving}
-                onSaveNote={(notes) => savePatientNote(record, notes)}
+                onSaveNote={(notes, version) => savePatientNote({ ...record, updated_at: version }, notes)}
+                onRoundingAction={(action, payload, version) => saveRoundingAction({ ...record, updated_at: version }, action, payload)}
                 onUpdate={() => openEdit(record)}
                 onDiscontinue={() => openDiscontinue(record)}
                 onHistory={() => void openHistory(record)}
-                onToggleVentStatus={(status) => void toggleVentStatus(record, status)}
-                onNoteShiftEvent={(eventKey) => void noteVentShiftEvent(record, eventKey)}
                 onToggleStandby={() => void toggleStandbyStatus(record)}
               />
             ))}

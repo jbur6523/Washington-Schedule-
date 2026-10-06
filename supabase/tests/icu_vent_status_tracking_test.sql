@@ -15,7 +15,7 @@ insert into public.icu_patients (
   '30000000-0000-0000-0000-000000000002',
   'C223',
   'vent',
-  'apvcmv',
+  'spont',
   true
 );
 
@@ -27,7 +27,7 @@ select lives_ok(
     '91000000-0000-0000-0000-000000000001',
     'sbt',
     true,
-    '{"device":"Vent - APVCMV"}'::jsonb
+    '{"device":"Vent - SPONT"}'::jsonb
   )$$,
   'an authorized ICU manager can atomically mark SBT active'
 );
@@ -58,7 +58,7 @@ select lives_ok(
   $$select public.note_icu_vent_shift_event(
     '91000000-0000-0000-0000-000000000001',
     'ct',
-    '{"device":"Vent - APVCMV"}'::jsonb
+    '{"device":"Vent - SPONT"}'::jsonb
   )$$,
   'CT can be noted for the current hospital shift'
 );
@@ -67,7 +67,7 @@ select lives_ok(
   $$select public.note_icu_vent_shift_event(
     '91000000-0000-0000-0000-000000000001',
     'ct',
-    '{"device":"Vent - APVCMV"}'::jsonb
+    '{"device":"Vent - SPONT"}'::jsonb
   )$$,
   'a repeated CT tap is idempotent'
 );

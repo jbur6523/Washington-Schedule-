@@ -59,6 +59,11 @@ export function icuActivityStateFromEvent(
     return null;
   }
 
+  const rawRecord = data[snapshotKey === "previousState" ? "previousRecord" : "record"];
+  if (rawRecord && typeof rawRecord === "object" && "device_type" in rawRecord && "bed" in rawRecord) {
+    return icuActivityStateFromRecord(rawRecord as IcuPatientRecord);
+  }
+
   const snapshot = data[snapshotKey];
   if (snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)) {
     const state = snapshot as Record<string, unknown>;
