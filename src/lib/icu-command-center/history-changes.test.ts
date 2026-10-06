@@ -3,8 +3,14 @@ import { icuHistoryChanges } from "./history-changes";
 import type { IcuPatientEventRecord } from "./types";
 
 const before = { bed: "D239", device: "Vent - APVCMV", airway: "ETT 7.5 @ 23 Teeth", settings: "Rate 16 - VT 450 - PEEP +5 - FiO2 30%", criticalVent: false, standby: false };
+const base: IcuPatientEventRecord = {
+  id: "event-1", department_id: "department-1", icu_patient_id: "patient-1", event_type: "updated",
+  event_time: "2026-10-06T15:00:00Z", event_summary: "Settings updated", event_data: null,
+  created_by_staff_profile_id: null, created_by_name: "Test RT", operational_shift_date: null,
+  operational_shift_type: null, created_at: "2026-10-06T15:00:00Z"
+};
 function event(updated: Record<string, unknown>, extra: Record<string, unknown> = {}) {
-  return { event_type: "updated", event_data: { previousState: before, updatedState: { ...before, ...updated }, ...extra } } as IcuPatientEventRecord;
+  return { ...base, event_data: { previousState: before, updatedState: { ...before, ...updated }, ...extra } };
 }
 
 describe("ICU history changes", () => {
@@ -21,7 +27,7 @@ describe("ICU history changes", () => {
     ]);
   });
   it("does not invent previous values for older entries", () => {
-    expect(icuHistoryChanges({ event_type: "updated", event_data: { settings: "Rate 25" } } as IcuPatientEventRecord)).toBeNull();
+    expect(icuHistoryChanges({ ...base, event_data: { settings: "Rate 25" } })).toBeNull();
   });
   it("shows note changes without device or settings information", () => {
     expect(icuHistoryChanges(event({}, { action: "note_updated", previousNotes: "Reassess after rounds", notes: null }))).toEqual([{ label: "Note", previous: "Reassess after rounds", current: "Cleared" }]);
