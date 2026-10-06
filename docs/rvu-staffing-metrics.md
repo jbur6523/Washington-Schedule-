@@ -18,9 +18,13 @@ The Admin panel is the only navigation entry. The route verifies the authenticat
 
 Filters support 7, 30, and 90 days, one year, or all data, plus all/day/night shifts. The default is 30 days and all shifts. The page includes:
 
-- summary averages, exact-need staffing variance, and percentage meeting need;
-- an accessible chronological RVU trend with a compact detail table;
-- Day versus Night comparison;
-- Winter, Spring, Summer, and Fall summaries with cross-year winter labels.
+- separate Day and Night cards for average RVUs, average staff needed, and coverage rate;
+- a prominent Day vs Night comparison of RVUs, staff needed, staff on shift, and coverage;
+- accessible RVU and staffing trends with chronological reporting-window points and gaps for missing reports;
+- a scrollable reporting-window detail table at the bottom with sticky headers, signed variance, and staffing status badges.
 
 Analytics use exact `rvu_total / 27` values and round only displayed values to one decimal place.
+
+Coverage rate retains the existing percentageMeetingNeed calculation: the percentage of reported shifts whose RTs On Shift meet or exceed exact need. It is calculated separately for Day and Night, never pooled. Shift filters apply to the entire report; an excluded or unavailable shift displays a dash rather than zero. The UI explains how to select All Shifts for comparison. Seasonal summaries and combined analytics cards are no longer displayed.
+
+The Staffing Trend has a Day/Night toggle so the two existing staffing series stay readable without alternating between different shift staffing patterns. It defaults to Day when available and uses Night automatically for a Night-only report.

@@ -211,11 +211,11 @@ describe("ICU patient notes", () => {
     const dialog = within(screen.getByRole("dialog", { name: addLabel }));
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "vent" } });
-    expect(dialog.getByRole("radio", { name: "ETT", exact: true })).toBeChecked();
+    expect(dialog.getByRole("radio", { name: "ETT" })).toBeChecked();
     fireEvent.change(dialog.getByLabelText("Airway size"), { target: { value: "7.5" } });
     fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });
     fireEvent.change(dialog.getByLabelText("Location"), { target: { value: "teeth" } });
-    fireEvent.click(dialog.getByRole("radio", { name: "Trach", exact: true }));
+    fireEvent.click(dialog.getByRole("radio", { name: "Trach" }));
     expect(dialog.queryByLabelText("At")).not.toBeInTheDocument();
     expect(dialog.queryByLabelText("Location")).not.toBeInTheDocument();
     expect(dialog.getByLabelText("Trach size")).toHaveValue("");
@@ -232,7 +232,7 @@ describe("ICU patient notes", () => {
       target_event_data: expect.objectContaining({ airway: "Trach 6 Shiley XLT", updatedState: expect.objectContaining({ airway: "Trach 6 Shiley XLT" }) })
     })));
     expect(await screen.findByText("Trach 6 Shiley XLT")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: surface === "lead" ? "Discontinue C223" : "Discontinue", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: surface === "lead" ? "Discontinue C223" : "Discontinue" }));
     expect(within(screen.getByRole("dialog", { name: "Ventilator Outcome" })).getByText("Trach 6 Shiley XLT")).toBeInTheDocument();
   });
 
@@ -241,12 +241,12 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={authContext} />);
     fireEvent.click(await screen.findByRole("button", { name: "Update" }));
     const dialog = within(screen.getByRole("dialog", { name: "Update Patient" }));
-    expect(dialog.getByRole("radio", { name: "Trach", exact: true })).toBeChecked();
+    expect(dialog.getByRole("radio", { name: "Trach" })).toBeChecked();
     expect(dialog.getByLabelText("Trach size")).toHaveValue("8");
     expect(dialog.getByLabelText("Trach type")).toHaveValue("portex");
     expect(dialog.getByLabelText("XLT")).toBeChecked();
     if (nextType === "ett") {
-      fireEvent.click(dialog.getByRole("radio", { name: "ETT", exact: true }));
+      fireEvent.click(dialog.getByRole("radio", { name: "ETT" }));
       expect(dialog.getByLabelText("Airway size")).toHaveValue("");
       fireEvent.change(dialog.getByLabelText("Airway size"), { target: { value: "7.5" } });
       fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });

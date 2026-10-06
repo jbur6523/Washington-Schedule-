@@ -1,252 +1,117 @@
 import Link from "next/link";
-import type { CalculatedRvuStaffingRow, MetricDateRange, MetricShiftFilter, RvuStaffingSummary } from "@/lib/metrics/rvu-staffing";
-import {
-  formatOneDecimal,
-  groupMetricRows,
-  metricDateRanges,
-  metricShiftFilters,
-  summarizeMetricRows
-} from "@/lib/metrics/rvu-staffing";
+import { RvuStaffingTrendChart } from "@/components/RvuStaffingTrendChart";
+import { ArrowLeft, BarChart3, Moon, Sun, Table2, Users } from "lucide-react";
+import type { CalculatedRvuStaffingRow, MetricDateRange, MetricShiftFilter } from "@/lib/metrics/rvu-staffing";
+import { formatOneDecimal, metricDateRanges, metricShiftFilters, summarizeMetricRows } from "@/lib/metrics/rvu-staffing";
 
-function formatReportingDate(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+const panel = "rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6";
+const shifts = ["day", "night"] as const;
+
+function formatReportingDate(value: string, short = false) {
   return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+    month: "short", day: "numeric", ...(short ? {} : { year: "numeric" as const }), timeZone: "UTC"
+  }).format(new Date(`${value}T12:00:00Z`));
 }
 
 function formatPercentage(value: number | null) {
   return value === null ? "—" : `${value.toFixed(1)}%`;
 }
 
-function SummaryCard({ label, value, helper }: { label: string; value: string; helper?: string }) {
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">{label}</h2>
-      <p className="mt-1 text-2xl font-black text-hospital-ink">{value}</p>
-      {helper && <p className="mt-1 text-xs font-bold text-slate-500">{helper}</p>}
-    </article>
-  );
+function SummaryCard({ label, value, helper }: { label: string; value: string; helper: string }) {
+  return <div className="rounded-2xl border border-slate-200/80 bg-white p-4">
+    <dt className="min-h-10 text-xs font-semibold leading-5 text-slate-600">{label}</dt>
+    <dd className="mt-3 text-3xl font-extrabold tabular-nums tracking-tight text-hospital-ink">{value}</dd>
+    <dd className="mt-2 text-xs leading-5 text-slate-500">{helper}</dd>
+  </div>;
 }
 
-function RvuTrendChart({ rows }: { rows: CalculatedRvuStaffingRow[] }) {
-  const width = 720;
-  const height = 220;
-  const padding = 32;
-  const values = rows.map((row) => row.rvuTotal);
-  const minimum = Math.min(...values);
-  const maximum = Math.max(...values);
-  const span = Math.max(1, maximum - minimum);
-  const points = rows.map((row, index) => {
-    const x = rows.length === 1
-      ? width / 2
-      : padding + (index / (rows.length - 1)) * (width - padding * 2);
-    const y = height - padding - ((row.rvuTotal - minimum) / span) * (height - padding * 2);
-    return { row, x, y };
-  });
-
-  return (
-    <svg
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-labelledby="rvu-trend-title rvu-trend-description"
-      className="h-auto w-full min-w-[36rem]"
-    >
-      <title id="rvu-trend-title">RVU trend by reporting window</title>
-      <desc id="rvu-trend-description">
-        Chronological raw RVU totals. Exact values are also available in the table below.
-      </desc>
-      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#cbd5e1" />
-      <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="#cbd5e1" />
-      <polyline
-        points={points.map(({ x, y }) => `${x},${y}`).join(" ")}
-        fill="none"
-        stroke="#0e7490"
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {points.map(({ row, x, y }) => (
-        <circle key={row.id} cx={x} cy={y} r="5" fill="#0891b2">
-          <title>{`${formatReportingDate(row.shift_date)} ${row.shift_type}: ${row.rvuTotal} RVUs`}</title>
-        </circle>
-      ))}
-      <text x={padding} y={20} className="fill-slate-500 text-[12px] font-bold">{maximum.toFixed(1)}</text>
-      <text x={padding} y={height - 8} className="fill-slate-500 text-[12px] font-bold">{minimum.toFixed(1)}</text>
-    </svg>
-  );
-}
-
-function ComparisonTable({ groups }: { groups: Array<{ label: string; summary: RvuStaffingSummary }> }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[44rem] text-left text-sm">
-        <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
-          <tr>
-            <th className="px-3 py-3">Group</th>
-            <th className="px-3 py-3 text-right">Shifts</th>
-            <th className="px-3 py-3 text-right">Avg RVUs</th>
-            <th className="px-3 py-3 text-right">Avg RTs Needed</th>
-            <th className="px-3 py-3 text-right">Avg RTs On Shift</th>
-            <th className="px-3 py-3 text-right">Meeting Need</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {groups.map(({ label, summary }) => (
-            <tr key={label}>
-              <th className="px-3 py-3 font-black text-hospital-ink">{label}</th>
-              <td className="px-3 py-3 text-right font-bold text-slate-700">{summary.shiftCount}</td>
-              <td className="px-3 py-3 text-right font-bold text-slate-700">{formatOneDecimal(summary.averageRvus)}</td>
-              <td className="px-3 py-3 text-right font-bold text-slate-700">{formatOneDecimal(summary.averageRtsNeeded)}</td>
-              <td className="px-3 py-3 text-right font-bold text-slate-700">{formatOneDecimal(summary.averageRtsOn)}</td>
-              <td className="px-3 py-3 text-right font-bold text-slate-700">{formatPercentage(summary.percentageMeetingNeed)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export function RvuStaffingMetrics({
-  rows,
-  range,
-  shift,
-  loadError = false
-}: {
-  rows: CalculatedRvuStaffingRow[];
-  range: MetricDateRange;
-  shift: MetricShiftFilter;
-  loadError?: boolean;
+export function RvuStaffingMetrics({ rows, range, shift, loadError = false }: {
+  rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; shift: MetricShiftFilter; loadError?: boolean;
 }) {
-  const summary = summarizeMetricRows(rows);
-  const shiftGroups = (["day", "night"] as const).map((shiftType) => ({
-    label: shiftType === "day" ? "Day Shift" : "Night Shift",
-    summary: summarizeMetricRows(rows.filter((row) => row.shift_type === shiftType))
-  }));
-  const seasonalGroups = groupMetricRows(rows, (row) => row.season)
-    .reverse()
-    .map(({ label, summary: seasonalSummary }) => ({ label, summary: seasonalSummary }));
-
-  return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-6xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Admin</p>
-          <h1 className="mt-2 text-2xl font-black text-hospital-ink">RVU &amp; Staffing Metrics</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            Reporting-window staffing trends from exact saved RVUs and manually entered RTs On Shift.
-          </p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <Link
-              href="/admin/metrics"
-              className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-            >
-              Back to Metrics
-            </Link>
+  const shiftGroups = shifts.map((type) => ({ type, name: type === "day" ? "Day" : "Night", summary: summarizeMetricRows(rows.filter((row) => row.shift_type === type)) }));
+  return <main className="min-h-screen px-4 py-6 sm:py-8">
+    <div className="mx-auto max-w-6xl space-y-5">
+      <header className={`${panel} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p>
+          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">RVU &amp; Staffing Metrics</h1>
+          <p className="mt-2 text-sm text-slate-500">A simple view of staffing performance by shift.</p>
+        </div>
+        <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
+      </header>
+      <section aria-label="Report filters" className={panel}>
+        <form method="get" className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <label className="block"><span className="text-xs font-bold text-slate-600">Date Range</span>
+            <select name="range" defaultValue={range} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-hospital-ink">
+              {metricDateRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="block"><span className="text-xs font-bold text-slate-600">Shift</span>
+            <select name="shift" defaultValue={shift} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-hospital-ink">
+              {metricShiftFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <button type="submit" className="min-h-11 rounded-xl bg-cyan-700 px-6 text-sm font-bold text-white shadow-sm hover:bg-cyan-800">Apply Filters</button>
+        </form>
+        {shift !== "all" && <p className="mt-3 text-xs text-slate-500">Showing {shift === "day" ? "Day" : "Night"} Shift only. Select All Shifts to compare Day and Night.</p>}
+      </section>
+      {loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
+        <h2 className="font-bold text-rose-900">Metrics are temporarily unavailable.</h2><p className="mt-2 text-sm text-rose-700">Please try again.</p>
+      </section> : rows.length === 0 ? <section className={`${panel} text-center`}>
+        <h2 className="text-lg font-bold text-hospital-ink">No RVU data for these filters</h2><p className="mt-2 text-sm text-slate-500">Historical shifts without saved RVUs are excluded rather than counted as zero.</p>
+      </section> : <>
+        <section aria-label="Metrics summary" className="grid gap-5 lg:grid-cols-2">
+          {shiftGroups.map(({ type, name, summary }) => {
+            const Icon = type === "day" ? Sun : Moon;
+            return <section key={type} aria-label={`${name} Shift summary`} className="rounded-3xl border border-white bg-white/95 p-3 shadow-soft">
+              <div className={`flex items-center gap-3 rounded-2xl px-4 py-4 ${type === "day" ? "bg-sky-50 text-sky-700" : "bg-violet-50 text-violet-700"}`}>
+                <Icon size={27} aria-hidden="true" /><div><h2 className="text-lg font-extrabold">{name} Shift</h2><p className="mt-1 text-xs">{summary.shiftCount ? `${summary.shiftCount} reported shifts` : shift !== "all" && shift !== type ? "Not included in this filter" : "No reported shifts"}</p></div>
+              </div>
+              <dl className="mt-3 grid gap-2 sm:grid-cols-3">
+                <SummaryCard label={`Average ${name} Shift RVU`} value={formatOneDecimal(summary.averageRvus)} helper="RVUs per reported shift" />
+                <SummaryCard label={`Average ${name} Staff Needed`} value={formatOneDecimal(summary.averageRtsNeeded)} helper="RTs per reported shift" />
+                <SummaryCard label={`${name} Shift Coverage Rate`} value={formatPercentage(summary.percentageMeetingNeed)} helper="Reported shifts meeting need" />
+              </dl>
+            </section>;
+          })}
+        </section>
+        <section aria-labelledby="comparison-heading" className={`${panel} ring-1 ring-cyan-100`}>
+          <div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 id="comparison-heading" className="text-xl font-extrabold text-hospital-ink">Day vs Night Comparison</h2></div>
+          <p className="mt-2 text-sm text-slate-500">Coverage rate is the percentage of reported shifts with enough RTs to meet staffing need.</p>
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Day and Night comparison table">
+            <table className="w-full min-w-[640px] text-left text-sm tabular-nums">
+              <thead className="bg-slate-50 text-xs text-slate-600"><tr>{["Shift", "Average RVUs", "Average Staff Needed", "Average Staff On Shift", "Coverage Rate"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-slate-100">{shiftGroups.map(({ type, name, summary }) => <tr key={type}>
+                <th scope="row" className={`whitespace-nowrap px-4 py-5 font-bold ${type === "day" ? "text-sky-700" : "text-violet-700"}`}>{name} Shift</th>
+                {[formatOneDecimal(summary.averageRvus), formatOneDecimal(summary.averageRtsNeeded), formatOneDecimal(summary.averageRtsOn), formatPercentage(summary.percentageMeetingNeed)].map((value, index) => <td key={index} className="px-4 py-5 text-right text-base font-bold text-hospital-ink">{value}</td>)}
+              </tr>)}</tbody>
+            </table>
           </div>
         </section>
-
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <form method="get" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-            <label className="block">
-              <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Date Range</span>
-              <select name="range" defaultValue={range} className="mt-1 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink">
-                {metricDateRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">Shift</span>
-              <select name="shift" defaultValue={shift} className="mt-1 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3 text-sm font-bold text-hospital-ink">
-                {metricShiftFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
-            <button type="submit" className="min-h-11 rounded-2xl bg-cyan-700 px-5 text-sm font-black text-white shadow-sm">
-              Apply Filters
-            </button>
-          </form>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">RVU Trend</h2></div><p className="mt-2 text-xs text-slate-500">RVUs for each reported Day and Night shift.</p><RvuStaffingTrendChart rows={rows} /></section>
+          <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><Users className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">Staffing Trend</h2></div><p className="mt-2 text-xs text-slate-500">RTs needed vs. on shift. Choose Day or Night below.</p><RvuStaffingTrendChart rows={rows} staffing /></section>
+        </div>
+        <section aria-labelledby="detail-heading" className={panel}>
+          <div className="flex items-center gap-3"><Table2 className="text-cyan-700" aria-hidden="true" /><h2 id="detail-heading" className="text-lg font-extrabold">Reporting-Window Detail</h2></div>
+          <p className="mt-2 text-xs leading-5 text-slate-500">Variance = RTs on shift minus RTs needed. Negative values indicate a shortage. Status uses the unrounded staffing need.</p>
+          <div className="mt-5 max-h-[32rem] overflow-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Reporting-window detail table">
+            <table className="w-full min-w-[760px] text-left text-sm tabular-nums">
+              <thead className="sticky top-0 bg-slate-50 text-xs text-slate-600"><tr>{["Reporting Date", "Shift", "RVUs", "RTs Needed", "RTs On Shift", "Variance", "Status"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index > 1 ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="even:bg-slate-50/50 hover:bg-sky-50/50">
+                <th scope="row" className="whitespace-nowrap px-4 py-4 font-semibold text-hospital-ink">{formatReportingDate(row.shift_date)}</th>
+                <td className={`px-4 py-4 font-medium capitalize ${row.shift_type === "day" ? "text-sky-700" : "text-violet-700"}`}>{row.shift_type}</td>
+                <td className="px-4 py-4 text-right text-slate-700">{row.rvuTotal}</td>
+                <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.exactRtsNeeded)}</td>
+                <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.rts_on)}</td>
+                <td className={`px-4 py-4 text-right font-bold ${row.staffingVariance < 0 ? "text-rose-700" : "text-emerald-700"}`}>{row.staffingVariance > 0 && formatOneDecimal(row.staffingVariance) !== "0.0" ? "+" : ""}{formatOneDecimal(row.staffingVariance)}</td>
+                <td className="px-4 py-4 text-right"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${row.metNeed ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>{row.metNeed ? "Met Need" : "Below Need"}</span></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs text-slate-500">{rows.length} reported shifts · Shifts without saved RVUs are excluded.</p>
         </section>
-
-        {loadError ? (
-          <section className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-center shadow-soft">
-            <h2 className="font-black text-rose-900">Metrics are temporarily unavailable.</h2>
-            <p className="mt-1 text-sm font-bold text-rose-700">Please try again.</p>
-          </section>
-        ) : rows.length === 0 ? (
-          <section className="rounded-3xl border border-slate-200 bg-white/95 p-8 text-center shadow-soft">
-            <h2 className="text-lg font-black text-hospital-ink">No RVU data for these filters</h2>
-            <p className="mt-2 text-sm font-bold text-slate-500">
-              Historical shifts without saved RVUs are excluded rather than counted as zero.
-            </p>
-          </section>
-        ) : (
-          <>
-            <section aria-label="Metrics summary" className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3">
-              <SummaryCard label="Shifts with RVU Data" value={String(summary.shiftCount)} />
-              <SummaryCard label="Average RVUs" value={formatOneDecimal(summary.averageRvus)} helper="per reporting window" />
-              <SummaryCard label="Average RTs Needed" value={formatOneDecimal(summary.averageRtsNeeded)} />
-              <SummaryCard label="Average RTs On Shift" value={formatOneDecimal(summary.averageRtsOn)} />
-              <SummaryCard label="Meeting or Exceeding Need" value={formatPercentage(summary.percentageMeetingNeed)} />
-              <SummaryCard label="Average Staffing Variance" value={formatOneDecimal(summary.averageStaffingVariance)} helper="RTs On Shift − exact need" />
-            </section>
-
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">RVU Trend</h2>
-              <p className="mt-1 text-xs font-bold text-slate-500">Chronological raw RVUs by reporting window</p>
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100 bg-slate-50/70 p-2">
-                <RvuTrendChart rows={rows} />
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Reporting-Window Detail</h2>
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full min-w-[56rem] text-left text-sm">
-                  <thead className="border-b border-slate-200 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-3 py-3">Reporting Date</th>
-                      <th className="px-3 py-3">Shift</th>
-                      <th className="px-3 py-3 text-right">RVUs</th>
-                      <th className="px-3 py-3 text-right">RTs Needed</th>
-                      <th className="px-3 py-3 text-right">RTs On Shift</th>
-                      <th className="px-3 py-3 text-right">Variance</th>
-                      <th className="px-3 py-3 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {rows.map((row) => (
-                      <tr key={row.id}>
-                        <td className="px-3 py-3 font-black text-hospital-ink">{formatReportingDate(row.shift_date)}</td>
-                        <td className="px-3 py-3 font-bold capitalize text-slate-700">{row.shift_type}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-700">{row.rvuTotal}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-700">{formatOneDecimal(row.exactRtsNeeded)}</td>
-                        <td className="px-3 py-3 text-right font-bold text-slate-700">{formatOneDecimal(row.rts_on)}</td>
-                        <td className={`px-3 py-3 text-right font-black ${row.staffingVariance < 0 ? "text-rose-700" : "text-emerald-700"}`}>
-                          {formatOneDecimal(row.staffingVariance)}
-                        </td>
-                        <td className="px-3 py-3 text-right font-black text-slate-700">{row.metNeed ? "Met Need" : "Below Need"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Day vs Night</h2>
-              <div className="mt-3"><ComparisonTable groups={shiftGroups} /></div>
-            </section>
-
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <h2 className="text-lg font-black text-hospital-ink">Seasonal Summary</h2>
-              <p className="mt-1 text-xs font-bold text-slate-500">Winter Dec–Feb · Spring Mar–May · Summer Jun–Aug · Fall Sep–Nov</p>
-              <div className="mt-3"><ComparisonTable groups={seasonalGroups} /></div>
-            </section>
-          </>
-        )}
-      </div>
-    </main>
-  );
+      </>}
+    </div>
+  </main>;
 }
