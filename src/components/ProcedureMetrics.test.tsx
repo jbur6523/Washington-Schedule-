@@ -30,7 +30,7 @@ describe("ProcedureMetrics", () => {
 
     render(<ProcedureMetrics report={report} currentMonth="2026-08" />);
 
-    expect(screen.getByRole("heading", { name: "August 2026 — Month to Date" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Procedure Metrics" })).toBeInTheDocument();
     const summary = screen.getByLabelText("Procedure metrics summary");
     expect(summary).toHaveTextContent("Average per Day");
     expect(summary).toHaveTextContent("Average per Reported Shift");

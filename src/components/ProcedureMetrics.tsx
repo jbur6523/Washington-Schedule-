@@ -1,10 +1,10 @@
 import Link from "next/link";
 import {
+  ArrowLeft,
   ArrowDownRight,
   ArrowUpRight,
   ChevronLeft,
   ChevronRight,
-  CircleMinus,
   ClipboardList,
   TrendingUp
 } from "lucide-react";
@@ -21,10 +21,10 @@ import {
 
 function SummaryCard({ label, value, helper }: { label: string; value: string; helper: string }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <h2 className="text-[11px] font-extrabold uppercase tracking-wide text-slate-500">{label}</h2>
-      <p className="mt-1 text-2xl font-black text-hospital-ink">{value}</p>
-      <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{helper}</p>
+    <article className="rounded-2xl border border-slate-200/80 bg-white p-4">
+      <h2 className="text-xs font-semibold leading-5 text-slate-600">{label}</h2>
+      <p className="mt-3 text-3xl font-extrabold tabular-nums tracking-tight text-hospital-ink">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-slate-500">{helper}</p>
     </article>
   );
 }
@@ -152,14 +152,14 @@ function MonthlyTrendChart({ trend, selectedMonth }: { trend: ProcedureMonthlyTr
             >
               <title>{`${monthLabel(month.month)}: ${month.total} procedures · ${trendStatusLabel(month.status)}`}</title>
             </rect>
-            <text x={x + barWidth / 2} y={baseline - barHeight - 8} textAnchor="middle" className="fill-slate-700 text-[11px] font-black">
+            <text x={x + barWidth / 2} y={baseline - barHeight - 8} textAnchor="middle" className="fill-slate-700 text-[11px] font-extrabold">
               {month.total}
             </text>
             <text x={x + barWidth / 2} y={height - 30} textAnchor="middle" className="fill-slate-600 text-[10px] font-bold">
               {monthLabel(month.month, "short").replace(" 20", " ’")}
             </text>
             {month.status === "month-to-date" ? (
-              <text x={x + barWidth / 2} y={height - 14} textAnchor="middle" className="fill-cyan-700 text-[9px] font-black">MTD</text>
+              <text x={x + barWidth / 2} y={height - 14} textAnchor="middle" className="fill-cyan-700 text-[9px] font-extrabold">MTD</text>
             ) : null}
           </g>
         );
@@ -209,27 +209,18 @@ export function ProcedureMetrics({
   }).format(new Date(`${report.reliableHistoryStartDate}T00:00:00.000Z`));
 
   return (
-    <main className="min-h-screen px-4 py-8">
-      <div className="mx-auto max-w-7xl space-y-4">
-        <section className="overflow-hidden rounded-3xl border border-white bg-white/95 shadow-soft">
-          <div className="bg-gradient-to-br from-cyan-800 via-cyan-700 to-slate-800 px-5 py-6 text-white sm:px-7">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-100">Metrics · Procedures</p>
-            <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h1 className="text-3xl font-black sm:text-4xl">
-                  {monthLabel(selectedMonth)}{isCurrentMonth ? " — Month to Date" : ""}
-                </h1>
-                <p className="mt-2 text-sm font-bold text-cyan-50">Canonical Day and Night Shift Updates · America/Los_Angeles</p>
-              </div>
-              <div className="rounded-3xl border border-white/20 bg-white/10 px-5 py-4 backdrop-blur-sm">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-100">Total Procedures</p>
-                <p className="mt-1 text-5xl font-black">{report.selected.total}</p>
-                <p className="mt-1 text-xs font-bold text-cyan-50">Sum of all six procedure types</p>
-              </div>
-            </div>
+    <main className="min-h-screen px-4 py-6 sm:py-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="flex flex-col justify-between gap-4 rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:flex-row sm:items-center sm:p-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p>
+            <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">Procedure Metrics</h1>
+            <p className="mt-2 text-sm text-slate-500">A simple view of procedure activity by month and shift.</p>
           </div>
-
-          <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
+        </header>
+        <section aria-label="Reporting month" className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {selectedMonth <= firstTrackedMonth ? (
               <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
                 <ChevronLeft size={17} aria-hidden="true" /> Previous Month
@@ -243,7 +234,7 @@ export function ProcedureMetrics({
                 <ChevronLeft size={17} aria-hidden="true" /> Previous Month
               </Link>
             )}
-            <p className="text-center text-sm font-black text-hospital-ink">{monthLabel(selectedMonth)}</p>
+            <div className="text-center"><p className="text-xs font-semibold text-slate-500">Reporting Month</p><p className="mt-1 text-lg font-extrabold text-hospital-ink">{monthLabel(selectedMonth)}</p>{isCurrentMonth && <span className="mt-1 inline-flex rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800">Month to Date</span>}</div>
             {isCurrentMonth ? (
               <span aria-disabled="true" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-extrabold text-slate-400">
                 Next Month <ChevronRight size={17} aria-hidden="true" />
@@ -260,25 +251,94 @@ export function ProcedureMetrics({
           </div>
         </section>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Link href="/admin/metrics" className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700">
-            Back to Metrics
-          </Link>
-          {!isCurrentMonth ? (
-            <Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white">
-              Return to Current Month
-            </Link>
-          ) : null}
-        </div>
+        {!isCurrentMonth && <div className="flex justify-end"><Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800">Return to Current Month</Link></div>}
 
         {loadError ? (
           <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center shadow-soft">
-            <h2 className="font-black text-rose-900">Procedure metrics are temporarily unavailable.</h2>
+            <h2 className="font-extrabold text-rose-900">Procedure metrics are temporarily unavailable.</h2>
             <p className="mt-1 text-sm font-bold text-rose-700">Please try again.</p>
           </section>
         ) : (
           <>
-            <section aria-label="Procedure metrics summary" className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-5">
+
+
+            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                  <ClipboardList size={20} aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="text-xl font-extrabold text-hospital-ink">Procedures by Type</h2>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{report.selectedPeriodLabel} compared with {report.comparisonPeriodLabel}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3 md:hidden">
+                {report.typeComparisons.map((procedure) => (
+                  <article key={procedure.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-extrabold text-hospital-ink">{procedure.label}</h3>
+                      <span className="text-2xl font-extrabold text-cyan-800">{procedure.selectedTotal}</span>
+                    </div>
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">{report.comparisonPeriodLabel}</dt><dd className="mt-1 font-extrabold text-hospital-ink">{procedure.previousTotal}</dd></div>
+                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Difference</dt><dd className="mt-1 font-extrabold text-hospital-ink">{signedNumber(procedure.difference)}</dd></div>
+                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Change</dt><dd className="mt-1"><ChangeText change={procedure} previousTotal={procedure.previousTotal} compact /></dd></div>
+                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Share</dt><dd className="mt-1 font-extrabold text-hospital-ink">{procedure.share.toFixed(1)}%</dd></div>
+                    </dl>
+                  </article>
+                ))}
+                <article className="rounded-2xl bg-cyan-50 p-4 text-hospital-ink">
+                  <div className="flex items-center justify-between gap-3"><h3 className="font-extrabold">Total Procedures</h3><span className="text-2xl font-extrabold">{report.selected.total}</span></div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-600">
+                    <span>Previous: {report.previous.total}</span>
+                    <span>Difference: {signedNumber(report.comparison.difference)}</span>
+                    <ChangeText change={report.comparison} previousTotal={report.previous.total} compact />
+                    <span>Share: 100.0%</span>
+                  </div>
+                </article>
+              </div>
+
+              <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
+                    <tr>
+                      <th className="px-4 py-4">Procedure</th>
+                      <th className="px-4 py-4 text-right">{selectedColumnLabel}</th>
+                      <th className="px-4 py-4 text-right">{report.comparisonPeriodLabel}</th>
+                      <th className="px-4 py-4 text-right">Difference</th>
+                      <th className="px-4 py-4 text-right">Change</th>
+                      <th className="px-4 py-4 text-right">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {report.typeComparisons.map((procedure) => (
+                      <tr key={procedure.id}>
+                        <th className="px-4 py-4 font-extrabold text-hospital-ink">{procedure.label}</th>
+                        <td className="px-4 py-4 text-right text-base font-extrabold text-cyan-800">{procedure.selectedTotal}</td>
+                        <td className="px-4 py-4 text-right font-bold text-slate-700">{procedure.previousTotal}</td>
+                        <td className="px-4 py-4 text-right font-extrabold text-hospital-ink">{signedNumber(procedure.difference)}</td>
+                        <td className="px-4 py-4 text-right"><ChangeText change={procedure} previousTotal={procedure.previousTotal} /></td>
+                        <td className="px-4 py-4 text-right font-bold text-slate-700">{procedure.share.toFixed(1)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-cyan-50 font-extrabold text-hospital-ink">
+                    <tr>
+                      <th className="px-4 py-4">Total Procedures</th>
+                      <td className="px-4 py-4 text-right text-base">{report.selected.total}</td>
+                      <td className="px-4 py-4 text-right">{report.previous.total}</td>
+                      <td className="px-4 py-4 text-right">{signedNumber(report.comparison.difference)}</td>
+                      <td className="px-4 py-4 text-right"><ChangeText change={report.comparison} previousTotal={report.previous.total} /></td>
+                      <td className="px-4 py-4 text-right">100.0%</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </section>
+
+            <section aria-label="Procedure metrics summary" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <SummaryCard label="Total Procedures" value={String(report.selected.total)} helper={report.selectedPeriodLabel} />
               <SummaryCard
                 label="Average per Day"
                 value={report.selected.dailyAverage.toFixed(1)}
@@ -308,89 +368,14 @@ export function ProcedureMetrics({
               />
             </section>
 
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-              <div className="flex items-start gap-3">
-                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                  <ClipboardList size={20} aria-hidden="true" />
-                </span>
-                <div>
-                  <h2 className="text-xl font-black text-hospital-ink">Procedures by Type</h2>
-                  <p className="mt-1 text-xs font-bold text-slate-500">{report.selectedPeriodLabel} compared with {report.comparisonPeriodLabel}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3 md:hidden">
-                {report.typeComparisons.map((procedure) => (
-                  <article key={procedure.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="font-black text-hospital-ink">{procedure.label}</h3>
-                      <span className="text-2xl font-black text-cyan-800">{procedure.selectedTotal}</span>
-                    </div>
-                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">{report.comparisonPeriodLabel}</dt><dd className="mt-1 font-black text-hospital-ink">{procedure.previousTotal}</dd></div>
-                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Difference</dt><dd className="mt-1 font-black text-hospital-ink">{signedNumber(procedure.difference)}</dd></div>
-                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Change</dt><dd className="mt-1"><ChangeText change={procedure} previousTotal={procedure.previousTotal} compact /></dd></div>
-                      <div><dt className="text-xs font-extrabold uppercase text-slate-500">Share</dt><dd className="mt-1 font-black text-hospital-ink">{procedure.share.toFixed(1)}%</dd></div>
-                    </dl>
-                  </article>
-                ))}
-                <article className="rounded-2xl bg-slate-900 p-4 text-white">
-                  <div className="flex items-center justify-between gap-3"><h3 className="font-black">Total Procedures</h3><span className="text-2xl font-black">{report.selected.total}</span></div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold text-slate-300">
-                    <span>Previous: {report.previous.total}</span>
-                    <span>Difference: {signedNumber(report.comparison.difference)}</span>
-                    <ChangeText change={report.comparison} previousTotal={report.previous.total} compact />
-                    <span>Share: 100.0%</span>
-                  </div>
-                </article>
-              </div>
-
-              <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">Procedure</th>
-                      <th className="px-4 py-3 text-right">{selectedColumnLabel}</th>
-                      <th className="px-4 py-3 text-right">{report.comparisonPeriodLabel}</th>
-                      <th className="px-4 py-3 text-right">Difference</th>
-                      <th className="px-4 py-3 text-right">Change</th>
-                      <th className="px-4 py-3 text-right">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {report.typeComparisons.map((procedure) => (
-                      <tr key={procedure.id}>
-                        <th className="px-4 py-3 font-black text-hospital-ink">{procedure.label}</th>
-                        <td className="px-4 py-3 text-right text-base font-black text-cyan-800">{procedure.selectedTotal}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-700">{procedure.previousTotal}</td>
-                        <td className="px-4 py-3 text-right font-black text-hospital-ink">{signedNumber(procedure.difference)}</td>
-                        <td className="px-4 py-3 text-right"><ChangeText change={procedure} previousTotal={procedure.previousTotal} /></td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-700">{procedure.share.toFixed(1)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-slate-900 font-black text-white">
-                    <tr>
-                      <th className="px-4 py-3">Total Procedures</th>
-                      <td className="px-4 py-3 text-right text-base">{report.selected.total}</td>
-                      <td className="px-4 py-3 text-right">{report.previous.total}</td>
-                      <td className="px-4 py-3 text-right">{signedNumber(report.comparison.difference)}</td>
-                      <td className="px-4 py-3 text-right"><ChangeText change={report.comparison} previousTotal={report.previous.total} /></td>
-                      <td className="px-4 py-3 text-right">100.0%</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+            <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div className="flex items-start gap-3">
                   <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
                     <TrendingUp size={20} aria-hidden="true" />
                   </span>
                   <div>
-                    <h2 className="text-xl font-black text-hospital-ink">Monthly Trend</h2>
+                    <h2 className="text-xl font-extrabold text-hospital-ink">Monthly Trend</h2>
                     <p className="mt-1 text-xs font-bold text-slate-500">Monthly totals with an available completed-month rolling average</p>
                   </div>
                 </div>
@@ -404,15 +389,15 @@ export function ProcedureMetrics({
                 <p className="mt-5 rounded-2xl bg-slate-50 p-5 text-sm font-bold text-slate-500">No submitted procedure updates are available for the historical trend.</p>
               ) : (
                 <>
-                  <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-2">
+                  <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-100 bg-white p-2">
                     <MonthlyTrendChart trend={report.trend} selectedMonth={selectedMonth} />
                   </div>
                   <div className="mt-4 space-y-3 md:hidden" aria-label="Monthly procedure trend data">
                     {report.trend.toReversed().map((month) => (
                       <article key={month.month} className={`rounded-2xl border p-4 ${month.month === selectedMonth ? "border-cyan-300 bg-cyan-50" : "border-slate-200 bg-white"}`}>
                         <div className="flex items-start justify-between gap-3">
-                          <div><h3 className="font-black text-hospital-ink">{monthLabel(month.month)}</h3><p className="text-xs font-bold text-slate-500">{trendStatusLabel(month.status)}</p></div>
-                          <span className="text-2xl font-black text-cyan-800">{month.total}</span>
+                          <div><h3 className="font-extrabold text-hospital-ink">{monthLabel(month.month)}</h3><p className="text-xs font-bold text-slate-500">{trendStatusLabel(month.status)}</p></div>
+                          <span className="text-2xl font-extrabold text-cyan-800">{month.total}</span>
                         </div>
                         <p className="mt-2 text-xs font-bold text-slate-600">Daily avg {month.dailyAverage.toFixed(1)} · Rolling avg {month.rollingAverage === null ? "—" : month.rollingAverage.toFixed(1)}</p>
                         <div className="mt-2 text-sm">{month.comparison ? <ChangeText change={month.comparison} previousTotal={month.total - month.comparison.difference} compact /> : <span className="font-bold text-slate-400">No prior-month comparison</span>}</div>
@@ -421,15 +406,15 @@ export function ProcedureMetrics({
                   </div>
                   <div className="mt-4 hidden overflow-hidden rounded-2xl border border-slate-200 md:block">
                     <table className="w-full text-left text-sm" aria-label="Monthly procedure trend data">
-                      <thead className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Month</th><th className="px-4 py-3 text-right">Total Procedures</th><th className="px-4 py-3 text-right">Daily Average</th><th className="px-4 py-3 text-right">3-Month Rolling Average</th><th className="px-4 py-3 text-right">Change vs Prior Month</th></tr></thead>
+                      <thead className="bg-slate-50 text-xs font-semibold text-slate-600"><tr><th className="px-4 py-4">Month</th><th className="px-4 py-4 text-right">Total Procedures</th><th className="px-4 py-4 text-right">Daily Average</th><th className="px-4 py-4 text-right">3-Month Rolling Average</th><th className="px-4 py-4 text-right">Change vs Prior Month</th></tr></thead>
                       <tbody className="divide-y divide-slate-100">
                         {report.trend.toReversed().map((month) => (
                           <tr key={month.month} className={month.month === selectedMonth ? "bg-cyan-50" : undefined}>
-                            <th className="px-4 py-3 font-black text-hospital-ink">{monthLabel(month.month)} <span className="ml-1 text-[10px] font-extrabold uppercase text-slate-500">{trendStatusLabel(month.status)}</span></th>
-                            <td className="px-4 py-3 text-right font-black text-cyan-800">{month.total}</td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-700">{month.dailyAverage.toFixed(1)}</td>
-                            <td className="px-4 py-3 text-right font-bold text-violet-700">{month.rollingAverage === null ? "—" : `${month.rollingAverage.toFixed(1)} (${month.rollingAverageMonthCount} mo)`}</td>
-                            <td className="px-4 py-3 text-right">{month.comparison ? <ChangeText change={month.comparison} previousTotal={month.total - month.comparison.difference} /> : <span className="font-bold text-slate-400">—</span>}</td>
+                            <th className="px-4 py-4 font-extrabold text-hospital-ink">{monthLabel(month.month)} <span className="ml-1 text-[10px] font-extrabold uppercase text-slate-500">{trendStatusLabel(month.status)}</span></th>
+                            <td className="px-4 py-4 text-right font-extrabold text-cyan-800">{month.total}</td>
+                            <td className="px-4 py-4 text-right font-bold text-slate-700">{month.dailyAverage.toFixed(1)}</td>
+                            <td className="px-4 py-4 text-right font-bold text-violet-700">{month.rollingAverage === null ? "—" : `${month.rollingAverage.toFixed(1)} (${month.rollingAverageMonthCount} mo)`}</td>
+                            <td className="px-4 py-4 text-right">{month.comparison ? <ChangeText change={month.comparison} previousTotal={month.total - month.comparison.difference} /> : <span className="font-bold text-slate-400">—</span>}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -440,16 +425,11 @@ export function ProcedureMetrics({
               <p className="mt-4 text-xs font-bold leading-5 text-slate-500">True procedure metrics tracking begins {historyStartLabel}. Earlier records are excluded. Months without submitted procedure updates are omitted, not treated as zero.</p>
             </section>
 
+            <details aria-label="Reconciliation" className="rounded-2xl border border-slate-200 bg-white/80 px-5 py-3 text-xs text-slate-500">
+              <summary className="cursor-pointer py-2 font-semibold">Report totals check</summary>
+              <p className="pb-2">Procedure types ({report.typeComparisons.reduce((total, procedure) => total + procedure.selectedTotal, 0)}) = daily totals ({report.selected.days.reduce((total, day) => total + day.total, 0)}) = canonical shift totals ({report.selected.dayTotal + report.selected.nightTotal}).</p>
+            </details>
             <ProcedureDailyDetail key={selectedMonth} days={report.selected.days} isCurrentMonth={isCurrentMonth} />
-
-            <section aria-label="Reconciliation" className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-              <div className="flex items-start gap-3">
-                {report.selected.total === report.typeComparisons.reduce((total, procedure) => total + procedure.selectedTotal, 0)
-                  ? <ArrowUpRight className="mt-0.5 text-emerald-700" size={20} aria-hidden="true" />
-                  : <CircleMinus className="mt-0.5 text-rose-700" size={20} aria-hidden="true" />}
-                <div><h2 className="font-black text-emerald-950">Report reconciled</h2><p className="mt-1 text-sm font-bold text-emerald-800">Procedure types ({report.selected.total}) = daily totals ({report.selected.days.reduce((total, day) => total + day.total, 0)}) = canonical shift totals ({report.selected.dayTotal + report.selected.nightTotal}).</p></div>
-              </div>
-            </section>
           </>
         )}
       </div>
