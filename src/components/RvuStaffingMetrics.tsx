@@ -71,7 +71,7 @@ export function RvuStaffingMetrics({ rows, range, start, end, navigation, embedd
           <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">RVU Trend</h2></div><p className="mt-2 text-xs text-slate-500">RVUs for each reported Day and Night shift.</p><RvuStaffingTrendChart rows={rows} /></section>
           <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><Users className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">Staffing Trend</h2></div><p className="mt-2 text-xs text-slate-500">RTs needed vs. on shift. Choose Day or Night below.</p><RvuStaffingTrendChart rows={rows} staffing /></section>
         </div>
-        <RvuStaffingDetail key={range} rows={rows} />
+        {!embedded && <RvuStaffingDetail key={range} rows={rows} />}
       </>}
     </div>
   </Container>;

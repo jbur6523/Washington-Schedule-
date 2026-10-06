@@ -259,7 +259,7 @@ export function ProcedureMetrics({
             </section>
 
 
-            <ProcedureDailyDetail key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} days={report.selected.days} isCurrentMonth={isCurrentMonth} />
+            {!embedded && <ProcedureDailyDetail key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} days={report.selected.days} isCurrentMonth={isCurrentMonth} />}
             <div role="status" className="flex items-center gap-2 px-1 text-xs font-semibold">
               {verified ? <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800"><CheckCircle2 size={15} aria-hidden="true" />Data Verified</span> : <span className="rounded-full bg-amber-50 px-3 py-2 text-amber-800">Data verification pending</span>}
             </div>

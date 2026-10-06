@@ -82,6 +82,9 @@ describe("RVU staffing metrics route authorization", () => {
   it("shows both sections by default under one date navigator", async () => {
     render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ month: "2026-09" }) }));
     expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Daily Operational Detail" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Reporting-Window Detail" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Daily Detail" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("region", { name: "Reporting period" })).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Procedure Metrics" })).toBeInTheDocument();

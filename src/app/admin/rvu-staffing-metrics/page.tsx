@@ -1,3 +1,4 @@
+import { DailyOperationalDetail } from "@/components/DailyOperationalDetail";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
@@ -34,6 +35,8 @@ export default async function RvuStaffingMetricsPage({ searchParams }: { searchP
     client && view !== "procedures" ? fetchRvuStaffingMetricRows(client, auth.context.departmentId, { minimumShiftDate: window.start, maximumShiftDate: window.end, shift: "all" }) : Promise.resolve({ data: [], error: null }),
     client && view !== "rvu" ? fetchProcedureMetricRows(client, auth.context.departmentId, procedureRange) : Promise.resolve({ data: [], error: null })
   ]);
+  const rvuRows = calculateMetricRows(rvu.data);
+  const procedureReport = custom && !error ? buildProcedureRangeReport(procedures.data, window.start, window.end, now) : buildProcedureMetricsReport(procedures.data, month, now);
   const selectionHref = (selection: string) => {
     const query = new URLSearchParams(custom ? { range: "custom", start: window.start, end: window.end } : { month });
     query.set("view", selection);
@@ -47,8 +50,9 @@ export default async function RvuStaffingMetricsPage({ searchParams }: { searchP
     <MetricsDateNavigation key={`${month}-${window.start}-${window.end}-${custom}`} path="/admin/rvu-staffing-metrics" {...navigation} start={window.start} end={window.end} view={view} />
     <nav aria-label="Metrics view" className="flex justify-center"><div className="inline-flex rounded-xl border border-slate-300 bg-white p-1 shadow-sm">{[["both", "Both"], ["rvu", "RVUs"], ["procedures", "Procedures"]].map(([value, label]) => <Link key={value} href={selectionHref(value)} aria-current={view === value ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-lg px-5 text-sm font-bold ${view === value ? "bg-cyan-700 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{label}</Link>)}</div></nav>
     {error ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800">{error}</p> : <>
-      {view !== "procedures" && <RvuStaffingMetrics embedded rows={calculateMetricRows(rvu.data)} range={range} navigation={navigation} start={window.start} end={window.end} loadError={Boolean(rvu.error)} />}
-      {view !== "rvu" && <div className={view === "both" ? "border-t-2 border-slate-300 pt-6" : ""}><ProcedureMetrics embedded report={custom ? buildProcedureRangeReport(procedures.data, window.start, window.end, now) : buildProcedureMetricsReport(procedures.data, month, now)} customRange={custom ? window : undefined} currentMonth={currentMonth} loadError={Boolean(procedures.error)} /></div>}
+      {view !== "procedures" && <RvuStaffingMetrics embedded rows={rvuRows} range={range} navigation={navigation} start={window.start} end={window.end} loadError={Boolean(rvu.error)} />}
+      {view !== "rvu" && <div className={view === "both" ? "border-t-2 border-slate-300 pt-6" : ""}><ProcedureMetrics embedded report={procedureReport} customRange={custom ? window : undefined} currentMonth={currentMonth} loadError={Boolean(procedures.error)} /></div>}
+      <DailyOperationalDetail key={`${window.start}-${window.end}-${view}`} rows={rvuRows} days={view === "rvu" ? [] : procedureReport.selected.days} view={view} rvuError={Boolean(rvu.error)} procedureError={Boolean(procedures.error)} current={!custom && month === currentMonth} />
     </>}
   </div></main>;
 }
