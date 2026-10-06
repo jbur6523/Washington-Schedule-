@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RvuStaffingDownload } from "@/components/RvuStaffingDownload";
 import { RvuStaffingDetail } from "@/components/RvuStaffingDetail";
 import { RvuStaffingTrendChart } from "@/components/RvuStaffingTrendChart";
 import { ArrowLeft, BarChart3, Moon, Sun, Users } from "lucide-react";
@@ -32,7 +33,10 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">RVU &amp; Staffing Metrics</h1>
           <p className="mt-2 text-sm text-slate-500">A simple view of staffing performance by shift.</p>
         </div>
-        <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
+        <div className="flex flex-wrap gap-2">
+          <RvuStaffingDownload rows={rows} range={range} disabled={loadError || rows.length === 0} />
+          <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
+        </div>
       </header>
       <section aria-label="Report filters" className={panel}>
         <form method="get" className="grid gap-4 sm:grid-cols-[minmax(0,24rem)_auto] sm:justify-start sm:items-end">
