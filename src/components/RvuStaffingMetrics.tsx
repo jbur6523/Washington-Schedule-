@@ -50,6 +50,19 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
       </section> : rows.length === 0 ? <section className={`${panel} text-center`}>
         <h2 className="text-lg font-bold text-hospital-ink">No RVU data for these filters</h2><p className="mt-2 text-sm text-slate-500">Historical shifts without saved RVUs are excluded rather than counted as zero.</p>
       </section> : <>
+        <section aria-labelledby="comparison-heading" className={`${panel} ring-1 ring-cyan-100`}>
+          <div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 id="comparison-heading" className="text-xl font-extrabold text-hospital-ink">Day vs Night Comparison</h2></div>
+          <p className="mt-2 text-sm text-slate-500">Coverage rate is the percentage of reported shifts with enough RTs to meet staffing need.</p>
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Day and Night comparison table">
+            <table className="w-full min-w-[640px] text-left text-sm tabular-nums">
+              <thead className="bg-slate-50 text-xs text-slate-600"><tr>{["Shift", "Average RVUs", "Average Staff Needed", "Average Staff On Shift", "Coverage Rate"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
+              <tbody className="divide-y divide-slate-100">{shiftGroups.map(({ type, name, summary }) => <tr key={type}>
+                <th scope="row" className={`whitespace-nowrap px-4 py-5 font-bold ${type === "day" ? "text-sky-700" : "text-violet-700"}`}>{name} Shift</th>
+                {[formatOneDecimal(summary.averageRvus), formatOneDecimal(summary.averageRtsNeeded), formatOneDecimal(summary.averageRtsOn), formatPercentage(summary.percentageMeetingNeed)].map((value, index) => <td key={index} className="px-4 py-5 text-right text-base font-bold text-hospital-ink">{value}</td>)}
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </section>
         <section aria-label="Metrics summary" className="grid gap-5 lg:grid-cols-2">
           {shiftGroups.map(({ type, name, summary }) => {
             const Icon = type === "day" ? Sun : Moon;
@@ -64,19 +77,6 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
               </dl>
             </section>;
           })}
-        </section>
-        <section aria-labelledby="comparison-heading" className={`${panel} ring-1 ring-cyan-100`}>
-          <div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 id="comparison-heading" className="text-xl font-extrabold text-hospital-ink">Day vs Night Comparison</h2></div>
-          <p className="mt-2 text-sm text-slate-500">Coverage rate is the percentage of reported shifts with enough RTs to meet staffing need.</p>
-          <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Day and Night comparison table">
-            <table className="w-full min-w-[640px] text-left text-sm tabular-nums">
-              <thead className="bg-slate-50 text-xs text-slate-600"><tr>{["Shift", "Average RVUs", "Average Staff Needed", "Average Staff On Shift", "Coverage Rate"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
-              <tbody className="divide-y divide-slate-100">{shiftGroups.map(({ type, name, summary }) => <tr key={type}>
-                <th scope="row" className={`whitespace-nowrap px-4 py-5 font-bold ${type === "day" ? "text-sky-700" : "text-violet-700"}`}>{name} Shift</th>
-                {[formatOneDecimal(summary.averageRvus), formatOneDecimal(summary.averageRtsNeeded), formatOneDecimal(summary.averageRtsOn), formatPercentage(summary.percentageMeetingNeed)].map((value, index) => <td key={index} className="px-4 py-5 text-right text-base font-bold text-hospital-ink">{value}</td>)}
-              </tr>)}</tbody>
-            </table>
-          </div>
         </section>
         <div className="grid gap-5 lg:grid-cols-2">
           <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">RVU Trend</h2></div><p className="mt-2 text-xs text-slate-500">RVUs for each reported Day and Night shift.</p><RvuStaffingTrendChart rows={rows} /></section>
