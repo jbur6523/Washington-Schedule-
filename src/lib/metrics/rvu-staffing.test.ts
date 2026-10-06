@@ -103,9 +103,9 @@ describe("RVU staffing analytics", () => {
     expect(parseMetricShiftFilter(undefined)).toBe("all");
     expect(parseMetricShiftFilter("night")).toBe("night");
     expect(parseMetricShiftFilter("invalid")).toBe("all");
-    expect(minimumShiftDateForRange("7", "2026-08-14")).toBe("2026-08-08");
+    expect(minimumShiftDateForRange("90", "2026-08-14")).toBe("2026-05-17");
     expect(minimumShiftDateForRange("30", "2026-08-14")).toBe("2026-07-16");
-    expect(minimumShiftDateForRange("all", "2026-08-14")).toBeNull();
+    expect(minimumShiftDateForRange("custom", "2026-08-14")).toBeNull();
   });
 });
 

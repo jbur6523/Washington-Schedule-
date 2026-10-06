@@ -5,7 +5,7 @@ import { canViewRvuStaffingMetrics } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import {
   calculateMetricRows,
-  minimumShiftDateForRange,
+  metricReportingWindow,
   parseMetricDateRange
 } from "@/lib/metrics/rvu-staffing";
 import { fetchRvuStaffingMetricRows } from "@/lib/metrics/queries";
@@ -36,11 +36,12 @@ export default async function RvuStaffingMetricsPage({
   const parameters = await searchParams;
   const range = parseMetricDateRange(parameters?.range);
   const currentReportingDate = reportingWindowForInstant().localStartDate;
-  const minimumShiftDate = minimumShiftDateForRange(range, currentReportingDate);
+  const window = metricReportingWindow(range, currentReportingDate, parameters?.start, parameters?.end);
+  if (window.error) return <RvuStaffingMetrics rows={[]} range={range} start={window.start} end={window.end} rangeError={window.error} />;
   const supabase = await createClient();
   const result = await fetchRvuStaffingMetricRows(supabase, auth.context.departmentId, {
-    minimumShiftDate,
-    maximumShiftDate: currentReportingDate,
+    minimumShiftDate: window.start,
+    maximumShiftDate: window.end,
     shift: "all"
   });
 
@@ -48,6 +49,8 @@ export default async function RvuStaffingMetricsPage({
     <RvuStaffingMetrics
       rows={calculateMetricRows(result.data)}
       range={range}
+      start={window.start}
+      end={window.end}
       loadError={Boolean(result.error)}
     />
   );

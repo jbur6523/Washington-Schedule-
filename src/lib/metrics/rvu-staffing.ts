@@ -3,11 +3,10 @@ import type { ShiftStatusShiftType } from "@/lib/shift-status/types";
 export const RVUS_PER_RT = 27;
 
 export const metricDateRanges = [
-  { value: "7", label: "7 Days", days: 7 },
   { value: "30", label: "30 Days", days: 30 },
   { value: "90", label: "90 Days", days: 90 },
   { value: "365", label: "1 Year", days: 365 },
-  { value: "all", label: "All Data", days: null }
+  { value: "custom", label: "Custom", days: null }
 ] as const;
 
 export const metricShiftFilters = [
@@ -222,4 +221,17 @@ export function minimumShiftDateForRange(range: MetricDateRange, currentReportin
     (minimum.getUTCMonth() + 1).toString().padStart(2, "0"),
     minimum.getUTCDate().toString().padStart(2, "0")
   ].join("-");
+}
+
+export function validMetricDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function metricReportingWindow(range: MetricDateRange, today: string, start: unknown, end: unknown) {
+  if (range !== "custom") return { start: minimumShiftDateForRange(range, today)!, end: today, error: "" };
+  if (!validMetricDate(start) || !validMetricDate(end)) return { start: "", end: "", error: "Enter valid start and end dates for the custom range." };
+  if (start > end) return { start, end, error: "Start date must be on or before end date." };
+  return { start, end, error: "" };
 }

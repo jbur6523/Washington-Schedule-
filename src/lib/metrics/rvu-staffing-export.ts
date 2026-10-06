@@ -10,18 +10,18 @@ const summaryHeaders = ["Shift", "Reported Shifts", "Average RVUs", "Average RTs
 const detailHeaders = ["Reporting Date", "Shift", "RVUs", "RTs Needed", "RTs On Shift", "Variance", "Status"];
 const shiftName = (shift: string) => shift === "day" ? "Day" : "Night";
 
-export function metricExportData(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date()) {
+export function metricExportData(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string) {
   const sorted = [...rows].sort((a, b) => a.shift_date.localeCompare(b.shift_date) || a.shift_type.localeCompare(b.shift_type));
   const dates = sorted.length ? `${sorted[0].shift_date} to ${sorted[sorted.length - 1].shift_date}` : "No reported shifts";
-  const rangeLabel = metricDateRanges.find(option => option.value === range)!.label;
+  const rangeLabel = appliedRangeLabel ?? metricDateRanges.find(option => option.value === range)!.label;
   const generated = new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Los_Angeles" }).format(now) + " PT";
   const summary = (["day", "night"] as const).map(shift => ({ name: shiftName(shift), ...summarizeMetricRows(sorted.filter(row => row.shift_type === shift)) }));
   return { sorted, dates, rangeLabel, generated, summary, filename: `WHHS-RVU-Staffing-${range}-${sorted[0]?.shift_date ?? "empty"}-to-${sorted[sorted.length - 1]?.shift_date ?? "empty"}` };
 }
 
-export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date()) {
+export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string) {
   const { default: ExcelJS } = await import("exceljs");
-  const data = metricExportData(rows, range, now);
+  const data = metricExportData(rows, range, now, appliedRangeLabel);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "WHHS";
   workbook.created = now;
@@ -67,9 +67,9 @@ export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], ran
   return workbook;
 }
 
-export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date()) {
+export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string) {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
-  const data = metricExportData(rows, range, now);
+  const data = metricExportData(rows, range, now, appliedRangeLabel);
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const title = (label: string, y: number) => { doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(21, 94, 117); doc.text(label, 36, y); };
   title("WHHS RVU & Staffing Metrics", 40);
@@ -105,10 +105,10 @@ export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: M
   return doc;
 }
 
-export async function downloadMetrics(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, format: "pdf" | "xlsx") {
-  const data = metricExportData(rows, range);
-  if (format === "pdf") { const doc = await buildMetricsPdf(rows, range); doc.save(`${data.filename}.pdf`); return; }
-  const workbook = await buildMetricsWorkbook(rows, range);
+export async function downloadMetrics(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, format: "pdf" | "xlsx", appliedRangeLabel?: string) {
+  const data = metricExportData(rows, range, new Date(), appliedRangeLabel);
+  if (format === "pdf") { const doc = await buildMetricsPdf(rows, range, new Date(), appliedRangeLabel); doc.save(`${data.filename}.pdf`); return; }
+  const workbook = await buildMetricsWorkbook(rows, range, new Date(), appliedRangeLabel);
   const buffer = await workbook.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([new Uint8Array(buffer)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
   const link = document.createElement("a"); link.href = url; link.download = `${data.filename}.xlsx`; document.body.appendChild(link); link.click(); link.remove();

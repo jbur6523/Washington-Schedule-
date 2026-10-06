@@ -44,15 +44,15 @@ describe("RvuStaffingMetrics", () => {
 
     const dateRange = screen.getByLabelText("Date Range");
     expect(dateRange).toHaveValue("30");
-    expect(within(dateRange).getByRole("option", { name: "All Data" })).toBeInTheDocument();
+    expect(within(dateRange).getByRole("option", { name: "Custom" })).toBeInTheDocument();
   });
 
   it("renders a clear empty state without misleading metrics", () => {
-    render(<RvuStaffingMetrics rows={[]} range="7" />);
+    render(<RvuStaffingMetrics rows={[]} range="30" />);
 
     expect(screen.getByRole("heading", { name: "No RVU data for these filters" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Metrics summary")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Date Range")).toHaveValue("7");
+    expect(screen.getByLabelText("Date Range")).toHaveValue("30");
     expect(screen.queryByLabelText("Shift")).not.toBeInTheDocument();
   });
 });
@@ -99,4 +99,15 @@ it("filters only detail rows and leaves summaries and charts unchanged", () => {
   expect(screen.getByRole("img", { name: /RVU trend by reporting window/ }).innerHTML).toBe(chart);
   fireEvent.click(within(filters).getByRole("button", { name: "All Shifts" }));
   expect(within(detail).getAllByRole("row")).toHaveLength(3);
+});
+it("offers only the requested ranges and editable custom dates", () => {
+  render(<RvuStaffingMetrics rows={[]} range="30" start="2026-09-07" end="2026-10-06" />);
+  const range = screen.getByLabelText("Date Range");
+  expect(within(range).getAllByRole("option").map(option => option.textContent)).toEqual(["30 Days", "90 Days", "1 Year", "Custom"]);
+  fireEvent.change(range, { target: { value: "custom" } });
+  expect(screen.getByLabelText("Start Date")).toHaveValue("2026-09-07");
+  fireEvent.change(screen.getByLabelText("Start Date"), { target: { value: "2026-10-07" } });
+  expect(screen.getByRole("button", { name: "Apply Date Range" })).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("End Date"), { target: { value: "2026-10-07" } });
+  expect(screen.getByRole("button", { name: "Apply Date Range" })).toBeEnabled();
 });

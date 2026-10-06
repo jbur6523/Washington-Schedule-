@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Download, FileSpreadsheet, FileText, X } from "lucide-react";
 import type { CalculatedRvuStaffingRow, MetricDateRange } from "@/lib/metrics/rvu-staffing";
 
-export function RvuStaffingDownload({ rows, range, disabled }: { rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; disabled: boolean }) {
+export function RvuStaffingDownload({ rows, range, disabled, rangeLabel }: { rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; disabled: boolean; rangeLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -12,7 +12,7 @@ export function RvuStaffingDownload({ rows, range, disabled }: { rows: Calculate
     setBusy(true); setMessage("");
     try {
       const { downloadMetrics } = await import("@/lib/metrics/rvu-staffing-export");
-      await downloadMetrics(rows, range, format);
+      await downloadMetrics(rows, range, format, rangeLabel);
       setMessage("Download started. You can attach the saved file to an email.");
     } catch { setMessage("Could not create the file. Please try again."); }
     finally { setBusy(false); }

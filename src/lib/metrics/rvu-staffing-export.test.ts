@@ -34,12 +34,12 @@ describe("RVU report exports", () => {
     expect(detail.getCell("A2").value).toBeInstanceOf(Date);
   }, 20000);
   it("handles a missing shift without treating it as zero coverage", async () => {
-    const workbook = await buildMetricsWorkbook(rows.slice(0, 1), "7");
+    const workbook = await buildMetricsWorkbook(rows.slice(0, 1), "30");
     expect(workbook.getWorksheet("Summary")!.getCell("F8").value).toBeNull();
   });
   it("paginates complete PDF detail without dropping rows", async () => {
     const many = Array.from({ length: 100 }, (_, index) => ({ ...rows[index % 2], id: String(index), shift_date: `2026-09-${String(index % 30 + 1).padStart(2, "0")}` }));
-    const doc = await buildMetricsPdf(many, "all");
+    const doc = await buildMetricsPdf(many, "custom");
     expect(doc.getNumberOfPages()).toBeGreaterThan(3);
     const pdf = doc.output();
     expect(pdf).toContain("WHHS RVU & Staffing Metrics");

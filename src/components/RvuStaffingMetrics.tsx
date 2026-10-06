@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { RvuStaffingFilters } from "@/components/RvuStaffingFilters";
 import { RvuStaffingDownload } from "@/components/RvuStaffingDownload";
 import { RvuStaffingDetail } from "@/components/RvuStaffingDetail";
 import { RvuStaffingTrendChart } from "@/components/RvuStaffingTrendChart";
 import { ArrowLeft, BarChart3, Moon, Sun, Users } from "lucide-react";
 import type { CalculatedRvuStaffingRow, MetricDateRange } from "@/lib/metrics/rvu-staffing";
-import { formatOneDecimal, metricDateRanges, summarizeMetricRows } from "@/lib/metrics/rvu-staffing";
+import { formatOneDecimal, summarizeMetricRows } from "@/lib/metrics/rvu-staffing";
 
 const panel = "rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6";
 const shifts = ["day", "night"] as const;
@@ -21,8 +22,8 @@ function SummaryCard({ label, value, helper }: { label: string; value: string; h
   </div>;
 }
 
-export function RvuStaffingMetrics({ rows, range, loadError = false }: {
-  rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; loadError?: boolean;
+export function RvuStaffingMetrics({ rows, range, start, end, rangeError = "", loadError = false }: {
+  rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; start?: string; end?: string; rangeError?: string; loadError?: boolean;
 }) {
   const shiftGroups = shifts.map((type) => ({ type, name: type === "day" ? "Day" : "Night", summary: summarizeMetricRows(rows.filter((row) => row.shift_type === type)) }));
   return <main className="min-h-screen px-4 py-6 sm:py-8">
@@ -34,22 +35,14 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
           <p className="mt-2 text-sm text-slate-500">A simple view of staffing performance by shift.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <RvuStaffingDownload rows={rows} range={range} disabled={loadError || rows.length === 0} />
+          <RvuStaffingDownload rows={rows} range={range} disabled={loadError || Boolean(rangeError) || rows.length === 0} rangeLabel={range === "custom" ? `Custom: ${start} to ${end}` : undefined} />
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
         </div>
       </header>
       <section aria-label="Report filters" className={panel}>
-        <form method="get" className="grid gap-4 sm:grid-cols-[minmax(0,24rem)_auto] sm:justify-start sm:items-end">
-          <label className="block"><span className="text-xs font-bold text-slate-600">Date Range</span>
-            <select name="range" defaultValue={range} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-hospital-ink">
-              {metricDateRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-
-          <button type="submit" className="min-h-11 rounded-xl bg-cyan-700 px-6 text-sm font-bold text-white shadow-sm hover:bg-cyan-800">Apply Date Range</button>
-        </form>
+        <RvuStaffingFilters key={`${range}-${start}-${end}`} range={range} start={start} end={end} />
       </section>
-      {loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
+      {rangeError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
         <h2 className="font-bold text-rose-900">Metrics are temporarily unavailable.</h2><p className="mt-2 text-sm text-rose-700">Please try again.</p>
       </section> : rows.length === 0 ? <section className={`${panel} text-center`}>
         <h2 className="text-lg font-bold text-hospital-ink">No RVU data for these filters</h2><p className="mt-2 text-sm text-slate-500">Historical shifts without saved RVUs are excluded rather than counted as zero.</p>

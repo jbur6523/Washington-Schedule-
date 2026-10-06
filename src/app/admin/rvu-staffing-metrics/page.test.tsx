@@ -95,3 +95,21 @@ it("ignores legacy shift query parameters so both shifts remain in the report", 
   await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "7", shift: "night" }) });
   expect(mocks.fetchRows).toHaveBeenLastCalledWith(expect.anything(), "department-1", expect.objectContaining({ shift: "all" }));
 });
+it("queries the exact inclusive custom date range", async () => {
+  mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
+  mocks.createClient.mockResolvedValue({});
+  mocks.fetchRows.mockResolvedValue({ data: [], error: null });
+  await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "custom", start: "2026-09-01", end: "2026-09-30" }) });
+  expect(mocks.fetchRows).toHaveBeenLastCalledWith(expect.anything(), "department-1", { minimumShiftDate: "2026-09-01", maximumShiftDate: "2026-09-30", shift: "all" });
+});
+it.each([
+  { start: "2026-02-30", end: "2026-03-01" },
+  { start: "2026-10-02", end: "2026-10-01" },
+  { start: "", end: "2026-10-01" }
+])("rejects invalid custom dates before querying", async (dates) => {
+  mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
+  mocks.fetchRows.mockClear();
+  render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "custom", ...dates }) }));
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(mocks.fetchRows).not.toHaveBeenCalled();
+});
