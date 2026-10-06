@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Bed, ChevronRight, ClipboardList, History, LogOut, MessageSquareText, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
-import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
+import { printIcuRoundingReport } from "@/lib/icu-command-center/print-report";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type {
@@ -865,7 +865,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [activityDetailPreviousState, setActivityDetailPreviousState] = useState<IcuActivityAuditState | null>(null);
   const [activityDetailLoading, setActivityDetailLoading] = useState(false);
   const [activityDetailError, setActivityDetailError] = useState("");
-  const [leadNotesOpen, setLeadNotesOpen] = useState(false);
 
   const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
   const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
@@ -1376,15 +1375,20 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
         <button
           type="button"
-          onClick={() => setLeadNotesOpen(true)}
-          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-purple-200 bg-purple-100/80 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99]"
+          disabled={loading || records.length === 0}
+          onClick={() => {
+            if (!printIcuRoundingReport(records, authContext.departmentName)) {
+              setError("Allow pop-ups for this site, then select Print Report again.");
+            }
+          }}
+          className="flex min-h-16 w-full items-center gap-3 rounded-3xl border border-slate-400 bg-slate-200 px-4 py-3 text-left shadow-soft transition duration-150 active:scale-[0.99] disabled:opacity-60"
         >
-          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-purple-700 shadow-sm">
-            <MessageSquareText size={20} />
+          <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-800 shadow-sm">
+            <Printer size={20} />
           </span>
           <span>
-            <span className="block text-sm font-black text-hospital-ink">Lead Communication Board</span>
-            <span className="mt-0.5 block text-xs font-bold text-slate-500">Shared notes for RT leads.</span>
+            <span className="block text-sm font-black text-hospital-ink">Print Report</span>
+            <span className="mt-0.5 block text-xs font-bold text-slate-700">Active ICU patients and rounding details.</span>
           </span>
         </button>
 
@@ -2239,12 +2243,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
         </div>
       )}
 
-      <LeadCommunicationBoardModal
-        authContext={authContext}
-        open={leadNotesOpen}
-        onClose={() => setLeadNotesOpen(false)}
-        context="icu"
-      />
     </Container>
   );
 }
