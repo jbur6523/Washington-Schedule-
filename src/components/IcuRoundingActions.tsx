@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, AlertTriangle, ClipboardList } from "lucide-react";
+import { Activity, AlertTriangle, Check, ClipboardList } from "lucide-react";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import { activeSbt, sbtFailureReasons, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 
@@ -39,8 +39,16 @@ export function IcuRoundingActions({ record, saving, onSave }: { record: IcuPati
           setFlolan(record.is_flolan); setProned(record.is_prone); setCriticalOther(Boolean(record.rounding_data?.criticalOther));
           setOther(key === "critical" ? record.rounding_data?.criticalOther ?? "" : "");
         }}
-        className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold disabled:opacity-50 ${highlighted ? key === "critical" ? "border-rose-300 bg-rose-100 text-rose-800" : "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-200 bg-white text-slate-700"}`}>
-        <Icon size={16} aria-hidden="true" />{label}
+        className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-2 text-xs font-extrabold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:shadow-none print:bg-white print:text-black print:border-slate-600 ${
+          key === "sbt" && record.device_type !== "vent"
+            ? "border-slate-300 bg-slate-100 text-slate-500"
+            : key === "sbt"
+              ? highlighted ? "border-emerald-700 bg-emerald-200 text-emerald-950 ring-1 ring-inset ring-emerald-700" : "border-emerald-600 bg-emerald-100 text-emerald-950 hover:bg-emerald-200"
+              : key === "critical"
+                ? highlighted ? "border-rose-700 bg-rose-200 text-rose-950 ring-1 ring-inset ring-rose-700" : "border-rose-500 bg-rose-100 text-rose-950 hover:bg-rose-200"
+                : "border-sky-600 bg-sky-100 text-sky-950 hover:bg-sky-200"
+        }`}>
+        {highlighted ? <Check size={16} strokeWidth={3} aria-hidden="true" /> : <Icon size={16} strokeWidth={2.5} aria-hidden="true" />}{label}
       </button>)}
     </div>
     {panel && <form aria-label={`${panel === "sbt" ? "SBT" : panel === "critical" ? "Critical" : "Procedure"} for ${record.bed}`} className="mt-2 space-y-3 rounded-2xl border border-cyan-100 bg-slate-50 p-3"

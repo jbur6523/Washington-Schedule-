@@ -619,12 +619,12 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} />
-          <div className="mt-3 rounded-2xl bg-cyan-50/70 px-3 py-2">
-            <p className="text-xs font-bold text-cyan-800">Current Settings</p>
+          <div className="mt-3 rounded-2xl border border-slate-400 bg-slate-200 px-3 py-2 print:bg-white print:border-slate-600">
+            <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
             <p className="text-sm font-bold leading-6 text-hospital-ink">{formatIcuSettings(record)}</p>
           </div>
-          <div className="mt-2 rounded-2xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-600">
-            <p className="text-xs font-bold text-cyan-800">Rounding Snapshot</p>
+          <div className="mt-2 rounded-2xl border border-slate-400 bg-slate-100 px-3 py-2 text-sm leading-6 text-slate-800 print:bg-white print:border-slate-600">
+            <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
             {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
             {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
             {record.is_critical_vent && <p><strong>Critical:</strong> {criticalDetail(record)}</p>}
@@ -705,7 +705,7 @@ export function IcuPatientCard({
             </button>
           )}
           </div>
-          <p className="mt-2 text-xs font-bold text-slate-400">Updated {formatIcuLastUpdated(record.updated_at)}</p>
+          <p className="mt-2 text-xs font-bold text-slate-600">Updated {formatIcuLastUpdated(record.updated_at)}</p>
         </div>
         <div className="absolute right-4 top-3">
           {supportsIcuStandby(record.device_type) && (
