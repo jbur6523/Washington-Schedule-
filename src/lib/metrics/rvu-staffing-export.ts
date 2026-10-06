@@ -1,11 +1,5 @@
 import { formatOneDecimal, metricDateRanges, summarizeMetricRows, type CalculatedRvuStaffingRow, type MetricDateRange } from "./rvu-staffing";
 
-export const reportNotes = [
-  "Includes both Day and Night shifts in the applied date range, regardless of the detail-table filter.",
-  "Shifts without saved RVUs are excluded, not counted as zero. RTs needed = RVUs / 27.",
-  "Variance = RTs on shift minus RTs needed. Rounded to one decimal: -0.4 or higher meets need; -0.5 or lower is below need.",
-  "Coverage rate = percentage of reported shifts meeting need, calculated separately for Day and Night."
-];
 const summaryHeaders = ["Shift", "Reported Shifts", "Average RVUs", "Average RTs Needed", "Average RTs On Shift", "Coverage Rate"];
 const detailHeaders = ["Reporting Date", "Shift", "RVUs", "RTs Needed", "RTs On Shift", "Variance", "Status"];
 const shiftName = (shift: string) => shift === "day" ? "Day" : "Night";
@@ -33,8 +27,6 @@ export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], ran
   summary.addRow([]);
   summary.addRow(summaryHeaders);
   data.summary.forEach(item => summary.addRow([item.name, item.shiftCount, item.averageRvus, item.averageRtsNeeded, item.averageRtsOn, item.percentageMeetingNeed === null ? null : item.percentageMeetingNeed / 100]));
-  summary.addRow([]);
-  reportNotes.forEach(note => { const row = summary.addRow([note]); summary.mergeCells(row.number, 1, row.number, 6); row.height = 32; row.getCell(1).alignment = { wrapText: true, vertical: "middle" }; });
   summary.columns.forEach((col, index) => { col.width = index === 0 ? 19 : 23; });
   [7, 8].forEach(row => { [3, 4, 5].forEach(col => { summary.getCell(row, col).numFmt = "0.0"; }); summary.getCell(row, 6).numFmt = "0.0%"; });
   for (let row = 1; row <= 4; row++) summary.mergeCells(row, 1, row, 6);
@@ -96,7 +88,6 @@ export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: M
   const values = (shift: "day" | "night", field: "rvuTotal" | "exactRtsNeeded" | "rts_on") => { const map = new Map(data.sorted.filter(row => row.shift_type === shift).map(row => [row.shift_date, row[field]])); return dates.map(date => map.get(date) ?? null); };
   chart("RVU Trend", 228, [{ label: "Day", color: [3, 105, 161], values: values("day", "rvuTotal") }, { label: "Night", color: [109, 40, 217], values: values("night", "rvuTotal") }]);
   (["day", "night"] as const).forEach((shift, index) => chart(`Staffing Trend - ${shiftName(shift)} Shift`, 370 + index * 142, [{ label: "RTs Needed", color: [3, 105, 161], values: values(shift, "exactRtsNeeded") }, { label: "RTs On Shift", color: [4, 120, 87], values: values(shift, "rts_on") }]));
-  doc.setFontSize(8); doc.setTextColor(70); doc.text(doc.splitTextToSize(reportNotes.join("\n"), 540), 36, 653);
   doc.addPage(); title("Reporting-Window Detail", 40);
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(70); doc.text(`${data.dates} | ${rows.length} reported shifts | Both shifts`, 36, 57);
   autoTable(doc, { startY: 70, margin: { top: 36, bottom: 40, left: 36, right: 36 }, head: [detailHeaders], body: data.sorted.map(row => [row.shift_date, shiftName(row.shift_type), row.rvuTotal, formatOneDecimal(row.exactRtsNeeded), formatOneDecimal(row.rts_on), formatOneDecimal(row.staffingVariance), row.metNeed ? "Met Need" : "Below Need"]), styles: { fontSize: 9, cellPadding: 6 }, headStyles: { fillColor: [21, 94, 117] }, didParseCell: cell => { if (cell.section === "body" && cell.column.index >= 5) cell.cell.styles.textColor = data.sorted[cell.row.index].metNeed ? [4, 120, 87] : [190, 18, 60]; } });
