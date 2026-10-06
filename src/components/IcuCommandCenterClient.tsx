@@ -9,6 +9,7 @@ import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 import { printIcuRoundingReport } from "@/lib/icu-command-center/print-report";
+import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import type {
@@ -385,7 +386,7 @@ async function createIcuPatientEvent(
     event_time: eventTime ?? new Date().toISOString(),
     event_summary: eventSummary,
     event_data: eventDataFromRecord(record, {
-      ...(previousRecord ? { previousState: icuActivityStateFromRecord(previousRecord) } : {}),
+      ...(previousRecord ? { previousState: icuActivityStateFromRecord(previousRecord), previousNotes: previousRecord.notes } : {}),
       ...eventData
     }),
     created_by_staff_profile_id: authContext.staffProfileId,
@@ -2139,7 +2140,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 </p>
               )}
               {!historyLoading &&
-                historyEvents.map((eventRecord) => (
+                historyEvents.map((eventRecord) => {
+                  const changes = icuHistoryChanges(eventRecord);
+                  return (
                   <article key={eventRecord.id} className="rounded-3xl border border-white bg-white p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                       <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
@@ -2152,18 +2155,32 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                         <p className="mt-1 text-xs font-bold text-slate-500">
                           By {eventRecord.created_by_name || "Unknown"}
                         </p>
-                        {eventRecord.event_summary && (
+                        {changes === null && eventRecord.event_summary && (
                           <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
                         )}
-                        {historyDetailLines(eventRecord).map((line) => (
-                          <p key={line} className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                        {changes !== null ? (
+                          <div className="mt-3 space-y-2">
+                            {changes.length === 0 ? <p className="text-sm text-slate-700">No changes recorded.</p> : changes.map(change => (
+                              <div key={change.label} className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                                <p className="font-extrabold">{change.label}</p>
+                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Previous:</span> {change.previous}</p>
+                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Current:</span> {change.current}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : eventRecord.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(eventRecord.event_data?.action)) ? (
+                          <p className="mt-2 text-xs text-slate-600">Previous values were not recorded for this entry.</p>
+                        ) : eventRecord.event_data?.action === "note_updated" && eventDataText(eventRecord, "notes") ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">Note: {eventDataText(eventRecord, "notes")}</p>
+                        ) : eventRecord.event_type === "added" || eventRecord.event_type === "discontinued" ? historyDetailLines(eventRecord).map((line) => (
+                          <p key={line} className="mt-1 text-xs font-bold leading-5 text-slate-700">
                             {line}
                           </p>
-                        ))}
+                        )) : null}
                       </div>
                     </div>
                   </article>
-                ))}
+                ); })}
             </div>
           </section>
         </div>
