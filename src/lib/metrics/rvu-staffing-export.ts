@@ -59,16 +59,26 @@ export async function buildMetricsWorkbook(rows: CalculatedRvuStaffingRow[], ran
   return workbook;
 }
 
-export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string) {
+export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: MetricDateRange, now = new Date(), appliedRangeLabel?: string, summaryOnly = false, reportHeading = "WHHS RVU & Staffing Metrics") {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const data = metricExportData(rows, range, now, appliedRangeLabel);
   const doc = new jsPDF({ unit: "pt", format: "letter" });
   const title = (label: string, y: number) => { doc.setFont("helvetica", "bold"); doc.setFontSize(13); doc.setTextColor(21, 94, 117); doc.text(label, 36, y); };
-  title("WHHS RVU & Staffing Metrics", 40);
+  title(reportHeading, 40);
   doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(51, 65, 85);
   doc.text([`Applied range: ${data.rangeLabel} | Both shifts`, `Reported dates: ${data.dates}`, `Generated: ${data.generated}`], 36, 58);
+  if (summaryOnly) {
+    data.summary.forEach((item, index) => {
+      const x = 36 + index * 276;
+      doc.setDrawColor(180, 200, 210); doc.roundedRect(x, 104, 264, 105, 6, 6);
+      doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(21, 94, 117); doc.text(`${item.name} Shift`, x + 10, 120);
+      const values = [["Average Staff On Shift", formatOneDecimal(item.averageRtsOn)], ["Average Staff Needed", formatOneDecimal(item.averageRtsNeeded)], ["Average Shift RVU", formatOneDecimal(item.averageRvus)], ["Coverage Rate", item.percentageMeetingNeed === null ? "N/A" : `${formatOneDecimal(item.percentageMeetingNeed)}%`]];
+      values.forEach(([label, value], cell) => { const xx = x + 10 + (cell % 2) * 130, yy = 136 + Math.floor(cell / 2) * 36; doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(70); doc.text(label, xx, yy); doc.setFontSize(13); doc.setFont("helvetica", "bold"); doc.setTextColor(20, 34, 56); doc.text(value, xx, yy + 15); });
+    });
+  } else {
   title("Day vs Night Comparison", 110);
   autoTable(doc, { startY: 120, margin: 36, head: [summaryHeaders], body: data.summary.map(item => [item.name, item.shiftCount, formatOneDecimal(item.averageRvus), formatOneDecimal(item.averageRtsNeeded), formatOneDecimal(item.averageRtsOn), item.percentageMeetingNeed === null ? "N/A" : `${formatOneDecimal(item.percentageMeetingNeed)}%`]), styles: { fontSize: 9, cellPadding: 7 }, headStyles: { fillColor: [21, 94, 117] } });
+  }
   // Vector charts stay sharp in a printed or forwarded PDF. Missing shifts are gaps, never zeroes.
   const dates = Array.from(new Set(data.sorted.map(row => row.shift_date)));
   const chart = (heading: string, y: number, series: { label: string; color: [number, number, number]; values: (number | null)[] }[]) => {
@@ -88,6 +98,7 @@ export async function buildMetricsPdf(rows: CalculatedRvuStaffingRow[], range: M
   const values = (shift: "day" | "night", field: "rvuTotal" | "exactRtsNeeded" | "rts_on") => { const map = new Map(data.sorted.filter(row => row.shift_type === shift).map(row => [row.shift_date, row[field]])); return dates.map(date => map.get(date) ?? null); };
   chart("RVU Trend", 228, [{ label: "Day", color: [3, 105, 161], values: values("day", "rvuTotal") }, { label: "Night", color: [109, 40, 217], values: values("night", "rvuTotal") }]);
   (["day", "night"] as const).forEach((shift, index) => chart(`Staffing Trend - ${shiftName(shift)} Shift`, 370 + index * 142, [{ label: "RTs Needed", color: [3, 105, 161], values: values(shift, "exactRtsNeeded") }, { label: "RTs On Shift", color: [4, 120, 87], values: values(shift, "rts_on") }]));
+  if (summaryOnly) return doc;
   doc.addPage(); title("Reporting-Window Detail", 40);
   doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(70); doc.text(`${data.dates} | ${rows.length} reported shifts | Both shifts`, 36, 57);
   autoTable(doc, { startY: 70, margin: { top: 36, bottom: 40, left: 36, right: 36 }, head: [detailHeaders], body: data.sorted.map(row => [row.shift_date, shiftName(row.shift_type), row.rvuTotal, formatOneDecimal(row.exactRtsNeeded), formatOneDecimal(row.rts_on), formatOneDecimal(row.staffingVariance), row.metNeed ? "Met Need" : "Below Need"]), styles: { fontSize: 9, cellPadding: 6 }, headStyles: { fillColor: [21, 94, 117] }, didParseCell: cell => { if (cell.section === "body" && cell.column.index >= 5) cell.cell.styles.textColor = data.sorted[cell.row.index].metNeed ? [4, 120, 87] : [190, 18, 60]; } });

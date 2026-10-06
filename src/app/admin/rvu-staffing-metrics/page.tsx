@@ -1,3 +1,4 @@
+import { RvuStaffingDownload } from "@/components/RvuStaffingDownload";
 import { DailyOperationalDetail } from "@/components/DailyOperationalDetail";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -45,7 +46,7 @@ export default async function RvuStaffingMetricsPage({ searchParams }: { searchP
   return <main className="min-h-screen px-4 py-6 sm:py-8"><div className="mx-auto max-w-6xl space-y-5">
     <header className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
       <div><p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p><h1 className="mt-2 text-2xl font-extrabold text-hospital-ink sm:text-3xl">RVU &amp; Procedure Metrics</h1></div>
-      <Link href="/admin/metrics" className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-bold">Back to Metrics</Link>
+      <div className="flex flex-wrap gap-2"><RvuStaffingDownload rows={rvuRows} range={range} disabled={Boolean(error) || Boolean(rvu.error) || Boolean(procedures.error)} operational={{ rows: rvuRows, procedures: procedureReport, view, start: window.start, end: window.end, custom }} /><Link href="/admin/metrics" className="inline-flex min-h-11 items-center rounded-xl border border-slate-300 px-4 text-sm font-bold">Back to Metrics</Link></div>
     </header>
     <MetricsDateNavigation key={`${month}-${window.start}-${window.end}-${custom}`} path="/admin/rvu-staffing-metrics" {...navigation} start={window.start} end={window.end} view={view} />
     <nav aria-label="Metrics view" className="flex justify-center"><div className="inline-flex rounded-xl border border-slate-300 bg-white p-1 shadow-sm">{[["both", "Both"], ["rvu", "RVUs"], ["procedures", "Procedures"]].map(([value, label]) => <Link key={value} href={selectionHref(value)} aria-current={view === value ? "page" : undefined} className={`inline-flex min-h-11 items-center rounded-lg px-5 text-sm font-bold ${view === value ? "bg-cyan-700 text-white" : "text-slate-600 hover:bg-slate-50"}`}>{label}</Link>)}</div></nav>

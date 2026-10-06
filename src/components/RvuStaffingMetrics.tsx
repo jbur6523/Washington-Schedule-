@@ -32,7 +32,7 @@ export function RvuStaffingMetrics({ rows, range, start, end, navigation, embedd
   const Container = embedded ? "section" : "main";
   return <Container className={embedded ? "" : "min-h-screen px-4 py-6 sm:py-8"}>
     <div className="mx-auto max-w-6xl space-y-5">
-      {embedded ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-extrabold text-hospital-ink">RVU &amp; Staffing Metrics</h2><RvuStaffingDownload rows={rows} range={range} disabled={loadError || rows.length === 0} rangeLabel={`${navigation?.custom ? "Custom" : "Monthly"}: ${start} to ${end}`} /></div> : <header className={`${panel} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}>
+      {embedded ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-extrabold text-hospital-ink">RVU &amp; Staffing Metrics</h2></div> : <header className={`${panel} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}>
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">RVU &amp; Staffing Metrics</h1>
