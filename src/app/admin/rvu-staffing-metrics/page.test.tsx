@@ -61,7 +61,7 @@ describe("RVU staffing metrics route authorization", () => {
       shift: "all"
     });
     expect(screen.getByLabelText("Date Range")).toHaveValue("30");
-    expect(screen.getByLabelText("Shift")).toHaveValue("all");
+    expect(screen.queryByLabelText("Shift")).not.toBeInTheDocument();
   });
 
   it("allows Leadership to query RVU metrics for their department", async () => {
@@ -86,4 +86,12 @@ describe("RVU staffing metrics route authorization", () => {
     expect(mocks.fetchRows).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
+});
+
+it("ignores legacy shift query parameters so both shifts remain in the report", async () => {
+  mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
+  mocks.createClient.mockResolvedValue({});
+  mocks.fetchRows.mockResolvedValue({ data: [], error: null });
+  await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "7", shift: "night" }) });
+  expect(mocks.fetchRows).toHaveBeenLastCalledWith(expect.anything(), "department-1", expect.objectContaining({ shift: "all" }));
 });

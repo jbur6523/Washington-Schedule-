@@ -26,7 +26,7 @@ const rawRows: RvuStaffingMetricRow[] = [
 
 describe("RvuStaffingMetrics", () => {
   it("keeps Day and Night coverage separate and shows both accessible trends", () => {
-    render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows)} range="30" shift="all" />);
+    render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows)} range="30" />);
 
     expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
     expect(screen.getByLabelText("Day Shift summary")).toHaveTextContent("100.0%");
@@ -41,43 +41,60 @@ describe("RvuStaffingMetrics", () => {
     expect(screen.getByText("Met Need")).toBeInTheDocument();
 
     const dateRange = screen.getByLabelText("Date Range");
-    const shift = screen.getByLabelText("Shift");
     expect(dateRange).toHaveValue("30");
-    expect(shift).toHaveValue("all");
     expect(within(dateRange).getByRole("option", { name: "All Data" })).toBeInTheDocument();
   });
 
   it("renders a clear empty state without misleading metrics", () => {
-    render(<RvuStaffingMetrics rows={[]} range="7" shift="night" />);
+    render(<RvuStaffingMetrics rows={[]} range="7" />);
 
     expect(screen.getByRole("heading", { name: "No RVU data for these filters" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Metrics summary")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Date Range")).toHaveValue("7");
-    expect(screen.getByLabelText("Shift")).toHaveValue("night");
+    expect(screen.queryByLabelText("Shift")).not.toBeInTheDocument();
   });
 });
 
 
-it("does not present a filtered-out shift as zero coverage", () => {
-  render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows.filter((row) => row.shift_type === "day"))} range="30" shift="day" />);
+it("does not present an unreported shift as zero coverage", () => {
+  render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows.filter((row) => row.shift_type === "day"))} range="30" />);
   const night = screen.getByLabelText("Night Shift summary");
-  expect(night).toHaveTextContent("Not included in this filter");
+  expect(night).toHaveTextContent("No reported shifts");
   expect(night).not.toHaveTextContent("0.0%");
   expect(within(night).getAllByText("—")).toHaveLength(3);
 });
 
 it("shows a recoverable error instead of charts or summaries when loading fails", () => {
-  render(<RvuStaffingMetrics rows={[]} range="30" shift="all" loadError />);
+  render(<RvuStaffingMetrics rows={[]} range="30" loadError />);
   expect(screen.getByText("Metrics are temporarily unavailable.")).toBeInTheDocument();
   expect(screen.queryByRole("img")).not.toBeInTheDocument();
 });
 
 it("switches the staffing trend without combining Day and Night values", () => {
-  render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows)} range="30" shift="all" />);
+  render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows)} range="30" />);
   const controls = screen.getByRole("group", { name: "Staffing trend shift" });
   expect(screen.getByText("Aug 13, 2026 · Day · RTs Needed: 6.7")).toBeInTheDocument();
   fireEvent.click(within(controls).getByRole("button", { name: "Night Shift" }));
   expect(screen.getByText("Aug 13, 2026 · Night · RTs Needed: 7.0")).toBeInTheDocument();
   expect(screen.queryByText("Aug 13, 2026 · Day · RTs Needed: 6.7")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Day Shift summary")).toHaveTextContent("100.0%");
+});
+
+it("filters only detail rows and leaves summaries and charts unchanged", () => {
+  render(<RvuStaffingMetrics rows={calculateMetricRows(rawRows)} range="30" />);
+  const filters = screen.getByRole("group", { name: "Detail shift filter" });
+  const detail = screen.getByRole("region", { name: "Reporting-window detail table" });
+  const chart = screen.getByRole("img", { name: /RVU trend by reporting window/ }).innerHTML;
+  expect(within(screen.getByRole("region", { name: "Report filters" })).getAllByRole("combobox")).toHaveLength(1);
+  fireEvent.click(within(filters).getByRole("button", { name: "Day Shift" }));
+  expect(within(detail).getByText("day")).toBeInTheDocument();
+  expect(within(detail).queryByText("night")).not.toBeInTheDocument();
+  fireEvent.click(within(filters).getByRole("button", { name: "Night Shift" }));
+  expect(within(detail).getByText("night")).toBeInTheDocument();
+  expect(within(detail).queryByText("day")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Day Shift summary")).toHaveTextContent("100.0%");
+  expect(screen.getByLabelText("Night Shift summary")).toHaveTextContent("0.0%");
+  expect(screen.getByRole("img", { name: /RVU trend by reporting window/ }).innerHTML).toBe(chart);
+  fireEvent.click(within(filters).getByRole("button", { name: "All Shifts" }));
+  expect(within(detail).getAllByRole("row")).toHaveLength(3);
 });

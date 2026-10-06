@@ -1,17 +1,12 @@
 import Link from "next/link";
+import { RvuStaffingDetail } from "@/components/RvuStaffingDetail";
 import { RvuStaffingTrendChart } from "@/components/RvuStaffingTrendChart";
-import { ArrowLeft, BarChart3, Moon, Sun, Table2, Users } from "lucide-react";
-import type { CalculatedRvuStaffingRow, MetricDateRange, MetricShiftFilter } from "@/lib/metrics/rvu-staffing";
-import { formatOneDecimal, metricDateRanges, metricShiftFilters, summarizeMetricRows } from "@/lib/metrics/rvu-staffing";
+import { ArrowLeft, BarChart3, Moon, Sun, Users } from "lucide-react";
+import type { CalculatedRvuStaffingRow, MetricDateRange } from "@/lib/metrics/rvu-staffing";
+import { formatOneDecimal, metricDateRanges, summarizeMetricRows } from "@/lib/metrics/rvu-staffing";
 
 const panel = "rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6";
 const shifts = ["day", "night"] as const;
-
-function formatReportingDate(value: string, short = false) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short", day: "numeric", ...(short ? {} : { year: "numeric" as const }), timeZone: "UTC"
-  }).format(new Date(`${value}T12:00:00Z`));
-}
 
 function formatPercentage(value: number | null) {
   return value === null ? "—" : `${value.toFixed(1)}%`;
@@ -25,8 +20,8 @@ function SummaryCard({ label, value, helper }: { label: string; value: string; h
   </div>;
 }
 
-export function RvuStaffingMetrics({ rows, range, shift, loadError = false }: {
-  rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; shift: MetricShiftFilter; loadError?: boolean;
+export function RvuStaffingMetrics({ rows, range, loadError = false }: {
+  rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; loadError?: boolean;
 }) {
   const shiftGroups = shifts.map((type) => ({ type, name: type === "day" ? "Day" : "Night", summary: summarizeMetricRows(rows.filter((row) => row.shift_type === type)) }));
   return <main className="min-h-screen px-4 py-6 sm:py-8">
@@ -40,20 +35,15 @@ export function RvuStaffingMetrics({ rows, range, shift, loadError = false }: {
         <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
       </header>
       <section aria-label="Report filters" className={panel}>
-        <form method="get" className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <form method="get" className="grid gap-4 sm:grid-cols-[minmax(0,24rem)_auto] sm:justify-start sm:items-end">
           <label className="block"><span className="text-xs font-bold text-slate-600">Date Range</span>
             <select name="range" defaultValue={range} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-hospital-ink">
               {metricDateRanges.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <label className="block"><span className="text-xs font-bold text-slate-600">Shift</span>
-            <select name="shift" defaultValue={shift} className="mt-2 h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-hospital-ink">
-              {metricShiftFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
-          <button type="submit" className="min-h-11 rounded-xl bg-cyan-700 px-6 text-sm font-bold text-white shadow-sm hover:bg-cyan-800">Apply Filters</button>
+
+          <button type="submit" className="min-h-11 rounded-xl bg-cyan-700 px-6 text-sm font-bold text-white shadow-sm hover:bg-cyan-800">Apply Date Range</button>
         </form>
-        {shift !== "all" && <p className="mt-3 text-xs text-slate-500">Showing {shift === "day" ? "Day" : "Night"} Shift only. Select All Shifts to compare Day and Night.</p>}
       </section>
       {loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
         <h2 className="font-bold text-rose-900">Metrics are temporarily unavailable.</h2><p className="mt-2 text-sm text-rose-700">Please try again.</p>
@@ -65,7 +55,7 @@ export function RvuStaffingMetrics({ rows, range, shift, loadError = false }: {
             const Icon = type === "day" ? Sun : Moon;
             return <section key={type} aria-label={`${name} Shift summary`} className="rounded-3xl border border-white bg-white/95 p-3 shadow-soft">
               <div className={`flex items-center gap-3 rounded-2xl px-4 py-4 ${type === "day" ? "bg-sky-50 text-sky-700" : "bg-violet-50 text-violet-700"}`}>
-                <Icon size={27} aria-hidden="true" /><div><h2 className="text-lg font-extrabold">{name} Shift</h2><p className="mt-1 text-xs">{summary.shiftCount ? `${summary.shiftCount} reported shifts` : shift !== "all" && shift !== type ? "Not included in this filter" : "No reported shifts"}</p></div>
+                <Icon size={27} aria-hidden="true" /><div><h2 className="text-lg font-extrabold">{name} Shift</h2><p className="mt-1 text-xs">{summary.shiftCount ? `${summary.shiftCount} reported shifts` : "No reported shifts"}</p></div>
               </div>
               <dl className="mt-3 grid gap-2 sm:grid-cols-3">
                 <SummaryCard label={`Average ${name} Shift RVU`} value={formatOneDecimal(summary.averageRvus)} helper="RVUs per reported shift" />
@@ -92,25 +82,7 @@ export function RvuStaffingMetrics({ rows, range, shift, loadError = false }: {
           <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">RVU Trend</h2></div><p className="mt-2 text-xs text-slate-500">RVUs for each reported Day and Night shift.</p><RvuStaffingTrendChart rows={rows} /></section>
           <section className={`${panel} min-w-0`}><div className="flex items-center gap-3"><Users className="text-cyan-700" aria-hidden="true" /><h2 className="text-lg font-extrabold">Staffing Trend</h2></div><p className="mt-2 text-xs text-slate-500">RTs needed vs. on shift. Choose Day or Night below.</p><RvuStaffingTrendChart rows={rows} staffing /></section>
         </div>
-        <section aria-labelledby="detail-heading" className={panel}>
-          <div className="flex items-center gap-3"><Table2 className="text-cyan-700" aria-hidden="true" /><h2 id="detail-heading" className="text-lg font-extrabold">Reporting-Window Detail</h2></div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">Variance = RTs on shift minus RTs needed. Negative values indicate a shortage. Status uses the unrounded staffing need.</p>
-          <div className="mt-5 max-h-[32rem] overflow-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Reporting-window detail table">
-            <table className="w-full min-w-[760px] text-left text-sm tabular-nums">
-              <thead className="sticky top-0 bg-slate-50 text-xs text-slate-600"><tr>{["Reporting Date", "Shift", "RVUs", "RTs Needed", "RTs On Shift", "Variance", "Status"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index > 1 ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
-              <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="even:bg-slate-50/50 hover:bg-sky-50/50">
-                <th scope="row" className="whitespace-nowrap px-4 py-4 font-semibold text-hospital-ink">{formatReportingDate(row.shift_date)}</th>
-                <td className={`px-4 py-4 font-medium capitalize ${row.shift_type === "day" ? "text-sky-700" : "text-violet-700"}`}>{row.shift_type}</td>
-                <td className="px-4 py-4 text-right text-slate-700">{row.rvuTotal}</td>
-                <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.exactRtsNeeded)}</td>
-                <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.rts_on)}</td>
-                <td className={`px-4 py-4 text-right font-bold ${row.staffingVariance < 0 ? "text-rose-700" : "text-emerald-700"}`}>{row.staffingVariance > 0 && formatOneDecimal(row.staffingVariance) !== "0.0" ? "+" : ""}{formatOneDecimal(row.staffingVariance)}</td>
-                <td className="px-4 py-4 text-right"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${row.metNeed ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>{row.metNeed ? "Met Need" : "Below Need"}</span></td>
-              </tr>)}</tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-xs text-slate-500">{rows.length} reported shifts · Shifts without saved RVUs are excluded.</p>
-        </section>
+        <RvuStaffingDetail key={range} rows={rows} />
       </>}
     </div>
   </main>;

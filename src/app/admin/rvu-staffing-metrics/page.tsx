@@ -6,8 +6,7 @@ import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import {
   calculateMetricRows,
   minimumShiftDateForRange,
-  parseMetricDateRange,
-  parseMetricShiftFilter
+  parseMetricDateRange
 } from "@/lib/metrics/rvu-staffing";
 import { fetchRvuStaffingMetricRows } from "@/lib/metrics/queries";
 import { reportingWindowForInstant } from "@/lib/shift-status/reporting-window";
@@ -36,21 +35,19 @@ export default async function RvuStaffingMetricsPage({
 
   const parameters = await searchParams;
   const range = parseMetricDateRange(parameters?.range);
-  const shift = parseMetricShiftFilter(parameters?.shift);
   const currentReportingDate = reportingWindowForInstant().localStartDate;
   const minimumShiftDate = minimumShiftDateForRange(range, currentReportingDate);
   const supabase = await createClient();
   const result = await fetchRvuStaffingMetricRows(supabase, auth.context.departmentId, {
     minimumShiftDate,
     maximumShiftDate: currentReportingDate,
-    shift
+    shift: "all"
   });
 
   return (
     <RvuStaffingMetrics
       rows={calculateMetricRows(result.data)}
       range={range}
-      shift={shift}
       loadError={Boolean(result.error)}
     />
   );
