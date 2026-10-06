@@ -620,11 +620,11 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
           <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} />
-          <div className="mt-3 rounded-2xl border border-slate-400 bg-slate-200 px-3 py-2 print:bg-white print:border-slate-600">
+          <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
             <p className="text-sm font-bold leading-6 text-hospital-ink">{formatIcuSettings(record)}</p>
           </div>
-          <div className="mt-2 rounded-2xl border border-slate-400 bg-slate-100 px-3 py-2 text-sm leading-6 text-slate-800 print:bg-white print:border-slate-600">
+          <div className="mt-2 rounded-2xl border border-sky-500 border-l-4 bg-white px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
             {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
             {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
@@ -1842,7 +1842,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     </div>
                   </section>
 
-                  <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                  <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                     <h3 className="text-sm font-black text-hospital-ink">Vent Settings</h3>
                     <label className="mt-3 block">
                       <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Vent Mode</span>
@@ -1899,19 +1899,19 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               )}
 
               {form.device_type === "bipap" && (
-                <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">BiPAP Settings</h3>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
                     <IcuNumberInput label="IPAP" value={form.ipap} onChange={(value) => setForm({ ...form, ipap: value })} />
                     <IcuNumberInput label="EPAP" value={form.epap} onChange={(value) => setForm({ ...form, epap: value })} />
+                    <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
                     <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
                   </div>
                 </section>
               )}
 
               {form.device_type === "cpap" && (
-                <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">CPAP Settings</h3>
                   <div className="mt-3">
                     <IcuNumberInput label="CPAP" value={form.cpap} onChange={(value) => setForm({ ...form, cpap: value })} />
@@ -1920,7 +1920,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               )}
 
               {form.device_type === "hfnc" && (
-                <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">HFNC Settings</h3>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
@@ -1930,7 +1930,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               )}
 
               {form.device_type === "cool_aerosol" && (
-                <section className="rounded-3xl border border-slate-100 bg-slate-50/80 p-3">
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">Cool Aerosol Settings</h3>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
