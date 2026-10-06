@@ -39,7 +39,7 @@ export function RvuStaffingMetrics({ rows, range, start, end, rangeError = "", l
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
         </div>
       </header>
-      <section aria-label="Report filters" className={panel}>
+      <section aria-label="Report filters" className="w-fit max-w-full rounded-2xl border border-white bg-white/95 p-3 shadow-soft">
         <RvuStaffingFilters key={`${range}-${start}-${end}`} range={range} start={start} end={end} />
       </section>
       {rangeError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
