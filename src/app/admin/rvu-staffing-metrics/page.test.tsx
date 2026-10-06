@@ -5,6 +5,7 @@ import RvuStaffingMetricsPage from "./page";
 const mocks = vi.hoisted(() => ({
   getAuthenticatedUserContext: vi.fn(),
   fetchRows: vi.fn(),
+  fetchProcedures: vi.fn().mockResolvedValue({ data: [], error: null }),
   createClient: vi.fn(),
   notFound: vi.fn(() => {
     throw new Error("not-found");
@@ -16,7 +17,8 @@ vi.mock("@/lib/auth/current-user", () => ({
 }));
 
 vi.mock("@/lib/metrics/queries", () => ({
-  fetchRvuStaffingMetricRows: mocks.fetchRows
+  fetchRvuStaffingMetricRows: mocks.fetchRows,
+  fetchProcedureMetricRows: mocks.fetchProcedures
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -44,6 +46,7 @@ describe("RVU staffing metrics route authorization", () => {
   beforeEach(() => {
     mocks.getAuthenticatedUserContext.mockReset();
     mocks.fetchRows.mockReset();
+    mocks.fetchProcedures.mockClear();
     mocks.createClient.mockReset();
     mocks.notFound.mockClear();
     mocks.getAuthenticatedUserContext.mockResolvedValue({ status: "authenticated", context: adminContext });
@@ -54,13 +57,13 @@ describe("RVU staffing metrics route authorization", () => {
   it("lets an admin query only their department and uses Monthly / All Shifts by default", async () => {
     render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "RVU & Procedure Metrics" })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", {
       minimumShiftDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       maximumShiftDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
       shift: "all"
     });
-    expect(screen.getByRole("button", { name: "Monthly", exact: true })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Monthly" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByLabelText("Shift")).not.toBeInTheDocument();
   });
 
@@ -72,8 +75,26 @@ describe("RVU staffing metrics route authorization", () => {
 
     render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "RVU & Procedure Metrics" })).toBeInTheDocument();
     expect(mocks.fetchRows).toHaveBeenCalledWith(expect.anything(), "department-1", expect.any(Object));
+  });
+
+  it("shows both sections by default under one date navigator", async () => {
+    render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ month: "2026-09" }) }));
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getAllByRole("region", { name: "Reporting period" })).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "RVU & Staffing Metrics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Procedure Metrics" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Both" })).toHaveAttribute("aria-current", "page");
+    expect(mocks.fetchProcedures).toHaveBeenCalledWith(expect.anything(), "department-1", expect.objectContaining({ maximumShiftDate: "2026-09-30" }));
+  });
+
+  it.each(["rvu", "procedures"])("preserves custom dates when selecting %s only", async view => {
+    render(await RvuStaffingMetricsPage({ searchParams: Promise.resolve({ range: "custom", start: "2026-09-01", end: "2026-09-30", view }) }));
+    expect(screen.getByRole("link", { name: "Both" })).toHaveAttribute("href", "/admin/rvu-staffing-metrics?range=custom&start=2026-09-01&end=2026-09-30&view=both");
+    expect(screen.queryByRole("heading", { name: view === "rvu" ? "Procedure Metrics" : "RVU & Staffing Metrics" })).not.toBeInTheDocument();
+    if (view === "rvu") expect(mocks.fetchProcedures).not.toHaveBeenCalled();
+    else expect(mocks.fetchRows).not.toHaveBeenCalled();
   });
 
   it("denies a direct request outside Admin and Leadership before any metrics data query", async () => {

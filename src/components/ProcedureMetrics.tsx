@@ -99,10 +99,10 @@ function MonthlyTrendChart({ trend, selectedMonth }: { trend: ProcedureMonthlyTr
 export function ProcedureMetrics({
   report,
   currentMonth,
-  customRange, rangeError = "",
+  embedded = false, customRange, rangeError = "",
   loadError = false
 }: {
-  report: ProcedureMetricsReport;
+  embedded?: boolean; report: ProcedureMetricsReport;
   currentMonth: string;
   customRange?: { start: string; end: string }; rangeError?: string; loadError?: boolean;
 }) {
@@ -122,20 +122,21 @@ export function ProcedureMetrics({
     && report.selected.total === report.selected.days.reduce((total, day) => total + day.total, 0)
     && report.selected.total === report.selected.dayTotal + report.selected.nightTotal;
 
+  const Container = embedded ? "section" : "main";
   return (
-    <main className="min-h-screen px-4 py-6 sm:py-8">
+    <Container className={embedded ? "" : "min-h-screen px-4 py-6 sm:py-8"}>
       <div className="mx-auto max-w-6xl space-y-4">
-        <header className="flex flex-col justify-between gap-4 rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:flex-row sm:items-center sm:p-6">
+        {embedded ? <h2 className="text-2xl font-extrabold text-hospital-ink">Procedure Metrics</h2> : <header className="flex flex-col justify-between gap-4 rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:flex-row sm:items-center sm:p-6">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p>
             <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">Procedure Metrics</h1>
             <p className="mt-2 text-sm text-slate-500">A simple view of procedure activity by month and shift.</p>
           </div>
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
-        </header>
-        <MetricsDateNavigation key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} path="/admin/metrics/procedures" custom={Boolean(customRange)} month={selectedMonth} currentMonth={currentMonth} firstMonth={firstTrackedMonth} start={customRange?.start ?? `${selectedMonth}-01`} end={customRange?.end ?? report.selected.days.at(-1)?.date ?? `${selectedMonth}-01`} />
+        </header>}
+        {!embedded && <MetricsDateNavigation key={`${selectedMonth}-${customRange?.start}-${customRange?.end}`} path="/admin/metrics/procedures" custom={Boolean(customRange)} month={selectedMonth} currentMonth={currentMonth} firstMonth={firstTrackedMonth} start={customRange?.start ?? `${selectedMonth}-01`} end={customRange?.end ?? report.selected.days.at(-1)?.date ?? `${selectedMonth}-01`} />}
 
-        {(!isCurrentMonth || customRange) && <div className="flex justify-end"><Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800">Return to Current Month</Link></div>}
+        {!embedded && (!isCurrentMonth || customRange) && <div className="flex justify-end"><Link href={monthHref(currentMonth)} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-700 px-4 text-sm font-bold text-white hover:bg-cyan-800">Return to Current Month</Link></div>}
 
         {rangeError ? <p role="alert" className="rounded-xl bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? (
           <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center shadow-soft">
@@ -265,6 +266,6 @@ export function ProcedureMetrics({
           </>
         )}
       </div>
-    </main>
+    </Container>
   );
 }

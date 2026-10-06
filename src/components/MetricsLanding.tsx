@@ -1,22 +1,14 @@
 import Link from "next/link";
-import { Activity, ClipboardList } from "lucide-react";
+import { Activity } from "lucide-react";
 
 const metricCategories = [
   {
-    title: "RVUs",
-    description: "View RVU and staffing-demand metrics.",
+    title: "RVUs & Procedures",
+    description: "View staffing, RVUs, and procedure metrics together.",
     href: "/admin/rvu-staffing-metrics",
     icon: Activity,
     cardClassName: "border-violet-200 bg-violet-50",
     iconClassName: "bg-violet-100 text-violet-700"
-  },
-  {
-    title: "Procedures",
-    description: "Track monthly procedure volume and shift trends.",
-    href: "/admin/metrics/procedures",
-    icon: ClipboardList,
-    cardClassName: "border-cyan-200 bg-cyan-50",
-    iconClassName: "bg-cyan-100 text-cyan-700"
   }
 ] as const;
 
@@ -31,10 +23,10 @@ export function MetricsLanding({ context = "admin" }: { context?: "admin" | "lea
         </p>
         <h1 className="mt-2 text-3xl font-black text-hospital-ink">Metrics</h1>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-          Choose a reporting category. Additional metrics can be added here as reporting grows.
+          Browse monthly metrics or choose a custom date range.
         </p>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="mt-6 grid gap-4">
           {metricCategories.map((category) => {
             const Icon = category.icon;
             return (

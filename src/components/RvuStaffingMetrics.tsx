@@ -23,14 +23,16 @@ function SummaryCard({ label, value, helper }: { label: string; value: string; h
   </div>;
 }
 
-export function RvuStaffingMetrics({ rows, range, start, end, navigation, rangeError = "", loadError = false }: {
+export function RvuStaffingMetrics({ rows, range, start, end, navigation, embedded = false, rangeError = "", loadError = false }: {
+  embedded?: boolean;
   navigation?: { month: string; currentMonth: string; custom: boolean };
   rows: CalculatedRvuStaffingRow[]; range: MetricDateRange; start?: string; end?: string; rangeError?: string; loadError?: boolean;
 }) {
   const shiftGroups = shifts.map((type) => ({ type, name: type === "day" ? "Day" : "Night", summary: summarizeMetricRows(rows.filter((row) => row.shift_type === type)) }));
-  return <main className="min-h-screen px-4 py-6 sm:py-8">
+  const Container = embedded ? "section" : "main";
+  return <Container className={embedded ? "" : "min-h-screen px-4 py-6 sm:py-8"}>
     <div className="mx-auto max-w-6xl space-y-5">
-      <header className={`${panel} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}>
+      {embedded ? <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-extrabold text-hospital-ink">RVU &amp; Staffing Metrics</h2><RvuStaffingDownload rows={rows} range={range} disabled={loadError || rows.length === 0} rangeLabel={`${navigation?.custom ? "Custom" : "Monthly"}: ${start} to ${end}`} /></div> : <header className={`${panel} flex flex-col justify-between gap-4 sm:flex-row sm:items-center`}>
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-cyan-700">Admin</p>
           <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">RVU &amp; Staffing Metrics</h1>
@@ -40,10 +42,10 @@ export function RvuStaffingMetrics({ rows, range, start, end, navigation, rangeE
           <RvuStaffingDownload rows={rows} range={range} disabled={loadError || Boolean(rangeError) || rows.length === 0} rangeLabel={navigation ? `${navigation.custom ? "Custom" : "Monthly"}: ${start} to ${end}` : range === "custom" ? `Custom: ${start} to ${end}` : undefined} />
           <Link href="/admin/metrics" className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 text-sm font-bold text-hospital-ink hover:bg-slate-50"><ArrowLeft size={16} aria-hidden="true" />Back to Metrics</Link>
         </div>
-      </header>
-      {navigation ? <MetricsDateNavigation key={`${navigation.month}-${start}-${end}`} path="/admin/rvu-staffing-metrics" {...navigation} start={start ?? ""} end={end ?? ""} /> : <section aria-label="Report filters" className="w-fit max-w-full rounded-2xl border border-white bg-white/95 p-3 shadow-soft">
+      </header>}
+      {!embedded && (navigation ? <MetricsDateNavigation key={`${navigation.month}-${start}-${end}`} path="/admin/rvu-staffing-metrics" {...navigation} start={start ?? ""} end={end ?? ""} /> : <section aria-label="Report filters" className="w-fit max-w-full rounded-2xl border border-white bg-white/95 p-3 shadow-soft">
         <RvuStaffingFilters key={`${range}-${start}-${end}`} range={range} start={start} end={end} />
-      </section>}
+      </section>)}
       {rangeError ? <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-rose-800">{rangeError}</p> : loadError ? <section className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center">
         <h2 className="font-bold text-rose-900">Metrics are temporarily unavailable.</h2><p className="mt-2 text-sm text-rose-700">Please try again.</p>
       </section> : rows.length === 0 ? <section className={`${panel} text-center`}>
@@ -72,5 +74,5 @@ export function RvuStaffingMetrics({ rows, range, start, end, navigation, rangeE
         <RvuStaffingDetail key={range} rows={rows} />
       </>}
     </div>
-  </main>;
+  </Container>;
 }

@@ -55,7 +55,7 @@ describe("ProcedureMetrics", () => {
     const report = buildProcedureMetricsReport([], "2026-08", new Date("2026-08-20T19:00:00.000Z"));
     render(<ProcedureMetrics report={report} currentMonth="2026-08" />);
 
-    expect(screen.getByText("Next Month").closest("span")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Next Month").closest("[aria-disabled]")).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("link", { name: /View September 2026/ })).not.toBeInTheDocument();
   });
 
