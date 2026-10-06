@@ -28,7 +28,7 @@ export type ShiftStatusCountInput = {
 const wholeNumberFields: Array<[keyof ShiftStatusCountInput, string, boolean]> = [
   ["rtsOn", "RTs On Shift", true],
   ["stayedOver", "Stayed Over", false],
-  ["calledIn", "Called In", false],
+  ["calledIn", "Called in/Available", false],
   ["ventCount", "Vents", false],
   ["bipapCount", "BiPAPs", true],
   ["neonatalHighFlowCount", "Neonatal High Flow", false],

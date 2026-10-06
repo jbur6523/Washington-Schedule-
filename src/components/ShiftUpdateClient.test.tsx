@@ -236,10 +236,10 @@ describe("ShiftUpdateClient submission flow", () => {
     const headings = screen.getAllByRole("heading").map((heading) => heading.textContent);
     expect(headings.indexOf("Additional Staffing")).toBe(headings.indexOf("Current Counts") + 1);
     expect(screen.getByLabelText("Stayed Over")).toHaveValue(0);
-    expect(screen.getByLabelText("Called In")).toHaveValue(0);
+    expect(screen.getByLabelText("Called in/Available")).toHaveValue(0);
     populateRequiredFields();
     fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Called In"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Called in/Available"), { target: { value: "3" } });
     await act(async () => {
       fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form")!);
     });
@@ -256,9 +256,9 @@ describe("ShiftUpdateClient submission flow", () => {
     renderShiftUpdate();
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(screen.getByLabelText("Stayed Over")).toHaveValue(2);
-    expect(screen.getByLabelText("Called In")).toHaveValue(3);
+    expect(screen.getByLabelText("Called in/Available")).toHaveValue(3);
     fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "" } });
-    fireEvent.change(screen.getByLabelText("Called In"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Called in/Available"), { target: { value: "" } });
     await act(async () => {
       fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form")!);
     });

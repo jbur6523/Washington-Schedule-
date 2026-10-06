@@ -653,7 +653,7 @@ export function ShiftUpdateClient({
               />
               <CountInputCard
                 icon={<Users size={18} />}
-                label="Called In"
+                label="Called in/Available"
                 value={form.calledIn}
                 onBlur={() => setForm((current) => ({ ...current, calledIn: current.calledIn.trim() || "0" }))}
                 onChange={(value) => setForm((current) => ({ ...current, calledIn: value }))}
