@@ -17,7 +17,7 @@ export function RvuStaffingDetail({ rows }: { rows: CalculatedRvuStaffingRow[] }
   return (
         <section aria-labelledby="detail-heading" className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft sm:p-6">
           <div className="flex items-center gap-3"><Table2 className="text-cyan-700" aria-hidden="true" /><h2 id="detail-heading" className="text-lg font-extrabold">Reporting-Window Detail</h2></div>
-          <p className="mt-2 text-xs leading-5 text-slate-500">Variance = RTs on shift minus RTs needed. Negative values indicate a shortage. Status uses the unrounded staffing need.</p>
+          <p className="mt-2 text-xs leading-5 text-slate-500">Variance = RTs on shift minus RTs needed. At one decimal: −0.4 or higher meets need; −0.5 or lower is below need.</p>
           <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Detail shift filter">
             {metricShiftFilters.map((option) => <button key={option.value} type="button" aria-pressed={detailShift === option.value} onClick={() => setDetailShift(option.value)} className={`min-h-11 rounded-xl border px-4 text-sm font-semibold ${detailShift === option.value ? "border-cyan-700 bg-cyan-700 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>{option.value === "all" ? "All Shifts" : option.value === "day" ? "Day Shift" : "Night Shift"}</button>)}
           </div>
@@ -30,7 +30,7 @@ export function RvuStaffingDetail({ rows }: { rows: CalculatedRvuStaffingRow[] }
                 <td className="px-4 py-4 text-right text-slate-700">{row.rvuTotal}</td>
                 <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.exactRtsNeeded)}</td>
                 <td className="px-4 py-4 text-right text-slate-700">{formatOneDecimal(row.rts_on)}</td>
-                <td className={`px-4 py-4 text-right font-bold ${row.staffingVariance < 0 ? "text-rose-700" : "text-emerald-700"}`}>{row.staffingVariance > 0 && formatOneDecimal(row.staffingVariance) !== "0.0" ? "+" : ""}{formatOneDecimal(row.staffingVariance)}</td>
+                <td className={`px-4 py-4 text-right font-bold ${row.metNeed ? "text-emerald-700" : "text-rose-700"}`}>{row.staffingVariance > 0 && formatOneDecimal(row.staffingVariance) !== "0.0" ? "+" : ""}{formatOneDecimal(row.staffingVariance)}</td>
                 <td className="px-4 py-4 text-right"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${row.metNeed ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-800"}`}>{row.metNeed ? "Met Need" : "Below Need"}</span></td>
               </tr>)}{filteredRows.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No reported shifts for this selection.</td></tr>}</tbody>
             </table>

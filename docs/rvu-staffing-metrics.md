@@ -25,6 +25,6 @@ The date filter supports 7, 30, and 90 days, one year, or all data. The default 
 
 Analytics use exact `rvu_total / 27` values and round only displayed values to one decimal place.
 
-Coverage rate retains the existing percentageMeetingNeed calculation: the percentage of reported shifts whose RTs On Shift meet or exceed exact need. It is calculated separately for Day and Night, never pooled. An unavailable shift displays a dash rather than zero. Legacy shift query parameters are ignored so saved links cannot hide a shift from the report. Seasonal summaries and combined analytics cards are no longer displayed.
+Coverage rate is the percentage of reported shifts with a displayed one-decimal staffing variance of −0.4 or higher (Met Need). A displayed variance of −0.5 or lower is Below Need. Status badges, variance colors, and coverage percentages share this rule. Exact RVUs, staffing need, variance, and averages are unchanged; only status classification uses the existing display rounding. It is calculated separately for Day and Night, never pooled. An unavailable shift displays a dash rather than zero. Legacy shift query parameters are ignored so saved links cannot hide a shift from the report. Seasonal summaries and combined analytics cards are no longer displayed.
 
 The Staffing Trend has a Day/Night toggle so the two existing staffing series stay readable without alternating between different shift staffing patterns. It defaults to Day when available and uses Night automatically when no Day data is available.

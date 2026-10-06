@@ -52,7 +52,7 @@ export function RvuStaffingMetrics({ rows, range, loadError = false }: {
       </section> : <>
         <section aria-labelledby="comparison-heading" className={`${panel} ring-1 ring-cyan-100`}>
           <div className="flex items-center gap-3"><BarChart3 className="text-cyan-700" aria-hidden="true" /><h2 id="comparison-heading" className="text-xl font-extrabold text-hospital-ink">Day vs Night Comparison</h2></div>
-          <p className="mt-2 text-sm text-slate-500">Coverage rate is the percentage of reported shifts with enough RTs to meet staffing need.</p>
+          <p className="mt-2 text-sm text-slate-500">Coverage rate is the percentage of reported shifts with a variance of −0.4 or higher, rounded to one decimal.</p>
           <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200" tabIndex={0} role="region" aria-label="Day and Night comparison table">
             <table className="w-full min-w-[640px] text-left text-sm tabular-nums">
               <thead className="bg-slate-50 text-xs text-slate-600"><tr>{["Shift", "Average RVUs", "Average Staff Needed", "Average Staff On Shift", "Coverage Rate"].map((label, index) => <th key={label} scope="col" className={`px-4 py-4 font-semibold ${index ? "text-right" : ""}`}>{label}</th>)}</tr></thead>

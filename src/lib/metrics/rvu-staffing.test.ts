@@ -108,3 +108,16 @@ describe("RVU staffing analytics", () => {
     expect(minimumShiftDateForRange("all", "2026-08-14")).toBeNull();
   });
 });
+
+describe("staffing tolerance", () => {
+  it.each([
+    [0, true], [-0.1, true], [-0.4, true], [-0.44, true],
+    [-0.46, false], [-0.5, false], [-0.6, false], [0.5, true]
+  ])("classifies variance %s using the displayed one-decimal value", (variance, metNeed) => {
+    const [row] = calculateMetricRows([metricRow({ rvu_total: 270, rts_on: 10 + variance })]);
+    expect(row.staffingVariance).toBeCloseTo(variance);
+    expect(row.exactRtsNeeded).toBe(10);
+    expect(row.metNeed).toBe(metNeed);
+    expect(summarizeMetricRows([row]).percentageMeetingNeed).toBe(metNeed ? 100 : 0);
+  });
+});

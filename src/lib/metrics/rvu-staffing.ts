@@ -134,7 +134,8 @@ export function calculateMetricRows(rows: RvuStaffingMetricRow[]) {
         rvuTotal,
         exactRtsNeeded,
         staffingVariance: rtsOn - exactRtsNeeded,
-        metNeed: rtsOn >= exactRtsNeeded,
+        // Use the same one-decimal rounding as the displayed variance.
+        metNeed: roundStaffingToOneDecimal(rtsOn - exactRtsNeeded) >= -0.4,
         season: seasonForReportingDate(row.shift_date)
       }];
     })
