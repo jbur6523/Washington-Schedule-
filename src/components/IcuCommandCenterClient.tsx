@@ -576,11 +576,11 @@ export function IcuPatientCard({
   const [noteVersion, setNoteVersion] = useState(record.updated_at);
   const noteChanged = noteDraft.trim() !== savedNotes;
   const modifierLabels = activeVentModifierLabels(record);
-  const tone = ventCardTone(record);
+  const tone = record.is_standby ? "standby" : ventCardTone(record);
   const cardClass = tone === "critical"
     ? "border-rose-300 bg-rose-50"
     : tone === "standby"
-      ? "border-amber-300 bg-amber-50"
+      ? "border-amber-500 bg-amber-200"
       : tone === "sbt"
         ? "border-blue-300 bg-blue-50"
         : "border-white bg-white/95";
