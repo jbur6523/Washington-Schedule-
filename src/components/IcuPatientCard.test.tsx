@@ -72,7 +72,7 @@ describe("IcuPatientCard Vent actions", () => {
   it("shows visible actions without inferring SBT from Pressure Support", () => {
     renderCard(record({ vent_mode: "spont" }));
     expect(screen.getByRole("button", { name: "SBT" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Critical" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Critical Vent" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Procedure" })).toBeVisible();
     expect(screen.queryByText("Last SBT:")).not.toBeInTheDocument();
     expect(screen.queryByText("Critical:")).not.toBeInTheDocument();
@@ -102,7 +102,7 @@ describe("IcuPatientCard Vent actions", () => {
   it("supports multiple Critical options and explicit clearing", async () => {
     const callbacks = renderCard(record({ is_critical_vent: true, is_flolan: true, is_prone: true }));
     expect(screen.getByRole("article")).toHaveTextContent("Critical: Flolan · Proned");
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    fireEvent.click(screen.getByRole("button", { name: "Critical Vent" }));
     expect(screen.getByLabelText("Flolan")).toBeChecked();
     expect(screen.getByLabelText("Proned")).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Turn Critical off" }));
@@ -135,7 +135,7 @@ describe("IcuPatientCard Vent actions", () => {
     const onRoundingAction = vi.fn().mockResolvedValue(false);
     const props = { actionSaving: false, onRoundingAction, onSaveNote: vi.fn(), onUpdate: vi.fn(), onDiscontinue: vi.fn(), onHistory: vi.fn(), onToggleStandby: vi.fn() };
     const view = render(<IcuPatientCard record={record()} {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    fireEvent.click(screen.getByRole("button", { name: "Critical Vent" }));
     fireEvent.click(screen.getByLabelText("Flolan"));
     view.rerender(<IcuPatientCard record={record({ updated_at: "2026-10-06T16:00:00Z" })} {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
