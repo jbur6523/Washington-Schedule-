@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Activity, AirVent, TriangleAlert, Waves, Wind, Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
@@ -516,15 +516,6 @@ function parsePreviousDateInput(value: string) {
     endIso: wallTimeToIso(dateValue, "23:59"),
     label
   };
-}
-
-function StatCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-cyan-100 bg-cyan-50/80 px-3 py-3 text-center shadow-sm">
-      <p className="text-[11px] font-extrabold uppercase tracking-wide text-cyan-700">{label}</p>
-      <p className="mt-1 text-3xl font-black leading-none text-hospital-ink">{value}</p>
-    </div>
-  );
 }
 
 function IcuNumberInput({
@@ -1432,21 +1423,24 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               Refresh
             </button>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <div className="col-span-2 rounded-2xl border-2 border-cyan-600 bg-cyan-50 p-4">
-              <p className="text-center text-xs font-extrabold uppercase tracking-wide text-cyan-800">Total Vents</p>
-              <p className="mt-1 text-center text-3xl font-black tabular-nums text-hospital-ink">{counts.vents}</p>
-              <dl className="mt-3 grid grid-cols-2 divide-x-2 divide-cyan-200 border-t border-cyan-200 pt-3 text-center">
-                <div><dt className="text-xs font-bold text-cyan-800">Vents</dt><dd className="mt-1 text-xl font-black tabular-nums text-hospital-ink">{counts.vents - counts.criticalVents}</dd></div>
-                <div><dt className="text-xs font-bold text-rose-800">Critical</dt><dd className="mt-1 text-xl font-black tabular-nums text-rose-800">{counts.criticalVents}</dd></div>
-              </dl>
-            </div>
-            <StatCard label="HFNC" value={counts.hfnc} />
-            <StatCard label="BiPAP" value={counts.bipap} />
+          <div className="mt-4 rounded-3xl border-2 border-sky-300 bg-gradient-to-br from-cyan-50 to-sky-50 px-3 py-5 sm:px-5">
+            <p className="text-center text-sm font-extrabold uppercase tracking-wide text-slate-600">Total Vents</p>
+            <p className="mt-1 text-center text-5xl font-black tabular-nums text-hospital-ink">{counts.vents}</p>
+            <div aria-hidden="true" className="my-4 flex items-center text-sky-300"><span className="h-px flex-1 bg-sky-200" /><Activity size={28} /><span className="h-px flex-1 bg-sky-200" /></div>
+            <dl className="grid grid-cols-4 divide-x border-sky-200 divide-sky-200 text-center">
+              {[
+                { label: "Vents", value: counts.vents - counts.criticalVents, Icon: Wind, critical: false },
+                { label: "Critical", value: counts.criticalVents, Icon: TriangleAlert, critical: true },
+                { label: "HFNC", value: counts.hfnc, Icon: Waves, critical: false },
+                { label: "BiPAP", value: counts.bipap, Icon: AirVent, critical: false }
+              ].map(({ label, value, Icon, critical }) => <div key={label} className="min-w-0 px-1">
+                <div aria-hidden="true" className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full sm:h-12 sm:w-12 ${critical ? "bg-rose-100 text-rose-800" : "bg-sky-100 text-sky-800"}`}><Icon size={24} /></div>
+                <dt className="text-xs font-bold text-slate-600 sm:text-sm">{label}</dt>
+                <dd className={`mt-1 text-3xl font-black tabular-nums ${critical ? "text-rose-800" : "text-hospital-ink"}`}>{value}</dd>
+              </div>)}
+            </dl>
+            <p className="mt-4 border-t border-sky-200 pt-3 text-center text-xs font-bold text-slate-600">Last updated: {snapshotLastUpdated}</p>
           </div>
-          <p className="mt-3 text-center text-xs font-extrabold text-slate-500">
-            Last updated: {snapshotLastUpdated}
-          </p>
         </section>
 
         <button
