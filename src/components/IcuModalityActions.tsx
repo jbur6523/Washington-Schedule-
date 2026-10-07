@@ -140,7 +140,7 @@ export function IcuModalityActions({
             </button>
           </div>
         ))}
-        {available.length > 0 && (
+        {saved.length === 0 && available.length > 0 && (
           <button
             type="button"
             disabled={saving || !!panel}

@@ -614,7 +614,7 @@ export function IcuPatientCard({
             </p>
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
-          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} />
+          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
           <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
             <p className="text-sm font-bold leading-6 text-hospital-ink">{formatIcuSettings(record)}</p>
@@ -702,23 +702,6 @@ export function IcuPatientCard({
           )}
           </div>
           <p className="mt-2 text-xs font-bold text-slate-600">Updated {formatIcuLastUpdated(record.updated_at)}</p>
-        </div>
-        <div className="absolute right-4 top-3">
-          {supportsIcuStandby(record.device_type) && (
-            <button
-              type="button"
-              onClick={onToggleStandby}
-              disabled={actionSaving}
-              aria-pressed={record.is_standby}
-              className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-black ${
-                record.is_standby
-                  ? "border-amber-200 bg-amber-50 text-amber-800"
-                  : "border-slate-200 bg-white text-slate-500"
-              }`}
-            >
-              {record.is_standby ? "Standby" : "Not Standby"}
-            </button>
-          )}
         </div>
       </div>
 

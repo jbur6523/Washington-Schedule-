@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, AlertTriangle, Check, ClipboardList } from "lucide-react";
+import { Activity, AlertTriangle, Check, ClipboardList, Pause } from "lucide-react";
+import { supportsIcuStandby } from "@/lib/icu-command-center/utils";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import { activeSbt, sbtFailureReasons, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 
-export function IcuRoundingActions({ record, saving, onSave }: { record: IcuPatientRecord; saving: boolean; onSave: SaveRoundingAction }) {
+export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: { record: IcuPatientRecord; saving: boolean; onSave: SaveRoundingAction; onToggleStandby?: () => void }) {
   const [panel, setPanel] = useState<"sbt" | "critical" | "procedure" | null>(null);
   const [editingVersion, setEditingVersion] = useState(record.updated_at);
   const [result, setResult] = useState("");
@@ -26,7 +27,7 @@ export function IcuRoundingActions({ record, saving, onSave }: { record: IcuPati
   const valid = (!needsOther || Boolean(other.trim())) && (panel === "sbt" ? result === "Pass" || (result === "Fail" && Boolean(reason)) : panel === "procedure" ? Boolean(procedure) && (procedure !== "Trach" || Boolean(trachType && size)) : true);
 
   return <div className="mt-3">
-    <div className="grid grid-cols-3 gap-2" aria-label={`Quick actions for ${record.bed}`}>
+    <div className={`grid gap-2 ${onToggleStandby && supportsIcuStandby(record.device_type) ? "grid-cols-4" : "grid-cols-3"}`} aria-label={`Quick actions for ${record.bed}`}>
       {([
         ["sbt", "SBT", Activity, active], ["critical", "Critical", AlertTriangle, record.is_critical_vent], ["procedure", "Procedure", ClipboardList, false]
       ] as const).map(([key, label, Icon, highlighted]) => <button key={key} type="button"
@@ -39,7 +40,7 @@ export function IcuRoundingActions({ record, saving, onSave }: { record: IcuPati
           setFlolan(record.is_flolan); setProned(record.is_prone); setCriticalOther(Boolean(record.rounding_data?.criticalOther));
           setOther(key === "critical" ? record.rounding_data?.criticalOther ?? "" : "");
         }}
-        className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-2 text-xs font-extrabold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:shadow-none print:bg-white print:text-black print:border-slate-600 ${
+        className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-[10px] sm:flex-row sm:gap-1.5 sm:px-2 sm:text-xs font-extrabold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:shadow-none print:bg-white print:text-black print:border-slate-600 ${
           key === "sbt" && record.device_type !== "vent"
             ? "border-slate-300 bg-slate-100 text-slate-500"
             : key === "sbt"
@@ -50,6 +51,10 @@ export function IcuRoundingActions({ record, saving, onSave }: { record: IcuPati
         }`}>
         {highlighted ? <Check size={16} strokeWidth={3} aria-hidden="true" /> : <Icon size={16} strokeWidth={2.5} aria-hidden="true" />}{label}
       </button>)}
+      {onToggleStandby && supportsIcuStandby(record.device_type) && <button type="button" onClick={onToggleStandby} disabled={saving} aria-pressed={record.is_standby}
+        className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-[10px] sm:flex-row sm:gap-1.5 sm:px-2 sm:text-xs font-extrabold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-60 print:bg-white print:text-black print:border-slate-600 ${record.is_standby ? "border-amber-700 bg-amber-200 text-amber-950 ring-1 ring-inset ring-amber-700" : "border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100"}`}>
+        <Pause size={16} strokeWidth={2.5} aria-hidden="true" />{record.is_standby ? "Off Standby" : "Standby"}
+      </button>}
     </div>
     {panel && <form aria-label={`${panel === "sbt" ? "SBT" : panel === "critical" ? "Critical" : "Procedure"} for ${record.bed}`} className="mt-2 space-y-3 rounded-2xl border border-cyan-100 bg-slate-50 p-3"
       onSubmit={async event => {
