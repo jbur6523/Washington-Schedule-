@@ -7,6 +7,7 @@ import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/acces
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
+import { IcuModalityActions, type SaveModality } from "@/components/IcuModalityActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 import { printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
 import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
@@ -551,6 +552,7 @@ export function IcuPatientCard({
   record,
   actionSaving,
   onRoundingAction,
+  onSaveModality,
   onSaveNote,
   onUpdate,
   onDiscontinue,
@@ -559,6 +561,7 @@ export function IcuPatientCard({
 }: {
   record: IcuPatientRecord;
   onRoundingAction: SaveRoundingAction;
+  onSaveModality?: SaveModality;
   actionSaving: boolean;
   onSaveNote: (notes: string, expectedUpdatedAt: string) => Promise<boolean>;
   onUpdate: () => void;
@@ -604,6 +607,7 @@ export function IcuPatientCard({
           <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
+          {onSaveModality && <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />}
           {modifierLabels.length > 0 ? (
             <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
               {modifierLabels.join(" · ")}
@@ -1054,6 +1058,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           .from("icu_patients")
           .update(payload)
           .eq("id", editingRecord.id)
+          .eq("updated_at", editingRecord.updated_at)
           .eq("department_id", authContext.departmentId)
           .select(icuPatientSelect)
           .maybeSingle()
@@ -1070,6 +1075,11 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setSaving(false);
 
     if (result.error || !result.data) {
+      if (editingRecord && !result.error && !result.data) {
+        await loadRecords(false);
+        setFormError("This patient changed. Close and reopen Update to review the latest settings.");
+        return;
+      }
       setFormError(
         result.error?.code === "23505"
           ? "That ICU bed already has an active record."
@@ -1136,6 +1146,28 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     } finally {
       setActionSaving(false);
     }
+  };
+
+  const saveModality = async (record: IcuPatientRecord, modality: "hfnc" | "bipap", settings: Record<string, number | null>, activate: boolean, version: string) => {
+    setActionSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const { data, error: saveError } = await createClient().rpc("save_icu_modality", {
+        target_patient_id: record.id, target_modality: modality, target_settings: settings,
+        activate, expected_updated_at: version
+      });
+      if (saveError || !data) {
+        if (saveError?.code === "40001") await loadRecords(false);
+        return false;
+      }
+      const updated = data as unknown as IcuPatientRecord;
+      setRecords(current => current.map(item => item.id === updated.id ? updated : item));
+      setMessage(activate ? `Switched to ${modality === "hfnc" ? "HFNC" : "BiPAP"} with saved settings.` : "Additional modality saved.");
+      await loadTodayActivity(false);
+      return true;
+    } catch { return false; }
+    finally { setActionSaving(false); }
   };
 
   const savePatientNote = (record: IcuPatientRecord, notes: string) => saveRoundingAction(record, "note", { notes: notes.trim() });
@@ -1486,6 +1518,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 actionSaving={actionSaving}
                 onSaveNote={(notes, version) => savePatientNote({ ...record, updated_at: version }, notes)}
                 onRoundingAction={(action, payload, version) => saveRoundingAction({ ...record, updated_at: version }, action, payload)}
+                onSaveModality={(modality, settings, activate, version) => saveModality(record, modality, settings, activate, version)}
                 onUpdate={() => openEdit(record)}
                 onDiscontinue={() => openDiscontinue(record)}
                 onHistory={() => void openHistory(record)}
@@ -1743,6 +1776,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       setForm({
                         ...form,
                         device_type: event.target.value as IcuDeviceType | "",
+                        ...((event.target.value === "hfnc" || event.target.value === "bipap") && editingRecord?.rounding_data?.modalities?.[event.target.value]
+                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[event.target.value]!).map(([key, value]) => [key, value == null ? "" : String(value)]))
+                          : {}),
                         is_standby: supportsIcuStandby(event.target.value as IcuDeviceType | "") ? form.is_standby : false
                       })
                     }

@@ -28,6 +28,7 @@ export type IcuPatientEventType =
 
 export type IcuPatientRecord = {
   rounding_data?: {
+    modalities?: Partial<Record<"hfnc" | "bipap", { flow?: number | null; fio2?: number | null; ipap?: number | null; epap?: number | null; rate?: number | null }>>;
     sbt?: { result: "Pass" | "Fail"; at: string; reason?: string | null };
     criticalOther?: string | null;
     procedure?: { name: string; at: string; other?: string | null; trachType?: string; size?: string; xlt?: boolean; date?: string | null };

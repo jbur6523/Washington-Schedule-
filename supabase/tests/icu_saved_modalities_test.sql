@@ -1,0 +1,38 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_temp;
+select plan(17);
+insert into public.icu_patients(id,department_id,bed,device_type,flow,fio2,notes,is_active)
+values('92000000-0000-0000-0000-000000000002','30000000-0000-0000-0000-000000000002','C223','hfnc',40,50,'Keep this note',true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+create function pg_temp.modality(device text, settings jsonb, activate boolean) returns jsonb language sql as $$
+select public.save_icu_modality(id,device,settings,activate,updated_at) from public.icu_patients where id='92000000-0000-0000-0000-000000000002';
+$$;
+select throws_ok($$select pg_temp.modality('bipap','{}',true)$$,'22023','Save settings for this modality first','cannot activate missing settings');
+select lives_ok($$select pg_temp.modality('bipap','{"ipap":14,"epap":6,"rate":12,"fio2":35}',false)$$,'save alternative');
+select is((select device_type || ':' || flow || ':' || fio2 from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'hfnc:40:50','saving does not change active support');
+select is((select count(*)::int from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),1,'one active device record');
+select lives_ok($$select pg_temp.modality('bipap','{"fio2":99}',true)$$,'switch to saved BiPAP');
+select is((select device_type || ':' || ipap || ':' || epap || ':' || rate || ':' || fio2 from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'bipap:14:6:12:35','activation uses stored settings');
+update public.icu_patients set ipap=16,fio2=40 where id='92000000-0000-0000-0000-000000000002';
+select pg_temp.modality('hfnc','{}',true);
+select is((select device_type || ':' || flow || ':' || fio2 from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'hfnc:40:50','HFNC restored independently');
+select is((select ipap from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),null::numeric,'inactive BiPAP fields cleared');
+select pg_temp.modality('bipap','{}',true);
+select is((select ipap || ':' || fio2 from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'16:40','latest normal Update settings remembered');
+select is((select notes from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'Keep this note','notes preserved');
+select ok((select bool_and(event_data ? 'previousRecord' and event_data ? 'record' and created_by_name='Local Administrator') from public.icu_patient_events where icu_patient_id='92000000-0000-0000-0000-000000000002'),'audits retain settings and actor');
+select throws_ok($$select pg_temp.modality('hfnc','{"fio2":101}',false)$$,'22023','Invalid setting value','FiO2 validated');
+select throws_ok($$select public.save_icu_modality('92000000-0000-0000-0000-000000000002','hfnc','{}',true,'2000-01-01')$$,'40001','This patient was updated. Refresh the card and try again.','stale update rejected');
+reset role;
+create function pg_temp.reject_modality_audit() returns trigger language plpgsql as $$ begin raise exception 'audit unavailable'; end; $$;
+create trigger reject_modality_audit before insert on public.icu_patient_events for each row execute function pg_temp.reject_modality_audit();
+set local role authenticated;
+select throws_ok($$select pg_temp.modality('hfnc','{}',true)$$,'P0001','audit unavailable','audit failure aborts switch');
+select is((select device_type from public.icu_patients where id='92000000-0000-0000-0000-000000000002'),'bipap','failed switch rolled back');
+select is(has_function_privilege('anon','public.save_icu_modality(uuid,text,jsonb,boolean,timestamptz)','execute'),false,'anonymous access denied');
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000099',true);
+select throws_ok($$select public.save_icu_modality('92000000-0000-0000-0000-000000000002','hfnc','{}',true,now())$$,'42501','Patient unavailable or not authorized','unauthorized access denied');
+select * from finish();
+rollback;
