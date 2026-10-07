@@ -29,7 +29,7 @@ export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: 
   return <div className="mt-3">
     <div className={`grid gap-2 ${onToggleStandby && supportsIcuStandby(record.device_type) ? "grid-cols-4" : "grid-cols-3"}`} aria-label={`Quick actions for ${record.bed}`}>
       {([
-        ["sbt", "SBT", Activity, active], ["critical", "Critical", AlertTriangle, record.is_critical_vent], ["procedure", "Procedure", ClipboardList, false]
+        ["sbt", "SBT", Activity, active], ["critical", "Critical Vent", AlertTriangle, record.is_critical_vent], ["procedure", "Procedure", ClipboardList, false]
       ] as const).map(([key, label, Icon, highlighted]) => <button key={key} type="button"
         disabled={saving || (key === "sbt" && record.device_type !== "vent")}
         title={key === "sbt" && record.device_type !== "vent" ? "SBT applies to ventilated patients" : undefined}
