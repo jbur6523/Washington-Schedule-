@@ -1433,10 +1433,16 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <StatCard label="Vents" value={counts.vents} />
+            <div className="col-span-2 rounded-2xl border-2 border-cyan-600 bg-cyan-50 p-4">
+              <p className="text-center text-xs font-extrabold uppercase tracking-wide text-cyan-800">Total Vents</p>
+              <p className="mt-1 text-center text-3xl font-black tabular-nums text-hospital-ink">{counts.vents}</p>
+              <dl className="mt-3 grid grid-cols-2 divide-x-2 divide-cyan-200 border-t border-cyan-200 pt-3 text-center">
+                <div><dt className="text-xs font-bold text-cyan-800">Vents</dt><dd className="mt-1 text-xl font-black tabular-nums text-hospital-ink">{counts.vents - counts.criticalVents}</dd></div>
+                <div><dt className="text-xs font-bold text-rose-800">Critical</dt><dd className="mt-1 text-xl font-black tabular-nums text-rose-800">{counts.criticalVents}</dd></div>
+              </dl>
+            </div>
             <StatCard label="HFNC" value={counts.hfnc} />
             <StatCard label="BiPAP" value={counts.bipap} />
-            <StatCard label="Critical Vents" value={counts.criticalVents} />
           </div>
           <p className="mt-3 text-center text-xs font-extrabold text-slate-500">
             Last updated: {snapshotLastUpdated}
