@@ -1,7 +1,7 @@
 import { icuActivityStateFromEvent } from "./activity-comparison";
 import type { IcuPatientEventRecord } from "./types";
-import type { IcuPatientRecord } from "./types";
-import { formatIcuSettings } from "./utils";
+import type { IcuDeviceType, IcuPatientRecord } from "./types";
+import { formatIcuSettings, icuDeviceLabels } from "./utils";
 
 export type IcuHistoryChange = { label: string; previous: string; current: string };
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
@@ -36,12 +36,13 @@ export function icuHistoryChanges(event: IcuPatientEventRecord): IcuHistoryChang
   };
   const previousRecord = object(data.previousRecord);
   const currentRecord = object(data.record);
-  if (data.action === "modality_saved") {
-    const modality = data.modality === "hfnc" ? "hfnc" : "bipap";
+  if (data.action === "modality_saved" || data.action === "modality_discontinued") {
+    const modality = data.modality as IcuDeviceType;
+    if (!(modality in icuDeviceLabels)) return null;
     const previousProfiles = object(object(previousRecord.rounding_data).modalities);
     const previousProfile = previousProfiles[modality];
-    add(`Saved ${modality === "hfnc" ? "HFNC" : "BiPAP"}`, previousProfile ? formatIcuSettings({ ...object(previousProfile), device_type: modality } as IcuPatientRecord) : "Not saved",
-      formatIcuSettings({ ...object(data.settings), device_type: modality } as IcuPatientRecord));
+    add(`Saved ${icuDeviceLabels[modality]}`, previousProfile ? formatIcuSettings({ ...object(previousProfile), device_type: modality } as IcuPatientRecord) : "Not saved",
+      data.action === "modality_discontinued" ? "Discontinued" : formatIcuSettings({ ...object(data.settings), device_type: modality } as IcuPatientRecord));
     return changes;
   }
   const hasPreviousNote = "notes" in previousRecord || "previousNotes" in data;

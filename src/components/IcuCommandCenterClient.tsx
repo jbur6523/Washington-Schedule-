@@ -7,7 +7,7 @@ import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/acces
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
-import { IcuModalityActions, type SaveModality } from "@/components/IcuModalityActions";
+import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 import { printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
 import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
@@ -1148,14 +1148,14 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     }
   };
 
-  const saveModality = async (record: IcuPatientRecord, modality: "hfnc" | "bipap", settings: Record<string, number | null>, activate: boolean, version: string) => {
+  const saveModality = async (record: IcuPatientRecord, modality: IcuDeviceType, settings: ModalitySettings, action: ModalityAction, version: string) => {
     setActionSaving(true);
     setError("");
     setMessage("");
     try {
-      const { data, error: saveError } = await createClient().rpc("save_icu_modality", {
+      const { data, error: saveError } = await createClient().rpc("manage_icu_modality", {
         target_patient_id: record.id, target_modality: modality, target_settings: settings,
-        activate, expected_updated_at: version
+        target_action: action, expected_updated_at: version
       });
       if (saveError || !data) {
         if (saveError?.code === "40001") await loadRecords(false);
@@ -1163,7 +1163,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       }
       const updated = data as unknown as IcuPatientRecord;
       setRecords(current => current.map(item => item.id === updated.id ? updated : item));
-      setMessage(activate ? `Switched to ${modality === "hfnc" ? "HFNC" : "BiPAP"} with saved settings.` : "Additional modality saved.");
+      setMessage(action === "switch" ? `Switched to ${icuDeviceLabels[modality]} with saved settings.` : action === "discontinue" ? `Saved ${icuDeviceLabels[modality]} discontinued.` : "Additional modality saved.");
       await loadTodayActivity(false);
       return true;
     } catch { return false; }
@@ -1776,8 +1776,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       setForm({
                         ...form,
                         device_type: event.target.value as IcuDeviceType | "",
-                        ...((event.target.value === "hfnc" || event.target.value === "bipap") && editingRecord?.rounding_data?.modalities?.[event.target.value]
-                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[event.target.value]!).map(([key, value]) => [key, value == null ? "" : String(value)]))
+                        ...(editingRecord?.rounding_data?.modalities?.[event.target.value as IcuDeviceType]
+                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[event.target.value as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
                           : {}),
                         is_standby: supportsIcuStandby(event.target.value as IcuDeviceType | "") ? form.is_standby : false
                       })

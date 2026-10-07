@@ -1,0 +1,29 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions,pg_temp;
+select plan(15);
+insert into public.icu_patients(id,department_id,bed,device_type,flow,fio2,is_active)
+values('92000000-0000-0000-0000-000000000003','30000000-0000-0000-0000-000000000002','C223','hfnc',40,50,true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+create function pg_temp.modality(device text,settings jsonb,action text) returns jsonb language sql as $$
+select public.manage_icu_modality(id,device,settings,action,updated_at) from public.icu_patients where id='92000000-0000-0000-0000-000000000003';
+$$;
+select lives_ok($$select pg_temp.modality('cpap','{"cpap":8}','save')$$,'CPAP can be saved');
+select lives_ok($$select pg_temp.modality('cool_aerosol','{"flow":10,"fio2":35}','save')$$,'Cool Aerosol can be saved');
+select lives_ok($$select pg_temp.modality('vent','{"vent_mode":"apvcmv","rate":16,"tidal_volume":450,"peep":5,"fio2":40,"airway_type":"ett","airway_size":"7.5","airway_at":"23","airway_location":"teeth"}','save')$$,'Vent and airway can be saved');
+select lives_ok($$select pg_temp.modality('vent','{}','switch')$$,'Vent can be activated');
+select is((select device_type||':'||rate||':'||airway_size from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),'vent:16:7.5','Vent settings and airway restored');
+select is((select is_sbt from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),false,'switch does not imply SBT');
+select lives_ok($$select pg_temp.modality('cpap','{}','switch')$$,'switch from Vent to CPAP');
+select is((select cpap from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),8::numeric,'CPAP restored');
+select is((select vent_mode from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),null::text,'inactive vent fields cleared');
+select lives_ok($$select pg_temp.modality('vent','{}','discontinue')$$,'saved Vent can be discontinued');
+select ok((select not (rounding_data->'modalities' ? 'vent') and device_type='cpap' and is_active from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),'only alternate removed; active patient preserved');
+update public.icu_patients set cpap=9 where id='92000000-0000-0000-0000-000000000003';
+select ok((select not (rounding_data->'modalities' ? 'vent') from public.icu_patients where id='92000000-0000-0000-0000-000000000003'),'later updates do not resurrect discontinued modality');
+select throws_ok($$select pg_temp.modality('vent','{}','switch')$$,'22023','Save settings for this modality first','cannot switch to discontinued profile');
+select throws_ok($$select pg_temp.modality('cpap','{}','discontinue')$$,'22023','Use Update or Discontinue for current support','cannot remove active modality through additional controls');
+select ok((select count(*)=1 from public.icu_patient_events where icu_patient_id='92000000-0000-0000-0000-000000000003' and event_data->>'action'='modality_discontinued' and event_data->'previousRecord'->'rounding_data'->'modalities' ? 'vent'),'discontinued settings retained in audit');
+select * from finish();
+rollback;
