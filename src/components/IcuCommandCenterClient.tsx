@@ -607,7 +607,7 @@ export function IcuPatientCard({
     <article className={`relative rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
       <div>
         <div className="min-w-0 flex-1">
-          <p className={`text-xs font-extrabold uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
+          <p className={`text-3xl font-black uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
           <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
