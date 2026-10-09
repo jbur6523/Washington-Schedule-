@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, AirVent, TriangleAlert, Waves, Wind, Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
@@ -37,7 +38,6 @@ import {
   formatIcuDeviceSummary,
   formatIcuLastUpdated,
   formatIcuSettings,
-  getIcuSnapshotCounts,
   icuAirwayLocationLabels,
   icuDeviceLabels,
   icuVentModeLabels,
@@ -852,7 +852,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [activityDetailLoading, setActivityDetailLoading] = useState(false);
   const [activityDetailError, setActivityDetailError] = useState("");
 
-  const counts = useMemo(() => getIcuSnapshotCounts(records), [records]);
   const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
   const activityDetailUpdatedState = useMemo(
     () => (activityDetailEvent ? icuActivityStateFromEvent(activityDetailEvent) : null),
@@ -1449,24 +1448,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               Refresh
             </button>
           </div>
-          <div className="mt-4 rounded-3xl border-2 border-sky-300 bg-gradient-to-br from-cyan-50 to-sky-50 px-3 py-5 sm:px-5">
-            <p className="text-center text-sm font-extrabold uppercase tracking-wide text-slate-600">Total Vents</p>
-            <p className="mt-1 text-center text-5xl font-black tabular-nums text-hospital-ink">{counts.vents}</p>
-            <div aria-hidden="true" className="my-4 flex items-center text-sky-300"><span className="h-px flex-1 bg-sky-200" /><Activity size={28} /><span className="h-px flex-1 bg-sky-200" /></div>
-            <dl className="grid grid-cols-4 divide-x border-sky-200 divide-sky-200 text-center">
-              {[
-                { label: "Vents", value: counts.vents - counts.criticalVents, Icon: Wind, critical: false },
-                { label: "Critical", value: counts.criticalVents, Icon: TriangleAlert, critical: true },
-                { label: "HFNC", value: counts.hfnc, Icon: Waves, critical: false },
-                { label: "BiPAP", value: counts.bipap, Icon: AirVent, critical: false }
-              ].map(({ label, value, Icon, critical }) => <div key={label} className="min-w-0 px-1">
-                <div aria-hidden="true" className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full sm:h-12 sm:w-12 ${critical ? "bg-rose-100 text-rose-800" : "bg-sky-100 text-sky-800"}`}><Icon size={24} /></div>
-                <dt className="text-xs font-bold text-slate-600 sm:text-sm">{label}</dt>
-                <dd className={`mt-1 text-3xl font-black tabular-nums ${critical ? "text-rose-800" : "text-hospital-ink"}`}>{value}</dd>
-              </div>)}
-            </dl>
-            <p className="mt-4 border-t border-sky-200 pt-3 text-center text-xs font-bold text-slate-600">Last updated: {snapshotLastUpdated}</p>
-          </div>
+          <IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} />
         </section>
 
         <button
