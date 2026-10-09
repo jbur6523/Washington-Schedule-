@@ -34,9 +34,9 @@ function fieldsFor(type: IcuDeviceType, mode: string): string[][] {
       ["fio2", "FiO₂ (%)"],
     ];
   const oxygen = ["fio2", "FiO₂ (%)"];
-  if (mode === "spont") return [["ps", "PS"], ["peep", "PEEP"], oxygen];
+  if (mode === "spont") return [["ps", "PS"], oxygen, ["peep", "PEEP"]];
   if (mode === "asv")
-    return [["percent_min_vol", "% Min Vol"], ["peep", "PEEP"], oxygen];
+    return [["percent_min_vol", "% Min Vol"], oxygen, ["peep", "PEEP"]];
   if (mode === "aprv")
     return [
       ["rate", "Rate"],
@@ -49,8 +49,8 @@ function fieldsFor(type: IcuDeviceType, mode: string): string[][] {
   return [
     ["rate", "Rate"],
     ["tidal_volume", "Tidal Volume"],
-    ["peep", "PEEP"],
     oxygen,
+    ["peep", "PEEP"],
   ];
 }
 export function IcuModalityActions({

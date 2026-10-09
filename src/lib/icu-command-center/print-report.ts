@@ -7,8 +7,42 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
 }
 
+function deviceCountSummary(records: IcuPatientRecord[]) {
+  const devices = [["vent", "Vents"], ["bipap", "BiPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "Cool Aerosol"]] as const;
+  const counts = devices.map(([type, label]) => {
+    const count = records.filter(record => record.is_active && record.device_type === type).length;
+    return count ? `${count} - ${label}` : null;
+  }).filter(Boolean);
+  return `<p class="device-counts" style="text-align:center;font-weight:700;font-size:15pt;margin:0 0 12px;">${counts.join(" &nbsp; · &nbsp; ") || "0 - Devices"}</p>`;
+}
+
+function sheetLayoutCss(footerText: string) {
+  const content = footerText.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r\n|\r|\n/g, "\\A ").replace(/</g, "\\3c ");
+  return `
+  @page {
+    margin-bottom: .85in;
+    @bottom-center { content: "${content}"; font: 9pt/1.4 Arial, sans-serif; color: #1d4ed8; vertical-align: middle; }
+  }
+  h1 { text-align: center; }
+  .report-footer { text-align: center; font-size: 9pt; line-height: 1.4; border-top: 1px solid #1d4ed8; padding-top: 6px; }
+  @media screen {
+    body { display: flex; flex-direction: column; min-height: 10.1in; }
+    body > * { flex-shrink: 0; }
+    .report-footer { margin-top: auto; }
+  }
+  @media print {
+    .report-footer { display: none; }
+  }
+`;
+}
+
+function reportFooter(text: string) {
+  return `<footer class="report-footer">${escapeHtml(text)}</footer>`;
+}
+
 export function buildIcuRoundingReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
   const active = records.filter(record => record.is_active);
+  const footerText = `${department} · ${active.length} active ${active.length === 1 ? "patient" : "patients"} · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`;
   const row = (label: string, value: string) => value ? `<div class="row"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>` : "";
   const patients = active.map(record => {
     const sbt = record.rounding_data?.sbt;
@@ -41,10 +75,12 @@ export function buildIcuRoundingReport(records: IcuPatientRecord[], department: 
     .updated { margin: 7px 0 0; font-size: 9pt; }
     .toolbar { margin-bottom: 20px; } button { padding: 10px 20px; border: 2px solid #1d4ed8; border-radius: 6px; background: white; color: #1d4ed8; font: bold 11pt Arial, sans-serif; cursor: pointer; }
     @media print { body { margin: 0; padding: 0; max-width: none; } .toolbar { display: none; } }
+    ${sheetLayoutCss(footerText)}
   </style></head><body>
     <div class="toolbar"><button id="print-report" type="button">Print Report</button></div>
-    <header class="report-header"><h1>WHHS ICU Rounding Report</h1><p>${escapeHtml(department)} · ${active.length} active ${active.length === 1 ? "patient" : "patients"}</p><p>Prepared: ${escapeHtml(formatIcuLastUpdated(generatedAt.toISOString()))} PT · Snapshot of the listed active patients</p></header>
+    <header class="report-header"><h1>WHHS ICU Rounding Report</h1>${deviceCountSummary(active)}</header>
     ${patients || "<p>No active ICU patients listed.</p>"}
+    ${reportFooter(footerText)}
   </body></html>`;
 }
 
@@ -72,7 +108,7 @@ export function printIcuRoundingReport(records: IcuPatientRecord[], department: 
   return printIcuDocument(buildIcuRoundingReport(records, department));
 }
 
-function simpleReport(title: string, subtitle: string, content: string) {
+function simpleReport(title: string, subtitle: string, content: string, topContent = "") {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
     @page { size: letter portrait; margin: .4in; }
     * { box-sizing: border-box; print-color-adjust: exact; -webkit-print-color-adjust: exact; } body { color: #1d4ed8; background: white; font: 10pt/1.35 Arial,sans-serif; margin: 0; }
@@ -81,13 +117,14 @@ function simpleReport(title: string, subtitle: string, content: string) {
     th,td { text-align: left; border: 1px solid #1d4ed8; padding: 7px; vertical-align: top; overflow-wrap: anywhere; }
     th { background: #eff6ff; } tr,article { break-inside: avoid; } thead { display: table-header-group; }
     article { border-bottom: 1px solid #1d4ed8; padding: 8px 0; } p { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-  </style></head><body><h1>${escapeHtml(title)}</h1><p class="subtitle">${escapeHtml(subtitle)}</p>${content}</body></html>`;
+    ${topContent ? sheetLayoutCss(subtitle) : ""}
+  </style></head><body><h1>${escapeHtml(title)}</h1>${topContent || `<p class="subtitle">${escapeHtml(subtitle)}</p>`}${content}${topContent ? reportFooter(subtitle) : ""}</body></html>`;
 }
 
 export function buildIcuSbarReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
   const active = records.filter(record => record.is_active);
   return simpleReport("WHHS ICU SBAR", `${department} · ${active.length} active patients · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`,
-    `<table><thead><tr><th>Bed</th><th>Modality / Mode</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`).join("")}</tbody></table>`);
+    `<table><thead><tr><th>Bed</th><th>Modality / Mode</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`).join("")}</tbody></table>`, deviceCountSummary(active));
 }
 
 export type IcuPrintableHistoryEntry = { title: string; author: string; lines: string[] };

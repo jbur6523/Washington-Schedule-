@@ -14,6 +14,21 @@ const patient = {
 } as IcuPatientRecord;
 
 describe("ICU rounding print report", () => {
+  it.each([buildIcuRoundingReport, buildIcuSbarReport])("counts assigned active devices once in each sheet", build => {
+    const records = [patient, { ...patient, bed: "C221", is_standby: true }, { ...patient, bed: "C222" },
+      { ...patient, bed: "C223", device_type: "bipap" as const }, { ...patient, bed: "C224", device_type: "bipap" as const },
+      { ...patient, bed: "C225", device_type: "cpap" as const, is_active: false }];
+    const doc = new DOMParser().parseFromString(build(records, "RT"), "text/html");
+    const summary = doc.querySelector<HTMLElement>(".device-counts")!;
+    expect(summary.textContent?.replace(/\s+/g, " ")).toBe("3 - Vents · 2 - BiPAP");
+    expect(summary.style.textAlign).toBe("center");
+    expect(summary.style.fontWeight).toBe("700");
+    expect(doc.querySelector("h1")!.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(doc.querySelector(".report-footer")?.textContent).toContain("RT · 5 active patients · Prepared:");
+    expect(doc.body.lastElementChild?.classList.contains("report-footer")).toBe(true);
+    const empty = new DOMParser().parseFromString(build([], "RT"), "text/html");
+    expect(empty.querySelector(".device-counts")?.textContent).toBe("0 - Devices");
+  });
   it("includes all active patients, useful rounding information and safe text", () => {
     const html = buildIcuRoundingReport([patient, { ...patient, bed: "E242" }, { ...patient, bed: "DISCHARGED", is_active: false }], "Respiratory Care", new Date("2026-10-06T16:00:00Z"));
     const doc = new DOMParser().parseFromString(html, "text/html");

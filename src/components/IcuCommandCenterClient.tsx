@@ -1923,15 +1923,15 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                         <>
                           <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
                           <IcuNumberInput label="Tidal Volume" value={form.tidal_volume} onChange={(value) => setForm({ ...form, tidal_volume: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                           <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                         </>
                       )}
                       {form.vent_mode === "spont" && (
                         <>
                           <IcuNumberInput label="PS" value={form.ps} onChange={(value) => setForm({ ...form, ps: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                           <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                         </>
                       )}
                       {form.vent_mode === "aprv" && (
@@ -1947,8 +1947,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       {form.vent_mode === "asv" && (
                         <>
                           <IcuNumberInput label="% Min Vol" value={form.percent_min_vol} onChange={(value) => setForm({ ...form, percent_min_vol: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                           <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                         </>
                       )}
                     </div>
