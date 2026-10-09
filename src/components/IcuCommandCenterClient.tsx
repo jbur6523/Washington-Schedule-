@@ -295,7 +295,7 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
     tidal_volume: deviceType === "vent" ? numericOrNull(form.tidal_volume) : null,
     peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
-    fio2: deviceType === "vent" || deviceType === "bipap" || deviceType === "hfnc" || deviceType === "cool_aerosol" ? numericOrNull(form.fio2) : null,
+    fio2: numericOrNull(form.fio2),
     ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
     t_high: deviceType === "vent" ? numericOrNull(form.t_high) : null,
     t_low: deviceType === "vent" ? numericOrNull(form.t_low) : null,
@@ -821,6 +821,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [saving, setSaving] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<IcuPatientRecord | null>(null);
+  const [formOpenedFromAdd, setFormOpenedFromAdd] = useState(false);
   const [form, setForm] = useState<IcuPatientForm>(emptyForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -985,6 +986,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   const openAdd = () => {
     if (!canManageIcuLifecycle(authContext)) return;
+    setFormOpenedFromAdd(true);
     setEditingRecord(null);
     setForm(emptyForm);
     setFormOpen(true);
@@ -995,6 +997,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   const openEdit = (record: IcuPatientRecord) => {
     if (isLeadSurface || !canEditIcuCommandCenter(authContext)) return;
+    setFormOpenedFromAdd(false);
     setEditingRecord(record);
     setForm(formFromRecord(record));
     setFormOpen(true);
@@ -1757,16 +1760,33 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Bed</span>
                   <select
                     value={form.bed}
-                    onChange={(event) => setForm({ ...form, bed: event.target.value })}
+                    onChange={(event) => {
+                      const bed = event.target.value;
+                      if (!formOpenedFromAdd) {
+                        setForm({ ...form, bed });
+                        return;
+                      }
+                      const existing = records.find((record) => record.is_active && record.bed === bed);
+                      if (existing && (isLeadSurface || !canEditIcuCommandCenter(authContext))) return;
+                      setEditingRecord(existing ?? null);
+                      setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
+                      setFormError("");
+                    }}
                     required
                     className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   >
                     <option value="">Select bed</option>
-                    {roomOptions.map((bedOption) => (
-                      <option key={bedOption} value={bedOption}>
-                        {bedOption}
-                      </option>
-                    ))}
+                    {roomOptions.map((bedOption) => {
+                      const existing = records.find((record) => record.is_active && record.bed === bedOption);
+                      const unavailable = existing && (formOpenedFromAdd
+                        ? isLeadSurface || !canEditIcuCommandCenter(authContext)
+                        : existing.id !== editingRecord?.id);
+                      return (
+                        <option key={bedOption} value={bedOption} disabled={Boolean(unavailable)}>
+                          {bedOption}{existing ? ` - ${icuDeviceLabels[existing.device_type]}` : ""}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
 
@@ -1951,8 +1971,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               {form.device_type === "cpap" && (
                 <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">CPAP Settings</h3>
-                  <div className="mt-3">
+                  <div className="mt-3 grid grid-cols-2 gap-3">
                     <IcuNumberInput label="CPAP" value={form.cpap} onChange={(value) => setForm({ ...form, cpap: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
                   </div>
                 </section>
               )}

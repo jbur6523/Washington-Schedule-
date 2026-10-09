@@ -27,7 +27,7 @@ function fieldsFor(type: IcuDeviceType, mode: string): string[][] {
       ["rate", "Rate"],
       ["fio2", "FiO₂ (%)"],
     ];
-  if (type === "cpap") return [["cpap", "CPAP"]];
+  if (type === "cpap") return [["cpap", "CPAP"], ["fio2", "FiO₂ (%)"]];
   if (type !== "vent")
     return [
       ["flow", "Flow (L/min)"],

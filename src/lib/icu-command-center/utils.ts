@@ -219,7 +219,7 @@ export function formatIcuSettings(record: IcuPatientRecord) {
   }
 
   if (record.device_type === "cpap") {
-    parts.push(setting("CPAP", record.cpap));
+    parts.push(setting("CPAP", record.cpap), setting("FiO2", record.fio2, "%"));
   }
 
   if (record.device_type === "hfnc") {
