@@ -410,6 +410,80 @@ describe("ICU patient notes", () => {
     expect(mocks.eventInserts).not.toHaveBeenCalled();
   });
 
+  it.each(["full", "lead"] as const)("saves Other/Unknown and its optional comment from the %s board", async surface => {
+    mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv", notes: "Existing patient note" })];
+    render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: surface === "lead" ? "none" : "icu_command_center" }} surface={surface} />);
+    fireEvent.click(await screen.findByRole("button", { name: surface === "lead" ? "Discontinue C223" : "Discontinue" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+    expect(dialog.queryByRole("textbox", { name: "Outcome comment (optional)" })).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
+    fireEvent.change(dialog.getByRole("textbox", { name: "Outcome comment (optional)" }), { target: { value: "  Outcome pending clarification  " } });
+    fireEvent.click(dialog.getByRole("button", { name: "Discontinue Vent" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_action: "discontinue",
+      target_payload: { discontinued_at: expect.any(String), ventilator_outcome: "other_unknown" },
+      target_event_data: expect.objectContaining({
+        ventilatorOutcome: "Other/Unknown",
+        ventilatorOutcomeComment: "Outcome pending clarification",
+        notes: "Existing patient note"
+      })
+    })));
+    expect(await screen.findByText("Device discontinued.")).toBeInTheDocument();
+  });
+
+  it.each(["full", "lead"] as const)("allows Other/Unknown without a comment on the %s board", async surface => {
+    mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv" })];
+    render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
+    fireEvent.click(await screen.findByRole("button", { name: surface === "lead" ? "Discontinue C223" : "Discontinue" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+    fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
+    fireEvent.change(dialog.getByRole("textbox", { name: "Outcome comment (optional)" }), { target: { value: "   " } });
+    fireEvent.click(dialog.getByRole("button", { name: "Discontinue Vent" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_payload: expect.objectContaining({ ventilator_outcome: "other_unknown" }),
+      target_event_data: expect.objectContaining({ ventilatorOutcomeComment: null })
+    })));
+    expect(await screen.findByText("Device discontinued.")).toBeInTheDocument();
+  });
+
+  it("clears the outcome comment when changing outcomes or reopening the dialog", async () => {
+    mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv" })];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Discontinue" }));
+    let dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+    fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
+    fireEvent.change(dialog.getByRole("textbox", { name: "Outcome comment (optional)" }), { target: { value: "Draft comment" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discontinue" }));
+    dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+    fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
+    expect(dialog.getByRole("textbox", { name: "Outcome comment (optional)" })).toHaveValue("");
+    fireEvent.change(dialog.getByRole("textbox", { name: "Outcome comment (optional)" }), { target: { value: "Discard this comment" } });
+    fireEvent.click(dialog.getByRole("radio", { name: "Extubation" }));
+    expect(dialog.queryByRole("textbox", { name: "Outcome comment (optional)" })).not.toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
+    expect(dialog.getByRole("textbox", { name: "Outcome comment (optional)" })).toHaveValue("");
+    fireEvent.click(dialog.getByRole("radio", { name: "Extubation" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Discontinue Vent" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_payload: expect.objectContaining({ ventilator_outcome: "extubation" }),
+      target_event_data: expect.objectContaining({ ventilatorOutcomeComment: null })
+    })));
+    expect(await screen.findByText("Device discontinued.")).toBeInTheDocument();
+  });
+
+  it("shows saved outcome comments in ICU activity details", async () => {
+    mocks.activityEvents = [activityEvent({
+      event_type: "discontinued",
+      event_summary: "Discontinued. Outcome: Other/Unknown.",
+      event_data: { previousState: { bed: "C223", device: "Vent", isActive: true }, bed: "C223", device: "Vent", ventilatorOutcome: "Other/Unknown", ventilatorOutcomeComment: "Outcome pending clarification" }
+    })];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View details for C223 Vent discontinued" }));
+    expect(screen.getAllByText("Outcome: Other/Unknown")).toHaveLength(2);
+    expect(screen.getByText("Outcome comment: Outcome pending clarification")).toBeInTheDocument();
+  });
+
   it("refetches shared ICU settings, notes and statuses after realtime changes and cleans up", async () => {
     mocks.activeRecords = [patientRecord()];
     const view = render(<IcuCommandCenterClient authContext={authContext} surface="lead" />);

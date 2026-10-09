@@ -13,7 +13,8 @@ export type VentilatorOutcome =
   | "expired_on_ventilator"
   | "transferred_to_another_facility"
   | "donor_network"
-  | "discontinue_vent_support_palliative";
+  | "discontinue_vent_support_palliative"
+  | "other_unknown";
 export type IcuPatientEventType =
   | "added"
   | "updated"

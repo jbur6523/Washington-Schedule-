@@ -88,7 +88,8 @@ export const ventilatorOutcomeLabels: Record<VentilatorOutcome, string> = {
   expired_on_ventilator: "Expired (on ventilator)",
   transferred_to_another_facility: "Transferred to another facility",
   donor_network: "Donor network",
-  discontinue_vent_support_palliative: "Discontinue Vent Support (Palliative)"
+  discontinue_vent_support_palliative: "Discontinue Vent Support (Palliative)",
+  other_unknown: "Other/Unknown"
 };
 
 export const airwaySizeOptions = ["6", "6.5", "7", "7.5", "8"] as const;
@@ -107,7 +108,8 @@ export const ventilatorOutcomeOptions: VentilatorOutcome[] = [
   "expired_on_ventilator",
   "transferred_to_another_facility",
   "donor_network",
-  "discontinue_vent_support_palliative"
+  "discontinue_vent_support_palliative",
+  "other_unknown"
 ];
 
 export const standbyDeviceTypes: IcuDeviceType[] = ["vent", "hfnc", "bipap", "cpap"];

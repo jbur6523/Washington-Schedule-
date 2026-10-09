@@ -450,6 +450,7 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   const settings = eventDataText(event, "settings");
   const notes = eventDataText(event, "notes");
   const outcome = eventDataText(event, "ventilatorOutcome");
+  const outcomeComment = eventDataText(event, "ventilatorOutcomeComment");
   const criticalVent = eventDataBoolean(event, "criticalVent");
   const sbt = eventDataBoolean(event, "sbt");
   const flolan = eventDataBoolean(event, "flolan");
@@ -485,6 +486,9 @@ function historyDetailLines(event: IcuPatientEventRecord) {
   }
   if (outcome) {
     lines.push(`Outcome: ${outcome}`);
+  }
+  if (outcomeComment) {
+    lines.push(`Outcome comment: ${outcomeComment}`);
   }
 
   return lines;
@@ -825,6 +829,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [discontinueTarget, setDiscontinueTarget] = useState<IcuPatientRecord | null>(null);
   const [discontinueError, setDiscontinueError] = useState("");
   const [ventilatorOutcome, setVentilatorOutcome] = useState<VentilatorOutcome | "">("");
+  const [ventilatorOutcomeComment, setVentilatorOutcomeComment] = useState("");
   const [discontinuedDate, setDiscontinuedDate] = useState("");
   const [discontinuedTime, setDiscontinuedTime] = useState("");
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
@@ -1160,6 +1165,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     const defaults = defaultIcuDateTime();
     setDiscontinueTarget(record);
     setVentilatorOutcome("");
+    setVentilatorOutcomeComment("");
     setDiscontinuedDate(defaults.date);
     setDiscontinuedTime(defaults.time);
     setDiscontinueError("");
@@ -1205,6 +1211,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       target_event_data: eventDataFromRecord(discontinuedRecord, {
         previousState: icuActivityStateFromRecord(discontinueTarget),
         ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
+        ventilatorOutcomeComment: outcome === "other_unknown" ? ventilatorOutcomeComment.trim() || null : null,
         discontinuedAt
       })
     });
@@ -1219,6 +1226,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
     setDiscontinueTarget(null);
     setVentilatorOutcome("");
+    setVentilatorOutcomeComment("");
     setDiscontinuedDate("");
     setDiscontinuedTime("");
     setMessage("Device discontinued.");
@@ -1689,6 +1697,17 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 </section>
               )}
 
+              {activityDetailEvent.event_type === "discontinued" && eventDataText(activityDetailEvent, "ventilatorOutcome") && (
+                <section className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3">
+                  <p className="text-sm font-black text-rose-900">Outcome: {eventDataText(activityDetailEvent, "ventilatorOutcome")}</p>
+                  {eventDataText(activityDetailEvent, "ventilatorOutcomeComment") && (
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm font-bold text-slate-700">
+                      Outcome comment: {eventDataText(activityDetailEvent, "ventilatorOutcomeComment")}
+                    </p>
+                  )}
+                </section>
+              )}
+
               {activityDetailError && (
                 <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
                   {activityDetailError}
@@ -2103,6 +2122,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       checked={ventilatorOutcome === outcome}
                       onChange={() => {
                         setVentilatorOutcome(outcome);
+                        setVentilatorOutcomeComment("");
                         setDiscontinueError("");
                       }}
                       className="h-5 w-5 accent-cyan-700"
@@ -2110,6 +2130,18 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     {ventilatorOutcomeLabels[outcome]}
                   </label>
                 ))}
+                {ventilatorOutcome === "other_unknown" && (
+                  <label className="block pt-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Outcome comment (optional)</span>
+                    <textarea
+                      value={ventilatorOutcomeComment}
+                      onChange={(event) => setVentilatorOutcomeComment(event.target.value)}
+                      rows={3}
+                      placeholder="Add details about this outcome"
+                      className="mt-1 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                    />
+                  </label>
+                )}
               </div>
             )}
 
