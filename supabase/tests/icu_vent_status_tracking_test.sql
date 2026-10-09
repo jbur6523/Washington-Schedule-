@@ -102,7 +102,7 @@ select is(
   'the existing Critical value is preserved independently from SBT and CT'
 );
 
-select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000002', true);
+select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000003', true);
 select throws_ok(
   $$select public.set_icu_vent_status(
     '91000000-0000-0000-0000-000000000001',
@@ -112,7 +112,7 @@ select throws_ok(
   )$$,
   'P0002',
   'icu_vent_not_found_or_not_authorized',
-  'regular Staff cannot change Vent statuses'
+  'staff from another department cannot change Vent statuses'
 );
 
 select * from finish();

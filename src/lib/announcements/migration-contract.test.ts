@@ -11,6 +11,7 @@ const migration = readFileSync(
 const appClient = readFileSync(resolve(process.cwd(), "src/app/app-client.tsx"), "utf8");
 const dayScheduleCard = readFileSync(resolve(process.cwd(), "src/components/DayScheduleCard.tsx"), "utf8");
 const commandCenter = readFileSync(resolve(process.cwd(), "src/components/CommandCenterClient.tsx"), "utf8");
+const announcementUi = readFileSync(resolve(process.cwd(), "src/components/DepartmentAnnouncement.tsx"), "utf8");
 const directorDashboard = readFileSync(
   resolve(process.cwd(), "src/components/DirectorShiftStatusClient.tsx"),
   "utf8"
@@ -45,24 +46,19 @@ describe("department announcement migration and integration contract", () => {
   });
 
   it("uses the shared editor in both management locations", () => {
-    expect(commandCenter).toContain("<DepartmentAnnouncementManagerCard");
-    expect(commandCenter).toContain("departmentId={authContext.departmentId}");
-    expect(commandCenter).toContain('variant="dashboard"');
+    expect(commandCenter).toContain('<DepartmentAnnouncementStrip authContext={authContext} timezone={timezone} />');
+    expect(announcementUi).toContain('<DepartmentAnnouncementManagerDialog departmentId={authContext.departmentId}');
     expect(directorDashboard).toContain("<DepartmentAnnouncementManagerDialog");
     expect(commandCenter).not.toContain("<DepartmentAnnouncementEditor");
     expect(directorDashboard).not.toContain("<DepartmentAnnouncementEditor");
   });
 
-  it("keeps the requested Lead card order and moves the Director action into its compact menu", () => {
+  it("keeps the current Lead section order and the Director announcement action in its compact menu", () => {
     const leadCardLabels = [
-      "Shift Update",
-      "Lead Communication Board",
-      "Phone List",
-      "ICU Snapshot",
-      "Aide Communication Board",
-      "Rental Management",
-      "Short Shift Alert",
-      "<DepartmentAnnouncementManagerCard"
+      "<DepartmentAnnouncementStrip",
+      "<LeadOperationalSummary",
+      'aria-labelledby="quick-operations-heading"',
+      "<IcuCommandCenterClient"
     ];
     const leadCardPositions = leadCardLabels.map((label) => commandCenter.indexOf(label));
     expect(leadCardPositions.every((position) => position >= 0)).toBe(true);

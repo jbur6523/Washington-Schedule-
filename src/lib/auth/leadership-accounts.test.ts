@@ -39,7 +39,7 @@ const restrictedRouteGuards = [
   ["src/app/command-center/shift-update/page.tsx", "!canManageShiftStatus(auth.context)"],
   ["src/app/command-center/short-shift-alert/page.tsx", "!canManageShiftStatus(auth.context)"],
   ["src/app/command-center/icu-snapshot/page.tsx", "!canViewIcuCommandCenter(auth.context)"],
-  ["src/app/icu-command-center/page.tsx", "!canEditIcuCommandCenter(auth.context)"],
+  ["src/app/icu-command-center/page.tsx", "!canViewIcuCommandCenter(auth.context)"],
   ["src/app/operations/page.tsx", "!hasOperationsDashboardAccess(auth.context)"],
   ["src/app/operations/order-management/page.tsx", "!hasOrderManagementAccess(auth.context)"],
   ["src/app/operations/rental-management/page.tsx", "!hasRentalManagementAccess(auth.context)"],

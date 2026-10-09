@@ -27,6 +27,7 @@ import { StaffDirectory } from "@/components/StaffDirectory";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { StatusChip } from "@/components/StatusChip";
 import { getProfileDashboardShortcut } from "@/lib/admin/navigation";
+import { canViewIcuCommandCenter } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/client";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
@@ -443,7 +444,8 @@ function ScheduleScreen({
   schedule,
   timezone,
   developmentFallback,
-  onChanged
+  onChanged,
+  onViewMySchedule
 }: {
   authContext: AuthenticatedUserContext;
   loading: boolean;
@@ -452,6 +454,7 @@ function ScheduleScreen({
   timezone: string;
   developmentFallback?: boolean;
   onChanged: () => Promise<void>;
+  onViewMySchedule: () => void;
 }) {
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
@@ -706,6 +709,14 @@ function ScheduleScreen({
           setExpandedDay("");
         }}
       >
+        <button
+          type="button"
+          onClick={onViewMySchedule}
+          className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-violet-300 bg-white px-4 py-2 text-sm font-extrabold text-violet-800 shadow-sm transition hover:bg-violet-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 active:scale-[0.98]"
+        >
+          <CalendarDays size={18} aria-hidden="true" />
+          View my schedule
+        </button>
         {!developmentFallback && (
           <CurrentShiftStatusSummary authContext={authContext} timezone={timezone} />
         )}
@@ -3371,6 +3382,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               timezone={scheduleState.timezone}
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
+              onViewMySchedule={() => setActiveTab("manage-schedule")}
             />
           )}
           {activeTab === "manage-schedule" && (
@@ -3412,7 +3424,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
           onClose={() => setSettingsOpen(false)}
         />
       )}
-      <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+      <BottomNavigation activeTab={activeTab} onTabChange={setActiveTab} canAccessIcu={canViewIcuCommandCenter(authContext)} />
     </>
   );
 }

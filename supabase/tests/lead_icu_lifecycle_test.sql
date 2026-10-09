@@ -9,7 +9,7 @@ where profile_id = '40000000-0000-0000-0000-000000000002';
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '20000000-0000-0000-0000-000000000002', true);
 select ok(public.user_can_manage_icu_lifecycle('30000000-0000-0000-0000-000000000002'), 'Lead has lifecycle access');
-select ok(not public.user_can_manage_icu_patients('30000000-0000-0000-0000-000000000002'), 'Lead has no general editing capability');
+select ok(public.user_can_manage_icu_patients('30000000-0000-0000-0000-000000000002'), 'Lead shares full ICU editing capability');
 select lives_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002', 'add',
   '{"bed":"TEST-LEAD","device_type":"vent","vent_mode":"apvcmv","fio2":40,"notes":"Shared note","is_sbt":true,"is_active":false}',
   '{"device":"Vent - APVCMV","created_by_name":"Forged"}')$$, 'Lead adds through shared atomic lifecycle');
@@ -22,11 +22,6 @@ select throws_ok($$select public.manage_icu_device('30000000-0000-0000-0000-0000
   '42501','Not authorized to manage devices in this department.','Cross-department add is denied');
 select throws_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','update','{}','{}')$$,
   '22023','Only add and discontinue are supported.','RPC cannot update settings or status');
-select throws_ok($$insert into public.icu_patients(department_id,bed,device_type) values('30000000-0000-0000-0000-000000000002','TEST-DIRECT','hfnc')$$,
-  '42501', null, 'Lead cannot bypass lifecycle with a direct insert');
-with changed as (update public.icu_patients set notes='Unauthorized' where bed='TEST-LEAD' returning id) select is((select count(*)::int from changed), 0, 'RLS prevents direct settings/notes update');
-select throws_ok($$select public.set_icu_vent_status((select id from public.icu_patients where bed='TEST-LEAD'),'critical',true,'{}')$$,
-  'P0002','icu_vent_not_found_or_not_authorized','Lead cannot use full ICU status RPC');
 select throws_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','discontinue',
   '{"discontinued_at":"2026-09-22T16:30:00Z"}','{}',id,updated_at) from public.icu_patients where bed='TEST-LEAD'$$,
   '22023','Select a ventilator outcome.','Vent requires an outcome');
@@ -67,14 +62,14 @@ select is((select count(*)::int from public.icu_patients where bed='TEST-ROLLBAC
 reset role;
 update public.department_memberships set role='staff' where profile_id='40000000-0000-0000-0000-000000000002';
 set local role authenticated;
-select throws_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-STAFF","device_type":"hfnc"}','{}')$$,
-  '42501','Not authorized to manage devices in this department.','Ordinary Staff cannot manage ICU lifecycle');
+select lives_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-STAFF","device_type":"hfnc"}','{}')$$,
+  'Ordinary Staff can manage ICU lifecycle');
 
 reset role;
 update public.staff_profiles set operations_role='director' where profile_id='40000000-0000-0000-0000-000000000002';
 set local role authenticated;
 select ok(public.user_can_view_icu_patients('30000000-0000-0000-0000-000000000002'), 'Director retains read access');
-select ok(not public.user_can_manage_icu_lifecycle('30000000-0000-0000-0000-000000000002'), 'Director does not acquire lifecycle writes');
+select ok(public.user_can_manage_icu_lifecycle('30000000-0000-0000-0000-000000000002'), 'Active Director staff also have ICU lifecycle access');
 reset role;
 update public.staff_profiles set operations_role='icu_command_center' where profile_id='40000000-0000-0000-0000-000000000002';
 set local role authenticated;

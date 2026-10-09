@@ -3,18 +3,29 @@ import { describe, expect, it, vi } from "vitest";
 import { BottomNavigation } from "@/components/BottomNavigation";
 
 describe("BottomNavigation", () => {
-  it("renders four internal tabs and an inactive external Email shortcut", () => {
+  it("omits ICU and retains four evenly spaced controls for Aides", () => {
+    const { container } = render(<BottomNavigation activeTab="schedule" onTabChange={vi.fn()} canAccessIcu={false} />);
+    expect(screen.queryByRole("link", { name: "ICU" })).not.toBeInTheDocument();
+    expect(container.querySelector(".grid-cols-4")?.children).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Schedule" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Email" })).toBeInTheDocument();
+  });
+  it("renders three tabs, a same-session ICU link, and an external Email shortcut", () => {
     const onTabChange = vi.fn();
     const { container } = render(
-      <BottomNavigation activeTab="schedule" onTabChange={onTabChange} />
+      <BottomNavigation activeTab="schedule" onTabChange={onTabChange} canAccessIcu />
     );
 
-    expect(screen.getAllByRole("button")).toHaveLength(4);
+    expect(screen.getAllByRole("button")).toHaveLength(3);
     expect(screen.getByRole("button", { name: "Schedule" })).toHaveAttribute(
       "aria-current",
       "page"
     );
-    expect(screen.getByRole("button", { name: "Manage Schedule" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Manage Schedule" })).not.toBeInTheDocument();
+    const icuLink = screen.getByRole("link", { name: "ICU" });
+    expect(icuLink).toHaveAttribute("href", "/icu-command-center");
+    expect(icuLink).not.toHaveAttribute("target");
+    expect(icuLink.querySelector("svg")).toHaveClass("lucide-bed");
     expect(screen.getByRole("button", { name: "Cover/Switch" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Staff" })).toBeInTheDocument();
     expect(screen.queryByText("Gossip")).not.toBeInTheDocument();
@@ -34,16 +45,14 @@ describe("BottomNavigation", () => {
 
   it("keeps the other navigation buttons wired to their existing tabs", () => {
     const onTabChange = vi.fn();
-    render(<BottomNavigation activeTab="staff" onTabChange={onTabChange} />);
+    render(<BottomNavigation activeTab="staff" onTabChange={onTabChange} canAccessIcu />);
 
     fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
-    fireEvent.click(screen.getByRole("button", { name: "Manage Schedule" }));
     fireEvent.click(screen.getByRole("button", { name: "Cover/Switch" }));
     fireEvent.click(screen.getByRole("button", { name: "Staff" }));
 
     expect(onTabChange.mock.calls.map(([tab]) => tab)).toEqual([
       "schedule",
-      "manage-schedule",
       "shift-board",
       "staff"
     ]);

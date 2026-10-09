@@ -1,4 +1,5 @@
 import type { ScheduleDay, ScheduleEntry, ShiftPost, StaffOperationsRole, StaffType } from "@/data/mockSchedule";
+import { withLeadShiftHours } from "@/lib/schedule/lead-shift-hours";
 import {
   coworkerTitleDisplayFromRecord,
   type CoworkerTitle,
@@ -344,6 +345,26 @@ export function adaptActiveSchedule(
   offers: ShiftRequestOfferRow[] = [],
   coworkerTitles: CoworkerTitleRow[] = []
 ): ActiveSchedule {
+  entries = entries.map(withLeadShiftHours);
+  const entriesById = new Map(entries.map((entry) => [entry.id, entry]));
+  function resolveEntry<T extends { id: string }>(value?: T | T[] | null): T | T[] | null | undefined {
+    const resolve = (entry: T): T => {
+      const scheduled = entriesById.get(entry.id);
+      return scheduled ? { ...entry, shift_start: scheduled.shift_start, shift_end: scheduled.shift_end } : entry;
+    };
+    if (Array.isArray(value)) return value.map(resolve);
+    return value ? resolve(value) : value;
+  }
+  requests = requests.map((request) => ({ ...request, schedule_entries: resolveEntry(request.schedule_entries) }));
+  offers = offers.map((offer) => ({
+    ...offer,
+    schedule_entries: resolveEntry(offer.schedule_entries),
+    shift_requests: Array.isArray(offer.shift_requests)
+      ? offer.shift_requests.map((request) => ({ ...request, schedule_entries: resolveEntry(request.schedule_entries) }))
+      : offer.shift_requests
+        ? { ...offer.shift_requests, schedule_entries: resolveEntry(offer.shift_requests.schedule_entries) }
+        : offer.shift_requests
+  }));
   const coworkerTitlesByStaffProfileId = new Map<string, CoworkerTitleDisplay[]>();
 
   coworkerTitles.forEach((row) => {

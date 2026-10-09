@@ -183,7 +183,7 @@ describe("official vent count", () => {
       "get_current_icu_snapshot_counts"
     );
     expect(icuCommandCenter).toContain(
-      '<StatCard label="Vents" value={counts.vents} />'
+      '<IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} />'
     );
   });
 

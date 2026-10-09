@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { IcuCommandCenterClient } from "@/components/IcuCommandCenterClient";
-import { canEditIcuCommandCenter } from "@/lib/auth/access";
+import { canViewIcuCommandCenter } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ function AccessDenied() {
         <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
         <h1 className="mt-2 text-2xl font-black text-hospital-ink">You do not have access to this page.</h1>
         <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-          ICU Command Center editing is limited to Admin users and the dedicated ICU Command Center account.
+          ICU access requires an active, non-Aide Schedule account and department membership.
         </p>
         <Link
           href="/"
@@ -39,7 +39,7 @@ export default async function IcuCommandCenterPage() {
     return <AuthVerificationNotice message={auth.message} />;
   }
 
-  if (auth.status !== "authenticated" || !canEditIcuCommandCenter(auth.context)) {
+  if (auth.status !== "authenticated" || !canViewIcuCommandCenter(auth.context)) {
     return <AccessDenied />;
   }
 

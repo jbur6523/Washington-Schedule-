@@ -53,16 +53,17 @@ export function canManageDepartmentAnnouncement(
 }
 
 export function canEditIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
-  return context.role === "admin" || isIcuCommandCenter(context);
+  // The caller must first verify an active staff account and department membership.
+  return context.operationsRole !== "aide"
+    && (context.role === "staff" || context.role === "lead" || context.role === "admin");
 }
 
-// Lifecycle only: this does not grant ICU settings, notes, or status editing.
 export function canManageIcuLifecycle(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
-  return canEditIcuCommandCenter(context) || context.role === "lead" || isCommandCenter(context);
+  return canEditIcuCommandCenter(context);
 }
 
 export function canViewIcuCommandCenter(context: Pick<AuthenticatedUserContext, "role" | "operationsRole">) {
-  return canManageIcuLifecycle(context) || isDirector(context);
+  return canEditIcuCommandCenter(context);
 }
 
 export function canCreateLeadCommunication(

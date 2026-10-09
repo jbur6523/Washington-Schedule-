@@ -1,5 +1,7 @@
 "use client";
 
+import { withLeadShiftHours } from "@/lib/schedule/lead-shift-hours";
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, ClipboardList, FileUp, Plus, Send, Trash2 } from "lucide-react";
@@ -1187,6 +1189,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                       <p className="text-sm font-bold text-slate-500">No schedule entries have been added.</p>
                     )}
                     {entries.map((entry) => {
+                      const displayHours = withLeadShiftHours(entry);
                       const staff =
                         firstStaffProfile(entry.staff_profiles) ??
                         (entry.staff_profile_id ? staffById.get(entry.staff_profile_id) : null);
@@ -1199,7 +1202,7 @@ export function ScheduleVersionsAdmin({ authContext }: ScheduleVersionsAdminProp
                                 {entry.day_of_week} {entry.shift_date} - {shiftTypeLabels[entry.shift_type]}
                               </p>
                               <p className="mt-1 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                                {formatShiftTime(entry.shift_start, entry.shift_end)} - {entryStatusLabels[entry.entry_status]}
+                                {formatShiftTime(displayHours.shift_start, displayHours.shift_end)} - {entryStatusLabels[entry.entry_status]}
                               </p>
                               <p className="mt-1 text-sm font-bold text-slate-700">
                                 {entry.is_shift_lead && (

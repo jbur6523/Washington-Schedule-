@@ -27,5 +27,7 @@ describe("ICU overview room lists", () => {
     expect(screen.queryByText("D233")).not.toBeInTheDocument();
     expect(screen.getAllByRole("term").map(term => term.textContent)).toEqual(["Vents", "Critical", "BiPAP", "HFNC", "Cool Aerosol"]);
     expect(screen.queryByText("C224")).not.toBeInTheDocument();
+    // Total Vents includes both regular and critical vents; inactive rows are excluded.
+    expect(screen.getByText("Total Vents").parentElement).toHaveTextContent("3");
   });
 });

@@ -23,7 +23,13 @@ function accessContext(role: AppRole, operationsRole: OperationsRole = "none") {
 }
 
 describe("role permission matrix", () => {
-  it("keeps regular staff outside privileged operational workflows", () => {
+  it.each(["staff", "lead", "admin"] as const)("denies Aides ICU access even with %s membership", role => {
+    const aide = accessContext(role, "aide");
+    expect(canEditIcuCommandCenter(aide)).toBe(false);
+    expect(canManageIcuLifecycle(aide)).toBe(false);
+    expect(canViewIcuCommandCenter(aide)).toBe(false);
+  });
+  it("allows staff ICU editing while keeping unrelated operational permissions restricted", () => {
     const staff = accessContext("staff");
 
     expect(hasOperationsDashboardAccess(staff)).toBe(false);
@@ -32,14 +38,14 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(staff)).toBe(false);
     expect(canManageDepartmentAnnouncement(staff)).toBe(false);
     expect(canViewDirectorShiftStatus(staff)).toBe(false);
-    expect(canEditIcuCommandCenter(staff)).toBe(false);
-    expect(canManageIcuLifecycle(staff)).toBe(false);
-    expect(canViewIcuCommandCenter(staff)).toBe(false);
+    expect(canEditIcuCommandCenter(staff)).toBe(true);
+    expect(canManageIcuLifecycle(staff)).toBe(true);
+    expect(canViewIcuCommandCenter(staff)).toBe(true);
     expect(canViewMetrics(staff)).toBe(false);
     expect(canViewRvuStaffingMetrics(staff)).toBe(false);
   });
 
-  it("allows leads to manage shared shift operations without ICU edit access", () => {
+  it("allows leads to manage shared shift operations and ICU records", () => {
     const lead = accessContext("lead");
 
     expect(hasOperationsDashboardAccess(lead)).toBe(true);
@@ -48,7 +54,7 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(lead)).toBe(true);
     expect(canManageDepartmentAnnouncement(lead)).toBe(true);
     expect(canViewDirectorShiftStatus(lead)).toBe(true);
-    expect(canEditIcuCommandCenter(lead)).toBe(false);
+    expect(canEditIcuCommandCenter(lead)).toBe(true);
     expect(canManageIcuLifecycle(lead)).toBe(true);
     expect(canViewIcuCommandCenter(lead)).toBe(true);
     expect(canViewMetrics(lead)).toBe(false);
@@ -70,14 +76,14 @@ describe("role permission matrix", () => {
     expect(canManageShiftStatus(commandCenter)).toBe(true);
     expect(canManageDepartmentAnnouncement(commandCenter)).toBe(true);
     expect(canViewIcuCommandCenter(commandCenter)).toBe(true);
-    expect(canEditIcuCommandCenter(commandCenter)).toBe(false);
+    expect(canEditIcuCommandCenter(commandCenter)).toBe(true);
     expect(canReplyToLeadCommunication(commandCenter)).toBe(true);
 
     expect(canViewDirectorShiftStatus(director)).toBe(true);
     expect(canManageDepartmentAnnouncement(director)).toBe(true);
     expect(canViewIcuCommandCenter(director)).toBe(true);
-    expect(canEditIcuCommandCenter(director)).toBe(false);
-    expect(canManageIcuLifecycle(director)).toBe(false);
+    expect(canEditIcuCommandCenter(director)).toBe(true);
+    expect(canManageIcuLifecycle(director)).toBe(true);
     expect(canUseNotifications(director)).toBe(true);
 
     expect(canEditIcuCommandCenter(icu)).toBe(true);
@@ -100,8 +106,8 @@ describe("role permission matrix", () => {
     expect(hasRentalManagementAccess(leadership)).toBe(false);
     expect(hasOrderManagementAccess(leadership)).toBe(false);
     expect(canManageShiftStatus(leadership)).toBe(false);
-    expect(canEditIcuCommandCenter(leadership)).toBe(false);
-    expect(canViewIcuCommandCenter(leadership)).toBe(false);
+    expect(canEditIcuCommandCenter(leadership)).toBe(true);
+    expect(canViewIcuCommandCenter(leadership)).toBe(true);
     expect(canViewMetrics(leadership)).toBe(true);
     expect(canViewRvuStaffingMetrics(leadership)).toBe(true);
   });
