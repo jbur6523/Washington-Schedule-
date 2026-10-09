@@ -1961,8 +1961,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                   <h3 className="text-sm font-black text-hospital-ink">HFNC Settings</h3>
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
                     <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
                   </div>
                 </section>
               )}
