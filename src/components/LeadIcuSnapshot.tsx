@@ -10,9 +10,19 @@ export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd,
   records: IcuPatientRecord[]; loading: boolean; error: string; message: string; busy: boolean;
   onAdd: () => void; onDiscontinue: (record: IcuPatientRecord) => void;
 }) {
+  const deviceCounts = ([ ["vent", "VENT"], ["bipap", "BIPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "COOL AEROSOL"] ] as const)
+    .map(([type, label]) => ({ type, label, count: records.filter(record => record.is_active && record.device_type === type).length }))
+    .filter(device => device.count > 0);
   return <section aria-labelledby="lead-icu-heading" className="border-t border-slate-200 pt-5">
     <div className="mb-4 grid justify-items-center gap-3">
       <h2 id="lead-icu-heading" className="flex w-full items-center gap-2 text-xl font-bold text-hospital-ink"><BarChart3 size={23} className="text-blue-600" aria-hidden="true" />ICU Snapshot</h2>
+      <div role="status" aria-label="Active device counts" className="w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-lg font-extrabold text-blue-800">
+        {loading ? "Loading device counts…" : error ? "Device counts unavailable." : deviceCounts.length ? (
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+            {deviceCounts.map(device => <span key={device.type} className="whitespace-nowrap">{device.label} {device.count}</span>)}
+          </div>
+        ) : "0 active devices"}
+      </div>
       <button type="button" onClick={onAdd} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700"><Plus size={18} aria-hidden="true" />Add Device</button>
     </div>
     {message && <p role="status" className="mb-3 text-sm font-semibold text-emerald-800">{message}</p>}

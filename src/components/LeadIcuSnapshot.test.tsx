@@ -52,6 +52,26 @@ function patientRecord(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRec
 
 const props = { loading: false, error: "", message: "", busy: false, onAdd: vi.fn(), onDiscontinue: vi.fn() };
 describe("Lead ICU Snapshot", () => {
+  it("shows live assigned-device counts above Add Device without counting inactive or saved modalities", () => {
+    const records = [
+      patientRecord({ id: "vent", device_type: "vent", is_standby: true }),
+      patientRecord({ id: "bipap", bed: "IMC - 201", device_type: "bipap", rounding_data: { modalities: { vent: { fio2: 40 } } } }),
+      patientRecord({ id: "hfnc", bed: "D230" }),
+      patientRecord({ id: "inactive", bed: "C224", device_type: "vent", is_active: false })
+    ];
+    const view = render(<LeadIcuSnapshot {...props} records={records} />);
+    const counts = screen.getByRole("status", { name: "Active device counts" });
+    for (const label of ["VENT 1", "BIPAP 1", "HFNC 1"]) expect(within(counts).getByText(label)).toBeInTheDocument();
+    expect(counts.compareDocumentPosition(screen.getByRole("button", { name: "Add Device" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    view.rerender(<LeadIcuSnapshot {...props} records={records.slice(1)} />);
+    expect(within(counts).queryByText("VENT 1")).not.toBeInTheDocument();
+    view.rerender(<LeadIcuSnapshot {...props} records={[]} />);
+    expect(counts).toHaveTextContent("0 active devices");
+    view.rerender(<LeadIcuSnapshot {...props} records={[]} loading />);
+    expect(counts).toHaveTextContent("Loading device counts");
+    view.rerender(<LeadIcuSnapshot {...props} records={records} error="Load failed" />);
+    expect(counts).toHaveTextContent("Device counts unavailable.");
+  });
   it("groups and sorts all active ICU and IMC records without a six-row cap", () => {
     const records = ["E242", "D239", "C223", "D230", "E241", "C220", "E248", "IMC - 201", "IMC - 219"].map(bed => patientRecord({ id: bed, bed }));
     render(<LeadIcuSnapshot {...props} records={[...records, patientRecord({ id: "inactive", bed: "IMC - 218", is_active: false }), patientRecord({ id: "other", bed: "Z100" })]} />);
