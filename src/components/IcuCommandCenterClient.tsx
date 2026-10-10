@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Bed, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
-import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
+import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
@@ -1391,13 +1392,29 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </p>
         </section>
 
+        {!isIcuCommandCenter(authContext) && (
+          <Link
+            href="/"
+            className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
+          >
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+              <CalendarDays size={26} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+            <span className="flex-1">
+              <span className="block text-lg font-black text-sky-950">Return to Schedule</span>
+              <span className="mt-0.5 block text-xs font-bold text-sky-900">Back to your Schedule page.</span>
+            </span>
+            <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
+          </Link>
+        )}
+
         <button
           type="button"
           disabled={loading || records.length === 0}
           onClick={() => setPrintOptionsOpen(true)}
           aria-haspopup="dialog"
           aria-controls="icu-print-options"
-          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60"
+          className={`${isIcuCommandCenter(authContext) ? "flex" : "hidden md:flex"} min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60`}
         >
           <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
             <Printer size={26} strokeWidth={2.5} aria-hidden="true" />
