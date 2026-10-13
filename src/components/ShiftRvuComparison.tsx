@@ -32,15 +32,11 @@ export function ShiftRvuComparison({ update }: { update: ShiftStatusUpdate }) {
     {result.currentRvus !== null && <p className="font-bold">{format(result.currentRvus)} RVUs</p>}
     <details className="mt-1">
       <summary className="cursor-pointer rounded-lg px-1 py-1 font-semibold text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-600">{label}</summary>
-      <div className="mt-2 space-y-1 text-left leading-5">
-        <p>Compared with {shift} shifts from {result.minimumShiftDate} through {result.maximumShiftDate}, excluding this shift.</p>
-        {history?.error ? <p>Could not load RVU history. Retrying automatically.</p> : !history ? <p>Loading RVU history…</p> : <>
+      <div className="mt-2 space-y-1 leading-5">
+        {history?.error ? <p>Average unavailable.</p> : !history ? <p>Loading average…</p> : result.count < 10 ? <p>More shift data needed.</p> : <>
           <p>15-day average: {result.average === null ? "—" : `${format(result.average)} RVUs`}</p>
-          <p>{result.count} valid shifts recorded; at least 10 required.</p>
-          {result.count >= 10 && result.percent !== null && <p>Current: {result.percent > 0 ? "+" : ""}{format(result.percent)}% versus average.</p>}
-          {result.average === 0 && <p>The historical average is zero; a percentage comparison is unavailable.</p>}
+          {result.percent !== null && <p>{result.percent === 0 ? "Matches average" : `${format(Math.abs(result.percent))}% ${result.percent > 0 ? "above" : "below"} average`}</p>}
         </>}
-        <p>Near average means within ±10%. This comparison does not change RTs Needed.</p>
       </div>
     </details>
   </div>;

@@ -17,7 +17,8 @@ describe("leadership RVU comparison", () => {
     expect(screen.getByText("189 RVUs")).toBeTruthy();
     expect(query).toHaveBeenCalledWith({}, "local-department", { minimumShiftDate: "2026-09-27", maximumShiftDate: "2026-10-11", shift: "night" });
     expect(container.querySelector("details")?.open).toBe(false);
-    expect(screen.getByText("Current: +5% versus average.")).toBeTruthy();
+    expect(screen.getByText("15-day average: 180 RVUs")).toBeTruthy();
+    expect(screen.getByText("5% above average")).toBeTruthy();
   });
   it("distinguishes failed history from insufficient history", async () => {
     query.mockRejectedValue(new Error("offline"));
