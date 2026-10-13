@@ -7,6 +7,7 @@ type RelatedStaff = { display_name: string } | { display_name: string }[] | null
 type RelatedVendor = { name: string } | { name: string }[] | null;
 
 type RentalRecord = {
+  attribution: Partial<Record<"order" | "delivery" | "pickup" | "returned", { name: string }>>;
   id: string;
   equipment_type: EquipmentType;
   barcode_number: string | null;
@@ -108,7 +109,6 @@ function formatTimePart(value: string | null, timezone: string) {
     timeZone: timezone,
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
     hourCycle: "h23"
   }).format(new Date(value));
 }
@@ -206,6 +206,7 @@ export async function GET(request: Request) {
     "pickup_requested_at",
     "returned_at",
     "rental_vendors(name)",
+    "attribution",
     "checked_in_by:staff_profiles!rental_records_checked_in_by_staff_profile_id_fkey(display_name)",
     "called_in_by:staff_profiles!rental_records_called_in_by_staff_profile_id_fkey(display_name)",
     "pickup_requested_by:staff_profiles!rental_records_pickup_requested_by_staff_profile_id_fkey(display_name)",
@@ -251,14 +252,15 @@ export async function GET(request: Request) {
       const pickedUpEvent = findEvent(recordEvents, pickedUpEventTypes);
       const vendor = firstRelated(record.rental_vendors);
       const calledInBy =
+        record.attribution?.order?.name ??
         firstRelated(record.called_in_by)?.display_name ??
         record.called_in_by_name ??
         (calledInEvent ? firstRelated(calledInEvent.staff_profiles)?.display_name : "");
-      const deliveredBy = firstRelated(record.checked_in_by)?.display_name ?? (deliveredEvent ? firstRelated(deliveredEvent.staff_profiles)?.display_name : "");
-      const pickupBy = firstRelated(record.pickup_requested_by)?.display_name ?? (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : "");
-      const pickedUpBy = firstRelated(record.returned_by)?.display_name ?? (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : "");
-      const pickupAt = pickupEvent?.event_at ?? record.pickup_requested_at;
-      const pickedUpAt = pickedUpEvent?.event_at ?? record.returned_at;
+      const deliveredBy = record.attribution?.delivery?.name ?? firstRelated(record.checked_in_by)?.display_name ?? (deliveredEvent ? firstRelated(deliveredEvent.staff_profiles)?.display_name : "");
+      const pickupBy = record.attribution?.pickup?.name ?? firstRelated(record.pickup_requested_by)?.display_name ?? (pickupEvent ? firstRelated(pickupEvent.staff_profiles)?.display_name : "");
+      const pickedUpBy = record.attribution?.returned?.name ?? firstRelated(record.returned_by)?.display_name ?? (pickedUpEvent ? firstRelated(pickedUpEvent.staff_profiles)?.display_name : "");
+      const pickupAt = record.pickup_requested_at ?? pickupEvent?.event_at;
+      const pickedUpAt = record.returned_at ?? pickedUpEvent?.event_at;
 
       return {
         "Rental Company": vendor?.name ?? "",

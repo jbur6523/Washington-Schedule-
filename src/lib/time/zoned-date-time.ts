@@ -7,7 +7,6 @@ export function timeZoneParts(date: Date, timeZone: string) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-    hour12: false,
     hourCycle: "h23"
   }).formatToParts(date);
   const value = (type: string) =>
