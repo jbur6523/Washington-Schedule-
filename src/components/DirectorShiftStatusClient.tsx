@@ -31,8 +31,9 @@ import {
   X
 } from "lucide-react";
 import { DirectorDashboardIcuSummary } from "@/components/DirectorDashboardIcuSummary";
+import { ShiftRvuComparison } from "@/components/ShiftRvuComparison";
 import { BubbleCpapIcon } from "@/components/BubbleCpapIcon";
-import { DepartmentAnnouncementManagerDialog } from "@/components/DepartmentAnnouncement";
+import { DepartmentAnnouncementManagerDialog, LeadershipDepartmentAnnouncement } from "@/components/DepartmentAnnouncement";
 import { ShiftRecordDetails, ShiftRecordIdentity } from "@/components/ShiftRecordDetails";
 import { StaffTypeBadge } from "@/components/StaffTypeBadge";
 import { LeadCommunicationBoardModal } from "@/components/LeadCommunicationBoardModal";
@@ -181,14 +182,15 @@ function directorStatus(update: ShiftStatusUpdate | null) {
   };
 }
 
-function MetricCard({ icon, label, value }: { icon: ReactNode; label: string; value: string | number }) {
+function MetricCard({ icon, label, value, children }: { icon: ReactNode; label: string; value: string | number; children?: ReactNode }) {
   return (
-    <div className="flex min-h-[7.6rem] flex-col items-center justify-center rounded-3xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
+    <div className="flex min-h-[7.6rem] flex-col items-center justify-start rounded-3xl border border-slate-100 bg-slate-50/80 px-2.5 py-3 text-center shadow-sm">
       <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
         {icon}
       </span>
       <p className="mt-3 text-[12px] font-extrabold leading-tight text-slate-600">{label}</p>
       <p className="mt-2 text-4xl font-black leading-none text-hospital-ink">{value}</p>
+      {children}
     </div>
   );
 }
@@ -902,19 +904,17 @@ export function DirectorShiftStatusClient({
           </div>
         </section>
 
+        <LeadershipDepartmentAnnouncement authContext={authContext} timezone={timezone} />
+
         <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="grid items-start gap-2 sm:grid-cols-[1fr_auto_1fr]">
-            <span className="hidden sm:block" aria-hidden="true" />
+          <div>
             <div className="text-center">
-              <h2 className="text-2xl font-black leading-tight text-hospital-ink">Current Shift Status</h2>
+              <h2 className="text-2xl font-black leading-tight text-hospital-ink">{directorStatusDisplay.showingFallback ? "Latest Reported Shift" : "Current Shift Status"}</h2>
               {statusSourceShift && (
                 <p className="mt-1 text-xs font-black text-slate-500">{statusSourceShift}</p>
               )}
+              {directorStatusDisplay.showingFallback && <p className="mt-2 text-sm font-bold text-amber-800">Awaiting current shift update</p>}
             </div>
-            <span className={`inline-flex items-center gap-1.5 justify-self-center rounded-full border px-3 py-1.5 text-center text-xs font-black sm:justify-self-end ${status.className}`}>
-              {status.icon}
-              {status.label}
-            </span>
           </div>
 
           {latest && (
@@ -956,11 +956,50 @@ export function DirectorShiftStatusClient({
 
           {latest && hasCurrentStaffing && (
             <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(latest.rts_on)} />
-              <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)} />
+              <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(latest.rts_on)}>
+                <p className={`mt-2 text-xs font-bold ${status.label === "Staffed" ? "text-emerald-700" : "text-rose-700"}`}>{status.label}</p>
+              </MetricCard>
+              <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)}>
+                <ShiftRvuComparison key={`${latest.department_id}:${latest.shift_date}:${latest.shift_type}:${latest.updated_at}`} update={latest} />
+              </MetricCard>
             </div>
           )}
 
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-600">
+              <Building2 size={17} aria-hidden="true" />Department Snapshot
+            </h3>
+            {snapshotSourceShift && snapshotSourceShift !== statusSourceShift && (
+              <p className="mt-1 text-xs font-bold text-slate-500">{snapshotSourceShift}</p>
+            )}
+          </div>
+          {(snapshotLatest || officialVent || activeRentalCount !== null) && (
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {(snapshotLatest || officialVent) && (
+                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? "—"} />
+              )}
+              {snapshotLatest && (
+                <>
+                  <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
+                  <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={snapshotProcedureTotal} />
+                </>
+              )}
+              <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
+            </div>
+          )}
+
+          {departmentSnapshotUpdate && (!latest || new Date(departmentSnapshotUpdate.updatedAt).getTime() !== new Date(latest.updated_at).getTime() || departmentSnapshotUpdate.updatedBy !== updatedByName(latest)) && (
+            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+              <p>Last updated: {formatShiftStatusTime(departmentSnapshotUpdate.updatedAt, timezone)}</p>
+              <p>Updated by: {departmentSnapshotUpdate.updatedBy}</p>
+            </div>
+          )}
+
+          {!loading && !snapshotLatest && !error && (
+            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
+              No department snapshot has been submitted yet.
+            </p>
+          )}
           <div className="mt-4 space-y-2.5">
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -993,48 +1032,6 @@ export function DirectorShiftStatusClient({
           </div>
         </section>
 
-        <section className="rounded-[2rem] border border-white/80 bg-white/95 p-4 shadow-soft">
-          <div className="grid grid-cols-[2.75rem_1fr_2.75rem] items-start gap-3">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-              <Building2 size={22} />
-            </span>
-            <div className="min-w-0 text-center">
-              <h2 className="text-xl font-black leading-tight text-hospital-ink">Department Snapshot</h2>
-              {snapshotSourceShift && (
-                <p className="mt-1 text-xs font-black text-slate-500">{snapshotSourceShift}</p>
-              )}
-            </div>
-            <span aria-hidden="true" />
-          </div>
-          {(snapshotLatest || officialVent || activeRentalCount !== null) && (
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {(snapshotLatest || officialVent) && (
-                <SnapshotCard icon={<Wind size={20} />} label="Vents" value={displayedVentCount ?? "—"} />
-              )}
-              {snapshotLatest && (
-                <>
-                  <SnapshotCard icon={<Activity size={20} />} label="BiPAPs" value={snapshotLatest.bipap_count} />
-                  <SnapshotCard icon={<CalendarCheck size={20} />} label="Scheduled Procedures" value={snapshotProcedureTotal} />
-                </>
-              )}
-              <SnapshotCard icon={<Building2 size={20} />} label="Active Rentals" value={activeRentalCount ?? "None"} />
-            </div>
-          )}
-
-          {departmentSnapshotUpdate && (
-            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(departmentSnapshotUpdate.updatedAt, timezone)}</p>
-              <p>Updated by: {departmentSnapshotUpdate.updatedBy}</p>
-            </div>
-          )}
-
-          {!loading && !snapshotLatest && !error && (
-            <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
-              No department snapshot has been submitted yet.
-            </p>
-          )}
-        </section>
-
         <DirectorDashboardIcuSummary
           departmentId={authContext.departmentId}
           officialVent={officialVent}
@@ -1065,12 +1062,6 @@ export function DirectorShiftStatusClient({
               value={latest?.bubble_cpap_count ?? "—"}
             />
           </div>
-          {latest && (
-            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(latest.updated_at, timezone)}</p>
-              <p>Updated by: {updatedByName(latest)}</p>
-            </div>
-          )}
           {!loading && !latest && !error && (
             <p className="mt-3 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-4 text-center text-sm font-bold leading-6 text-slate-500">
               No Special Care Nursery counts have been submitted yet.
@@ -1099,12 +1090,6 @@ export function DirectorShiftStatusClient({
             <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
               Other note: {currentProcedureCounts.note}
             </p>
-          )}
-          {procedureLatest && (
-            <div className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-              <p>Last updated: {formatShiftStatusTime(procedureLatest.updated_at, timezone)}</p>
-              <p>Updated by: {updatedByName(procedureLatest)}</p>
-            </div>
           )}
         </section>
 
@@ -1581,7 +1566,7 @@ export function DirectorShiftStatusClient({
 
         <p className="flex items-center justify-center gap-2 text-center text-xs font-bold text-slate-500">
           <Activity size={14} />
-          Read-only dashboard. Updates come from the Command Center.
+          Clinical updates come from Command Center.
         </p>
       </div>
     </main>

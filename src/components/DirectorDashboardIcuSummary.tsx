@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Wind, X } from "lucide-react";
+import { useMemo } from "react";
+import Link from "next/link";
+import { FileText, Wind } from "lucide-react";
 import {
-  IcuReadOnlyCard,
   IcuSnapshotCard,
   latestIcuSnapshotRecord,
   useIcuPatients
@@ -41,13 +41,8 @@ export function DirectorDashboardIcuSummaryView({
   officialVentError,
   timezone,
   records,
-  rawIcuLoading,
-  rawIcuError,
-  onReload
+  rawIcuError
 }: DirectorDashboardIcuSummaryViewProps) {
-  const [detailOpen, setDetailOpen] = useState(false);
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const latestSnapshotRecord = useMemo(
     () => latestIcuSnapshotRecord(records),
     [records]
@@ -70,54 +65,6 @@ export function DirectorDashboardIcuSummaryView({
       ),
     [latestSnapshotRecord, officialVent]
   );
-
-  useEffect(() => {
-    if (!detailOpen) {
-      return;
-    }
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-    closeButtonRef.current?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setDetailOpen(false);
-        return;
-      }
-
-      if (event.key !== "Tab" || !dialogRef.current) {
-        return;
-      }
-
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
-        )
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (!first || !last) {
-        event.preventDefault();
-        return;
-      }
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [detailOpen]);
 
   return (
     <section
@@ -164,74 +111,13 @@ export function DirectorDashboardIcuSummaryView({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setDetailOpen(true)}
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
+      <Link
+        href="/director/icu-report"
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-700 bg-white px-4 text-sm font-black text-cyan-700 shadow-sm"
       >
-        View All
-      </button>
-
-      {detailOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="director-icu-detail-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-                  Read-only report
-                </p>
-                <h2
-                  id="director-icu-detail-title"
-                  className="mt-1 text-2xl font-black text-hospital-ink"
-                >
-                  ICU Detail
-                </h2>
-              </div>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                onClick={() => setDetailOpen(false)}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {rawIcuLoading && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-sm font-bold text-slate-500">
-                  Loading ICU detail...
-                </p>
-              )}
-              {!rawIcuLoading && records.length === 0 && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No active ICU respiratory devices.
-                </p>
-              )}
-              {!rawIcuLoading &&
-                records.map((record) => (
-                  <IcuReadOnlyCard key={record.id} record={record} />
-                ))}
-            </div>
-
-            <button
-              type="button"
-              onClick={onReload}
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-            >
-              <RefreshCw size={16} />
-              Refresh
-            </button>
-          </section>
-        </div>
-      )}
+        <FileText size={17} aria-hidden="true" />
+        ICU Report
+      </Link>
     </section>
   );
 }

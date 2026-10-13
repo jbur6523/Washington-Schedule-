@@ -1,5 +1,6 @@
 import type { ShiftStatusShiftType, ShiftStatusUpdate } from "@/lib/shift-status/types";
-import { currentClinicalShiftRecordForInstant } from "@/lib/shift-status/reporting-window";
+import { addIsoDays } from "@/lib/shift-status/reporting-window";
+import { timeZoneParts } from "@/lib/time/zoned-date-time";
 import {
   currentShiftStatusWindow,
   latestShiftStatus,
@@ -158,7 +159,13 @@ export function resolveDirectorCurrentClinicalShift(
   timezone = "America/Los_Angeles",
   date = new Date()
 ): DirectorShiftStatusResolution {
-  const currentWindow = currentClinicalShiftRecordForInstant(date, timezone);
+  const parts = timeZoneParts(date, timezone);
+  const localDate = `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+  // Leadership reporting cutoffs are distinct from the clinical shift start.
+  const currentWindow = {
+    shiftDate: parts.hour < 5 ? addIsoDays(localDate, -1) : localDate,
+    shiftType: (parts.hour >= 5 && parts.hour < 17 ? "day" : "night") as ShiftStatusShiftType
+  };
   const currentSequence = shiftSequenceValue(currentWindow.shiftDate, currentWindow.shiftType);
   const eligible = updates.filter(
     (update) =>

@@ -40,7 +40,7 @@ function reportFooter(text: string) {
   return `<footer class="report-footer">${escapeHtml(text)}</footer>`;
 }
 
-export function buildIcuRoundingReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
+export function buildIcuRoundingReport(records: IcuPatientRecord[], department: string, generatedAt = new Date(), showPrintToolbar = true) {
   const active = records.filter(record => record.is_active);
   const footerText = `${department} · ${active.length} active ${active.length === 1 ? "patient" : "patients"} · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`;
   const row = (label: string, value: string) => value ? `<div class="row"><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>` : "";
@@ -77,7 +77,7 @@ export function buildIcuRoundingReport(records: IcuPatientRecord[], department: 
     @media print { body { margin: 0; padding: 0; max-width: none; } .toolbar { display: none; } }
     ${sheetLayoutCss(footerText)}
   </style></head><body>
-    <div class="toolbar"><button id="print-report" type="button">Print Report</button></div>
+    ${showPrintToolbar ? '<div class="toolbar"><button id="print-report" type="button">Print Report</button></div>' : ""}
     <header class="report-header"><h1>WHHS ICU Rounding Report</h1>${deviceCountSummary(active)}</header>
     ${patients || "<p>No active ICU patients listed.</p>"}
     ${reportFooter(footerText)}

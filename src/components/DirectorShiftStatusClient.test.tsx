@@ -29,6 +29,7 @@ vi.mock("@/components/DirectorDashboardIcuSummary", () => ({
 }));
 
 vi.mock("@/components/DepartmentAnnouncement", () => ({
+  LeadershipDepartmentAnnouncement: () => <section aria-label="Department Announcement">Department Announcement</section>,
   DepartmentAnnouncementManagerDialog: ({ open, onClose }: { open: boolean; onClose: () => void }) =>
     open ? (
       <div role="dialog" aria-label="Announcement Board">
@@ -159,9 +160,11 @@ describe("DirectorShiftStatusClient persistent cards", () => {
       await vi.advanceTimersByTimeAsync(1);
     });
 
-    const statusCard = screen.getByRole("heading", { name: "Current Shift Status" }).closest("section");
+    const statusCard = screen.getByRole("heading", { name: "Latest Reported Shift" }).closest("section");
     const snapshotCard = screen.getByRole("heading", { name: "Department Snapshot" }).closest("section");
     expect(statusCard).not.toBeNull();
+    expect(within(statusCard as HTMLElement).getByText("Awaiting current shift update")).toBeInTheDocument();
+    expect(within(statusCard as HTMLElement).getAllByText(/Last updated:/)).toHaveLength(1);
     expect(snapshotCard).not.toBeNull();
     expect(within(statusCard as HTMLElement).getByText("08/08 Night Shift")).toBeInTheDocument();
     expect(within(statusCard as HTMLElement).getByText("RTs On Shift").parentElement).toHaveTextContent("0");
@@ -194,8 +197,8 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     view.unmount();
   });
 
-  it("holds an early Night submission until 18:30, then switches the complete displayed snapshot", async () => {
-    vi.setSystemTime(new Date("2026-08-10T01:29:30.000Z"));
+  it("holds an early Night submission until 17:00, then switches the complete displayed snapshot", async () => {
+    vi.setSystemTime(new Date("2026-08-09T23:59:30.000Z"));
     const day = {
       ...prior,
       id: "day-status",
@@ -219,8 +222,8 @@ describe("DirectorShiftStatusClient persistent cards", () => {
       bipap_count: 4,
       c_section_count: 3,
       shift_note: "Night note becomes visible",
-      created_at: "2026-08-10T00:30:00.000Z",
-      updated_at: "2026-08-10T00:30:00.000Z"
+      created_at: "2026-08-09T21:00:00.000Z",
+      updated_at: "2026-08-09T21:00:00.000Z"
     };
     mocks.fetchDirector.mockResolvedValue({
       data: [earlyNight, day],
@@ -450,7 +453,7 @@ describe("DirectorShiftStatusClient persistent cards", () => {
     expect(screen.queryByRole("dialog", { name: "Leadership Menu" })).not.toBeInTheDocument();
     expect(mocks.signOut).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByRole("heading", { name: "Current Shift Status" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Latest Reported Shift" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Department Snapshot" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Special Care Nursery" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Scheduled Procedures" })).toBeInTheDocument();

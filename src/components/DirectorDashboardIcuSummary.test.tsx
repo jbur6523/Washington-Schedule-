@@ -122,6 +122,8 @@ describe("DirectorDashboardIcuSummary", () => {
     expect(region).not.toHaveTextContent("Vents source:");
     expect(region).not.toHaveTextContent("ICU details updated:");
     expect(region).not.toHaveTextContent("Vents updated by:");
+    expect(within(region).getByRole("link", { name: "ICU Report" })).toHaveAttribute("href", "/director/icu-report");
+    expect(within(region).queryByRole("button", { name: "View All" })).not.toBeInTheDocument();
   });
 
   it("keeps a valid zero from a prior date after refresh and unrelated ICU detail updates", () => {

@@ -409,12 +409,46 @@ export function DepartmentAnnouncementBoard({
   );
 }
 
+export function LeadershipDepartmentAnnouncement({ authContext, timezone }: { authContext: AuthenticatedUserContext; timezone: string }) {
+  const { announcement, loading, error, refresh } = useDepartmentAnnouncement(authContext.departmentId);
+  const [expanded, setExpanded] = useState(false);
+  const [mode, setMode] = useState<"edit" | "new" | null>(null);
+  const closeEditor = useCallback(() => { setMode(null); void refresh(); }, [refresh]);
+
+  return (
+    <section aria-label="Department Announcement" className="rounded-2xl border border-amber-200 bg-amber-50/95 px-4 py-3">
+      <h2 className="flex items-center gap-2 text-xs font-extrabold text-amber-800"><Megaphone size={16} className="shrink-0" aria-hidden="true" />Department Announcement</h2>
+      {error ? <p role="alert" className="mt-2 text-sm font-bold text-red-700">{error}</p> : loading ? <p className="mt-2 text-sm text-slate-500">Loading announcement…</p> : announcement ? <>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="min-w-0 break-words text-sm font-extrabold text-hospital-ink">{announcement.title}</h3>
+          <button type="button" aria-expanded={expanded} aria-controls="leadership-announcement-details" onClick={() => setExpanded((value) => !value)} className="min-h-11 shrink-0 rounded-lg px-2 text-xs font-extrabold text-amber-800 hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-600">{expanded ? "Show less" : "Show more"}</button>
+        </div>
+        <div id="leadership-announcement-details" hidden={!expanded}>
+          <AnnouncementMessage message={announcement.message} />
+          <p className="mt-3 text-xs font-bold text-slate-500">Updated {formatShiftStatusTime(announcement.updated_at, timezone)} by {announcement.updated_by_name}</p>
+        </div>
+      </> : <p className="mt-3 text-sm font-semibold text-slate-500">There are no current announcements.</p>}
+      {canManageDepartmentAnnouncement(authContext) && (!announcement || expanded) && <div className="mt-2 flex flex-wrap gap-2">
+        {announcement && <button type="button" onClick={() => setMode("edit")} className="min-h-11 rounded-2xl border border-amber-200 bg-white px-4 text-sm font-extrabold text-amber-900">Edit Announcement</button>}
+        <button type="button" onClick={() => setMode("new")} className="min-h-11 rounded-2xl bg-hospital-ink px-4 text-sm font-extrabold text-white">Post New Announcement</button>
+      </div>}
+      <AnnouncementModal open={mode !== null} titleId="leadership-announcement-title" closeLabel="Close announcement editor" onClose={closeEditor}>
+        <h2 id="leadership-announcement-title" className="text-xl font-black text-hospital-ink">{mode === "new" ? "Post New Announcement" : "Edit Announcement"}</h2>
+        <p className="mt-2 text-sm text-slate-500">This appears on every employee schedule. Posting a new announcement replaces the current announcement.</p>
+        <div className="mt-4"><DepartmentAnnouncementEditor key={mode} departmentId={authContext.departmentId} timezone={timezone} startNew={mode === "new"} /></div>
+      </AnnouncementModal>
+    </section>
+  );
+}
+
 export function DepartmentAnnouncementEditor({
   departmentId,
-  timezone
+  timezone,
+  startNew = false
 }: {
   departmentId: string;
   timezone: string;
+  startNew?: boolean;
 }) {
   const { announcement, loading, error: loadError, setAnnouncement } = useDepartmentAnnouncement(departmentId);
   const [success, setSuccess] = useState("");
@@ -423,7 +457,7 @@ export function DepartmentAnnouncementEditor({
   return (
     <DepartmentAnnouncementEditorForm
       key={announcement?.updated_at ?? "empty"}
-      announcement={announcement}
+      announcement={startNew && !success ? null : announcement}
       loading={loading}
       loadError={loadError}
       timezone={timezone}
