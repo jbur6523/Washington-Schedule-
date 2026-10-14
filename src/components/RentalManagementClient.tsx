@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { ArrowLeft, History, Minus, Plus, ScanBarcode } from "lucide-react";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasRentalManagementAccess } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/client";
@@ -906,26 +907,26 @@ export function RentalManagementClient({
   function table(rows: Rental[], history = false) {
     return (
       <table className="w-full table-fixed text-left text-xs sm:text-sm">
-        <thead
-          className={`border-b text-xs ${history ? "border-slate-300 bg-slate-200 text-slate-700" : "border-teal-200 bg-teal-100 text-teal-900"}`}
-        >
+        <thead className="border-y border-slate-100 bg-slate-100/90 text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
           <tr>
-            <th className="w-[25%] p-2">Status</th>
-            <th className="w-[29%] p-2">BiPAP Serial Number</th>
-            <th className="w-[22%] p-2">Company</th>
-            <th className="w-[24%] p-2 text-center">Update</th>
+            <th className="w-[27%] px-2 py-3 sm:px-4">Status</th>
+            <th className="w-[26%] px-2 py-3 sm:px-4">BiPAP Serial Number</th>
+            <th className="w-[20%] px-1 py-3 sm:px-3">Company</th>
+            <th className="w-[27%] px-2 py-3 text-center sm:px-3">Update</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((record, index) => {
+          {rows.map((record) => {
             const state = rentalState(record.status);
             return (
               <Fragment key={record.id}>
-                <tr
-                  className={`border-b border-slate-200 align-middle ${index % 2 === 0 ? "bg-white" : history ? "bg-slate-50" : "bg-teal-50"}`}
-                >
-                  <td className={`p-1 font-bold sm:p-2 ${state.color}`}>
-                    <span className="inline-flex items-center gap-1.5">
+                <tr className="border-b border-slate-200/80 bg-white align-middle last:border-b-0">
+                  <td
+                    className={`px-2 py-4 font-bold sm:px-4 sm:py-5 ${state.color}`}
+                  >
+                    <span
+                      className={`inline-flex min-h-8 items-center gap-1.5 rounded-2xl px-2 py-2 leading-tight sm:px-3 ${state.action === "delivery" ? "bg-blue-50" : state.action === "pickup" ? "bg-green-50" : state.action === "returned" ? "bg-yellow-50" : "bg-slate-100"}`}
+                    >
                       <span
                         aria-hidden="true"
                         className={`h-2.5 w-2.5 shrink-0 rounded-full ${state.dot}`}
@@ -933,13 +934,13 @@ export function RentalManagementClient({
                       <span className="min-w-0 break-words">{state.label}</span>
                     </span>
                   </td>
-                  <td className="break-words p-2">
+                  <td className="break-words px-1 py-4 text-slate-900 sm:px-3">
                     {record.serial_number || "—"}
                   </td>
-                  <td className="break-words p-2">
+                  <td className="break-words px-1 py-4 text-slate-900 sm:px-3">
                     {vendorName(record).replace(" Equipment", "")}
                   </td>
-                  <td className="p-1 text-center align-middle sm:p-2">
+                  <td className="px-2 py-4 text-center align-middle sm:px-3">
                     {!history && state.action && (
                       <button
                         disabled={saving}
@@ -952,7 +953,7 @@ export function RentalManagementClient({
                     )}
                     <button
                       disabled={saving}
-                      className="min-h-9 w-full text-xs text-slate-500 underline"
+                      className="min-h-9 w-full text-[11px] text-cyan-800 underline underline-offset-2 sm:text-sm"
                       onClick={() => {
                         setEditor(null);
                         setScanner(false);
@@ -1004,7 +1005,7 @@ export function RentalManagementClient({
     )
     .reverse();
   return (
-    <main className="min-h-screen bg-slate-100 px-2 py-4 sm:px-4">
+    <main className="min-h-screen bg-[#f1f5f9] px-3 py-5 sm:px-6 sm:py-7">
       {popupOpen && (
         <RentalPopup
           title={editor.action === "delivery" ? "Delivered" : "Return BiPAP"}
@@ -1017,9 +1018,9 @@ export function RentalManagementClient({
           {renderForm()}
         </RentalPopup>
       )}
-      <div className="mx-auto max-w-3xl rounded-2xl bg-slate-50 p-2 shadow-soft sm:p-4">
-        <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-cyan-100 px-3 py-2">
-          <h1 className="text-lg font-black text-hospital-ink">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-5 flex items-center justify-between gap-3 px-1">
+          <h1 className="text-xl font-extrabold tracking-tight text-hospital-ink sm:text-3xl">
             BiPAP Rental Management
           </h1>
           <Link
@@ -1030,8 +1031,9 @@ export function RentalManagementClient({
                   ? "/admin"
                   : "/operations"
             }
-            className="min-h-11 py-3 text-xs font-bold text-cyan-700"
+            className="inline-flex min-h-11 shrink-0 items-center gap-1.5 text-sm font-bold text-cyan-700 sm:text-base"
           >
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
             Back
           </Link>
         </div>
@@ -1043,29 +1045,34 @@ export function RentalManagementClient({
             </button>
           </p>
         )}
-        <div className="mb-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
-          <button
-            disabled={loading || saving || !vendors.some((v) => v.is_active)}
-            className={`${buttonClass} block`}
-            aria-expanded={editor?.action === "order"}
-            onClick={() => begin("order")}
-          >
-            + Order BiPAP
-          </button>
-          <button
-            disabled={loading || saving}
-            className="mb-2 block min-h-11 px-3 text-xs text-cyan-700 underline"
-            aria-expanded={lookupOpen}
-            onClick={() => {
-              setLookupOpen(!lookupOpen);
-              setLookupScanner(false);
-            }}
-          >
-            Find / Scan
-          </button>
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm sm:mb-5 sm:p-4">
+          <div className="grid grid-cols-2 items-center gap-3 sm:gap-5">
+            <button
+              aria-label="+ Order BiPAP"
+              disabled={loading || saving || !vendors.some((v) => v.is_active)}
+              className={`${buttonClass} inline-flex min-h-12 items-center justify-center gap-2 sm:min-h-14 sm:text-base`}
+              aria-expanded={editor?.action === "order"}
+              onClick={() => begin("order")}
+            >
+              <Plus aria-hidden="true" className="h-6 w-6 shrink-0" />
+              Order BiPAP
+            </button>
+            <button
+              disabled={loading || saving}
+              className="inline-flex min-h-11 items-center justify-center gap-2 border-l border-slate-200 pl-3 text-sm font-bold text-cyan-700 disabled:opacity-50 sm:text-base"
+              aria-expanded={lookupOpen}
+              onClick={() => {
+                setLookupOpen(!lookupOpen);
+                setLookupScanner(false);
+              }}
+            >
+              <ScanBarcode aria-hidden="true" className="h-6 w-6 shrink-0" />
+              Find / Scan
+            </button>
+          </div>
           {lookupOpen && (
             <form
-              className="mb-3 space-y-2"
+              className="mt-4 space-y-2 border-t border-slate-200 pt-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 findEquipment(lookup);
@@ -1106,10 +1113,26 @@ export function RentalManagementClient({
             </form>
           )}
           {editor?.action === "order" && (
-            <div className="mb-3">{renderForm()}</div>
+            <div className="mt-4">{renderForm()}</div>
           )}
         </div>
-        <div className="overflow-hidden rounded-lg border border-teal-200 bg-teal-50">
+        <section
+          aria-labelledby="active-rentals-title"
+          className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div className="flex items-center justify-between gap-3 px-3 py-4 sm:px-5">
+            <h2
+              id="active-rentals-title"
+              className="text-lg font-extrabold text-hospital-ink sm:text-xl"
+            >
+              Active Rentals
+            </h2>
+            {!loading && (
+              <span className="text-xs text-slate-500 sm:text-sm">
+                {current.length} {current.length === 1 ? "device" : "devices"}
+              </span>
+            )}
+          </div>
           {loading ? (
             <p role="status" className="p-2 text-sm">
               Loading rentals…
@@ -1124,14 +1147,23 @@ export function RentalManagementClient({
               )}
             </>
           )}
-        </div>
-        <section className="mt-3 rounded-lg border border-slate-300 bg-slate-100 p-2 sm:p-3">
+        </section>
+        <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm sm:mt-5 sm:p-4">
           <button
-            className="min-h-11 text-sm font-bold text-cyan-700"
+            className="flex min-h-11 w-full items-center gap-3 text-left text-lg font-extrabold text-hospital-ink sm:text-xl"
+            aria-label={`Rental History ${historyOpen ? "−" : "+"}`}
             aria-expanded={historyOpen}
             onClick={() => setHistoryOpen(!historyOpen)}
           >
-            Rental History {historyOpen ? "−" : "+"}
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+              <History aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <span className="flex-1">Rental History</span>
+            {historyOpen ? (
+              <Minus aria-hidden="true" className="h-6 w-6 text-slate-500" />
+            ) : (
+              <Plus aria-hidden="true" className="h-6 w-6 text-slate-500" />
+            )}
           </button>
           {historyOpen && (
             <>
