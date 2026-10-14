@@ -681,6 +681,11 @@ export function RentalManagementClient({
                 <hr className="my-4 border-0 border-t-2 border-slate-400" />
               )}
               <fieldset
+                aria-labelledby={
+                  editor.action === "return_update"
+                    ? `rental-return-${stage}-title`
+                    : undefined
+                }
                 disabled={
                   editor.action === "return_update" &&
                   stage === "pickup" &&
@@ -693,13 +698,14 @@ export function RentalManagementClient({
                 }
               >
                 {editor.action === "return_update" && (
-                  <legend
+                  <h3
+                    id={`rental-return-${stage}-title`}
                     className={`mx-auto mb-2 px-2 text-center font-bold ${stage === "pickup" ? "text-yellow-900" : "text-red-800"}`}
                   >
                     {stage === "pickup"
                       ? "Called for Pick Up"
                       : "Picked Up by Company"}
-                  </legend>
+                  </h3>
                 )}
                 <RentalEventFields
                   label={
