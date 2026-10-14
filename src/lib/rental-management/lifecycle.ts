@@ -43,7 +43,7 @@ export function rentalState(status: string) {
     ["pickup_requested", "pickup_called", "called_for_pickup"].includes(status)
   )
     return {
-      label: "Pending Pick-up",
+      label: "Awaiting Pickup",
       action: "returned" as Stage,
       button: "Picked Up",
       color: "text-yellow-800",

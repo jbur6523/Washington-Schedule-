@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -74,7 +75,8 @@ type Audit = {
   staff_profiles: Related;
   event_data: Record<string, unknown>;
 };
-type Action = Stage | "edit" | "cancel_delivery" | "cancel_pickup";
+type Action =
+  Stage | "return_update" | "edit" | "cancel_delivery" | "cancel_pickup";
 type Editor = {
   record: Rental | null;
   action: Action;
@@ -120,10 +122,7 @@ function personFor(record: Rental, stage: Stage): Attribution {
 function atFor(record: Rental, stage: Stage) {
   return record[
     stageColumns[stage] as
-      | "called_in_at"
-      | "checked_in_at"
-      | "pickup_requested_at"
-      | "returned_at"
+      "called_in_at" | "checked_in_at" | "pickup_requested_at" | "returned_at"
   ];
 }
 
@@ -132,78 +131,143 @@ export function RentalEventFields({
   value,
   staff,
   onChange,
+  dateFirst = false,
+  children,
 }: {
+  dateFirst?: boolean;
+  children?: ReactNode;
   label: string;
   value: EventInput;
   staff: Staff[];
   onChange: (value: EventInput) => void;
 }) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr]">
-      <div>
-        <label className="block text-xs font-bold">
-          {label}
-          <select
-            className={inputClass}
-            value={value.staffId}
-            onChange={(e) =>
-              onChange({
-                ...value,
-                staffId: e.target.value,
-                name:
-                  e.target.value === "manual"
-                    ? ""
-                    : (staff.find((s) => s.id === e.target.value)
-                        ?.display_name ?? ""),
-              })
-            }
-          >
-            <option value="">Select name</option>
-            {staff.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.display_name}
-              </option>
-            ))}
-            <option value="manual">Insert Name</option>
-          </select>
-        </label>
-        {value.staffId === "manual" && (
-          <label className="mt-2 block text-xs font-bold">
-            Name
-            <input
-              autoFocus
-              type="text"
-              className={inputClass}
-              maxLength={120}
-              value={value.name}
-              onChange={(e) => onChange({ ...value, name: e.target.value })}
-            />
-          </label>
-        )}
-      </div>
-      <div className="col-span-1 grid grid-cols-2 gap-2 sm:col-span-2">
-        <label className="text-xs font-bold">
-          Date
+  const nameField = (
+    <div>
+      <label className="block text-xs font-bold">
+        {label}
+        <select
+          className={inputClass}
+          value={value.staffId}
+          onChange={(e) =>
+            onChange({
+              ...value,
+              staffId: e.target.value,
+              name:
+                e.target.value === "manual"
+                  ? ""
+                  : (staff.find((s) => s.id === e.target.value)?.display_name ??
+                    ""),
+            })
+          }
+        >
+          <option value="">Select name</option>
+          {staff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.display_name}
+            </option>
+          ))}
+          <option value="manual">Insert Name</option>
+        </select>
+      </label>
+      {value.staffId === "manual" && (
+        <label className="mt-2 block text-xs font-bold">
+          {label === "Name" ? "Enter name" : "Name"}
           <input
+            autoFocus
             type="text"
-            placeholder="MM/DD/YYYY"
             className={inputClass}
-            value={value.date}
-            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            maxLength={120}
+            value={value.name}
+            onChange={(e) => onChange({ ...value, name: e.target.value })}
           />
         </label>
-        <label className="text-xs font-bold">
-          Time
-          <input
-            type="text"
-            placeholder="HH:mm"
-            className={inputClass}
-            value={value.time}
-            onChange={(e) => onChange({ ...value, time: e.target.value })}
-          />
-        </label>
-      </div>
+      )}
     </div>
+  );
+  const dateFields = (
+    <div className="col-span-1 grid grid-cols-2 gap-2 sm:col-span-2">
+      <label className="text-xs font-bold">
+        Date
+        <input
+          type="text"
+          placeholder="MM/DD/YYYY"
+          className={inputClass}
+          value={value.date}
+          onChange={(e) => onChange({ ...value, date: e.target.value })}
+        />
+      </label>
+      <label className="text-xs font-bold">
+        Time
+        <input
+          type="text"
+          placeholder="HH:mm"
+          className={inputClass}
+          value={value.time}
+          onChange={(e) => onChange({ ...value, time: e.target.value })}
+        />
+      </label>
+    </div>
+  );
+  return (
+    <div
+      className={
+        dateFirst
+          ? "flex flex-col gap-2"
+          : "grid gap-2 sm:grid-cols-[2fr_1fr_1fr]"
+      }
+    >
+      {dateFirst ? (
+        <>
+          {dateFields}
+          {children}
+          {nameField}
+        </>
+      ) : (
+        <>
+          {nameField}
+          {dateFields}
+          {children}
+        </>
+      )}
+    </div>
+  );
+}
+
+function RentalPopup({
+  title,
+  children,
+  onClose,
+  saving,
+}: {
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+  saving: boolean;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    dialog.current?.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+      previous?.focus();
+    };
+  }, []);
+  return (
+    <dialog
+      ref={dialog}
+      aria-label={title}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!saving) onClose();
+      }}
+      className="fixed inset-0 m-auto max-h-[90dvh] w-[calc(100%_-_1rem)] max-w-lg overflow-y-auto rounded-xl border border-cyan-200 bg-sky-50 p-4 text-hospital-ink shadow-xl backdrop:bg-slate-900/50"
+    >
+      <h2 className="mb-3 text-lg font-bold">{title}</h2>
+      {children}
+    </dialog>
   );
 }
 
@@ -335,6 +399,7 @@ export function RentalManagementClient({
 
   function begin(action: Action, record: Rental | null = null) {
     if (saveLock.current) return;
+    if (action === "pickup" || action === "returned") action = "return_update";
     const eligible = staff.find((s) => s.id === authContext.staffProfileId);
     const initial = {
       staffId: eligible?.id ?? "",
@@ -353,6 +418,21 @@ export function RentalManagementClient({
             : "manual",
           name: person.name,
           ...localFields(at, timezone),
+        };
+      }
+    } else if (action === "return_update") {
+      events.pickup = { ...initial, staffId: "", name: "" };
+      events.returned = { ...initial, staffId: "", name: "" };
+      if (record?.pickup_requested_at) {
+        const person = personFor(record, "pickup");
+        events.pickup = {
+          staffId: staff.some(
+            (employee) => employee.id === person.staff_profile_id,
+          )
+            ? person.staff_profile_id!
+            : "manual",
+          name: person.name,
+          ...localFields(record.pickup_requested_at, timezone),
         };
       }
     } else
@@ -416,6 +496,17 @@ export function RentalManagementClient({
           JSON.stringify(editor.originalEvents[stage as Stage])
       )
         continue;
+      if (editor.action === "return_update") {
+        if (stage === "pickup" && editor.record?.pickup_requested_at) continue;
+        const original = editor.originalEvents[stage as Stage];
+        if (
+          !value.staffId &&
+          !value.name.trim() &&
+          ((!value.date && !value.time) ||
+            (value.date === original?.date && value.time === original?.time))
+        )
+          continue;
+      }
       const at = eventTimestamp(value.date, value.time, timezone);
       if (!at) {
         setFormError(
@@ -434,6 +525,15 @@ export function RentalManagementClient({
           name: value.name.trim(),
         },
       };
+    }
+    if (
+      editor.action === "return_update" &&
+      !Object.keys(stagePayload).length
+    ) {
+      setFormError(
+        "Enter a name for Called for Pick Up or Picked Up by Company.",
+      );
+      return;
     }
     if (editor.action === "delivery" && !editor.serial.trim()) {
       setFormError("Serial Number is required.");
@@ -457,7 +557,7 @@ export function RentalManagementClient({
       serial_number: editor.serial.trim(),
       barcode_number: editor.barcode.trim(),
       scanned: editor.scanned,
-      ...(editor.action === "edit"
+      ...(editor.action === "edit" || editor.action === "return_update"
         ? { stages: stagePayload }
         : (Object.values(stagePayload)[0] as object)),
     };
@@ -513,6 +613,23 @@ export function RentalManagementClient({
   }
   const vendorName = (record: Rental) =>
     vendors.find((v) => v.id === record.vendor_id)?.name ?? "—";
+  function serialField() {
+    if (!editor) return null;
+    return (
+      <label className="block text-xs font-bold">
+        Serial Number
+        <input
+          type="text"
+          className={inputClass}
+          maxLength={120}
+          value={editor.serial}
+          onChange={(e) => setEditor({ ...editor, serial: e.target.value })}
+        />
+      </label>
+    );
+  }
+  const popupOpen =
+    editor?.action === "delivery" || editor?.action === "return_update";
   function renderForm() {
     if (!editor) return null;
     return (
@@ -559,33 +676,49 @@ export function RentalManagementClient({
             </div>
           )}
           {Object.entries(editor.events).map(([stage, value]) => (
-            <RentalEventFields
+            <fieldset
               key={stage}
-              label={stageLabels[stage as Stage]}
-              value={value}
-              staff={staff}
-              onChange={(next) =>
-                setEditor({
-                  ...editor,
-                  events: { ...editor.events, [stage]: next },
-                })
+              disabled={
+                editor.action === "return_update" &&
+                stage === "pickup" &&
+                !!editor.record?.pickup_requested_at
               }
-            />
+              className="space-y-2"
+            >
+              {editor.action === "return_update" && (
+                <legend className="mb-2 font-bold">
+                  {stage === "pickup"
+                    ? "Called for Pick Up"
+                    : "Picked Up by Company"}
+                </legend>
+              )}
+              <RentalEventFields
+                label={
+                  editor.action === "delivery" ||
+                  editor.action === "return_update"
+                    ? "Name"
+                    : stageLabels[stage as Stage]
+                }
+                dateFirst={
+                  editor.action === "delivery" ||
+                  editor.action === "return_update"
+                }
+                value={value}
+                staff={staff}
+                onChange={(next) =>
+                  setEditor({
+                    ...editor,
+                    events: { ...editor.events, [stage]: next },
+                  })
+                }
+              >
+                {editor.action === "delivery" && serialField()}
+              </RentalEventFields>
+            </fieldset>
           ))}
           {(editor.action === "delivery" || editor.action === "edit") && (
             <>
-              <label className="block text-xs font-bold">
-                Serial Number
-                <input
-                  type="text"
-                  className={inputClass}
-                  maxLength={120}
-                  value={editor.serial}
-                  onChange={(e) =>
-                    setEditor({ ...editor, serial: e.target.value })
-                  }
-                />
-              </label>
+              {editor.action === "edit" && serialField()}
               <details open={scanner || undefined}>
                 <summary className="cursor-pointer py-2 text-xs font-bold text-cyan-700">
                   Barcode / Scan
@@ -647,7 +780,9 @@ export function RentalManagementClient({
                 ? "Saving…"
                 : editor.action === "order"
                   ? "Order BiPAP"
-                  : "Save"}
+                  : popupOpen
+                    ? "Update"
+                    : "Save"}
             </button>
             <button
               type="button"
@@ -812,7 +947,7 @@ export function RentalManagementClient({
                     </button>
                   </td>
                 </tr>
-                {editor?.record?.id === record.id && (
+                {editor?.record?.id === record.id && !popupOpen && (
                   <tr>
                     <td colSpan={4}>{renderForm()}</td>
                   </tr>
@@ -830,7 +965,13 @@ export function RentalManagementClient({
     );
   }
   if (!permitted) return <p>You do not have access to Rental Management.</p>;
-  const current = records.filter((r) => rentalState(r.status).action);
+  const rank = (record: Rental) =>
+    ({ order: 0, delivery: 0, pickup: 1, returned: 2 })[
+      rentalState(record.status).action ?? "delivery"
+    ];
+  const current = records
+    .filter((r) => rentalState(r.status).action)
+    .sort((a, b) => rank(a) - rank(b));
   const completed = records
     .filter((r) => !rentalState(r.status).action)
     .filter((r) =>
@@ -848,6 +989,18 @@ export function RentalManagementClient({
     .reverse();
   return (
     <main className="min-h-screen bg-slate-100 px-2 py-4 sm:px-4">
+      {popupOpen && (
+        <RentalPopup
+          title={editor.action === "delivery" ? "Delivered" : "Return BiPAP"}
+          saving={saving}
+          onClose={() => {
+            setEditor(null);
+            setScanner(false);
+          }}
+        >
+          {renderForm()}
+        </RentalPopup>
+      )}
       <div className="mx-auto max-w-3xl rounded-2xl bg-slate-50 p-2 shadow-soft sm:p-4">
         <div className="mb-3 flex items-center justify-between gap-2 rounded-lg border border-cyan-200 bg-cyan-100 px-3 py-2">
           <h1 className="text-lg font-black text-hospital-ink">

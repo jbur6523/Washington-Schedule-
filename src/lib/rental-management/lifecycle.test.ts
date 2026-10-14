@@ -34,7 +34,7 @@ describe("rental date/time and legacy statuses", () => {
       "pickup_called",
       "called_for_pickup",
     ])
-      expect(rentalState(status).label).toBe("Pending Pick-up");
+      expect(rentalState(status).label).toBe("Awaiting Pickup");
     for (const status of [
       "returned",
       "picked_up",

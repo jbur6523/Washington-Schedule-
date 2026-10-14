@@ -88,6 +88,9 @@ function record(id: string, status: string) {
   };
 }
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute("open", "");
+  };
   store.records = [];
   store.filters = [];
   store.rpc.mockReset();
@@ -104,12 +107,15 @@ beforeEach(() => {
       status:
         args.action === "delivery"
           ? "active"
-          : args.action === "pickup"
+          : args.action === "pickup" ||
+              (args.action === "return_update" && !args.payload.stages.returned)
             ? "pickup_called"
             : "picked_up",
       serial_number: args.payload.serial_number || item.serial_number,
       updated_at: new Date().toISOString(),
     });
+    if (args.payload.stages?.pickup)
+      item.pickup_requested_at = args.payload.stages.pickup.at;
     return { data: [item], error: null };
   });
 });
@@ -160,7 +166,9 @@ describe("single rental list", () => {
     await waitFor(() =>
       expect(screen.queryByRole("form")).not.toBeInTheDocument(),
     );
-    expect(screen.getAllByText("Pending Delivery", { exact: true })).toHaveLength(2);
+    expect(
+      screen.getAllByText("Pending Delivery", { exact: true }),
+    ).toHaveLength(2);
     expect(store.rpc.mock.calls[0][1].payload.person).toEqual({
       staff_profile_id: null,
       name: "Manual Person",
@@ -170,7 +178,7 @@ describe("single rental list", () => {
     store.records = [record("one", "pending_delivery")];
     await ready();
     click("Delivered");
-    click("Save");
+    click("Update");
     expect(await screen.findByText("Serial Number is required.")).toBeVisible();
     expect(store.rpc).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("Serial Number", { exact: true }), {
@@ -179,7 +187,7 @@ describe("single rental list", () => {
     fireEvent.change(screen.getByLabelText("Date"), {
       target: { value: "02/30/2026" },
     });
-    click("Save");
+    click("Update");
     expect(screen.getByRole("alert")).toHaveTextContent("valid Date");
     fireEvent.change(screen.getByLabelText("Date"), {
       target: { value: "10/13/2026" },
@@ -189,15 +197,27 @@ describe("single rental list", () => {
     expect(screen.getByLabelText("Barcode", { exact: true })).toHaveValue(
       "SCANNED",
     );
-    click("Save");
+    click("Update");
     await screen.findByRole("button", { name: "Return" });
     expect(screen.getByText("100416666")).toBeVisible();
     click("Return");
-    click("Save");
-    await screen.findByText("Pending Pick-up");
+    fireEvent.change(
+      within(
+        screen.getByRole("group", { name: "Called for Pick Up" }),
+      ).getByLabelText("Name"),
+      { target: { value: "lead" } },
+    );
+    click("Update");
+    await screen.findByText("Awaiting Pickup");
     expect(screen.getByText("100416666")).toBeVisible();
     click("Picked Up");
-    click("Save");
+    fireEvent.change(
+      within(
+        screen.getByRole("group", { name: "Picked Up by Company" }),
+      ).getByLabelText("Name"),
+      { target: { value: "aide" } },
+    );
+    click("Update");
     await screen.findByText("No current rentals.");
     click("Rental History +");
     expect(screen.getByText("Returned", { exact: true })).toBeVisible();
@@ -213,6 +233,7 @@ describe("single rental list", () => {
     ];
     await ready();
     click("Return");
+    click("Cancel");
     click("Delivered");
     expect(screen.getAllByRole("form")).toHaveLength(1);
     expect(screen.queryByLabelText("Called in by")).not.toBeInTheDocument();
@@ -265,10 +286,89 @@ describe("single rental list", () => {
       target: { value: "SCAN-123" },
     });
     click("Find");
-    expect(screen.getByLabelText("Called in by")).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Return BiPAP" })).toBeVisible();
     expect(screen.getByText("SN-lookup")).toBeVisible();
   });
 
+  it("sorts pending delivery, active, then pending pickup", async () => {
+    store.records = [
+      record("pickup", "pickup_called"),
+      record("active", "active"),
+      record("delivery", "pending_delivery"),
+    ];
+    await ready();
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => within(r).getAllByRole("cell")[0].textContent),
+    ).toEqual(["Pending Delivery", "Active", "Awaiting Pickup"]);
+  });
+  it.each([false, true])(
+    "allows collection with optional call details: %s",
+    async (includeCall) => {
+      store.records = [record("direct", "active")];
+      await ready();
+      click("Return");
+      click("Update");
+      expect(store.rpc).not.toHaveBeenCalled();
+      fireEvent.change(
+        within(
+          screen.getByRole("group", { name: "Picked Up by Company" }),
+        ).getByLabelText("Name"),
+        { target: { value: "aide" } },
+      );
+      if (includeCall)
+        fireEvent.change(
+          within(
+            screen.getByRole("group", { name: "Called for Pick Up" }),
+          ).getByLabelText("Name"),
+          { target: { value: "lead" } },
+        );
+      click("Update");
+      await screen.findByText("No current rentals.");
+      expect(store.rpc.mock.calls[0][1].action).toBe("return_update");
+      expect(Object.keys(store.rpc.mock.calls[0][1].payload.stages)).toEqual(
+        includeCall ? ["pickup", "returned"] : ["returned"],
+      );
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("uses a delivery dialog with ordered fields and Escape cancellation", async () => {
+    store.records = [record("popup", "pending_delivery")];
+    await ready();
+    click("Delivered");
+    const popup = screen.getByRole("dialog", { name: "Delivered" });
+    expect(
+      Array.from(popup.querySelectorAll("input, select"))
+        .slice(0, 4)
+        .map(
+          (element) =>
+            element
+              .closest("label")
+              ?.textContent?.trim()
+              .split("Select name")[0],
+        ),
+    ).toEqual(["Date", "Time", "Serial Number", "Name"]);
+    fireEvent(popup, new Event("cancel", { bubbles: true, cancelable: true }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(store.rpc).not.toHaveBeenCalled();
+  });
+  it("validates a partially filled optional section", async () => {
+    store.records = [record("partial", "active")];
+    await ready();
+    click("Return");
+    fireEvent.change(
+      within(
+        screen.getByRole("group", { name: "Picked Up by Company" }),
+      ).getByLabelText("Time"),
+      { target: { value: "25:00" } },
+    );
+    click("Update");
+    expect(screen.getByRole("alert")).toHaveTextContent("valid Date");
+    expect(store.rpc).not.toHaveBeenCalled();
+  });
   it("does not render actions for unauthorized staff", () => {
     render(<RentalManagementClient authContext={{ ...auth, role: "staff" }} />);
     expect(screen.queryByRole("button")).not.toBeInTheDocument();

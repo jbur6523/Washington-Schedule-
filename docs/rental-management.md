@@ -6,12 +6,12 @@ Rental Management is a single compact equipment list at `/operations/rental-mana
 
 - **+ Order BiPAP** opens the inline company, quantity, employee, date, and time fields. US Med Equipment and quantity 1 are defaults. One atomic order creates one persistent row per unit (1–20).
 - **Ordered → Delivered** requires a serial number. Barcode entry and the existing ZXing scanner remain available under Barcode / Scan. The equipment location defaults to RT Equipment Room.
-- **Active → Return** records who called for collection and when. The equipment remains in the list as **Pending Pick-up**.
+- **Active → Return** records who called for collection and when. The equipment remains in the list as **Awaiting Pickup**.
 - **Awaiting Pickup → Picked Up** records actual collection and moves the row to **Returned** in Rental History.
 
-Status dots are blue for Pending Delivery, green for Active, and yellow for Pending Pick-up. Find / Scan sits below Order BiPAP, and Update controls are centered. Only one row editor is open at a time. Saving changes the existing row and collapses the editor. Find / Scan supports barcode or serial lookup without leaving the screen. Cancel order and cancel pickup request remain in Edit / Details.
+Status dots are blue for Pending Delivery, green for Active, and yellow for Awaiting Pickup. Find / Scan sits below Order BiPAP, and Update controls are centered. Only one editor or modal is open at a time. Saving changes the existing row and collapses the editor. Find / Scan supports barcode or serial lookup without leaving the screen. Cancel order and cancel pickup request remain in Edit / Details.
 
-Every action uses the same employee selector: active Schedule employees with `assigned_role = lead`, `operations_role = aide`, or `home_assignment = rt_aide`, then Insert Name. Insert Name opens a text field. Eligible signed-in employees are preselected; shared accounts and other users explicitly choose the operational employee.
+Every action uses the same employee selector: active Schedule employees with `assigned_role = lead`, `operations_role = aide`, or `home_assignment = rt_aide`, then Insert Name. Insert Name opens a text field. Eligible signed-in employees are preselected for orders and delivery. Optional return sections start with no selected name to prevent accidental completion; shared accounts and other users explicitly choose the operational employee.
 
 Date and Time are plain text fields, `MM/DD/YYYY` and `HH:mm` (24-hour). Defaults use the department's hospital timezone. Validation rejects invalid dates, invalid clock values, skipped spring DST times, and out-of-order lifecycle timestamps. Repeated autumn DST times use the shared time helper's deterministic earlier occurrence. Unchanged historical timestamps are not round-tripped through the editor, preserving their exact instant and precision.
 
@@ -80,3 +80,9 @@ Changed source files:
 - `docs/rental-management.md`
 
 Production migration applied on 2026-10-13 as version 20261013235049 before the application release. Verified all 23 rentals and 98 audit events were retained; anonymous RPC execution is denied. The connector security advisor ran successfully: the new RPC has the intentional authenticated SECURITY DEFINER advisory and enforces existing department permissions. Other advisor findings concern existing functions and Auth settings outside this change. See https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable .
+
+## Popup workflow follow-up
+
+Migration `20261014002754_rental_return_popup.sql` replaces only the existing RPC function, adding an atomic `return_update` action and allowing actual collection directly from Active. Both event records and authenticated/operational attribution are retained when recording both sections. No tables or existing records change. Apply before releasing this UI. Local database regression suite: 36 assertions passed, including collection-only, call-only, combined events, invalid chronology rollback, duplicate submissions, and existing permission checks.
+
+Follow-up validation: full suite 648 tests passed before the final label/accessibility refinements; all 14 targeted component/lifecycle tests passed afterward. ESLint and TypeScript/production build pass. No browser surface was available for a new visual smoke test. Follow-up production release authorized on 2026-10-13. Migration 20261014002754 applied before pushing the UI; all 24 rental records and 100 audit events were retained, with anonymous execution still denied.
