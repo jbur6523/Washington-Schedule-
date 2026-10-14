@@ -676,45 +676,55 @@ export function RentalManagementClient({
             </div>
           )}
           {Object.entries(editor.events).map(([stage, value]) => (
-            <fieldset
-              key={stage}
-              disabled={
-                editor.action === "return_update" &&
-                stage === "pickup" &&
-                !!editor.record?.pickup_requested_at
-              }
-              className="space-y-2"
-            >
-              {editor.action === "return_update" && (
-                <legend className="mb-2 font-bold">
-                  {stage === "pickup"
-                    ? "Called for Pick Up"
-                    : "Picked Up by Company"}
-                </legend>
+            <Fragment key={stage}>
+              {editor.action === "return_update" && stage === "returned" && (
+                <hr className="my-4 border-0 border-t-2 border-slate-400" />
               )}
-              <RentalEventFields
-                label={
-                  editor.action === "delivery" ||
-                  editor.action === "return_update"
-                    ? "Name"
-                    : stageLabels[stage as Stage]
+              <fieldset
+                disabled={
+                  editor.action === "return_update" &&
+                  stage === "pickup" &&
+                  !!editor.record?.pickup_requested_at
                 }
-                dateFirst={
-                  editor.action === "delivery" ||
+                className={
                   editor.action === "return_update"
-                }
-                value={value}
-                staff={staff}
-                onChange={(next) =>
-                  setEditor({
-                    ...editor,
-                    events: { ...editor.events, [stage]: next },
-                  })
+                    ? `space-y-2 rounded-lg border p-3 ${stage === "pickup" ? "border-yellow-300 bg-yellow-100" : "border-red-200 bg-red-50"}`
+                    : "space-y-2"
                 }
               >
-                {editor.action === "delivery" && serialField()}
-              </RentalEventFields>
-            </fieldset>
+                {editor.action === "return_update" && (
+                  <legend
+                    className={`mx-auto mb-2 px-2 text-center font-bold ${stage === "pickup" ? "text-yellow-900" : "text-red-800"}`}
+                  >
+                    {stage === "pickup"
+                      ? "Called for Pick Up"
+                      : "Picked Up by Company"}
+                  </legend>
+                )}
+                <RentalEventFields
+                  label={
+                    editor.action === "delivery" ||
+                    editor.action === "return_update"
+                      ? "Name"
+                      : stageLabels[stage as Stage]
+                  }
+                  dateFirst={
+                    editor.action === "delivery" ||
+                    editor.action === "return_update"
+                  }
+                  value={value}
+                  staff={staff}
+                  onChange={(next) =>
+                    setEditor({
+                      ...editor,
+                      events: { ...editor.events, [stage]: next },
+                    })
+                  }
+                >
+                  {editor.action === "delivery" && serialField()}
+                </RentalEventFields>
+              </fieldset>
+            </Fragment>
           ))}
           {(editor.action === "delivery" || editor.action === "edit") && (
             <>
