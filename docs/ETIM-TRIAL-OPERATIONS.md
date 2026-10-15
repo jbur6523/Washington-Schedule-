@@ -32,6 +32,8 @@ Form writes acquire an identity/form row lock and compare the expected revision.
 
 ## PDFs and template provisioning
 
+The reviewer portal groups individual exception entries into expandable Pending and Completed folders, with counts for the selected pay period, employee search, and category filter. Initialed entries are completed; new, edited, or reversed entries are pending. A mixed-status timecard can appear in both folders, with the appropriate entries listed in each; both open the same employee/pay-period form. Portal pay-period dates use MMDDYY.
+
 The reviewer’s yellow-cell click immediately applies their account-configured initials; green-cell reversal still requires confirmation. The manager’s first successful signing saves `saved_signature_name` on their private grant in the same transaction as the signed revision. Later forms display that name, but never reuse adoption consent: every form/revision requires a fresh checkbox and **Sign Timecard** click. Timekeepers continue to initial only.
 
 The actual approved blank template is not in this public repository. Provision its base64 bytes and SHA-256 in `etime_trial_templates`, id `approved-v1`, using an authorized private client/connector. The data API does not expose this table to browsers. Do not alter this template version after issuing trial forms; create a new version for future changes.

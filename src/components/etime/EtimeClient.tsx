@@ -15,6 +15,7 @@ import {
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { ExceptionWizard } from "./ExceptionWizard";
 import { Signature } from "./Signature";
+import { ReviewFolders } from "./ReviewFolders";
 const FormViewer = dynamic(
   () => import("./FormViewer").then((m) => m.FormViewer),
   { ssr: false, loading: () => <p>Loading official form…</p> },
@@ -37,6 +38,8 @@ type Mode = "employee" | "review" | "admin";
 const fullName = (i: Identity) => `${i.first_name} ${i.last_name}`;
 const shortDate = (date: string) =>
   `${date.slice(5, 7)}/${date.slice(8, 10)}/${date.slice(2, 4)}`;
+const payPeriodDate = (date: string) =>
+  `${date.slice(5, 7)}${date.slice(8, 10)}${date.slice(2, 4)}`;
 export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
@@ -447,9 +450,10 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
             Enter New Exception
           </button>
           <p className="text-sm">
-            Current pay period: {data.currentPeriod} –{" "}
-            {addDays(data.currentPeriod, 13)}. Submit or edit through{" "}
-            {addDays(data.currentPeriod, 16)}, 11:59 p.m. Pacific.
+            Current pay period: {payPeriodDate(data.currentPeriod)} –{" "}
+            {payPeriodDate(addDays(data.currentPeriod, 13))}. Submit or edit
+            through {payPeriodDate(addDays(data.currentPeriod, 16))}, 11:59 p.m.
+            Pacific.
           </p>
         </section>
       )}
@@ -506,7 +510,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                   {periods.map((p) => (
                     <option key={p} value={p}>
                       {p === data.currentPeriod ? "Current: " : "Previous: "}
-                      {p} – {addDays(p, 13)}
+                      {payPeriodDate(p)} – {payPeriodDate(addDays(p, 13))}
                     </option>
                   ))}
                 </select>
@@ -563,7 +567,9 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 </button>
               </div>
             )}
-            {visible.length === 0 ? (
+            {mode === "review" ? (
+              <ReviewFolders forms={visible} category={filter} onOpen={open} />
+            ) : visible.length === 0 ? (
               <p className="py-5 text-slate-500">
                 No exceptions in this pay period.
               </p>
@@ -623,9 +629,10 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
               {form.state.identity.first_name} {form.state.identity.last_name}
             </h2>
             <p>
-              {form.period_start} – {addDays(form.period_start, 13)} ·{" "}
+              {payPeriodDate(form.period_start)} –{" "}
+              {payPeriodDate(addDays(form.period_start, 13))} ·{" "}
               {isOpen(form)
-                ? `Edits close ${addDays(form.period_start, 16)}, 11:59 p.m. Pacific`
+                ? `Edits close ${payPeriodDate(addDays(form.period_start, 16))}, 11:59 p.m. Pacific`
                 : "Closed — read only for employees"}
             </p>
           </div>
