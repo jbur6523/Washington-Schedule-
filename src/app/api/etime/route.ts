@@ -78,6 +78,7 @@ export async function GET(request: Request) {
           display_name: grant.display_name,
           role: grant.role,
           portal_only: grant.portal_only,
+          saved_signature_name: grant.saved_signature_name ?? null,
         },
         identities,
         forms,

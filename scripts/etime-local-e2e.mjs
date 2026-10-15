@@ -104,6 +104,7 @@ async function api(who, body, path = "/api/etime", expected = 200) {
     headers: {
       ...(body ? { "Content-Type": "application/json", Origin: base } : {}),
       Cookie: who.cookie,
+      "X-Forwarded-For": `local-e2e-${suffix}`,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -154,6 +155,7 @@ let form = (
   )
 ).form;
 assert.equal(form.state.entries[0].lunch_in, "12:50");
+const originalFormId = form.id;
 form = (
   await api(
     qr,
@@ -169,6 +171,8 @@ form = (
   )
 ).form;
 assert.equal(form.state.entries.length, 2);
+assert.equal(form.id, originalFormId, "New exceptions reuse the pay-period form");
+assert.equal((await api(qr)).forms.length, 1, "One form per employee and pay period");
 const initial = (who, row, entered = true) =>
   api(who, {
     action: "initial",
@@ -191,6 +195,7 @@ await api(
 );
 await api(qr, null, "/api/etime?mode=review", 403);
 form = (await initial(timekeeper, 0)).form;
+assert.equal(form.state.entries[0].entered.initials, "TT");
 form = (await initial(timekeeper, 1)).form;
 await api(
   timekeeper,
@@ -214,6 +219,11 @@ form = (
   })
 ).form;
 assert.ok(form.state.managerSignature);
+assert.equal((await api(manager, null, "/api/etime?mode=review")).grant.saved_signature_name, "Test Manager");
+await api(manager, {
+  action: "managerSign", form_id: form.id, revision: form.revision,
+  name: "Test Manager", adopted: false,
+}, "/api/etime", 400);
 const signedRevision = form.revision;
 const edited = { ...form.state.entries[0], lunch_in: "12:55" };
 form = (await api(qr, { ...save(edited, form), entry_id: edited.id })).form;
@@ -345,7 +355,7 @@ check(
     .insert({
       department_id: department,
       username: staffUsername,
-      display_name: "App Nickname",
+      display_name: `App Nickname ${suffix}`,
       employment_type: "full_time",
       home_assignment: "day_shift",
     }),

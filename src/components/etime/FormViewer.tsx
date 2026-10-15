@@ -76,7 +76,7 @@ function Sheet({
                 title={
                   entry.entered
                     ? `Entered by ${entry.entered.initials}. Click to reverse.`
-                    : "Confirm this exception was entered into eTime"
+                    : "Apply your initials to mark this exception entered into eTime"
                 }
                 aria-label={`${entry.entered ? "Reverse" : "Confirm"} eTime entry for ${entry.date}, row ${(page - 1) * 10 + index + 1}`}
                 onClick={() => onInitial(entry)}
@@ -120,7 +120,7 @@ export function FormViewer({
       </div>
       {onInitial && (
         <p className="text-sm text-slate-600">
-          Yellow cells need entry into eTime. Click only after entering the
+          Click a yellow cell to apply your initials after entering the
           exception in payroll. Green outlines indicate entered rows.
         </p>
       )}

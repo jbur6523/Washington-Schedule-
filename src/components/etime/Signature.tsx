@@ -4,31 +4,37 @@ export function Signature({
   expected,
   busy,
   label = "Sign and Submit",
+  savedName,
   onSign,
 }: {
   expected: string;
   busy: boolean;
   label?: string;
+  savedName?: string | null;
   onSign: (name: string, adopted: boolean) => void;
 }) {
-  const [name, setName] = useState("");
+  const [name, setName] = useState(savedName ?? "");
   const [adopted, setAdopted] = useState(false);
   return (
     <div className="space-y-4 rounded-2xl border border-cyan-200 bg-cyan-50 p-4">
-      <label className="block font-bold">
-        Type your full name
-        <input
-          className="etime-input"
-          value={name}
-          maxLength={100}
-          placeholder={expected}
-          onChange={(e) => {
-            setName(e.target.value);
-            setAdopted(false);
-          }}
-          autoComplete="name"
-        />
-      </label>
+      {savedName ? (
+        <p className="font-bold">Your saved signature</p>
+      ) : (
+        <label className="block font-bold">
+          Type your full name
+          <input
+            className="etime-input"
+            value={name}
+            maxLength={100}
+            placeholder={expected}
+            onChange={(e) => {
+              setName(e.target.value);
+              setAdopted(false);
+            }}
+            autoComplete="name"
+          />
+        </label>
+      )}
       <div
         className="min-h-16 border-b border-slate-400 px-2 py-3 text-4xl"
         style={{ fontFamily: "Allura, cursive" }}

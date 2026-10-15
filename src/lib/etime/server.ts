@@ -19,6 +19,7 @@ export type Grant = {
   username: string;
   display_name: string;
   initials: string;
+  saved_signature_name: string | null;
   role: "timekeeper" | "manager" | "identity_admin";
   portal_only: boolean;
   active: boolean;

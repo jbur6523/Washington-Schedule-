@@ -32,6 +32,8 @@ Form writes acquire an identity/form row lock and compare the expected revision.
 
 ## PDFs and template provisioning
 
+The reviewer’s yellow-cell click immediately applies their account-configured initials; green-cell reversal still requires confirmation. The manager’s first successful signing saves `saved_signature_name` on their private grant in the same transaction as the signed revision. Later forms display that name, but never reuse adoption consent: every form/revision requires a fresh checkbox and **Sign Timecard** click. Timekeepers continue to initial only.
+
 The actual approved blank template is not in this public repository. Provision its base64 bytes and SHA-256 in `etime_trial_templates`, id `approved-v1`, using an authorized private client/connector. The data API does not expose this table to browsers. Do not alter this template version after issuing trial forms; create a new version for future changes.
 
 The server loads the private template, uses `pdf-lib` and an OFL-licensed Allura font, and writes revision-specific static PDFs to `forms/<form UUID>/revision-<n>.pdf` in the private bucket with `upsert=false`. Access is through `/api/etime/forms/[id]`, which checks authorization each time and sends `Cache-Control: private, no-store`. No public PDF URLs or signed URLs are exposed. The original interactive template remains unchanged. The service worker does not cache payroll data.

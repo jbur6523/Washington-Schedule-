@@ -26,7 +26,12 @@ type Data = {
   forms?: EtimeForm[];
   today: string;
   currentPeriod: string;
-  grant?: { role: string; display_name: string; portal_only: boolean };
+  grant?: {
+    role: string;
+    display_name: string;
+    portal_only: boolean;
+    saved_signature_name: string | null;
+  };
 };
 type Mode = "employee" | "review" | "admin";
 const fullName = (i: Identity) => `${i.first_name} ${i.last_name}`;
@@ -625,7 +630,26 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
             </p>
           </div>
           {mode === "review" ? (
-            <FormViewer form={form} onInitial={setPendingInitial} busy={busy} />
+            <FormViewer
+              form={form}
+              onInitial={(entry) => {
+                if (entry.entered) {
+                  setPendingInitial(entry);
+                  return;
+                }
+                void act(
+                  {
+                    action: "initial",
+                    form_id: form.id,
+                    revision: form.revision,
+                    entry_id: entry.id,
+                    entered: true,
+                  },
+                  () => setNotice("Entry acknowledgment saved."),
+                );
+              }}
+              busy={busy}
+            />
           ) : (
             !entry && (
               <div className="flex flex-wrap items-center gap-4">
@@ -652,11 +676,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
               aria-label="Confirm eTime entry"
               className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-5"
             >
-              <h3 className="font-black">
-                {pendingInitial.entered
-                  ? "Reverse entered acknowledgment?"
-                  : "Was this exception entered into the eTime payroll system?"}
-              </h3>
+              <h3 className="font-black">Reverse entered acknowledgment?</h3>
               <p className="my-3">
                 {pendingInitial.date}: {pendingInitial.reason}
               </p>
@@ -670,7 +690,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                       form_id: form.id,
                       revision: form.revision,
                       entry_id: pendingInitial.id,
-                      entered: !pendingInitial.entered,
+                      entered: false,
                     },
                     () => {
                       setPendingInitial(null);
@@ -679,9 +699,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                   )
                 }
               >
-                {pendingInitial.entered
-                  ? "Reverse initials"
-                  : "Yes — mark Exception Entered"}
+                Reverse initials
               </button>
               <button
                 className="etime-link ml-4"
@@ -806,9 +824,11 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
             data.grant?.role === "manager" &&
             !form.state.managerSignature && (
               <Signature
+                key={`${form.id}:${form.revision}`}
                 expected={data.grant.display_name}
+                savedName={data.grant.saved_signature_name}
                 busy={busy}
-                label="Sign as Manager"
+                label="Sign Timecard"
                 onSign={(name, adopted) =>
                   act({
                     action: "managerSign",
