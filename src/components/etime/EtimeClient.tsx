@@ -30,12 +30,15 @@ type Data = {
 };
 type Mode = "employee" | "review" | "admin";
 const fullName = (i: Identity) => `${i.first_name} ${i.last_name}`;
+const shortDate = (date: string) =>
+  `${date.slice(5, 7)}/${date.slice(8, 10)}/${date.slice(2, 4)}`;
 export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
   const [period, setPeriod] = useState("");
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -110,8 +113,10 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
     }
   }
   const form = data?.forms?.find((f) => f.id === selected);
+  const entry = form?.state.entries.find((e) => e.id === selectedEntry);
   const open = (f: EtimeForm) => {
     setSelected(f.id);
+    setSelectedEntry(null);
     setHistory(null);
     setNotice("");
     setError("");
@@ -173,7 +178,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
   }
   return (
     <main
-      className={`mx-auto min-h-screen space-y-5 px-4 py-6 ${mode === "employee" && !form ? "max-w-3xl" : "max-w-7xl"}`}
+      className={`mx-auto min-h-screen space-y-5 px-4 py-6 ${mode === "employee" ? "max-w-3xl" : "max-w-7xl"}`}
     >
       <style>{`@font-face{font-family:Allura;src:url('/fonts/Allura-Regular.ttf') format('truetype');font-display:swap}.etime-card{border:1px solid #e2e8f0;border-radius:24px;background:white;padding:24px}.etime-input{display:block;width:100%;min-height:48px;margin-top:6px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;background:white;color:#0f172a;font-weight:400}.etime-button{min-height:48px;border-radius:12px;background:#0e7490;color:white;font-weight:800;padding:12px 20px}.etime-button:disabled{opacity:.5;cursor:wait}.etime-link{display:inline-flex;align-items:center;min-height:44px;color:#0e7490;font-weight:700;text-decoration:underline;text-underline-offset:3px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #0891b2;outline-offset:3px}`}</style>
       <header className="flex flex-wrap items-center justify-between gap-4">
@@ -471,9 +476,9 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
               (result) => {
                 setWizard(null);
                 setSelected((result.form as EtimeForm).id);
-                setNotice(
-                  "Exception saved and signed. PDF generation can be retried without losing this entry.",
-                );
+                setSelectedEntry(null);
+                setHistory(null);
+                setNotice("Exception saved and signed.");
               },
             );
           }}
@@ -599,11 +604,14 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
           <button
             className="etime-link"
             onClick={() => {
-              setSelected(null);
+              if (entry) setSelectedEntry(null);
+              else setSelected(null);
+              setHistory(null);
               setPendingInitial(null);
+              setNotice("");
             }}
           >
-            Back to pay periods
+            {entry ? "Back to exceptions" : "Back to pay periods"}
           </button>
           <div>
             <h2 className="text-2xl font-black">
@@ -616,11 +624,28 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 : "Closed — read only for employees"}
             </p>
           </div>
-          <FormViewer
-            form={form}
-            onInitial={mode === "review" ? setPendingInitial : undefined}
-            busy={busy}
-          />
+          {mode === "review" ? (
+            <FormViewer form={form} onInitial={setPendingInitial} busy={busy} />
+          ) : (
+            !entry && (
+              <div className="flex flex-wrap items-center gap-4">
+                <a
+                  className="etime-link"
+                  href={`/api/etime/forms/${form.id}?revision=${form.revision}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View PDF
+                </a>
+                <a
+                  className="etime-link"
+                  href={`/api/etime/forms/${form.id}?revision=${form.revision}&download=1`}
+                >
+                  Download PDF
+                </a>
+              </div>
+            )
+          )}
           {pendingInitial && (
             <div
               role="region"
@@ -667,49 +692,99 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
               </button>
             </div>
           )}
-          <div className="space-y-3">
-            <h3 className="text-lg font-black">Exceptions</h3>
-            {form.state.entries.map((e) => (
-              <div
-                key={e.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"
-              >
-                <div>
-                  <p className="font-bold">
-                    {e.date} · {categories[e.category]}
-                  </p>
-                  <p>{e.reason}</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {e.entered
-                      ? `Exception Entered: ${e.entered.initials} · ${new Date(e.entered.at).toLocaleString()}`
-                      : "Awaiting entry into eTime"}
-                  </p>
-                </div>
-                {mode === "employee" && isOpen(form) && (
+          {mode === "employee" && !entry ? (
+            <ul className="divide-y text-sm" aria-label="Exceptions">
+              {form.state.entries.map((e) => (
+                <li key={e.id}>
                   <button
-                    className="etime-link"
-                    onClick={() => setWizard({ entry: e, form })}
+                    className="etime-link py-2 text-left"
+                    onClick={() => {
+                      setSelectedEntry(e.id);
+                      setHistory(null);
+                      setNotice("");
+                      void showHistory();
+                    }}
                   >
-                    Edit and re-sign
+                    {shortDate(e.date)} Exception -{" "}
+                    {isOpen(form) ? "View/Edit" : "View"}
                   </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="text-sm">
-            <p>
-              Employee signature:{" "}
-              {form.state.employeeSignature
-                ? `${form.state.employeeSignature.name} · ${new Date(form.state.employeeSignature.at).toLocaleString()}`
-                : "Needs signature"}
-            </p>
-            <p>
-              Manager signature:{" "}
-              {form.state.managerSignature
-                ? `${form.state.managerSignature.name} · ${new Date(form.state.managerSignature.at).toLocaleString()}`
-                : "Needs signature"}
-            </p>
-          </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="space-y-3">
+              <h3 className="text-lg font-black">
+                {entry ? `${shortDate(entry.date)} Exception` : "Exceptions"}
+              </h3>
+              {(entry ? [entry] : form.state.entries).map((e) => (
+                <div
+                  key={e.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 p-4"
+                >
+                  <div>
+                    <p className="font-bold">
+                      {e.date} · {categories[e.category]}
+                    </p>
+                    <p>{e.reason}</p>
+                    {entry && (
+                      <dl className="my-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                        {(
+                          [
+                            ["clock_in", "IN"],
+                            ["clock_out", "OUT"],
+                            ["lunch_out", "Lunch OUT"],
+                            ["lunch_in", "Lunch IN"],
+                            [
+                              "department_cost_center",
+                              "Department / Cost Center",
+                            ],
+                            ["job_code_transfer", "Job Code Transfer"],
+                            ["hours", "Exact hours"],
+                          ] as const
+                        )
+                          .filter(([key]) => e[key])
+                          .map(([key, label]) => (
+                            <div key={key}>
+                              <dt className="font-bold">{label}</dt>
+                              <dd>{e[key]}</dd>
+                            </div>
+                          ))}
+                      </dl>
+                    )}
+                    <p className="mt-1 text-sm text-slate-500">
+                      {e.entered
+                        ? `Exception Entered: ${e.entered.initials} · ${new Date(e.entered.at).toLocaleString()}`
+                        : "Awaiting entry into eTime"}
+                    </p>
+                  </div>
+                  {mode === "employee" && isOpen(form) && (
+                    <button
+                      className="etime-link"
+                      onClick={() => setWizard({ entry: e, form })}
+                    >
+                      Edit and re-sign
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {(mode === "review" || entry) && (
+            <div className="text-sm">
+              <p>
+                Employee signature:{" "}
+                {form.state.employeeSignature
+                  ? `${form.state.employeeSignature.name} · ${new Date(form.state.employeeSignature.at).toLocaleString()}`
+                  : "Needs signature"}
+              </p>
+              <p>
+                Manager signature:{" "}
+                {form.state.managerSignature
+                  ? `${form.state.managerSignature.name} · ${new Date(form.state.managerSignature.at).toLocaleString()}`
+                  : "Needs signature"}
+              </p>
+            </div>
+          )}
           {mode === "employee" &&
             isOpen(form) &&
             !form.state.employeeSignature && (
@@ -745,25 +820,35 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 }
               />
             )}
-          <button className="etime-link" onClick={() => void showHistory()}>
-            View revision history
-          </button>
-          {history && (
-            <ul className="space-y-2 text-sm">
-              {history.map((h) => (
-                <li key={h.revision}>
-                  <a
-                    className="etime-link"
-                    target="_blank"
-                    rel="noreferrer"
-                    href={`/api/etime/forms/${form.id}?revision=${h.revision}`}
-                  >
-                    Revision {h.revision} · {h.action} ·{" "}
-                    {new Date(h.at).toLocaleString()}
-                  </a>
-                </li>
-              ))}
-            </ul>
+          {(mode === "review" || entry) && (
+            <section className="space-y-2" aria-label="Revision history">
+              <h3 className="font-bold">Revision history</h3>
+              {entry && (
+                <p className="text-sm text-slate-500">
+                  Revisions include all exceptions on this pay period’s form.
+                </p>
+              )}
+              <button className="etime-link" onClick={() => void showHistory()}>
+                {history ? "Refresh revision history" : "View revision history"}
+              </button>
+              {history && (
+                <ul className="space-y-2 text-sm">
+                  {history.map((h) => (
+                    <li key={h.revision}>
+                      <a
+                        className="etime-link"
+                        target="_blank"
+                        rel="noreferrer"
+                        href={`/api/etime/forms/${form.id}?revision=${h.revision}`}
+                      >
+                        Revision {h.revision} · {h.action} ·{" "}
+                        {new Date(h.at).toLocaleString()}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
         </section>
       )}
