@@ -25,40 +25,56 @@ export async function renderForm(
   templateBytes: Uint8Array,
   signatureBytes: Uint8Array,
 ) {
+  const source = await PDFDocument.load(templateBytes);
+  const originalFields = source.getForm();
+  const rectangles = new Map(
+    originalFields
+      .getFields()
+      .map((field) => [
+        field.getName(),
+        field.acroField.getWidgets()[0].getRectangle(),
+      ]),
+  );
+  originalFields.flatten({ updateFieldAppearances: false });
   const output = await PDFDocument.create();
+  output.registerFontkit(fontkit);
+  // Embed the scan and fonts once. Reusing these resources keeps even many
+  // continuation pages under the hosting response-size limit.
+  const background = await output.embedPage(source.getPage(0));
+  const regular = await output.embedFont(StandardFonts.Helvetica);
+  const cursive = await output.embedFont(signatureBytes);
   const entries = layoutRows(form.state.entries);
   for (let offset = 0; offset < Math.max(entries.length, 1); offset += 10) {
-    const doc = await PDFDocument.load(templateBytes);
-    doc.registerFontkit(fontkit);
-    const regular = await doc.embedFont(StandardFonts.Helvetica);
-    const cursive = await doc.embedFont(signatureBytes);
-    const fields = doc.getForm();
-    const signatures: { value: string; x: number; y: number; size: number }[] =
-      [];
+    const page = output.addPage([background.width, background.height]);
+    page.drawPage(background);
     const fill = (
       name: string,
       value: string,
       size = 10,
       signature = false,
     ) => {
-      const field = fields.getTextField(name);
+      if (!value) return;
+      const rect = rectangles.get(name);
+      if (!rect) throw new Error("Approved template field missing.");
       const font = signature ? cursive : regular;
-      if (name.includes("signature") || name === "employee_name") {
-        const width = field.acroField.getWidgets()[0].getRectangle().width - 4;
+      const multiline = name.endsWith("reason");
+      if (!multiline)
         size = Math.min(
           size,
-          width / Math.max(font.widthOfTextAtSize(value, 1), 1),
+          (rect.width - 4) / Math.max(font.widthOfTextAtSize(value, 1), 1),
         );
-      }
-      if (signature) {
-        const rect = field.acroField.getWidgets()[0].getRectangle();
-        signatures.push({ value, x: rect.x + 2, y: rect.y + 3, size });
-        value = "";
-      }
-      field.acroField.setDefaultAppearance(`/Helvetica ${size} Tf 0 g`);
-      field.setText(value);
-      field.setFontSize(size);
-      field.updateAppearances(font);
+      page.drawText(value, {
+        x: rect.x + 2,
+        y: signature
+          ? rect.y + 3
+          : multiline
+            ? rect.y + rect.height - size - 2
+            : rect.y + (rect.height - size) / 2 + 2,
+        size,
+        font,
+        lineHeight: 11,
+        color: rgb(0, 0, 0),
+      });
     };
     fill("pay_period_end_date", addDays(form.period_start, 13), 12);
     fill("employee_id", form.state.identity.employee_id, 12);
@@ -91,7 +107,7 @@ export async function renderForm(
           : "",
       12,
     );
-    entries.slice(offset, offset + 10).forEach((e, index: number) => {
+    entries.slice(offset, offset + 10).forEach((e, index) => {
       const prefix = `row_${String(index + 1).padStart(2, "0")}_`;
       if (e.continuation) {
         fill(prefix + "reason", `Continued from preceding entry:\n${e.reason}`);
@@ -118,25 +134,12 @@ export async function renderForm(
       fill(prefix + "reason", e.reason);
       fill(prefix + "entered_initials", e.entered?.initials ?? "");
     });
-    // The approved editable template stays private and unchanged; issued outputs are static revision records.
-    fields.flatten();
-    const page = doc.getPage(0);
-    for (const signature of signatures)
-      page.drawText(signature.value, {
-        x: signature.x,
-        y: signature.y,
-        size: signature.size,
-        font: cursive,
-        color: rgb(0, 0, 0),
-      });
     page.drawText(
       `TRIAL ONLY | Revision ${form.revision} | Page ${offset / 10 + 1}/${Math.max(1, Math.ceil(entries.length / 10))}`,
       { x: 14, y: 4, size: 8, font: regular, color: rgb(0.5, 0.1, 0.1) },
     );
-    const [copied] = await output.copyPages(doc, [0]);
-    output.addPage(copied);
   }
-  output.setTitle("eTime Exception Form — Trial");
+  output.setTitle("eTime Exception Form � Trial");
   return output.save();
 }
 export async function formPdf(form: EtimeForm) {
