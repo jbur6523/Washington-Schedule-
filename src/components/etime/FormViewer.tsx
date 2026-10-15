@@ -2,17 +2,25 @@
 import { useEffect, useRef, useState } from "react";
 import type { EtimeForm, Entry } from "@/lib/etime/model";
 import { layoutRows } from "@/lib/etime/layout";
+import {
+  canManagerSign,
+  isApproved,
+  isEntryEntered,
+} from "@/lib/etime/workflow";
+import { Signature } from "./Signature";
 function Sheet({
   url,
   page,
   entries,
   onInitial,
+  onSign,
   busy,
 }: {
   url: string;
   page: number;
   entries: (Entry & { continuation?: boolean })[];
   onInitial?: (entry: Entry) => void;
+  onSign?: () => void;
   busy: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -74,11 +82,11 @@ function Sheet({
                 key={`${entry.id}-${index}`}
                 disabled={busy}
                 title={
-                  entry.entered
+                  isEntryEntered(entry) && entry.entered
                     ? `Entered by ${entry.entered.initials}. Click to reverse.`
                     : "Apply your initials to mark this exception entered into eTime"
                 }
-                aria-label={`${entry.entered ? "Reverse" : "Confirm"} eTime entry for ${entry.date}, row ${(page - 1) * 10 + index + 1}`}
+                aria-label={`${isEntryEntered(entry) ? "Reverse" : "Confirm"} eTime entry for ${entry.date}, row ${(page - 1) * 10 + index + 1}`}
                 onClick={() => onInitial(entry)}
                 style={{
                   position: "absolute",
@@ -87,22 +95,57 @@ function Sheet({
                   top: `${((523 + index * 66.9) / (610.56 / (791.04 / 1782))) * 100}%`,
                   height: `${(66.9 / (610.56 / (791.04 / 1782))) * 100}%`,
                 }}
-                className={`border-2 ${entry.entered ? "border-green-600 bg-green-300/10" : "border-amber-500 bg-yellow-300/65 hover:bg-yellow-300/90"}`}
+                className={`border-2 ${isEntryEntered(entry) ? "border-green-600 bg-green-300/10" : "border-amber-500 bg-yellow-300/65 hover:bg-yellow-300/90"}`}
               />
             ),
         )}
+      {!error && onSign && (
+        <button
+          disabled={busy}
+          onClick={onSign}
+          aria-label="Sign Timecard in Manager/Director Signature field"
+          className="absolute rounded border border-blue-600 bg-blue-50 text-xs font-bold text-blue-900 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600"
+          style={{
+            left: `${(518.4819 / 791.04) * 100}%`,
+            top: `${((610.56 - 43.24848) / 610.56) * 100}%`,
+            width: `${((700.0393 - 518.4819) / 791.04) * 100}%`,
+            height: `${((43.24848 - 26.82397) / 610.56) * 100}%`,
+          }}
+        >
+          Sign Timecard
+        </button>
+      )}
     </div>
   );
 }
 export function FormViewer({
   form,
   onInitial,
+  manager,
   busy,
 }: {
   form: EtimeForm;
   onInitial?: (entry: Entry) => void;
+  manager?: {
+    name: string;
+    savedName?: string | null;
+    onSign: (name: string, adopted: boolean) => void;
+  };
   busy: boolean;
 }) {
+  const [signing, setSigning] = useState(false);
+  const signaturePanel = useRef<HTMLDivElement>(null);
+  const eligible =
+    Boolean(manager) && canManagerSign(form.state) && !isApproved(form.state);
+  useEffect(() => {
+    if (signing && eligible) {
+      signaturePanel.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      signaturePanel.current?.focus({ preventScroll: true });
+    }
+  }, [signing, eligible]);
   const rows = layoutRows(form.state.entries);
   const url = `/api/etime/forms/${form.id}?revision=${form.revision}`;
   return (
@@ -135,12 +178,36 @@ export function FormViewer({
                 page={page + 1}
                 entries={rows.slice(page * 10, page * 10 + 10)}
                 onInitial={onInitial}
+                onSign={eligible ? () => setSigning(true) : undefined}
                 busy={busy}
               />
             ),
           )}
         </div>
       </div>
+      {eligible && signing && manager && (
+        <div
+          ref={signaturePanel}
+          tabIndex={-1}
+          className="rounded-xl border border-blue-200 bg-blue-50 p-4"
+          aria-label="Manager signature"
+        >
+          <Signature
+            key={`${form.id}:${form.revision}`}
+            expected={manager.name}
+            savedName={manager.savedName}
+            busy={busy}
+            label="Sign Timecard"
+            onSign={manager.onSign}
+          />
+        </div>
+      )}
+      {manager && !isApproved(form.state) && !canManagerSign(form.state) && (
+        <p className="text-sm text-slate-500">
+          Manager signing becomes available on the form after every entry is
+          initialed and the employee has signed the current version.
+        </p>
+      )}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
+import { canManagerSign } from "@/lib/etime/workflow";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   employee,
@@ -220,6 +221,8 @@ export async function POST(request: Request) {
     const grant = management ? await reviewer() : null;
     if (management && (!grant || grant.role === "identity_admin"))
       return json({ error: "Access denied." }, 403);
+    if (body.action === "managerSign" && grant?.role !== "manager")
+      return json({ error: "Only the assigned manager may sign." }, 403);
     const who = management ? null : await employee();
     if (!management && !who?.identity)
       return json({ error: "Enter your employee ID first." }, 401);
@@ -315,9 +318,7 @@ export async function POST(request: Request) {
       else throw new Error("Confirm entry or reversal.");
       delete state.managerSignature;
     } else if (body.action === "managerSign") {
-      if (grant!.role !== "manager")
-        return json({ error: "Only the assigned manager may sign." }, 403);
-      if (!state.employeeSignature || state.entries.some((e) => !e.entered))
+      if (!canManagerSign(state))
         throw new Error(
           "The employee must sign and every row must be marked entered before manager signing.",
         );

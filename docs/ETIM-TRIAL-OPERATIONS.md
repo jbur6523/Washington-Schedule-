@@ -32,7 +32,9 @@ Form writes acquire an identity/form row lock and compare the expected revision.
 
 ## PDFs and template provisioning
 
-The reviewer portal groups individual exception entries into expandable Pending and Completed folders, with counts for the selected pay period, employee search, and category filter. Initialed entries are completed; new, edited, or reversed entries are pending. A mixed-status timecard can appear in both folders, with the appropriate entries listed in each; both open the same employee/pay-period form. Portal pay-period dates use MMDDYY.
+The reviewer portal groups whole employee/pay-period forms into expandable, alphabetically sorted folders. Counts are forms, scoped by the existing period, employee search, and category filters. Any uninitialed entry keeps the entire form Pending, including entries outside the category filter. Timekeepers see Pending and Completed (all entries initialed, regardless of manager signature). Managers see Pending, Entered — Signature Needed, and Approved Exceptions (all entries initialed and the current content signed). These are dynamic views of the same records. Portal pay-period dates use MMDDYY.
+
+Only managers receive the signing control over the PDF's existing Manager/Director Signature field, and only after all entries are initialed and the employee has signed the current content. Clicking the field opens signature adoption below the PDF. The API independently denies timekeeper signing requests and rejects incomplete/stale entry acknowledgments or employee signatures. Editing an entry clears only that entry's initials and invalidates the manager signature; the form returns to Pending, with earlier activity preserved in immutable revisions.
 
 The reviewer’s yellow-cell click immediately applies their account-configured initials; green-cell reversal still requires confirmation. The manager’s first successful signing saves `saved_signature_name` on their private grant in the same transaction as the signed revision. Later forms display that name, but never reuse adoption consent: every form/revision requires a fresh checkbox and **Sign Timecard** click. Timekeepers continue to initial only.
 

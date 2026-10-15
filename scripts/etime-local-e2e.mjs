@@ -171,8 +171,16 @@ form = (
   )
 ).form;
 assert.equal(form.state.entries.length, 2);
-assert.equal(form.id, originalFormId, "New exceptions reuse the pay-period form");
-assert.equal((await api(qr)).forms.length, 1, "One form per employee and pay period");
+assert.equal(
+  form.id,
+  originalFormId,
+  "New exceptions reuse the pay-period form",
+);
+assert.equal(
+  (await api(qr)).forms.length,
+  1,
+  "One form per employee and pay period",
+);
 const initial = (who, row, entered = true) =>
   api(who, {
     action: "initial",
@@ -196,18 +204,43 @@ await api(
 await api(qr, null, "/api/etime?mode=review", 403);
 form = (await initial(timekeeper, 0)).form;
 assert.equal(form.state.entries[0].entered.initials, "TT");
-form = (await initial(timekeeper, 1)).form;
+assert.match(form.state.entries[0].entered.actor, /^reviewer:/);
+assert.ok(Date.parse(form.state.entries[0].entered.at));
+await api(
+  manager,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Manager",
+    adopted: true,
+  },
+  "/api/etime",
+  400,
+);
+assert.equal((await api(qr)).forms[0].state.entries[1].entered, undefined);
+form = (await initial(manager, 1)).form;
+assert.equal(
+  form.state.entries[1].entered.initials,
+  "TM",
+  "Manager can cover timekeeper entry",
+);
 await api(
   timekeeper,
   {
     action: "managerSign",
     form_id: form.id,
     revision: form.revision,
-    name: "Test Timekeeper",
+    name: "Test Manager",
     adopted: true,
   },
   "/api/etime",
   403,
+);
+assert.equal(
+  (await api(qr)).forms[0].revision,
+  form.revision,
+  "Denied signing cannot change the form",
 );
 form = (
   await api(manager, {
@@ -219,22 +252,66 @@ form = (
   })
 ).form;
 assert.ok(form.state.managerSignature);
-assert.equal((await api(manager, null, "/api/etime?mode=review")).grant.saved_signature_name, "Test Manager");
-await api(manager, {
-  action: "managerSign", form_id: form.id, revision: form.revision,
-  name: "Test Manager", adopted: false,
-}, "/api/etime", 400);
+assert.equal(
+  (await api(manager, null, "/api/etime?mode=review")).grant
+    .saved_signature_name,
+  "Test Manager",
+);
+await api(
+  manager,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Manager",
+    adopted: false,
+  },
+  "/api/etime",
+  400,
+);
 const signedRevision = form.revision;
 const edited = { ...form.state.entries[0], lunch_in: "12:55" };
 form = (await api(qr, { ...save(edited, form), entry_id: edited.id })).form;
 assert.equal(form.state.entries[0].entered, undefined);
 assert.ok(form.state.entries[1].entered);
 assert.equal(form.state.managerSignature, undefined);
+assert.equal(form.state.entries[1].entered.initials, "TM");
+await api(
+  manager,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Manager",
+    adopted: true,
+  },
+  "/api/etime",
+  400,
+);
 await api(
   qr,
   { ...save(edited, form), revision: form.revision - 1, entry_id: edited.id },
   "/api/etime",
   400,
+);
+form = (await initial(timekeeper, 0)).form;
+assert.equal(
+  form.state.managerSignature,
+  undefined,
+  "Reinitialing does not reuse prior approval",
+);
+form = (
+  await api(manager, {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Manager",
+    adopted: true,
+  })
+).form;
+assert.equal(
+  form.state.managerSignature.contentRevision,
+  form.state.contentRevision,
 );
 const other = { cookie: "" };
 await api(other, {
@@ -292,6 +369,24 @@ const old = check(
 );
 assert.equal(old.state.identity.last_name, "Employee");
 assert.ok(old.state.managerSignature);
+assert.equal(old.state.entries[0].lunch_in, "12:50");
+assert.equal(
+  old.state.entries[0].entered.initials,
+  "TT",
+  "Historical initials survive edits",
+);
+await api(
+  manager,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: corrected.forms[0].revision,
+    name: "Test Manager",
+    adopted: true,
+  },
+  "/api/etime",
+  400,
+);
 assert.equal(
   (await api(timekeeper, null, "/api/auth/session-status")).redirectTo,
   "/etime/portal",
@@ -304,16 +399,14 @@ assert.equal(
 );
 const invitation = `etinvite${suffix}`;
 check(
-  await db
-    .from("etime_trial_grants")
-    .insert({
-      department_id: department,
-      username: invitation,
-      display_name: "Invited Timekeeper",
-      initials: "IT",
-      role: "timekeeper",
-      portal_only: true,
-    }),
+  await db.from("etime_trial_grants").insert({
+    department_id: department,
+    username: invitation,
+    display_name: "Invited Timekeeper",
+    initials: "IT",
+    role: "timekeeper",
+    portal_only: true,
+  }),
 );
 assert.equal(
   (
@@ -350,15 +443,13 @@ assert.equal(
 );
 const staffUsername = `etstaff${suffix}`;
 check(
-  await db
-    .from("staff_profiles")
-    .insert({
-      department_id: department,
-      username: staffUsername,
-      display_name: `App Nickname ${suffix}`,
-      employment_type: "full_time",
-      home_assignment: "day_shift",
-    }),
+  await db.from("staff_profiles").insert({
+    department_id: department,
+    username: staffUsername,
+    display_name: `App Nickname ${suffix}`,
+    employment_type: "full_time",
+    home_assignment: "day_shift",
+  }),
 );
 await api(
   { cookie: "" },

@@ -16,6 +16,7 @@ import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { ExceptionWizard } from "./ExceptionWizard";
 import { Signature } from "./Signature";
 import { ReviewFolders } from "./ReviewFolders";
+import { isEntryEntered } from "@/lib/etime/workflow";
 const FormViewer = dynamic(
   () => import("./FormViewer").then((m) => m.FormViewer),
   { ssr: false, loading: () => <p>Loading official form…</p> },
@@ -132,8 +133,8 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
   const isOpen = (f: EtimeForm) =>
     Boolean(
       data &&
-        data.today >= f.period_start &&
-        data.today <= addDays(f.period_start, 16),
+      data.today >= f.period_start &&
+      data.today <= addDays(f.period_start, 16),
     );
   const periods = Array.from(
     new Set([
@@ -568,7 +569,12 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
               </div>
             )}
             {mode === "review" ? (
-              <ReviewFolders forms={visible} category={filter} onOpen={open} />
+              <ReviewFolders
+                forms={visible}
+                category={filter}
+                role={data.grant?.role === "manager" ? "manager" : "timekeeper"}
+                onOpen={open}
+              />
             ) : visible.length === 0 ? (
               <p className="py-5 text-slate-500">
                 No exceptions in this pay period.
@@ -638,9 +644,26 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
           </div>
           {mode === "review" ? (
             <FormViewer
+              key={`${form.id}:${form.revision}`}
               form={form}
+              manager={
+                data.grant?.role === "manager"
+                  ? {
+                      name: data.grant.display_name,
+                      savedName: data.grant.saved_signature_name,
+                      onSign: (name, adopted) =>
+                        void act({
+                          action: "managerSign",
+                          form_id: form.id,
+                          revision: form.revision,
+                          name,
+                          adopted,
+                        }),
+                    }
+                  : undefined
+              }
               onInitial={(entry) => {
-                if (entry.entered) {
+                if (isEntryEntered(entry)) {
                   setPendingInitial(entry);
                   return;
                 }
@@ -819,26 +842,6 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 onSign={(name, adopted) =>
                   act({
                     action: "employeeSign",
-                    form_id: form.id,
-                    revision: form.revision,
-                    name,
-                    adopted,
-                  })
-                }
-              />
-            )}
-          {mode === "review" &&
-            data.grant?.role === "manager" &&
-            !form.state.managerSignature && (
-              <Signature
-                key={`${form.id}:${form.revision}`}
-                expected={data.grant.display_name}
-                savedName={data.grant.saved_signature_name}
-                busy={busy}
-                label="Sign Timecard"
-                onSign={(name, adopted) =>
-                  act({
-                    action: "managerSign",
                     form_id: form.id,
                     revision: form.revision,
                     name,
