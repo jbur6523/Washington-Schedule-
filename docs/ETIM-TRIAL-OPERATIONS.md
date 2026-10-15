@@ -5,7 +5,7 @@ The owner authorized the trial deployment on October 15, 2026. This is not offic
 ## Entry points
 
 - Employee app: Time Card → Enter Exception; Time Card → Cover Switch preserves the existing shift board.
-- Employee QR: `/etime`, with employee-ID-only access and an eight-hour HttpOnly, SameSite=Strict trial session. Returning users can access their own trial history. The owner explicitly accepted ID-only access for the trial.
+- Employee entry link (also the destination of existing QR codes): `/etime`, with employee-ID-only access and an eight-hour HttpOnly, SameSite=Strict trial session. Returning users can access their own trial history. The owner explicitly accepted ID-only access for the trial. The portal no longer displays QR-code controls; the manager view provides an Employee exception link and clipboard copy button. The timekeeper view has neither sharing control.
 - Reviewers: `/etime/portal`; a link appears in the leadership hamburger menu only for explicitly granted reviewers.
 - Identity administrator: `/etime/admin`; the link appears in the existing admin dashboard only for the identity administrator grant.
 - Olive's assigned username is `aoli`. She uses the existing username activation screen to choose her password. Her grant has `portal_only=true`, and she receives no staff row, profile, or department membership. Signing in opens the portal directly.

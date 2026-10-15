@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import Image from "next/image";
+import { Clipboard, ClipboardCheck } from "lucide-react";
 import {
   addDays,
   categories,
@@ -76,7 +76,10 @@ export function EtimeClient({
   const [history, setHistory] = useState<
     { revision: number; action: string; at: string }[] | null
   >(null);
-  const [qr, setQr] = useState("");
+  const [employeeLinkCopy, setEmployeeLinkCopy] = useState<{
+    url: string;
+    copied: boolean;
+  } | null>(null);
   const load = useCallback(async () => {
     const response = await fetch(dataUrl, {
       cache: "no-store",
@@ -185,17 +188,13 @@ export function EtimeClient({
       setError("Could not load revision history. Try again.");
     }
   }
-  async function makeQr() {
+  async function copyEmployeeLink() {
+    const url = `${window.location.origin}/etime`;
     try {
-      const QRCode = await import("qrcode");
-      setQr(
-        await QRCode.toDataURL(`${window.location.origin}/etime`, {
-          width: 260,
-          margin: 2,
-        }),
-      );
+      await navigator.clipboard.writeText(url);
+      setEmployeeLinkCopy({ url, copied: true });
     } catch {
-      setError("Unable to create QR code.");
+      setEmployeeLinkCopy({ url, copied: false });
     }
   }
   return (
@@ -547,10 +546,38 @@ export function EtimeClient({
                   ))}
                 </select>
               </label>
-              {mode === "review" && (
-                <button className="etime-link" onClick={() => void makeQr()}>
-                  Employee QR code
-                </button>
+              {mode === "review" && data.grant?.role === "manager" && (
+                <div className="flex items-center gap-2">
+                  <a
+                    href="/etime"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="etime-link"
+                  >
+                    Employee exception link
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => void copyEmployeeLink()}
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded-xl border border-cyan-200 text-cyan-700 hover:bg-cyan-50"
+                    aria-label="Copy employee exception link"
+                    title="Copy employee exception link"
+                  >
+                    {employeeLinkCopy?.copied ? (
+                      <ClipboardCheck aria-hidden="true" className="h-5 w-5" />
+                    ) : (
+                      <Clipboard aria-hidden="true" className="h-5 w-5" />
+                    )}
+                  </button>
+                  {employeeLinkCopy?.copied && (
+                    <span
+                      role="status"
+                      className="text-sm font-bold text-green-700"
+                    >
+                      Copied
+                    </span>
+                  )}
+                </div>
               )}
             </div>
             {mode === "review" && (
@@ -580,25 +607,22 @@ export function EtimeClient({
                 </label>
               </div>
             )}
-            {qr && (
-              <div className="rounded-xl border p-5 text-center">
-                <Image
-                  unoptimized
-                  src={qr}
-                  width={260}
-                  height={260}
-                  alt="QR code for trial employee exceptions"
-                  className="mx-auto"
-                />
-                <p>Employee exception trial</p>
-                <a href="/etime" className="etime-link">
-                  Open employee entry page
-                </a>
-                <button className="etime-link ml-4" onClick={() => setQr("")}>
-                  Close
-                </button>
-              </div>
-            )}
+            {mode === "review" &&
+              data.grant?.role === "manager" &&
+              employeeLinkCopy &&
+              !employeeLinkCopy.copied && (
+                <label className="block text-sm text-slate-600">
+                  Automatic copying is unavailable. Select and copy this
+                  employee link:
+                  <input
+                    className="etime-input"
+                    aria-label="Employee exception URL"
+                    readOnly
+                    value={employeeLinkCopy.url}
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                </label>
+              )}
             {mode === "review" ? (
               <ReviewFolders
                 forms={visible}
