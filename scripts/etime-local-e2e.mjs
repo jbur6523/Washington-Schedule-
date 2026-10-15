@@ -534,6 +534,34 @@ const setTemporaryAccess = async (enabled) =>
   );
 await setTemporaryAccess(true);
 assert.equal(
+  (await api(admin, null, "/api/etime?mode=review&demo_view=timekeeper")).grant
+    .role,
+  "timekeeper",
+);
+assert.equal(
+  (await api(admin, null, "/api/etime?mode=review&demo_view=manager")).grant
+    .role,
+  "manager",
+);
+assert.equal(
+  (await api(timekeeper, null, "/api/etime?mode=review&demo_view=manager"))
+    .grant.role,
+  "timekeeper",
+);
+await api(
+  admin,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Administrator",
+    adopted: true,
+    demo_view: "timekeeper",
+  },
+  "/api/etime",
+  403,
+);
+assert.equal(
   (await api(admin, null, "/api/etime?mode=review")).grant.role,
   "manager",
 );

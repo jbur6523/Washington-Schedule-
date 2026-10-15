@@ -78,7 +78,10 @@ export async function GET(request: Request) {
       return json({
         grant: {
           display_name: grant.display_name,
-          role: mode === "review" ? payrollReviewRole(grant) : grant.role,
+          role:
+            mode === "review"
+              ? payrollReviewRole(grant, url.searchParams.get("demo_view"))
+              : grant.role,
           temporary_manager_access: grant.temporary_manager_access,
           portal_only: grant.portal_only,
           saved_signature_name: grant.saved_signature_name ?? null,
@@ -223,7 +226,10 @@ export async function POST(request: Request) {
     const grant = management ? await reviewer() : null;
     if (management && !payrollReviewRole(grant))
       return json({ error: "Access denied." }, 403);
-    if (body.action === "managerSign" && payrollReviewRole(grant) !== "manager")
+    if (
+      body.action === "managerSign" &&
+      payrollReviewRole(grant, body.demo_view) !== "manager"
+    )
       return json({ error: "Only the assigned manager may sign." }, 403);
     const who = management ? null : await employee();
     if (!management && !who?.identity)

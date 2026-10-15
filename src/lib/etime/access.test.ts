@@ -18,6 +18,8 @@ describe("explicit trial payroll permissions", () => {
       temporary_manager_access: true,
     };
     expect(payrollReviewRole(grant)).toBe("manager");
+    expect(payrollReviewRole(grant, "timekeeper")).toBe("timekeeper");
+    expect(payrollReviewRole(grant, "manager")).toBe("manager");
     expect(grant.role).toBe("identity_admin");
   });
   it("keeps timekeepers restricted even if a malformed grant carries the temporary flag", () => {
@@ -25,5 +27,12 @@ describe("explicit trial payroll permissions", () => {
       payrollReviewRole({ role: "timekeeper", temporary_manager_access: true }),
     ).toBe("timekeeper");
     expect(payrollReviewRole({ role: "manager" })).toBe("manager");
+    expect(payrollReviewRole({ role: "timekeeper" }, "manager")).toBe(
+      "timekeeper",
+    );
+    expect(payrollReviewRole({ role: "identity_admin" }, "manager")).toBeNull();
+    expect(payrollReviewRole({ role: "manager" }, "timekeeper")).toBe(
+      "manager",
+    );
   });
 });

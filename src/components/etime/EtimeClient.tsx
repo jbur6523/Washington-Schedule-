@@ -43,7 +43,14 @@ const shortDate = (date: string) =>
   `${date.slice(5, 7)}/${date.slice(8, 10)}/${date.slice(2, 4)}`;
 const payPeriodDate = (date: string) =>
   `${date.slice(5, 7)}${date.slice(8, 10)}${date.slice(2, 4)}`;
-export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
+export function EtimeClient({
+  mode = "employee",
+  demoView,
+}: {
+  mode?: Mode;
+  demoView?: "timekeeper" | "manager";
+}) {
+  const dataUrl = `/api/etime?mode=${mode}${demoView ? `&demo_view=${demoView}` : ""}`;
   const managerSignOff = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
@@ -71,17 +78,17 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
   >(null);
   const [qr, setQr] = useState("");
   const load = useCallback(async () => {
-    const response = await fetch(`/api/etime?mode=${mode}`, {
+    const response = await fetch(dataUrl, {
       cache: "no-store",
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? "Unable to load eTime.");
     setData(result);
     setPeriod((p) => p || result.currentPeriod);
-  }, [mode]);
+  }, [dataUrl]);
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/etime?mode=${mode}`, { cache: "no-store" })
+    fetch(dataUrl, { cache: "no-store" })
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error);
@@ -96,7 +103,7 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
     return () => {
       cancelled = true;
     };
-  }, [mode]);
+  }, [dataUrl]);
   async function act(
     body: Record<string, unknown>,
     after?: (result: Record<string, unknown>) => void,
@@ -108,7 +115,10 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
       const response = await fetch("/api/etime", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          ...body,
+          ...(demoView ? { demo_view: demoView } : {}),
+        }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error ?? "Unable to save.");
@@ -205,8 +215,20 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 ? "Payroll Identity Corrections"
                 : "Time Card Exceptions"}
           </h1>
+          {demoView && (
+            <p className="mt-1 font-bold text-slate-600">
+              {demoView === "timekeeper"
+                ? "Timekeeper (Olive)"
+                : "Manager (Ramon)"}
+            </p>
+          )}
         </div>
         <div className="flex gap-4">
+          {demoView && (
+            <Link className="etime-link" href="/etime/portal">
+              Switch role view
+            </Link>
+          )}
           {!data?.grant?.portal_only && (
             <Link className="etime-link" href="/">
               Back to app
