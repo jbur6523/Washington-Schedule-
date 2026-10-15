@@ -1,16 +1,34 @@
 # Washington Hospital Schedule — eTime Exception Forms
 
-**Status:** Requirements handoff for Codex; planning only, not authorization to implement or deploy.  
+**Status:** Trial implementation and deployment authorized by the owner on October 15, 2026. Official go-live is not authorized.
 **Prepared:** October 15, 2026  
 **Source document:** Washington Hospital, *eTime – Time and Attendance Exceptions* (one-page landscape form, revised 6/17; original scanned copy held outside this public repository).  
 **Stakeholder review:** Ramon and Olive must review the final workflow, signature placement, access approach and official template before production use.
 
 > **Public-repository note:** This document intentionally does not include a scan of internal hospital paperwork, employee identifiers or actual employee exception records. Obtain the official blank source form through the project owner via an approved private channel. Do not store real employee names, IDs, signatures, timecards, or generated submissions in this public repository.
 
+## Approved decisions — October 15, 2026
+
+These owner-approved decisions supersede the earlier planning questions below.
+
+- Build to completion, push main, and deploy the **trial**. All data is temporary trial data, retained without automatic deletion. Official go-live will start a fresh, separate record store; do not migrate trial submissions automatically.
+- The owner explicitly approved employee-ID-only QR access for this trial, including prior trial forms. No PIN or extra enrollment is added. Bulk lists and reviewer actions require authenticated, explicit grants. Official go-live still requires review of the access approach and signature acceptance.
+- App navigation: **Time Card** replaces the visible Cover/Switch tab and opens two choices: **Cover Switch** and **Enter Exception**. Existing Cover/Switch deep links keep working.
+- Ramon reaches **Timecard Management** from his leadership hamburger menu using his existing account. Olive has an eTime-only account, username **aoli**, with no ordinary staff assignment or scheduling/ICU access. Future reviewers require explicit grants; ordinary admin/leadership roles do not grant payroll access.
+- Jonathan has a separate identity-correction grant and a backend admin page. Correct identities in place by stable UUID; retain forms and immutable historical identities/signatures. Current form signatures are invalidated on correction; existing QR sessions are revoked.
+- Approved template: the owner-approved landscape fillable final PDF is stored privately. Keep both skinny sample rows and the original instructional text **permanently printed**, including 12/25/07 examples. They are examples, never database records or fillable data rows. Keep cost center 7720–7730, the approved timekeeper name, and manager name permanently printed. This supersedes instructions below to remove examples.
+- Ten regular rows per physical page. Continue onto the same approved layout when needed. Long reasons can continue into labeled rows with no duplicate hours or punches. Row fields use 10pt, header fields 12pt where they fit, and signatures use embedded cursive lettering. Exception input reasons are limited to 90 characters; long names are fitted to their available header space.
+- **24-hour times only** in entered data and generated PDFs. Typing 2130 produces 21:30; a typed colon is also accepted. 2400 is accepted as 24:00 (end-of-day midnight), with no automatic date change. Preserve exact missing lunch punches independently; never assume 30 minutes.
+- Pay periods run **Sunday–Saturday**, 14 days, anchored **October 11–24, 2026**. Monday is only the schedule-display week boundary. The grace period ends Tuesday 11:59 p.m. America/Los_Angeles: October 27 for that example. Employees may add/edit both the current period and a prior period still in grace. Closed periods remain read-only.
+- **Exception Entered** initials acknowledge actual entry into eTime payroll, not review. The reviewer explicitly confirms each action. Reversal is audited. Editing a row clears only its active initials and invalidates the manager signature.
+- Employees and the manager type their full name, see a cursive preview, explicitly adopt it, and sign the form revision. Employees reconfirm all pay-period entries when submitting an addition/edit. Managers can sign after employee attestation and all rows are entered. Olive's acknowledgment is her initials on each row; do not add a timekeeper signature line.
+- Structured data, signatures, and revision history are saved transactionally before PDF generation. A PDF failure does not lose entries. First successful PDF rendering archives a static private revision PDF; historical issued PDFs are never replaced.
+- See [trial operations and validation](ETIM-TRIAL-OPERATIONS.md) for implementation, grants, storage, and go-live boundaries.
+
 ## 0. Codex handoff and scope
 
 1. Read the complete specification; inspect the actual existing Washington Schedule app before choosing routes, UI, database schema, access roles or PDF libraries. This is an **extension of the existing app**, not a separate app.
-2. First provide an architectural/implementation plan with relevant files, components, screens, schema and migrations, PDF generation strategy, authorization approach, testing and outstanding decisions. Do **not** implement or deploy until the owner reviews that plan.
+2. The owner reviewed the plan and authorized implementation, main push, and trial deployment. Official go-live remains a separate decision.
 3. Keep the existing Schedule app styling, user session, permissions and departmental access restrictions. Ramon already has an account with access to the **leadership dashboard**; reuse that account. Olive needs appropriately scoped eTime management access.
 4. Preserve existing **Cover/Switch** behavior even if its navigation position changes. Leave ICU Command Center, staffing boards, schedule functions and aide/ICU restrictions undisturbed.
 5. Respect the owner's requested first-iteration employee-ID workflow. Do **not silently introduce** a PIN, password, verification code or other enrollment layer. The risks and any changes to this approach are explicitly deferred for discussion with Ramon; they are an **unresolved pre-release decision**, not permission to publish a vulnerable feature.

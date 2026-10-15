@@ -5,6 +5,7 @@ import { DirectorShiftStatusClient } from "@/components/DirectorShiftStatusClien
 import { canViewDirectorShiftStatus } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { createClient } from "@/lib/supabase/server";
+import { reviewer } from "@/lib/etime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function DirectorShiftStatusPage() {
   }
 
   const supabase = await createClient();
+  const etimeGrant = await reviewer();
   const { data: department } = await supabase
     .from("departments")
     .select("timezone")
@@ -53,6 +55,7 @@ export default async function DirectorShiftStatusPage() {
 
   return (
     <DirectorShiftStatusClient
+      canAccessEtime={etimeGrant?.role === "manager" || etimeGrant?.role === "timekeeper"}
       authContext={auth.context}
       timezone={(department?.timezone as string | null | undefined) || "America/Los_Angeles"}
     />

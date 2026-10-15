@@ -26,7 +26,7 @@ describe("BottomNavigation", () => {
     expect(icuLink).toHaveAttribute("href", "/icu-command-center");
     expect(icuLink).not.toHaveAttribute("target");
     expect(icuLink.querySelector("svg")).toHaveClass("lucide-bed");
-    expect(screen.getByRole("button", { name: "Cover/Switch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Time Card" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Staff" })).toBeInTheDocument();
     expect(screen.queryByText("Gossip")).not.toBeInTheDocument();
 
@@ -48,12 +48,12 @@ describe("BottomNavigation", () => {
     render(<BottomNavigation activeTab="staff" onTabChange={onTabChange} canAccessIcu />);
 
     fireEvent.click(screen.getByRole("button", { name: "Schedule" }));
-    fireEvent.click(screen.getByRole("button", { name: "Cover/Switch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Time Card" }));
     fireEvent.click(screen.getByRole("button", { name: "Staff" }));
 
     expect(onTabChange.mock.calls.map(([tab]) => tab)).toEqual([
       "schedule",
-      "shift-board",
+      "time-card",
       "staff"
     ]);
     expect(screen.getByRole("button", { name: "Staff" })).toHaveAttribute(

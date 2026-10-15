@@ -3,6 +3,8 @@ import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin"
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/auth/password-policy";
 import { authEmailForUsername, normalizeUsername } from "@/lib/auth/username";
 import type { AppRole, OperationsRole } from "@/lib/auth/types";
+import { claimPortalAccount, portalAccount } from "@/lib/etime/account";
+import { rateLimit, sameOrigin } from "@/lib/etime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +56,16 @@ export async function POST(request: Request) {
   }
 
   const supabase = createAdminClient();
+  const portal = await portalAccount(username);
+  if (portal) {
+    try {
+      sameOrigin(request);
+      await rateLimit(request, "etime-claim");
+      return NextResponse.json(await claimPortalAccount(portal, password), { headers: noStoreHeaders });
+    } catch (error) {
+      return claimError("unavailable", error instanceof Error ? error.message : "Unable to activate this account.", 400);
+    }
+  }
   const { data: staffProfile, error: staffError } = await supabase
     .from("staff_profiles")
     .select(

@@ -3120,7 +3120,7 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
 
       if (tab === "cover-switch" || tab === "shift-board") {
         setActiveTab("shift-board");
-      } else if (tab === "gossip" || tab === "manage-schedule" || tab === "staff" || tab === "schedule") {
+      } else if (tab === "gossip" || tab === "manage-schedule" || tab === "staff" || tab === "schedule" || tab === "time-card") {
         setActiveTab(tab);
       }
     }, 0);
@@ -3395,6 +3395,15 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
             />
+          )}
+          {activeTab === "time-card" && (
+            <section className="rounded-3xl bg-white p-5 shadow-soft">
+              <h2 className="text-2xl font-black text-hospital-ink">Time Card</h2>
+              <div className="mt-5 grid gap-3">
+                <button className="min-h-16 rounded-2xl bg-cyan-50 p-5 text-left font-extrabold text-cyan-800" onClick={() => setActiveTab("shift-board")}>Cover Switch</button>
+                <a className="min-h-16 rounded-2xl bg-cyan-50 p-5 font-extrabold text-cyan-800" href="/etime">Enter Exception</a>
+              </div>
+            </section>
           )}
           {activeTab === "shift-board" && (
             <ShiftBoardScreen

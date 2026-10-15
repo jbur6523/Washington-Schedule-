@@ -5,7 +5,7 @@ const config = [
   ...nextCoreWebVitals,
   ...nextTypescript,
   {
-    ignores: [".next/**", "node_modules/**", "supabase/.temp/**"]
+    ignores: [".next/**", "node_modules/**", "supabase/.temp/**", "public/pdf.worker.min.mjs"]
   }
 ];
 

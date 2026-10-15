@@ -6,6 +6,7 @@ import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { authenticatedLandingPath } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
+import { reviewer } from "@/lib/etime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function Home() {
   }
 
   const auth = await getAuthenticatedUserContext();
+  if (auth.status !== "authenticated" && (await reviewer())?.portal_only) redirect("/etime/portal");
 
   if (auth.status === "unauthenticated") {
     redirect("/login");

@@ -12,3 +12,4 @@ pnpm-debug.log*
 .DS_Store
 *.tsbuildinfo
 .vercel
+public/pdf.worker.min.mjs

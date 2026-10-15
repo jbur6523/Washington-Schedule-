@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bed, CalendarDays, ClipboardList, Mail, Users } from "lucide-react";
 
-export type TabId = "schedule" | "manage-schedule" | "gossip" | "shift-board" | "staff";
+export type TabId = "schedule" | "manage-schedule" | "gossip" | "shift-board" | "staff" | "time-card";
 
 type BottomNavigationProps = {
   activeTab: TabId;
@@ -29,7 +29,7 @@ const navigationItems: NavigationItem[] = [
   { kind: "internal", id: "schedule", label: "Schedule", icon: CalendarDays },
   { kind: "page", href: "/icu-command-center", label: "ICU", icon: Bed },
   { kind: "external", href: "https://mail.whhs.com/owa/", label: "Email", icon: Mail },
-  { kind: "internal", id: "shift-board", label: "Cover/Switch", icon: ClipboardList },
+  { kind: "internal", id: "time-card", label: "Time Card", icon: ClipboardList },
   { kind: "internal", id: "staff", label: "Staff", icon: Users }
 ];
 
@@ -68,7 +68,7 @@ export function BottomNavigation({ activeTab, onTabChange, canAccessIcu }: Botto
             );
           }
 
-          const active = activeTab === item.id;
+          const active = activeTab === item.id || (item.id === "time-card" && activeTab === "shift-board");
 
           return (
             <button

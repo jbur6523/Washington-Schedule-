@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient, hasSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { normalizeUsername } from "@/lib/auth/username";
+import { portalAccount } from "@/lib/etime/account";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,8 @@ export async function POST(request: Request) {
   }
 
   const supabase = createAdminClient();
+  const portal = await portalAccount(username);
+  if (portal) return NextResponse.json({ status: portal.auth_user_id || portal.claimed_at ? "claimed" : "unclaimed", username: portal.username }, { headers: noStoreHeaders });
   const { data: profile, error } = await supabase
     .from("staff_profiles")
     .select("username, username_normalized, is_active, account_claimed_at, auth_user_id, profile_id")

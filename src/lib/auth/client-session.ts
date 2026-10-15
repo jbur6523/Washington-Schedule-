@@ -12,6 +12,7 @@ export function clearAppSessionState() {
 
 export async function clearAndSignOut() {
   clearAppSessionState();
+  await fetch("/api/etime", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "logout" }) }).catch(() => undefined);
   const supabase = createClient();
   await supabase.auth.signOut({ scope: "local" });
   clearAppSessionState();

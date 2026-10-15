@@ -1,0 +1,16 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_temp;
+select plan(10);
+select ok(not has_table_privilege('anon','public.etime_trial_identities','select'),'anonymous cannot enumerate identities');
+select ok(not has_table_privilege('authenticated','public.etime_trial_forms','select'),'staff cannot bypass authorized server');
+select ok(not has_function_privilege('anon','public.etime_trial_save(uuid,date,integer,jsonb,text,text,boolean)','execute'),'anon cannot call mutation RPC');
+select ok(not has_function_privilege('authenticated','public.etime_trial_correct_identity(uuid,uuid,text,text,text,text,text)','execute'),'staff cannot correct identity');
+select ok(not has_table_privilege('service_role','public.etime_trial_revisions','update'),'revision snapshots immutable to app');
+select ok(not has_table_privilege('service_role','public.etime_trial_identity_audit','delete'),'identity audit immutable to app');
+select is((select count(*)::integer from pg_class where relname like 'etime_trial_%' and relkind='r' and not relrowsecurity),0,'all trial tables enable RLS');
+select ok(has_function_privilege('service_role','public.etime_trial_save(uuid,date,integer,jsonb,text,text,boolean)','execute'),'server can save transactionally');
+select ok(not (select public from storage.buckets where id='etime-trial-private'),'PDF bucket private');
+select ok(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'etime_trial_%' and p.prosecdef),'no security definer bypass');
+select * from finish();
+rollback;

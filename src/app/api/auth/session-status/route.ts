@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticatedLandingPath } from "@/lib/auth/access";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { reviewer } from "@/lib/etime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,8 @@ const noStoreHeaders = {
 };
 
 export async function GET() {
+  const grant = await reviewer();
+  if (grant?.portal_only) return NextResponse.json({ status: "active", redirectTo: "/etime/portal" }, { headers: noStoreHeaders });
   const auth = await getAuthenticatedUserContext();
 
   if (auth.status === "error") {

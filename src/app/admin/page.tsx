@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { adminDashboardAreas } from "@/lib/admin/navigation";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
+import { reviewer } from "@/lib/etime/server";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ export default async function AdminPage() {
           Admin is the app superuser for reviewing and testing every major module.
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {(await reviewer())?.role === "identity_admin" && <Link href="/etime/admin" className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 font-bold text-cyan-900">Payroll Identity Corrections</Link>}
           {adminDashboardAreas.map((area) => (
             <Link
               key={area.title}

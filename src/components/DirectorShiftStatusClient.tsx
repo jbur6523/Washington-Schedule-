@@ -376,10 +376,12 @@ function DirectorScheduleRow({ entry }: { entry: ScheduleEntry }) {
 
 export function DirectorShiftStatusClient({
   authContext,
-  timezone
+  timezone,
+  canAccessEtime = false
 }: {
   authContext: AuthenticatedUserContext;
   timezone: string;
+  canAccessEtime?: boolean;
 }) {
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [updates, setUpdates] = useState<ShiftStatusUpdate[]>([]);
@@ -1170,6 +1172,7 @@ export function DirectorShiftStatusClient({
               </div>
 
               <div className="mt-3 grid gap-2">
+                {canAccessEtime && <a href="/etime/portal" className="flex min-h-14 items-center rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 text-sm font-black text-hospital-ink">Timecard Management</a>}
                 <button
                   type="button"
                   onClick={() => {
