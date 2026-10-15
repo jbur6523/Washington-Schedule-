@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import Image from "next/image";
@@ -15,6 +15,7 @@ import {
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import { ExceptionWizard } from "./ExceptionWizard";
 import { Signature } from "./Signature";
+import { ManagerSignOff } from "./ManagerSignOff";
 import { ReviewFolders } from "./ReviewFolders";
 import { isEntryEntered } from "@/lib/etime/workflow";
 const FormViewer = dynamic(
@@ -42,6 +43,7 @@ const shortDate = (date: string) =>
 const payPeriodDate = (date: string) =>
   `${date.slice(5, 7)}${date.slice(8, 10)}${date.slice(2, 4)}`;
 export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
+  const managerSignOff = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -646,19 +648,14 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
             <FormViewer
               key={`${form.id}:${form.revision}`}
               form={form}
-              manager={
+              onManagerSign={
                 data.grant?.role === "manager"
-                  ? {
-                      name: data.grant.display_name,
-                      savedName: data.grant.saved_signature_name,
-                      onSign: (name, adopted) =>
-                        void act({
-                          action: "managerSign",
-                          form_id: form.id,
-                          revision: form.revision,
-                          name,
-                          adopted,
-                        }),
+                  ? () => {
+                      managerSignOff.current?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "center",
+                      });
+                      managerSignOff.current?.focus({ preventScroll: true });
                     }
                   : undefined
               }
@@ -850,6 +847,25 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
                 }
               />
             )}
+          {mode === "review" && data.grant?.role === "manager" && (
+            <div ref={managerSignOff} tabIndex={-1}>
+              <ManagerSignOff
+                form={form}
+                name={data.grant.display_name}
+                savedName={data.grant.saved_signature_name}
+                busy={busy}
+                onSign={(name, adopted) =>
+                  void act({
+                    action: "managerSign",
+                    form_id: form.id,
+                    revision: form.revision,
+                    name,
+                    adopted,
+                  })
+                }
+              />
+            </div>
+          )}
           {(mode === "review" || entry) && (
             <section className="space-y-2" aria-label="Revision history">
               <h3 className="font-bold">Revision history</h3>

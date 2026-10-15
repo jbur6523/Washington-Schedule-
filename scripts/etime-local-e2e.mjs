@@ -142,6 +142,11 @@ const save = (entry, form) => ({
   name: "Synthetic Employee",
   adopted: true,
 });
+await api(qr, {
+  ...save({ date: today, category: "education", hours: "1", reason: "Unsigned submission must fail" }),
+  adopted: false,
+}, "/api/etime", 400);
+assert.equal((await api(qr)).forms.length, 0, "Unsigned submissions must not create a form");
 let form = (
   await api(
     qr,
@@ -489,6 +494,11 @@ assert.equal(linked.identity.id, employee.identity.id);
 assert.equal(linked.forms[0].id, form.id);
 assert.equal(linked.identity.first_name, "Synthetic");
 await api(staff, null, "/api/etime?mode=review", 403);
+// Finish correction tests with a valid employee signature for the beta preview.
+await api(staff, {
+  action: "employeeSign", form_id: form.id, revision: linked.forms[0].revision,
+  name: "Synthetic Corrected", adopted: true,
+});
 console.log(
   "PASS: QR enrollment, exact punches, grouped entries, scoped reviewer access, initials, signatures, stale edit rejection, PDF archive, ownership checks, correction preservation, portal isolation, portal activation, app/QR identity linking.",
 );

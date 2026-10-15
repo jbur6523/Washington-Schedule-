@@ -7,7 +7,6 @@ import {
   isApproved,
   isEntryEntered,
 } from "@/lib/etime/workflow";
-import { Signature } from "./Signature";
 function Sheet({
   url,
   page,
@@ -121,31 +120,18 @@ function Sheet({
 export function FormViewer({
   form,
   onInitial,
-  manager,
+  onManagerSign,
   busy,
 }: {
   form: EtimeForm;
   onInitial?: (entry: Entry) => void;
-  manager?: {
-    name: string;
-    savedName?: string | null;
-    onSign: (name: string, adopted: boolean) => void;
-  };
+  onManagerSign?: () => void;
   busy: boolean;
 }) {
-  const [signing, setSigning] = useState(false);
-  const signaturePanel = useRef<HTMLDivElement>(null);
   const eligible =
-    Boolean(manager) && canManagerSign(form.state) && !isApproved(form.state);
-  useEffect(() => {
-    if (signing && eligible) {
-      signaturePanel.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-      signaturePanel.current?.focus({ preventScroll: true });
-    }
-  }, [signing, eligible]);
+    Boolean(onManagerSign) &&
+    canManagerSign(form.state) &&
+    !isApproved(form.state);
   const rows = layoutRows(form.state.entries);
   const url = `/api/etime/forms/${form.id}?revision=${form.revision}`;
   return (
@@ -178,36 +164,13 @@ export function FormViewer({
                 page={page + 1}
                 entries={rows.slice(page * 10, page * 10 + 10)}
                 onInitial={onInitial}
-                onSign={eligible ? () => setSigning(true) : undefined}
+                onSign={eligible ? onManagerSign : undefined}
                 busy={busy}
               />
             ),
           )}
         </div>
       </div>
-      {eligible && signing && manager && (
-        <div
-          ref={signaturePanel}
-          tabIndex={-1}
-          className="rounded-xl border border-blue-200 bg-blue-50 p-4"
-          aria-label="Manager signature"
-        >
-          <Signature
-            key={`${form.id}:${form.revision}`}
-            expected={manager.name}
-            savedName={manager.savedName}
-            busy={busy}
-            label="Sign Timecard"
-            onSign={manager.onSign}
-          />
-        </div>
-      )}
-      {manager && !isApproved(form.state) && !canManagerSign(form.state) && (
-        <p className="text-sm text-slate-500">
-          Manager signing becomes available on the form after every entry is
-          initialed and the employee has signed the current version.
-        </p>
-      )}
     </section>
   );
 }

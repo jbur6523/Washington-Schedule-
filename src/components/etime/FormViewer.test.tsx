@@ -12,11 +12,6 @@ beforeEach(() => {
 });
 
 describe("PDF manager signature control", () => {
-  const manager = {
-    name: "Ramon Hollander",
-    savedName: "Ramon Hollander",
-    onSign: vi.fn(),
-  };
   it("allows timekeepers to initial but never exposes manager signing", () => {
     const form = reviewForm();
     delete form.state.entries[2].entered;
@@ -27,7 +22,9 @@ describe("PDF manager signature control", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /Confirm eTime entry/ }),
     );
-    expect(onInitial).toHaveBeenCalledWith(expect.objectContaining(form.state.entries[2]));
+    expect(onInitial).toHaveBeenCalledWith(
+      expect.objectContaining(form.state.entries[2]),
+    );
     expect(
       screen.queryByRole("button", { name: /Sign Timecard/ }),
     ).not.toBeInTheDocument();
@@ -39,39 +36,34 @@ describe("PDF manager signature control", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("requires complete entry before exposing the PDF field and explicit adoption before signing", () => {
+  it("links the eligible PDF field to the manager sign-off section", () => {
+    const onManagerSign = vi.fn();
     const form = reviewForm();
     const entered = form.state.entries[2].entered;
     delete form.state.entries[2].entered;
     const { rerender } = render(
-      <FormViewer form={form} busy={false} manager={manager} />,
+      <FormViewer form={form} busy={false} onManagerSign={onManagerSign} />,
     );
     expect(
       screen.queryByRole("button", { name: /Sign Timecard/ }),
     ).not.toBeInTheDocument();
     form.state.entries[2].entered = entered;
-    rerender(<FormViewer form={form} busy={false} manager={manager} />);
+    rerender(
+      <FormViewer form={form} busy={false} onManagerSign={onManagerSign} />,
+    );
     fireEvent.click(
       screen.getByRole("button", {
         name: "Sign Timecard in Manager/Director Signature field",
       }),
     );
-    expect(screen.getByLabelText("Signature preview")).toHaveTextContent(
-      "Ramon Hollander",
-    );
-    expect(
-      screen.getByRole("button", { name: "Sign Timecard" }),
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Sign Timecard" }),
-    );
-    expect(manager.onSign).toHaveBeenCalledWith("Ramon Hollander", true);
+    expect(onManagerSign).toHaveBeenCalledOnce();
     form.state.managerSignature = {
       ...form.state.employeeSignature!,
-      name: manager.name,
+      name: "Ramon Hollander",
     };
-    rerender(<FormViewer form={form} busy={false} manager={manager} />);
+    rerender(
+      <FormViewer form={form} busy={false} onManagerSign={onManagerSign} />,
+    );
     expect(
       screen.queryByRole("button", { name: /Sign Timecard/ }),
     ).not.toBeInTheDocument();
