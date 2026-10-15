@@ -54,6 +54,10 @@ The browser renders the exact PDF with a same-origin PDF.js worker. Yellow overl
 
 ## Go-live boundary
 
+Jonathan Burdick's `burj` identity-admin grant may carry `temporary_manager_access=true` during the trial, as explicitly authorized for demonstrations. Admin → Timecard Management — Trial Access opens the manager workflow without switching accounts. Initials, signatures, saved signature name, and immutable audit actors belong to Jonathan, never Ramon. Ordinary identity admins and timekeepers receive no additional authority. Revoking this flag takes effect on the next request, including PDF/history and mutation endpoints; identity-correction authority is retained.
+
+At go-live, disable `etime_trial_config.enabled` before enabling the fresh official record store. The `etime_trial_end_temporary_access` trigger permanently clears all temporary manager flags when the trial is disabled; re-enabling the trial does not restore them. The server also requires an enabled trial in the same department for temporary access. Do not copy temporary flags into official permissions. Early revocation can set only Jonathan's `temporary_manager_access=false`.
+
 Before official go-live, obtain the owner's explicit instruction, stakeholder acceptance of the ID access model and typed signatures, and an agreed retention/access/backup policy. Create a fresh official data store and access configuration. Preserve trial data separately; do not relabel trial submissions as official records. Late corrections to closed periods need a separately authorized amendment process.
 
 For an urgent trial stop, set `etime_trial_config.enabled=false`. This blocks trial data endpoints, including PDFs. Restore it only when authorized. Existing scheduling and ICU functionality are independent.

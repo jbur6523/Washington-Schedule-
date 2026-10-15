@@ -20,6 +20,7 @@ export type Grant = {
   display_name: string;
   initials: string;
   saved_signature_name: string | null;
+  temporary_manager_access: boolean;
   role: "timekeeper" | "manager" | "identity_admin";
   portal_only: boolean;
   active: boolean;
@@ -46,6 +47,16 @@ export async function reviewer() {
       auth.context.departmentId !== data.department_id
     )
       return null;
+  }
+  if (data?.temporary_manager_access) {
+    const { data: trial, error: trialError } = await db
+      .from("etime_trial_config")
+      .select("department_id")
+      .eq("id", true)
+      .eq("enabled", true)
+      .eq("department_id", data.department_id)
+      .maybeSingle();
+    if (trialError || !trial) data.temporary_manager_access = false;
   }
   return data as Grant | null;
 }

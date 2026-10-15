@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { employee, reviewer, trialDepartment } from "@/lib/etime/server";
 import { formPdf } from "@/lib/etime/pdf";
+import { payrollReviewRole } from "@/lib/etime/access";
 import type { EtimeForm } from "@/lib/etime/model";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ export async function GET(
     const db = createAdminClient();
     const grant = await reviewer();
     let query = db.from("etime_trial_forms").select("*").eq("id", id);
-    if (grant && grant.role !== "identity_admin")
+    if (grant && payrollReviewRole(grant))
       query = query.eq("department_id", grant.department_id);
     else {
       const who = await employee();

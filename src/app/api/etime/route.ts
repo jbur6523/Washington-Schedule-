@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { canManagerSign } from "@/lib/etime/workflow";
+import { payrollReviewRole } from "@/lib/etime/access";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   employee,
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
     const grant = await reviewer();
     if (mode === "access")
       return json({
-        reviewer: grant && grant.role !== "identity_admin",
+        reviewer: Boolean(payrollReviewRole(grant)),
         identityAdmin: grant?.role === "identity_admin",
       });
     if (mode === "review" || mode === "admin") {
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
         !grant ||
         (mode === "admin"
           ? grant.role !== "identity_admin"
-          : grant.role === "identity_admin")
+          : !payrollReviewRole(grant))
       )
         return json({ error: "Access denied." }, 403);
       const { data: identities, error: ie } = await db
@@ -77,7 +78,8 @@ export async function GET(request: Request) {
       return json({
         grant: {
           display_name: grant.display_name,
-          role: grant.role,
+          role: mode === "review" ? payrollReviewRole(grant) : grant.role,
+          temporary_manager_access: grant.temporary_manager_access,
           portal_only: grant.portal_only,
           saved_signature_name: grant.saved_signature_name ?? null,
         },
@@ -219,9 +221,9 @@ export async function POST(request: Request) {
     const management =
       body.action === "initial" || body.action === "managerSign";
     const grant = management ? await reviewer() : null;
-    if (management && (!grant || grant.role === "identity_admin"))
+    if (management && !payrollReviewRole(grant))
       return json({ error: "Access denied." }, 403);
-    if (body.action === "managerSign" && grant?.role !== "manager")
+    if (body.action === "managerSign" && payrollReviewRole(grant) !== "manager")
       return json({ error: "Only the assigned manager may sign." }, 403);
     const who = management ? null : await employee();
     if (!management && !who?.identity)

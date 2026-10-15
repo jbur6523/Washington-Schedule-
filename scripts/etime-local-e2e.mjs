@@ -142,11 +142,25 @@ const save = (entry, form) => ({
   name: "Synthetic Employee",
   adopted: true,
 });
-await api(qr, {
-  ...save({ date: today, category: "education", hours: "1", reason: "Unsigned submission must fail" }),
-  adopted: false,
-}, "/api/etime", 400);
-assert.equal((await api(qr)).forms.length, 0, "Unsigned submissions must not create a form");
+await api(
+  qr,
+  {
+    ...save({
+      date: today,
+      category: "education",
+      hours: "1",
+      reason: "Unsigned submission must fail",
+    }),
+    adopted: false,
+  },
+  "/api/etime",
+  400,
+);
+assert.equal(
+  (await api(qr)).forms.length,
+  0,
+  "Unsigned submissions must not create a form",
+);
 let form = (
   await api(
     qr,
@@ -495,10 +509,131 @@ assert.equal(linked.forms[0].id, form.id);
 assert.equal(linked.identity.first_name, "Synthetic");
 await api(staff, null, "/api/etime?mode=review", 403);
 // Finish correction tests with a valid employee signature for the beta preview.
-await api(staff, {
-  action: "employeeSign", form_id: form.id, revision: linked.forms[0].revision,
-  name: "Synthetic Corrected", adopted: true,
+const previewSigned = await api(staff, {
+  action: "employeeSign",
+  form_id: form.id,
+  revision: linked.forms[0].revision,
+  name: "Synthetic Corrected",
+  adopted: true,
 });
+form = previewSigned.form;
+await api(admin, null, "/api/etime?mode=review", 403);
+const adminGrant = check(
+  await db
+    .from("etime_trial_grants")
+    .select("id")
+    .eq("username", admin.username)
+    .single(),
+);
+const setTemporaryAccess = async (enabled) =>
+  check(
+    await db
+      .from("etime_trial_grants")
+      .update({ temporary_manager_access: enabled })
+      .eq("id", adminGrant.id),
+  );
+await setTemporaryAccess(true);
+assert.equal(
+  (await api(admin, null, "/api/etime?mode=review")).grant.role,
+  "manager",
+);
+assert.equal(
+  (await api(admin, null, "/api/etime?mode=admin")).grant.role,
+  "identity_admin",
+);
+const adminAccess = await api(admin, null, "/api/etime?mode=access");
+assert.equal(adminAccess.reviewer, true);
+assert.equal(adminAccess.identityAdmin, true);
+form = (await initial(admin, 0)).form;
+assert.equal(form.state.entries[0].entered.actor, `reviewer:${adminGrant.id}`);
+form = (
+  await api(admin, {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Administrator",
+    adopted: true,
+  })
+).form;
+assert.equal(form.state.managerSignature.name, "Test Administrator");
+assert.equal(form.state.managerSignature.actor, `reviewer:${adminGrant.id}`);
+assert.equal(
+  (await api(admin, null, "/api/etime?mode=review")).grant.saved_signature_name,
+  "Test Administrator",
+);
+assert.equal(
+  (
+    await fetch(base + `/api/etime/forms/${form.id}`, {
+      headers: { Cookie: admin.cookie },
+    })
+  ).status,
+  200,
+);
+await setTemporaryAccess(false);
+await api(admin, null, "/api/etime?mode=review", 403);
+await api(
+  admin,
+  {
+    action: "managerSign",
+    form_id: form.id,
+    revision: form.revision,
+    name: "Test Administrator",
+    adopted: true,
+  },
+  "/api/etime",
+  403,
+);
+await api(
+  admin,
+  {
+    action: "initial",
+    form_id: form.id,
+    revision: form.revision,
+    entry_id: form.state.entries[0].id,
+    entered: true,
+  },
+  "/api/etime",
+  403,
+);
+assert.equal(
+  (
+    await fetch(base + `/api/etime/forms/${form.id}`, {
+      headers: { Cookie: admin.cookie },
+    })
+  ).status,
+  503, // This portal-only fixture has no employee membership to fall back to.
+);
+await api(admin, null, "/api/etime?mode=admin");
+await setTemporaryAccess(true);
+try {
+  check(
+    await db
+      .from("etime_trial_config")
+      .update({ enabled: false })
+      .eq("id", true),
+  );
+  assert.equal(
+    check(
+      await db
+        .from("etime_trial_grants")
+        .select("temporary_manager_access")
+        .eq("id", adminGrant.id)
+        .single(),
+    ).temporary_manager_access,
+    false,
+  );
+} finally {
+  check(
+    await db
+      .from("etime_trial_config")
+      .update({ enabled: true })
+      .eq("id", true),
+  );
+}
+await api(admin, null, "/api/etime?mode=review", 403);
+console.log(
+  "PASS: temporary admin review/initial/sign/PDF access, own signer identity, retained correction authority, immediate revocation, and trial-end revocation without reactivation.",
+);
 console.log(
   "PASS: QR enrollment, exact punches, grouped entries, scoped reviewer access, initials, signatures, stale edit rejection, PDF archive, ownership checks, correction preservation, portal isolation, portal activation, app/QR identity linking.",
 );

@@ -1,7 +1,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions, pg_temp;
-select plan(10);
+select plan(12);
 select ok(not has_table_privilege('anon','public.etime_trial_identities','select'),'anonymous cannot enumerate identities');
 select ok(not has_table_privilege('authenticated','public.etime_trial_forms','select'),'staff cannot bypass authorized server');
 select ok(not has_function_privilege('anon','public.etime_trial_save(uuid,date,integer,jsonb,text,text,boolean)','execute'),'anon cannot call mutation RPC');
@@ -12,5 +12,7 @@ select is((select count(*)::integer from pg_class where relname like 'etime_tria
 select ok(has_function_privilege('service_role','public.etime_trial_save(uuid,date,integer,jsonb,text,text,boolean)','execute'),'server can save transactionally');
 select ok(not (select public from storage.buckets where id='etime-trial-private'),'PDF bucket private');
 select ok(not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'etime_trial_%' and p.prosecdef),'no security definer bypass');
+select ok(not has_column_privilege('authenticated','public.etime_trial_grants','temporary_manager_access','update'),'staff cannot grant themselves temporary payroll access');
+select ok(not has_function_privilege('authenticated','public.etime_trial_revoke_temporary_access()','execute'),'trial-end trigger is not publicly callable');
 select * from finish();
 rollback;

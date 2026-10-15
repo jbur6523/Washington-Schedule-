@@ -4,6 +4,7 @@ import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { adminDashboardAreas } from "@/lib/admin/navigation";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
 import { reviewer } from "@/lib/etime/server";
+import { payrollReviewRole } from "@/lib/etime/access";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,6 @@ export default async function AdminPage() {
     redirect("/login");
   }
 
-
   if (auth.status === "error") {
     return <AuthVerificationNotice message={auth.message} />;
   }
@@ -23,6 +23,7 @@ export default async function AdminPage() {
     notFound();
   }
 
+  const payrollGrant = await reviewer();
   return (
     <main className="min-h-screen px-4 py-8">
       <section className="mx-auto max-w-2xl rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
@@ -33,10 +34,27 @@ export default async function AdminPage() {
           WHHS RT Schedule Administration
         </h1>
         <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-          Admin is the app superuser for reviewing and testing every major module.
+          Admin is the app superuser for reviewing and testing every major
+          module.
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {(await reviewer())?.role === "identity_admin" && <Link href="/etime/admin" className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 font-bold text-cyan-900">Payroll Identity Corrections</Link>}
+          {payrollGrant?.role === "identity_admin" && (
+            <Link
+              href="/etime/admin"
+              className="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 font-bold text-cyan-900"
+            >
+              Payroll Identity Corrections
+            </Link>
+          )}
+          {payrollReviewRole(payrollGrant) && (
+            <Link
+              href="/etime/portal"
+              className="rounded-2xl border border-blue-200 bg-blue-50 p-5 font-bold text-blue-900"
+            >
+              Timecard Management
+              {payrollGrant?.temporary_manager_access ? " — Trial Access" : ""}
+            </Link>
+          )}
           {adminDashboardAreas.map((area) => (
             <Link
               key={area.title}
@@ -44,8 +62,14 @@ export default async function AdminPage() {
               className={`flex min-h-44 flex-col justify-between rounded-2xl border px-4 py-4 shadow-sm transition duration-150 active:scale-[0.99] ${area.cardClassName}`}
             >
               <span>
-                <span className={`block text-base font-black ${area.accentClassName}`}>{area.title}</span>
-                <span className="mt-1 block text-sm font-bold leading-5 text-slate-600">{area.description}</span>
+                <span
+                  className={`block text-base font-black ${area.accentClassName}`}
+                >
+                  {area.title}
+                </span>
+                <span className="mt-1 block text-sm font-bold leading-5 text-slate-600">
+                  {area.description}
+                </span>
               </span>
               <span
                 className={`mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-2xl px-3 text-center text-sm font-black shadow-sm ${area.buttonClassName}`}

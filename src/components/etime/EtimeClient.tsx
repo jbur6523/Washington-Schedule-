@@ -34,6 +34,7 @@ type Data = {
     display_name: string;
     portal_only: boolean;
     saved_signature_name: string | null;
+    temporary_manager_access?: boolean;
   };
 };
 type Mode = "employee" | "review" | "admin";
@@ -221,6 +222,12 @@ export function EtimeClient({ mode = "employee" }: { mode?: Mode }) {
       </header>
       <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-950">
         {TRIAL_NOTICE}
+        {mode === "review" && data?.grant?.temporary_manager_access && (
+          <span className="mt-2 block">
+            Temporary admin payroll access · Actions are recorded as{" "}
+            {data.grant.display_name}. Access ends with the trial.
+          </span>
+        )}
       </p>
       {error && (
         <div role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">
