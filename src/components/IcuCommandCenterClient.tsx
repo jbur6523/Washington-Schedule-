@@ -6,6 +6,7 @@ import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printe
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
+import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
@@ -996,7 +997,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   };
 
   const openEdit = (record: IcuPatientRecord) => {
-    if (isLeadSurface || !canEditIcuCommandCenter(authContext)) return;
+    if (!canEditIcuCommandCenter(authContext)) return;
     setFormOpenedFromAdd(false);
     setEditingRecord(record);
     setForm(formFromRecord(record));
@@ -1008,7 +1009,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   const savePatient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canManageIcuLifecycle(authContext) || (editingRecord && (isLeadSurface || !canEditIcuCommandCenter(authContext)))) return;
+    if (!canManageIcuLifecycle(authContext) || (editingRecord && !canEditIcuCommandCenter(authContext))) return;
     setMessage("");
     setError("");
     setFormError("");
@@ -1382,7 +1383,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   return (
     <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
-      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
+      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">ICU Command Center</h1>
@@ -1732,7 +1733,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
                 <h2 id="icu-form-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  {editingRecord ? "Update Patient" : isLeadSurface ? "Add Device" : "Add Patient"}
+                  {editingRecord ? (isLeadSurface ? "Update Device" : "Update Patient") : isLeadSurface ? "Add Device" : "Add Patient"}
                 </h2>
               </div>
               <button
@@ -1755,6 +1756,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
             <form onSubmit={savePatient} className="mt-4 space-y-4">
               <div className="grid gap-3">
+                {isLeadSurface ? <LeadBedSelector bed={form.bed} onChange={bed => setForm({ ...form, bed })} records={records} editingId={editingRecord?.id} /> : (
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Bed</span>
                   <select
@@ -1788,6 +1790,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     })}
                   </select>
                 </label>
+                )}
 
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>

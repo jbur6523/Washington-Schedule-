@@ -3,12 +3,15 @@ import { icuBedOptions } from "./utils";
 
 export const icuRoomGroups = [
   { id: "icu", label: "ICU C-E", units: ["C", "D", "E"] },
-  { id: "imc", label: "IMC", units: ["IMC", "A", "B"] }
+  { id: "imc", label: "IMC", units: ["IMC", "A", "B"] },
+  { id: "ed", label: "ED", units: ["ED"] },
+  { id: "or", label: "OR", units: ["OR"] },
+  { id: "other", label: "Other", units: [] }
 ] as const;
 
 export function icuRoomGroup(bed: string) {
   const unit = bed.trim().toUpperCase().match(/^[A-Z]+/)?.[0];
-  return icuRoomGroups.find(group => (group.units as readonly string[]).includes(unit ?? ""))?.id;
+  return icuRoomGroups.find(group => (group.units as readonly string[]).includes(unit ?? ""))?.id ?? "other";
 }
 
 export function compareIcuBeds(left: string, right: string) {

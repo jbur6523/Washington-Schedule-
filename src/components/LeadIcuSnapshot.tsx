@@ -6,9 +6,9 @@ import { formatIcuAirway, formatIcuDeviceSummary, formatIcuSettings, supportsIcu
 import { activeVentModifierLabels, ventCardTone } from "@/lib/icu-command-center/vent-status";
 import { compareIcuBeds, icuRoomGroup, icuRoomGroups } from "@/lib/icu-command-center/rooms";
 
-export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd, onDiscontinue }: {
+export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd, onUpdate, onDiscontinue }: {
   records: IcuPatientRecord[]; loading: boolean; error: string; message: string; busy: boolean;
-  onAdd: () => void; onDiscontinue: (record: IcuPatientRecord) => void;
+  onAdd: () => void; onUpdate: (record: IcuPatientRecord) => void; onDiscontinue: (record: IcuPatientRecord) => void;
 }) {
   const deviceCounts = ([ ["vent", "VENT"], ["bipap", "BIPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "COOL AEROSOL"] ] as const)
     .map(([type, label]) => ({ type, label, count: records.filter(record => record.is_active && record.device_type === type).length }))
@@ -43,7 +43,7 @@ export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd,
                   <th scope="row" className="col-span-2 px-3 pb-1 pt-3 sm:py-3 align-top font-semibold text-slate-800">{record.bed}</th>
                   <td className="col-start-1 row-start-2 min-w-0 px-3 py-2 align-top text-slate-700 sm:py-3"><p className="font-semibold">{formatIcuDeviceSummary(record)}</p>{formatIcuAirway(record) && <p className="text-xs">{formatIcuAirway(record)}</p>}<p className="mt-1 leading-5">{formatIcuSettings(record)}</p>{record.notes?.trim() && <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 [overflow-wrap:anywhere]">Note: {record.notes}</p>}</td>
                   <td className="col-start-1 row-start-3 px-3 pb-3 align-top sm:py-3"><div className="flex flex-wrap gap-1">{statuses.length ? statuses.map(status => <span key={status} className={`rounded px-2 py-1 text-xs font-semibold ${statusClass}`}>{status}</span>) : <span className="text-slate-400">—</span>}</div></td>
-                  <td className="col-start-2 row-start-2 row-span-2 px-3 py-2 align-top sm:py-3"><button type="button" disabled={busy} onClick={() => onDiscontinue(record)} aria-label={`Discontinue ${record.bed}`} className="min-h-11 rounded-md border border-rose-200 px-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Discontinue</button></td>
+                  <td className="col-start-2 row-start-2 row-span-2 px-3 py-2 align-top sm:py-3"><div className="flex flex-col gap-2"><button type="button" disabled={busy} onClick={() => onUpdate(record)} aria-label={`Update Device ${record.bed}`} className="min-h-11 rounded-md border border-blue-200 px-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:opacity-50">Update Device</button><button type="button" disabled={busy} onClick={() => onDiscontinue(record)} aria-label={`Discontinue ${record.bed}`} className="min-h-11 rounded-md border border-rose-200 px-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Discontinue</button></div></td>
                 </tr>;
               })}
               {!active.length && <tr className="block sm:table-row"><td colSpan={4} className="px-3 py-5 text-center text-slate-500">{loading ? "Loading devices…" : error ? "Device list unavailable." : "No active respiratory devices."}</td></tr>}

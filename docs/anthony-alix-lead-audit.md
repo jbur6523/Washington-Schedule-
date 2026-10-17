@@ -35,4 +35,16 @@ Whole-repository searches covered `assigned_role`, `department_memberships`, Lea
 - `npm run lint`: passes.
 - `npx supabase test db --local --profile supabase`: all 76 database tests across five files pass.
 
-Production has not been queried or changed. Apply the new migration through the normal reviewed Supabase release workflow and verify Anthony's existing profile and any linked membership. No application runtime code changed, so an application rebuild alone will not activate this promotion.
+## Production rollout — 2026-10-17
+
+Applied the unchanged migration above through the Supabase migration API to the WHHS project `xkhqdcxnllogiogahdmd`. The API recorded version `20261017205851`, name `promote_anthony_alix_to_lead`; this is the deployed counterpart of repository version `20260909171904`. Preserve this mapping when reconciling migration history; do not blindly push unrelated pending migrations.
+
+Preflight found exactly one Anthony Alix account (`alia`), active and already claimed, with both staff and membership roles set to `staff`. Both now read `lead`, matching the established respiratory leads; `operations_role` remains `none`. The existing staff ID is unchanged. No duplicate account was created.
+
+Post-deployment comparisons confirmed unchanged staff fields (except role and automatic update timestamp), unchanged membership fields (except role and automatic update timestamp), unchanged authentication credentials, and unchanged roles for every other staff record and department membership. Under Anthony's authenticated database identity, `user_is_department_lead` returns true and the shared Lead-selector predicates return his existing profile exactly once through RLS.
+
+Rechecked all four Lead query sites: Shift Update server preload and client fallback, Lead Communication attribution, and RT Aide Notes attribution. Each queries active department `staff_profiles` with assigned role admin/lead and operations role none. There are no separate hardcoded person lists. Rental staff choices also include assigned Leads. Scheduling uses `is_shift_lead` on individual assignments for Lead hours/display; account promotion does not turn regular assignments into Lead shifts.
+
+Current verification: 45 focused application tests passed (selector, authenticated access, access matrix, Lead directory, and Lead shift scheduling), all five rollback-isolated migration scenarios passed, and TypeScript validation passed. Selector rendering was verified with component tests and production query/RLS checks, not an interactive production browser session. No application runtime changes or rebuild were required.
+
+Final full-suite verification: `npm test` passed 677 tests across 105 files, with one test/file skipped. `npm run lint` passed. Existing unrelated `artifacts/` files were left unchanged.

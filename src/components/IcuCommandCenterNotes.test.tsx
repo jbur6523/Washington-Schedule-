@@ -214,6 +214,7 @@ describe("ICU patient notes", () => {
     const addLabel = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: addLabel }));
     const dialog = within(screen.getByRole("dialog", { name: addLabel }));
+    if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "vent" } });
     expect(dialog.getByRole("radio", { name: "ETT" })).toBeChecked();
@@ -372,6 +373,7 @@ describe("ICU patient notes", () => {
     const title = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: title }));
     const dialog = within(screen.getByRole("dialog", { name: title }));
+    if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "cpap" } });
     fireEvent.change(dialog.getByLabelText("CPAP"), { target: { value: "5" } });
@@ -420,13 +422,41 @@ describe("ICU patient notes", () => {
     expect(mocks.patientUpdates).not.toHaveBeenCalled();
   });
 
-  it("labels occupied rooms but keeps existing Lead editing restrictions", async () => {
+  it("allows a Lead to update existing device settings and records the change history", async () => {
+    mocks.activeRecords = [patientRecord({ notes: "Existing note", flow: 40, fio2: 35 })];
+    render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Update Device C223" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Update Device" }));
+    expect(dialog.getByLabelText("Select bed")).toHaveValue("C Pod");
+    expect(dialog.getByLabelText("Bed")).toHaveValue("C223");
+    expect(dialog.getByLabelText("FiO2")).toHaveValue(35);
+    fireEvent.change(dialog.getByLabelText("Flow"), { target: { value: "45" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledWith(expect.objectContaining({ bed: "C223", flow: 45, fio2: 35, notes: "Existing note" })));
+    expect(mocks.eventInserts).toHaveBeenCalledWith(expect.objectContaining({ icu_patient_id: "patient-1", event_type: "updated" }));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([["ED", "30", "ED 30"], ["OR", "5", "OR 5"], ["Other", "Recovery 2", "Recovery 2"]])("adds and displays a device in %s", async (area, room, bed) => {
+    render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Device" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Add Device" }));
+    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: area } });
+    fireEvent.change(dialog.getByLabelText(area === "Other" ? "Location" : "Bed"), { target: { value: room } });
+    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "hfnc" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_payload: expect.objectContaining({ bed }) })));
+    expect(await screen.findByRole("button", { name: `Update Device ${bed}` })).toBeInTheDocument();
+  });
+
+  it("prevents adding a second device record to an occupied Lead room", async () => {
     mocks.activeRecords = [patientRecord()];
     render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
     await screen.findByRole("button", { name: "Discontinue C223" });
     fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
-    expect(screen.getByRole("option", { name: "C223 - HFNC" })).toBeDisabled();
-    expect(screen.getByRole("option", { name: "C224" })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+    expect(screen.getByRole("option", { name: "223 - Occupied" })).toBeDisabled();
+    expect(screen.getByRole("option", { name: "224" })).toBeEnabled();
   });
 
   it("allows a Lead to add through the shared ICU form and atomic record/history action", async () => {
@@ -434,6 +464,7 @@ describe("ICU patient notes", () => {
     await screen.findAllByText("No active respiratory devices.");
     fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
     const dialog = screen.getByRole("dialog", { name: "Add Device" });
+    fireEvent.change(within(dialog).getByLabelText("Select bed"), { target: { value: "IMC A" } });
     fireEvent.change(within(dialog).getByLabelText("Bed"), { target: { value: "IMC - 201" } });
     fireEvent.change(within(dialog).getByLabelText("Device"), { target: { value: "hfnc" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));

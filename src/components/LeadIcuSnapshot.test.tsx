@@ -50,7 +50,7 @@ function patientRecord(overrides: Partial<IcuPatientRecord> = {}): IcuPatientRec
   };
 }
 
-const props = { loading: false, error: "", message: "", busy: false, onAdd: vi.fn(), onDiscontinue: vi.fn() };
+const props = { loading: false, error: "", message: "", busy: false, onAdd: vi.fn(), onUpdate: vi.fn(), onDiscontinue: vi.fn() };
 describe("Lead ICU Snapshot", () => {
   it("shows live assigned-device counts above Add Device without counting inactive or saved modalities", () => {
     const records = [
@@ -80,7 +80,7 @@ describe("Lead ICU Snapshot", () => {
     expect(icu.getAllByRole("rowheader").map(el => el.textContent)).toEqual(["C220", "C223", "D230", "D239", "E241", "E242", "E248"]);
     expect(imc.getAllByRole("rowheader").map(el => el.textContent)).toEqual(["IMC - 201", "IMC - 219"]);
     expect(screen.queryByText("IMC - 218")).not.toBeInTheDocument();
-    expect(screen.queryByText("Z100")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: /^Other/ })).getByText("Z100")).toBeInTheDocument();
     expect(icu.getAllByRole("columnheader").map(el => el.textContent)).toEqual(["Room Number", "Device (Settings)", "Status", "Action"]);
     fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
     expect(props.onAdd).toHaveBeenCalled();
@@ -97,7 +97,8 @@ describe("Lead ICU Snapshot", () => {
     const note = screen.getByText("Note: Saved ICU note");
     expect(settings.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(note.closest("td")).toBe(settings.closest("td"));
-    expect(screen.queryByRole("button", { name: /Update|Edit/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: `Update Device ${record.bed}` }));
+    expect(props.onUpdate).toHaveBeenCalledWith(record);
   });
 
   it("shows all saved statuses rather than an invented summary", () => {
@@ -108,7 +109,7 @@ describe("Lead ICU Snapshot", () => {
 
   it("distinguishes errors and loading from an empty board", () => {
     const view = render(<LeadIcuSnapshot {...props} records={[]} loading />);
-    expect(screen.getAllByText("Loading devices…")).toHaveLength(2);
+    expect(screen.getAllByText("Loading devices…")).toHaveLength(5);
     view.rerender(<LeadIcuSnapshot {...props} records={[]} error="Could not load ICU Command Center." />);
     expect(screen.getByRole("alert")).toHaveTextContent("Could not load ICU");
     expect(screen.queryByText("No active respiratory devices.")).not.toBeInTheDocument();
