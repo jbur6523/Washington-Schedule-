@@ -1,5 +1,6 @@
 "use client";
 
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -21,7 +22,7 @@ function titleStatus(update: ShiftStatusUpdate | null) {
     return "No Update";
   }
 
-  return staffingStatusLabel(getStaffingStatus(update.rts_on, update.rts_required).status);
+  return staffingStatusLabel(getStaffingStatus(rtsOnShift(update), update.rts_required).status);
 }
 
 function titleStatusClass(status: string) {
@@ -166,7 +167,7 @@ export function CurrentShiftStatusSummary({
             </p>
           ) : (
             <div className="grid grid-cols-3 gap-2">
-              <MiniStatCard label="SCHEDULED" value={formatShiftStatusNumber(latest.rts_on)} tone="cyan" />
+              <MiniStatCard label="ON SHIFT" value={formatShiftStatusNumber(rtsOnShift(latest))} tone="cyan" />
               <MiniStatCard label="NEEDED" value={formatShiftStatusNumber(latest.rts_required)} />
               <MiniStatCard label="VENTS" value={officialVent?.vent_count ?? "—"} />
             </div>

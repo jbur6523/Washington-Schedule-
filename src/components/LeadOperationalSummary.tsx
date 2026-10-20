@@ -1,5 +1,6 @@
 "use client";
 
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Baby,
@@ -427,7 +428,7 @@ export function LeadOperationalSummary({
     ? resolved.latest.rts_required.toFixed(1)
     : "—";
   const staffOnShift = resolved.latest
-    ? formatShiftStatusNumber(resolved.latest.rts_on)
+    ? formatShiftStatusNumber(rtsOnShift(resolved.latest))
     : "—";
   const persistedRvu = resolved.latest?.rvu_total;
   const sessionFallbackRvu = resolved.latest
@@ -459,7 +460,7 @@ export function LeadOperationalSummary({
           <section aria-labelledby="staffing-heading" className={boardPanelClass}>
             <h2 id="staffing-heading" className="mb-4 flex items-center gap-3 text-lg font-bold text-hospital-ink"><Users size={24} className="text-blue-600" aria-hidden="true" />Staffing</h2>
             <SummaryMetricRow label="Staff Needed" value={staffNeeded} helperText={staffNeededRvu} />
-            <SummaryMetricRow label="Staff On Shift" value={staffOnShift} valueClassName={resolved.latest ? resolved.latest.rts_on < resolved.latest.rts_required ? "text-red-700" : "text-green-700" : undefined} />
+            <SummaryMetricRow label="Staff On Shift" value={staffOnShift} valueClassName={resolved.latest ? rtsOnShift(resolved.latest) < resolved.latest.rts_required ? "text-red-700" : "text-green-700" : undefined} />
             <ShiftNotePreview note={shiftNote} loading={loading} unavailable={Boolean(shiftError) && !resolved.latest} onViewMore={() => setShiftNoteOpen(true)} />
           </section>
           <section aria-labelledby="respiratory-heading" className={boardPanelClass}>

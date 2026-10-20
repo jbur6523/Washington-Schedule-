@@ -121,3 +121,10 @@ describe("staffing tolerance", () => {
     expect(summarizeMetricRows([row]).percentageMeetingNeed).toBe(metNeed ? 100 : 0);
   });
 });
+
+it("includes called-in staff in staffing metrics and variance", () => {
+  const [row] = calculateMetricRows([metricRow({ rts_on: 4, called_in_count: 3, rvu_total: 189 })]);
+  expect(row.rts_on).toBe(7);
+  expect(row.staffingVariance).toBe(0);
+  expect(row.metNeed).toBe(true);
+});

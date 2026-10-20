@@ -162,3 +162,8 @@ export function updatedByName(update: ShiftStatusUpdate | null) {
   const related = Array.isArray(update.staff_profiles) ? update.staff_profiles[0] : update.staff_profiles;
   return related?.display_name ?? update.updated_by_name ?? "Unknown";
 }
+
+// rts_on stores the scheduled baseline; additional staff are counted once at read time.
+export function rtsOnShift(update: { rts_on: number; called_in_count?: number | null }) {
+  return Number(update.rts_on) + Number(update.called_in_count ?? 0);
+}

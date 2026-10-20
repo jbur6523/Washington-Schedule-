@@ -5,7 +5,7 @@ import type {
 } from "@/lib/metrics/rvu-staffing";
 import type { ProcedureMetricRow } from "@/lib/metrics/procedures";
 
-const metricColumns = "id, shift_date, shift_type, rvu_total, rts_on, created_at, updated_at";
+const metricColumns = "id, shift_date, shift_type, rvu_total, rts_on, called_in_count, created_at, updated_at";
 
 export async function fetchRvuStaffingMetricRows(
   supabase: SupabaseClient,

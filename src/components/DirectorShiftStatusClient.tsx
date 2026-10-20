@@ -1,5 +1,6 @@
 "use client";
 
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -115,7 +116,7 @@ function formatReportTime(value: string | null | undefined, timezone: string) {
 }
 
 function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCount: string | number) {
-  const staffing = getStaffingStatus(update.rts_on, update.rts_required);
+  const staffing = getStaffingStatus(rtsOnShift(update), update.rts_required);
   const staffingLines =
     staffing.status === "short"
       ? ["Status: Short", `Short by: ${formatShiftStatusNumber(staffing.shortAmount)}`]
@@ -124,7 +125,7 @@ function reportText(update: ShiftStatusUpdate, timezone: string, displayedVentCo
   return [
     `RT Shift Status - ${shiftTypeLabel(update.shift_type)} ${formatReportDate(update.shift_date)}`,
     "",
-    `RTs on shift: ${formatShiftStatusNumber(update.rts_on)}`,
+    `RTs on shift: ${formatShiftStatusNumber(rtsOnShift(update))}`,
     `RTs needed: ${formatShiftStatusNumber(update.rts_required)}`,
     ...staffingLines,
     "",
@@ -157,7 +158,7 @@ function directorStatus(update: ShiftStatusUpdate | null) {
     };
   }
 
-  if (update.rvu_total === null || update.rvu_total === undefined || !Number.isFinite(update.rts_on)) {
+  if (update.rvu_total === null || update.rvu_total === undefined || !Number.isFinite(rtsOnShift(update))) {
     return {
       label: "No staffing update",
       className: "border-slate-200 bg-slate-100 text-slate-600",
@@ -165,7 +166,7 @@ function directorStatus(update: ShiftStatusUpdate | null) {
     };
   }
 
-  const staffing = getStaffingStatus(update.rts_on, update.rts_required);
+  const staffing = getStaffingStatus(rtsOnShift(update), update.rts_required);
 
   if (staffing.status === "staffed") {
     return {
@@ -711,7 +712,7 @@ export function DirectorShiftStatusClient({
     latest &&
     latest.rvu_total !== null &&
     latest.rvu_total !== undefined &&
-    Number.isFinite(latest.rts_on)
+    Number.isFinite(rtsOnShift(latest))
   );
   const status = directorStatus(latest);
   const displayedVentCount = officialVent?.vent_count ?? null;
@@ -958,7 +959,7 @@ export function DirectorShiftStatusClient({
 
           {latest && hasCurrentStaffing && (
             <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(latest.rts_on)}>
+              <MetricCard icon={<Users size={22} />} label="RTs On Shift" value={formatShiftStatusNumber(rtsOnShift(latest))}>
                 <p className={`mt-2 text-xs font-bold ${status.label === "Staffed" ? "text-emerald-700" : "text-rose-700"}`}>{status.label}</p>
               </MetricCard>
               <MetricCard icon={<User size={22} />} label="RTs Needed" value={formatShiftStatusNumber(latest.rts_required)}>

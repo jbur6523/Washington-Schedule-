@@ -1,3 +1,4 @@
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import { Baby, ClipboardList, Users } from "lucide-react";
 import { formatOneDecimal, rtsNeededFromRvus } from "@/lib/metrics/rvu-staffing";
 import type { ShiftHistoryRecord } from "@/lib/shift-history/types";
@@ -35,7 +36,7 @@ export function ShiftStaffingValues({ record, compact = false }: { record: Shift
     ? record.rts_required
     : rtsNeededFromRvus(record.rvu_total);
   const values = [
-    ["Staff On Shift", formatShiftStatusNumber(record.rts_on)],
+    ["Staff On Shift", formatShiftStatusNumber(rtsOnShift(record))],
     ["Staff Needed", formatOneDecimal(calculated)],
     ["RVUs", record.rvu_total === null || record.rvu_total === undefined ? "Unavailable" : formatOneDecimal(record.rvu_total)]
   ];

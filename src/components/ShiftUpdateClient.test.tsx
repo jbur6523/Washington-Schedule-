@@ -81,7 +81,7 @@ function renderShiftUpdate(selection: ShiftRecordSelection = selectedShift) {
 }
 
 function populateRequiredFields() {
-  fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
+  fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
   fireEvent.change(screen.getByLabelText(/RVU Count/), { target: { value: "216" } });
   fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
   fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
@@ -186,7 +186,7 @@ describe("ShiftUpdateClient submission flow", () => {
     });
     populateRequiredFields();
 
-    const scheduledInput = screen.getByLabelText(/RTs On Shift/) as HTMLInputElement;
+    const scheduledInput = screen.getByLabelText(/RTs Scheduled/) as HTMLInputElement;
     const bipapInput = screen.getByLabelText(/BiPAPs/) as HTMLInputElement;
     const submitButton = screen.getByRole("button", { name: "Save Shift Update" });
 
@@ -229,7 +229,7 @@ describe("ShiftUpdateClient submission flow", () => {
     }));
   });
 
-  it("saves additional staffing separately without changing RTs or RVUs", async () => {
+  it("adds called-in staff to the displayed total while saving the baseline separately", async () => {
     mocks.rpc.mockResolvedValue({ error: null });
     renderShiftUpdate();
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
@@ -240,11 +240,14 @@ describe("ShiftUpdateClient submission flow", () => {
     populateRequiredFields();
     fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Called in/Available"), { target: { value: "3" } });
+    expect(screen.getByRole("status", { name: "RTs On Shift" })).toHaveTextContent("RTs On Shift: 11");
+    fireEvent.change(screen.getByLabelText("Stayed Over"), { target: { value: "5" } });
+    expect(screen.getByRole("status", { name: "RTs On Shift" })).toHaveTextContent("RTs On Shift: 11");
     await act(async () => {
       fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form")!);
     });
     expect(savedPayload()).toEqual(expect.objectContaining({
-      stayed_over_count: 2, called_in_count: 3, rts_on: 8, rts_required: 8, rvu_total: "216"
+      stayed_over_count: 5, called_in_count: 3, rts_on: 8, rts_required: 8, rvu_total: "216"
     }));
   });
 
@@ -437,7 +440,7 @@ describe("ShiftUpdateClient submission flow", () => {
       await vi.advanceTimersByTimeAsync(1);
     });
 
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
     expect(screen.getByLabelText(/RVU Count/)).toHaveValue(202.5);
     expect(screen.getByText(/Last: 202\.5 ·/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Enter RVUs")).toBe(screen.getByLabelText(/RVU Count/));
@@ -644,7 +647,7 @@ describe("ShiftUpdateClient submission flow", () => {
     );
     expect(screen.getByLabelText("Date")).toHaveValue("2026-08-07");
     expect(screen.getByLabelText("Shift")).toHaveValue("Night Shift");
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(9);
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(9);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Night note");
 
     fireEvent.submit(screen.getByRole("button", { name: "Save Shift Update" }).closest("form") as HTMLFormElement);
@@ -787,7 +790,7 @@ describe("ShiftUpdateClient submission flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    fireEvent.change(screen.getByLabelText(/RTs On Shift/), { target: { value: "8" } });
+    fireEvent.change(screen.getByLabelText(/RTs Scheduled/), { target: { value: "8" } });
     fireEvent.change(screen.getByLabelText(/BiPAPs/), { target: { value: "2" } });
     fireEvent.change(screen.getByLabelText("Select Lead", { exact: true }), { target: { value: "lead-1" } });
 
@@ -815,14 +818,14 @@ describe("ShiftUpdateClient submission flow", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1);
     });
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
 
     expect(mocks.fetchShiftStatusUpdateForRecord).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText(/RTs On Shift/)).toHaveValue(7);
+    expect(screen.getByLabelText(/RTs Scheduled/)).toHaveValue(7);
     expect(screen.getByLabelText(/Shift Notes/)).toHaveValue("Keep this selected shift");
   });
 });

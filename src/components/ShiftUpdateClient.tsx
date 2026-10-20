@@ -1,5 +1,6 @@
 "use client";
 
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -382,7 +383,7 @@ export function ShiftUpdateClient({
     shiftDate: form.shiftDate,
     shiftType: form.shiftType,
     updatedByName: updatedByName || lastKnownUpdate?.updated_by_name?.trim() || "",
-    rtsOnShift: form.rtsOn,
+    rtsOnShift: form.rtsOn === "" ? "" : String(rtsOnShift({ rts_on: Number(form.rtsOn), called_in_count: Number(form.calledIn) })),
     rtsNeeded: calculatedRtsNeeded?.toFixed(1) ?? "",
     rvuTotal: effectiveRvuCount,
     vents: form.ventCount,
@@ -605,7 +606,7 @@ export function ShiftUpdateClient({
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <CountInputCard
                 icon={<Users size={18} />}
-                label="RTs On Shift"
+                label="RTs Scheduled"
                 value={form.rtsOn}
                 helperText={lastKnownHelper(lastKnownUpdate, lastKnownUpdate?.rts_on, timezone)}
                 onChange={(value) => setForm((current) => ({ ...current, rtsOn: value }))}
@@ -643,6 +644,10 @@ export function ShiftUpdateClient({
           <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
             <h2 className="text-lg font-black text-hospital-ink">Additional Staffing</h2>
             <p className="mt-1 text-xs font-bold text-slate-500">RTs who stayed over or were called in for additional staffing</p>
+            <p className="mt-2 text-sm font-bold text-hospital-ink" role="status" aria-label="RTs On Shift">
+              RTs On Shift: {form.rtsOn === "" ? "\u2014" : rtsOnShift({ rts_on: Number(form.rtsOn), called_in_count: Number(form.calledIn) })}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">Scheduled + Called in/Available. Stayed Over does not add to this total.</p>
             <div className="mt-4 grid grid-cols-2 gap-2.5">
               <CountInputCard
                 icon={<Users size={18} />}

@@ -3,6 +3,8 @@
 import { describe, expect, it } from "vitest";
 import type { ShiftStatusUpdate } from "@/lib/shift-status/types";
 import {
+  rtsOnShift,
+  getStaffingStatus,
   currentShiftStatusWindow,
   latestShiftStatus,
   resolveCurrentShiftStatus
@@ -103,5 +105,19 @@ describe("current shift selection", () => {
     });
 
     expect(latestShiftStatus([older, newer])).toBe(newer);
+  });
+});
+
+describe("additional staffing totals", () => {
+  it("counts called-in staff once and excludes stayed-over staff", () => {
+    const record = update({ rts_on: 4, called_in_count: 3, stayed_over_count: 5 });
+    expect(rtsOnShift(record)).toBe(7);
+    expect(rtsOnShift(record)).toBe(7);
+    expect(record.rts_on).toBe(4);
+    expect(getStaffingStatus(rtsOnShift(record), 7).status).toBe("staffed");
+  });
+  it("keeps legacy records and cleared additional staffing at their scheduled count", () => {
+    expect(rtsOnShift(update({ rts_on: 4 }))).toBe(4);
+    expect(rtsOnShift(update({ rts_on: 4, called_in_count: 0, stayed_over_count: 3 }))).toBe(4);
   });
 });

@@ -1,3 +1,4 @@
+import { rtsOnShift } from "@/lib/shift-status/utils";
 import type { ShiftStatusShiftType } from "@/lib/shift-status/types";
 
 export const RVUS_PER_RT = 27;
@@ -24,6 +25,7 @@ export type RvuStaffingMetricRow = {
   shift_type: ShiftStatusShiftType;
   rvu_total: number | string | null;
   rts_on: number;
+  called_in_count?: number;
   created_at: string;
   updated_at: string;
 };
@@ -121,7 +123,7 @@ export function calculateMetricRows(rows: RvuStaffingMetricRow[]) {
       }
 
       const rvuTotal = Number(row.rvu_total);
-      const rtsOn = Number(row.rts_on);
+      const rtsOn = rtsOnShift(row);
       if (!Number.isFinite(rvuTotal) || rvuTotal < 0 || !Number.isFinite(rtsOn) || rtsOn < 0) {
         return [];
       }
