@@ -63,7 +63,11 @@ export const icuDeviceLabels: Record<IcuDeviceType, string> = {
   bipap: "BiPAP",
   cpap: "CPAP",
   hfnc: "HFNC",
-  cool_aerosol: "Cool Aerosol"
+  cool_aerosol: "Cool Aerosol",
+  nasal_cannula: "Nasal Cannula",
+  non_rebreather: "Non Rebreather",
+  venturi_mask: "Venturi Mask",
+  ozymizer: "Ozymizer"
 };
 
 export const icuVentModeLabels: Record<IcuVentMode, string> = {
@@ -226,7 +230,7 @@ export function formatIcuSettings(record: IcuPatientRecord) {
     parts.push(setting("FiO2", record.fio2, "%"), setting("Flow", record.flow, "L"));
   }
 
-  if (record.device_type === "cool_aerosol") {
+  if (record.device_type === "cool_aerosol" || isOxygenDevice(record.device_type)) {
     parts.push(setting("Flow", record.flow, " L/min"), setting("FiO2", record.fio2, "%"));
   }
 
@@ -252,4 +256,9 @@ export function formatIcuLastUpdated(value: string, timezone = "America/Los_Ange
     hour12: false,
     hourCycle: "h23"
   }).format(new Date(value));
+}
+
+export const oxygenDeviceTypes = ["nasal_cannula", "non_rebreather", "venturi_mask", "ozymizer"] as const;
+export function isOxygenDevice(type: string) {
+  return (oxygenDeviceTypes as readonly string[]).includes(type);
 }

@@ -209,6 +209,33 @@ describe("ICU patient notes", () => {
     });
   });
 
+  describe.each(["full", "lead"] as const)("oxygen devices on %s", surface => {
+    it.each(["nasal_cannula", "non_rebreather", "venturi_mask", "ozymizer"] as const)("saves %s with flow and FiO2", async device => {
+      render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
+      const title = surface === "lead" ? "Add Device" : "Add Patient";
+      fireEvent.click(await screen.findByRole("button", { name: title }));
+      const dialog = within(screen.getByRole("dialog", { name: title }));
+      if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+      fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
+      fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "oxygen" } });
+      expect(within(dialog.getByLabelText("Oxygen Device")).getAllByRole("option").map(option => option.textContent)).toEqual(["Nasal Cannula", "Non Rebreather", "Venturi Mask", "Ozymizer"]);
+      fireEvent.change(dialog.getByLabelText("Oxygen Device"), { target: { value: device } });
+      fireEvent.change(dialog.getByLabelText("Flow"), { target: { value: "6" } });
+      fireEvent.change(dialog.getByLabelText("FiO2"), { target: { value: "40" } });
+      fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+      await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_payload: expect.objectContaining({ device_type: device, flow: 6, fio2: 40, vent_mode: null, is_standby: false }) })));
+    });
+    it("reopens saved oxygen settings for editing", async () => {
+      mocks.activeRecords = [patientRecord({ device_type: "ozymizer", flow: 6, fio2: 40 })];
+      render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
+      fireEvent.click(await screen.findByRole("button", { name: surface === "lead" ? "Update Device C223" : "Update" }));
+      expect(screen.getByLabelText("Device")).toHaveValue("oxygen");
+      expect(screen.getByLabelText("Oxygen Device")).toHaveValue("ozymizer");
+      expect(screen.getByLabelText("Flow")).toHaveValue(6);
+      expect(screen.getByLabelText("FiO2")).toHaveValue(40);
+    });
+  });
+
   it.each(["full", "lead"] as const)("adds a trach with shared airway details from the %s board", async (surface) => {
     render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
     const addLabel = surface === "lead" ? "Add Device" : "Add Patient";

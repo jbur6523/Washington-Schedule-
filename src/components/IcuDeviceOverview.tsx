@@ -1,6 +1,6 @@
 import { Activity, AirVent, Cloud, TriangleAlert, Waves, Wind } from "lucide-react";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
-import { getIcuSnapshotCounts } from "@/lib/icu-command-center/utils";
+import { isOxygenDevice, getIcuSnapshotCounts } from "@/lib/icu-command-center/utils";
 import { compareIcuBeds } from "@/lib/icu-command-center/rooms";
 
 export function IcuDeviceOverview({ records, lastUpdated }: { records: IcuPatientRecord[]; lastUpdated: string }) {
@@ -18,6 +18,7 @@ export function IcuDeviceOverview({ records, lastUpdated }: { records: IcuPatien
           { label: "BiPAP", value: counts.bipap, Icon: AirVent, critical: false, rooms: active.filter(record => record.device_type === "bipap") },
           { label: "HFNC", value: counts.hfnc, Icon: Waves, critical: false, rooms: active.filter(record => record.device_type === "hfnc") },
           { label: "Cool Aerosol", value: active.filter(record => record.device_type === "cool_aerosol").length, Icon: Cloud, critical: false, rooms: active.filter(record => record.device_type === "cool_aerosol") }
+          ,{ label: "Oxygen Device", value: active.filter(record => isOxygenDevice(record.device_type)).length, Icon: Wind, critical: false, rooms: active.filter(record => isOxygenDevice(record.device_type)) }
         ].map(({ label, value, Icon, critical, rooms }) => <div key={label} className="min-w-0">
           <div aria-hidden="true" className={`mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full sm:h-12 sm:w-12 ${critical ? "bg-rose-100 text-rose-800" : "bg-sky-100 text-sky-800"}`}><Icon size={24} /></div>
           <dt className="text-xs font-bold text-slate-600 sm:text-sm">{label}</dt>

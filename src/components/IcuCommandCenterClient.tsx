@@ -7,6 +7,7 @@ import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
 import { LeadBedSelector } from "@/components/LeadBedSelector";
+import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
@@ -307,7 +308,7 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     ipap: deviceType === "bipap" ? numericOrNull(form.ipap) : null,
     epap: deviceType === "bipap" ? numericOrNull(form.epap) : null,
     cpap: deviceType === "cpap" ? numericOrNull(form.cpap) : null,
-    flow: deviceType === "hfnc" || deviceType === "cool_aerosol" ? numericOrNull(form.flow) : null,
+    flow: deviceType === "hfnc" || deviceType === "cool_aerosol" || isOxygenDevice(deviceType) ? numericOrNull(form.flow) : null,
     notes: form.notes.trim() || null,
     is_standby: supportsIcuStandby(deviceType) ? form.is_standby : false,
     ventilator_outcome: null,
@@ -1795,29 +1796,41 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>
                   <select
-                    value={form.device_type}
-                    onChange={(event) =>
+                    value={isOxygenDevice(form.device_type) ? "oxygen" : form.device_type}
+                    onChange={(event) => {
+                      const device = event.target.value === "oxygen" ? "nasal_cannula" : event.target.value;
                       setForm({
                         ...form,
-                        device_type: event.target.value as IcuDeviceType | "",
-                        ...(editingRecord?.rounding_data?.modalities?.[event.target.value as IcuDeviceType]
-                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[event.target.value as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
+                        device_type: device as IcuDeviceType | "",
+                        ...(editingRecord?.rounding_data?.modalities?.[device as IcuDeviceType]
+                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[device as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
                           : {}),
-                        is_standby: supportsIcuStandby(event.target.value as IcuDeviceType | "") ? form.is_standby : false
-                      })
-                    }
+                        is_standby: supportsIcuStandby(device as IcuDeviceType | "") ? form.is_standby : false
+                      });
+                    }}
                     required
                     className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   >
                     <option value="">Select device</option>
-                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).map((device) => (
+                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => !isOxygenDevice(device)).map((device) => (
                       <option key={device} value={device}>
                         {icuDeviceLabels[device]}
                       </option>
                     ))}
+                    <option value="oxygen">Oxygen Device</option>
                   </select>
                 </label>
               </div>
+
+              {isOxygenDevice(form.device_type) && (
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Oxygen Device</span>
+                  <select value={form.device_type} onChange={event => setForm({ ...form, device_type: event.target.value as IcuDeviceType })}
+                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink">
+                    {oxygenDeviceTypes.map(device => <option key={device} value={device}>{icuDeviceLabels[device]}</option>)}
+                  </select>
+                </label>
+              )}
 
               {form.device_type === "vent" && (
                 <>
@@ -1990,9 +2003,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 </section>
               )}
 
-              {form.device_type === "cool_aerosol" && (
+              {(form.device_type === "cool_aerosol" || isOxygenDevice(form.device_type)) && (
                 <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                  <h3 className="text-sm font-black text-hospital-ink">Cool Aerosol Settings</h3>
+                  <h3 className="text-sm font-black text-hospital-ink">{icuDeviceLabels[form.device_type as IcuDeviceType]} Settings</h3>
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
                     <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />

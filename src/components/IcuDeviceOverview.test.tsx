@@ -25,7 +25,7 @@ describe("ICU overview room lists", () => {
     expect(screen.getByLabelText("Cool Aerosol rooms")).toHaveTextContent("D232");
     expect(within(screen.getByLabelText("Cool Aerosol rooms").parentElement!).getByText("1")).toBeInTheDocument();
     expect(screen.queryByText("D233")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("term").map(term => term.textContent)).toEqual(["Vents", "Critical", "BiPAP", "HFNC", "Cool Aerosol"]);
+    expect(screen.getAllByRole("term").map(term => term.textContent)).toEqual(["Vents", "Critical", "BiPAP", "HFNC", "Cool Aerosol", "Oxygen Device"]);
     expect(screen.queryByText("C224")).not.toBeInTheDocument();
     // Total Vents includes both regular and critical vents; inactive rows are excluded.
     expect(screen.getByText("Total Vents").parentElement).toHaveTextContent("3");

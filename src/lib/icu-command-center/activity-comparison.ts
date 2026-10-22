@@ -29,7 +29,7 @@ function booleanValue(value: unknown) {
 }
 
 function deviceTypeValue(value: unknown): IcuDeviceType | null {
-  return ["vent", "bipap", "cpap", "hfnc", "cool_aerosol"].includes(String(value))
+  return ["vent", "bipap", "cpap", "hfnc", "cool_aerosol", "nasal_cannula", "non_rebreather", "venturi_mask", "ozymizer"].includes(String(value))
     ? (value as IcuDeviceType)
     : null;
 }

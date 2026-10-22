@@ -10,7 +10,7 @@ export function LeadIcuSnapshot({ records, loading, error, message, busy, onAdd,
   records: IcuPatientRecord[]; loading: boolean; error: string; message: string; busy: boolean;
   onAdd: () => void; onUpdate: (record: IcuPatientRecord) => void; onDiscontinue: (record: IcuPatientRecord) => void;
 }) {
-  const deviceCounts = ([ ["vent", "VENT"], ["bipap", "BIPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "COOL AEROSOL"] ] as const)
+  const deviceCounts = ([ ["vent", "VENT"], ["bipap", "BIPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "COOL AEROSOL"], ["nasal_cannula", "Nasal Cannula"], ["non_rebreather", "Non Rebreather"], ["venturi_mask", "Venturi Mask"], ["ozymizer", "Ozymizer"] ] as const)
     .map(([type, label]) => ({ type, label, count: records.filter(record => record.is_active && record.device_type === type).length }))
     .filter(device => device.count > 0);
   return <section aria-labelledby="lead-icu-heading" className="border-t border-slate-200 pt-5">

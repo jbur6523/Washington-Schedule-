@@ -1,4 +1,4 @@
-export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol";
+export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol" | "nasal_cannula" | "non_rebreather" | "venturi_mask" | "ozymizer";
 export type IcuAirwayLocation = "teeth" | "gum" | "nare";
 export type IcuAirwayType = "ett" | "trach";
 export type IcuTrachType = "shiley" | "portex" | "other";

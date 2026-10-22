@@ -8,7 +8,7 @@ function escapeHtml(value: string) {
 }
 
 function deviceCountSummary(records: IcuPatientRecord[]) {
-  const devices = [["vent", "Vents"], ["bipap", "BiPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "Cool Aerosol"]] as const;
+  const devices = [["vent", "Vents"], ["bipap", "BiPAP"], ["hfnc", "HFNC"], ["cpap", "CPAP"], ["cool_aerosol", "Cool Aerosol"], ["nasal_cannula", "Nasal Cannula"], ["non_rebreather", "Non Rebreather"], ["venturi_mask", "Venturi Mask"], ["ozymizer", "Ozymizer"]] as const;
   const counts = devices.map(([type, label]) => {
     const count = records.filter(record => record.is_active && record.device_type === type).length;
     return count ? `${count} - ${label}` : null;

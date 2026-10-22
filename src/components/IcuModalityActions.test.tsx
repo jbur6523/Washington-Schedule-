@@ -24,7 +24,7 @@ describe("saved ICU modalities", () => {
     render(<IcuModalityActions record={record} saving={false} onSave={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Add additional" }));
     const device = screen.getByLabelText("Device") as HTMLSelectElement;
-    expect(Array.from(device.options).map(option => option.text)).toEqual(["Vent", "BiPAP", "CPAP", "Cool Aerosol"]);
+    expect(Array.from(device.options).map(option => option.text)).toEqual(["Vent", "BiPAP", "CPAP", "Cool Aerosol", "Nasal Cannula", "Non Rebreather", "Venturi Mask", "Ozymizer"]);
     fireEvent.change(device, { target: { value: "cpap" } });
     expect(screen.getByLabelText("CPAP")).toBeTruthy();
     fireEvent.change(device, { target: { value: "vent" } });
