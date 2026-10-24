@@ -78,7 +78,7 @@ export function IcuModalityActions({
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const label = icuDeviceLabels[modality];
-  const [switching, setSwitching...
+  const [switching, setSwitching] = useState<IcuDeviceType | null>(null);
   const fields = fieldsFor(modality, draft.vent_mode);
   const buttonClass =
     "inline-flex min-h-10 items-center gap-1.5 rounded-xl border-2 border-sky-700 bg-white px-3 text-xs font-extrabold text-sky-900 disabled:opacity-50";
@@ -94,7 +94,7 @@ export function IcuModalityActions({
   const switchTo = async (type: IcuDeviceType) => {
     if (saving || switching || panel) return;
     setError("");
-    setSwitching...
+    setSwitching(type);
     try {
       if (!(await onSave(type, {}, "switch", record.updated_at))) {
         setError("Could not switch. Review the latest settings and try again.");
@@ -102,7 +102,7 @@ export function IcuModalityActions({
     } catch {
       setError("Could not switch. Review the latest settings and try again.");
     } finally {
-      setSwitching...
+      setSwitching(null);
     }
   };
   const select = (
