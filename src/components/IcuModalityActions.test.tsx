@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { IcuModalityActions } from "./IcuModalityActions";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
@@ -27,10 +27,13 @@ describe("saved ICU modalities", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save modality" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith("cpap", { cpap: 5, fio2: 40 }, "save", record.updated_at));
   });
-  it("shows CPAP FiO2 when reviewing a saved modality", () => {
-    render(<IcuModalityActions record={{ ...record, rounding_data: { modalities: { cpap: { cpap: 5, fio2: 40 } } } }} saving={false} onSave={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: "Switch to CPAP" }));
-    expect(screen.getByText("CPAP 5 - FiO2 40%")).toBeInTheDocument();
+  it("switches to saved settings with one click and no confirmation", async () => {
+    const save = vi.fn().mockResolvedValue(true);
+    render(<IcuModalityActions record={{ ...record, rounding_data: { modalities: { cool_aerosol: { flow: 15, fio2: 50 } } } }} saving={false} onSave={save} />);
+    fireEvent.click(screen.getByRole("button", { name: "Switch to Cool Aerosol" }));
+    expect(save).toHaveBeenCalledWith("cool_aerosol", {}, "switch", record.updated_at);
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Switch to Cool Aerosol" })).toBeEnabled());
   });
   it("offers all other device types and shows their settings", () => {
     render(<IcuModalityActions record={record} saving={false} onSave={vi.fn()} />);
@@ -62,15 +65,28 @@ describe("saved ICU modalities", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save modality" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith("bipap", { ipap: 14, epap: 6, rate: null, fio2: null }, "save", record.updated_at));
   });
-  it("reviews stored settings before switching and blocks stale edits", () => {
-    const save = vi.fn();
-    const saved = { ...record, rounding_data: { modalities: { bipap: { ipap: 14, epap: 6, fio2: 35, rate: 12 } } } };
+  it("blocks duplicate switches while the request is pending", async () => {
+    let finish!: (value: boolean) => void;
+    const save = vi.fn(() => new Promise<boolean>(resolve => { finish = resolve; }));
+    render(<IcuModalityActions record={{ ...record, rounding_data: { modalities: { bipap: { ipap: 14 } } } }} saving={false} onSave={save} />);
+    fireEvent.click(screen.getByRole("button", { name: "Switch to BiPAP" }));
+    const button = screen.getByRole("button", { name: "Switching..." });
+    expect(button).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Discontinue BiPAP" })).toBeDisabled();
+    fireEvent.click(button);
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(async () => finish(true));
+  });
+  it.each([false, "reject"])("shows failed switches and allows retry: %s", async (result) => {
+    const save = result === "reject" ? vi.fn().mockRejectedValue(new Error("Network")) : vi.fn().mockResolvedValue(false);
+    const saved = { ...record, rounding_data: { modalities: { bipap: { ipap: 14 } } } };
     const { rerender } = render(<IcuModalityActions record={saved} saving={false} onSave={save} />);
     fireEvent.click(screen.getByRole("button", { name: "Switch to BiPAP" }));
-    expect(screen.getByText(/IPAP 14/)).toBeTruthy();
-    expect(save).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not switch");
+    save.mockResolvedValue(true);
     rerender(<IcuModalityActions record={{ ...saved, updated_at: "new-version" }} saving={false} onSave={save} />);
-    expect(screen.getByRole("alert").textContent).toContain("This patient changed");
-    expect(screen.getAllByRole("button", { name: "Switch to BiPAP" }).every(button => button.hasAttribute("disabled"))).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Switch to BiPAP" }));
+    await waitFor(() => expect(save).toHaveBeenLastCalledWith("bipap", {}, "switch", "new-version"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

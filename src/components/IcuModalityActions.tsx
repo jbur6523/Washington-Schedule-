@@ -6,7 +6,6 @@ import type {
   IcuPatientRecord,
 } from "@/lib/icu-command-center/types";
 import {
-  formatIcuSettings,
   icuDeviceLabels,
   icuVentModeLabels,
   ventModeOptions,
@@ -71,7 +70,7 @@ export function IcuModalityActions({
     (type) =>
       type !== record.device_type && record.rounding_data?.modalities?.[type],
   );
-  const [panel, setPanel] = useState<ModalityAction | null>(null);
+  const [panel, setPanel] = useState<Exclude<ModalityAction, "switch"> | null>(null);
   const [modality, setModality] = useState<IcuDeviceType>(
     available[0] ?? "hfnc",
   );
@@ -79,18 +78,32 @@ export function IcuModalityActions({
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const label = icuDeviceLabels[modality];
-  const profile = record.rounding_data?.modalities?.[modality];
+  const [switching, setSwitching...
   const fields = fieldsFor(modality, draft.vent_mode);
   const buttonClass =
     "inline-flex min-h-10 items-center gap-1.5 rounded-xl border-2 border-sky-700 bg-white px-3 text-xs font-extrabold text-sky-900 disabled:opacity-50";
   const inputClass =
     "mt-1 min-h-11 w-full rounded-xl border-2 border-slate-500 bg-white px-3 text-sm text-slate-900";
-  const open = (action: ModalityAction, type: IcuDeviceType) => {
+  const open = (action: Exclude<ModalityAction, "switch">, type: IcuDeviceType) => {
     setModality(type);
     setVersion(record.updated_at);
     setDraft({ airway_type: "ett" });
     setError("");
     setPanel(action);
+  };
+  const switchTo = async (type: IcuDeviceType) => {
+    if (saving || switching || panel) return;
+    setError("");
+    setSwitching...
+    try {
+      if (!(await onSave(type, {}, "switch", record.updated_at))) {
+        setError("Could not switch. Review the latest settings and try again.");
+      }
+    } catch {
+      setError("Could not switch. Review the latest settings and try again.");
+    } finally {
+      setSwitching...
+    }
   };
   const select = (
     key: string,
@@ -123,16 +136,16 @@ export function IcuModalityActions({
           <div key={type} className="flex flex-wrap items-center gap-1">
             <button
               type="button"
-              disabled={saving || !!panel}
-              onClick={() => open("switch", type)}
+              disabled={saving || !!switching || !!panel}
+              onClick={() => void switchTo(type)}
               className={buttonClass}
             >
               <ArrowLeftRight size={15} />
-              Switch to {icuDeviceLabels[type]}
+              {switching === type ? "Switching..." : `Switch to ${icuDeviceLabels[type]}`}
             </button>
             <button
               type="button"
-              disabled={saving || !!panel}
+              disabled={saving || !!switching || !!panel}
               onClick={() => open("discontinue", type)}
               className="min-h-10 px-2 text-xs font-bold text-rose-800 underline underline-offset-2"
             >
@@ -143,7 +156,7 @@ export function IcuModalityActions({
         {saved.length === 0 && available.length > 0 && (
           <button
             type="button"
-            disabled={saving || !!panel}
+            disabled={saving || !!switching || !!panel}
             onClick={() => open("save", available[0])}
             className={buttonClass}
           >
@@ -152,9 +165,14 @@ export function IcuModalityActions({
           </button>
         )}
       </div>
+      {!panel && error && (
+        <p role="alert" className="mt-2 text-sm font-bold text-rose-800">
+          {error}
+        </p>
+      )}
       {panel && (
         <form
-          aria-label={`${panel === "switch" ? "Switch to" : panel === "discontinue" ? "Discontinue" : "Save additional"} ${label}`}
+          aria-label={`${panel === "discontinue" ? "Discontinue" : "Save additional"} ${label}`}
           className="mt-2 space-y-3 rounded-2xl border-2 border-sky-600 bg-sky-50 p-3"
           onSubmit={async (event) => {
             event.preventDefault();
@@ -185,26 +203,15 @@ export function IcuModalityActions({
           }}
         >
           <p className="text-sm font-extrabold text-slate-900">
-            {panel === "switch"
-              ? `Switch to ${label}?`
-              : panel === "discontinue"
-                ? `Discontinue saved ${label}?`
-                : "Additional modality"}
+            {panel === "discontinue"
+              ? `Discontinue saved ${label}?`
+              : "Additional modality"}
           </p>
           {panel === "discontinue" ? (
             <p className="text-sm text-slate-800">
               Remove saved {label}. Current support stays{" "}
               {icuDeviceLabels[record.device_type]}. Its history will remain
               available.
-            </p>
-          ) : panel === "switch" ? (
-            <p className="text-sm font-bold text-slate-800">
-              {modality === "vent" &&
-                `${icuVentModeLabels[profile?.vent_mode as keyof typeof icuVentModeLabels] ?? ""} · `}
-              {formatIcuSettings({
-                ...profile,
-                device_type: modality,
-              } as IcuPatientRecord)}
             </p>
           ) : (
             <>
@@ -345,11 +352,9 @@ export function IcuModalityActions({
             >
               {saving
                 ? "Saving…"
-                : panel === "switch"
-                  ? `Switch to ${label}`
-                  : panel === "discontinue"
-                    ? `Discontinue ${label}`
-                    : "Save modality"}
+                : panel === "discontinue"
+                  ? `Discontinue ${label}`
+                  : "Save modality"}
             </button>
             <button
               type="button"
