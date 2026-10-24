@@ -205,7 +205,9 @@ export function formatIcuSettings(record: IcuPatientRecord) {
       default:
         parts.push(
           setting("Rate", record.rate),
-          setting("VT", record.tidal_volume),
+          record.vent_mode === "pcmv"
+            ? setting("Pressure Control", record.pressure_control)
+            : setting("VT", record.tidal_volume),
           setting("PEEP", peepValue(record.peep)),
           setting("FiO2", record.fio2, "%")
         );

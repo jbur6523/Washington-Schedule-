@@ -209,6 +209,21 @@ describe("ICU patient notes", () => {
     });
   });
 
+  it.each(["full", "lead"] as const)("edits PCMV pressure independently of tidal volume on %s", async (surface) => {
+    mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "pcmv", tidal_volume: 400, pressure_control: 18 })];
+    render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);
+    fireEvent.click(await screen.findByRole("button", { name: surface === "lead" ? "Update Device C223" : "Update" }));
+    expect(screen.queryByLabelText("Tidal Volume")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Pressure Control")).toHaveValue(18);
+    fireEvent.change(screen.getByLabelText("Vent Mode"), { target: { value: "apvcmv" } });
+    expect(screen.getByLabelText("Tidal Volume")).toHaveValue(400);
+    expect(screen.queryByLabelText("Pressure Control")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Vent Mode"), { target: { value: "pcmv" } });
+    fireEvent.change(screen.getByLabelText("Pressure Control"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledWith(expect.objectContaining({ pressure_control: 20, tidal_volume: null })));
+  });
+
   describe.each(["full", "lead"] as const)("oxygen devices on %s", surface => {
     it.each(["nasal_cannula", "non_rebreather", "venturi_mask", "ozymizer"] as const)("saves %s with flow and FiO2", async device => {
       render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);

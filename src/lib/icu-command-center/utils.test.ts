@@ -161,3 +161,11 @@ describe("ICU device settings", () => {
     expect(supportsIcuStandby("cool_aerosol")).toBe(false);
   });
 });
+
+ describe("PCMV settings", () => {
+  it("displays pressure control without reinterpreting legacy tidal volume", () => {
+    const record = { device_type: "vent", vent_mode: "pcmv", tidal_volume: 400, pressure_control: 18 } as IcuPatientRecord;
+    expect(formatIcuSettings(record)).toBe("Pressure Control 18");
+    expect(formatIcuSettings({ ...record, pressure_control: null })).toBe("Settings not entered");
+  });
+});

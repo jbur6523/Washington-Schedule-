@@ -79,6 +79,7 @@ type IcuPatientForm = {
   vent_mode: IcuVentMode | "";
   rate: string;
   tidal_volume: string;
+  pressure_control: string;
   peep: string;
   fio2: string;
   ps: string;
@@ -107,6 +108,7 @@ const emptyForm: IcuPatientForm = {
   vent_mode: "",
   rate: "",
   tidal_volume: "",
+  pressure_control: "",
   peep: "",
   fio2: "",
   ps: "",
@@ -137,6 +139,7 @@ const icuPatientSelect = [
   "vent_mode",
   "rate",
   "tidal_volume",
+  "pressure_control",
   "peep",
   "fio2",
   "ps",
@@ -217,6 +220,7 @@ function numericOrNull(value: string) {
 const numericFieldLabels: Array<[keyof IcuPatientForm, string]> = [
   ["rate", "Rate"],
   ["tidal_volume", "Tidal Volume"],
+  ["pressure_control", "Pressure Control"],
   ["peep", "PEEP"],
   ["fio2", "FiO2"],
   ["ps", "Pressure Support"],
@@ -264,6 +268,7 @@ function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
     vent_mode: record.vent_mode ?? "",
     rate: record.rate?.toString() ?? "",
     tidal_volume: record.tidal_volume?.toString() ?? "",
+    pressure_control: record.pressure_control?.toString() ?? "",
     peep: record.peep?.toString() ?? "",
     fio2: record.fio2?.toString() ?? "",
     ps: record.ps?.toString() ?? "",
@@ -296,7 +301,8 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     trach_xlt: deviceType === "vent" && form.airway_type === "trach" && form.trach_xlt,
     vent_mode: deviceType === "vent" ? form.vent_mode || null : null,
     rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
-    tidal_volume: deviceType === "vent" ? numericOrNull(form.tidal_volume) : null,
+    tidal_volume: deviceType === "vent" && form.vent_mode !== "pcmv" ? numericOrNull(form.tidal_volume) : null,
+    pressure_control: deviceType === "vent" && form.vent_mode === "pcmv" ? numericOrNull(form.pressure_control) : null,
     peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
     fio2: numericOrNull(form.fio2),
     ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
@@ -1937,7 +1943,11 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       {["apvcmv", "scmv", "pcmv"].includes(form.vent_mode) && (
                         <>
                           <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
-                          <IcuNumberInput label="Tidal Volume" value={form.tidal_volume} onChange={(value) => setForm({ ...form, tidal_volume: value })} />
+                          {form.vent_mode === "pcmv" ? (
+                            <IcuNumberInput label="Pressure Control" value={form.pressure_control} onChange={(value) => setForm({ ...form, pressure_control: value })} />
+                          ) : (
+                            <IcuNumberInput label="Tidal Volume" value={form.tidal_volume} onChange={(value) => setForm({ ...form, tidal_volume: value })} />
+                          )}
                           <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
                           <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
                         </>

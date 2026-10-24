@@ -48,7 +48,7 @@ function fieldsFor(type: IcuDeviceType, mode: string): string[][] {
     ];
   return [
     ["rate", "Rate"],
-    ["tidal_volume", "Tidal Volume"],
+    mode === "pcmv" ? ["pressure_control", "Pressure Control"] : ["tidal_volume", "Tidal Volume"],
     oxygen,
     ["peep", "PEEP"],
   ];

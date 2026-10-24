@@ -1,0 +1,239 @@
+-- Apply before deploying the PCMV form. Do not reinterpret legacy tidal volumes.
+begin;
+alter table public.icu_patients add column pressure_control numeric
+  check (pressure_control is null or pressure_control >= 0);
+
+create or replace function private.manage_icu_device(
+  target_department_id uuid, target_action text, target_payload jsonb,
+  target_event_data jsonb, target_patient_id uuid, expected_updated_at timestamptz
+)
+returns jsonb language plpgsql security definer set search_path = pg_catalog as $$
+declare
+  patient public.icu_patients%rowtype;
+  saved public.icu_patients%rowtype;
+  input public.icu_patients%rowtype;
+  actor_id uuid;
+  actor_name text;
+  event_at timestamptz := now();
+  outcome text;
+  summary text;
+begin
+  if auth.uid() is null or not public.user_can_manage_icu_lifecycle(target_department_id) then
+    raise exception 'Not authorized to manage devices in this department.' using errcode = '42501';
+  end if;
+  actor_id := public.current_staff_profile_id(target_department_id);
+  select display_name into actor_name from public.profiles where id = public.current_profile_id();
+  if actor_id is null or actor_name is null then
+    raise exception 'Active ICU actor not found.' using errcode = '42501';
+  end if;
+  if jsonb_typeof(target_payload) is distinct from 'object'
+    or jsonb_typeof(target_event_data) is distinct from 'object' then
+    raise exception 'Invalid device payload.' using errcode = '22023';
+  end if;
+
+  if target_action = 'add' then
+    -- Explicit columns prevent callers from supplying IDs, status toggles,
+    -- inactivity, department overrides, or another staff member's attribution.
+    input := jsonb_populate_record(null::public.icu_patients, target_payload);
+    if input.device_type = 'vent' and input.vent_mode is null then
+      raise exception 'Vent Mode is required for Vent patients.' using errcode = '22023';
+    end if;
+    insert into public.icu_patients (
+      department_id, bed, device_type, airway_size, airway_at, airway_location,
+      airway_type, trach_type, trach_xlt,
+      vent_mode, rate, tidal_volume, pressure_control, peep, fio2, ps, t_high, t_low, p_high, p_low,
+      percent_min_vol, ipap, epap, cpap, flow, notes, is_standby,
+      created_by_staff_profile_id, updated_by_staff_profile_id
+    ) values (
+      target_department_id, trim(input.bed), input.device_type, input.airway_size,
+      input.airway_at, input.airway_location,
+      case when input.device_type = 'vent' then coalesce(input.airway_type, 'ett') else input.airway_type end,
+      input.trach_type, coalesce(input.trach_xlt, false), input.vent_mode, input.rate,
+      input.tidal_volume, input.pressure_control, input.peep, input.fio2, input.ps, input.t_high,
+      input.t_low, input.p_high, input.p_low, input.percent_min_vol,
+      input.ipap, input.epap, input.cpap, input.flow, nullif(trim(input.notes), ''),
+      coalesce(input.is_standby, false), actor_id, actor_id
+    ) returning * into saved;
+    summary := 'ICU device added.';
+  elsif target_action = 'discontinue' then
+    select * into patient from public.icu_patients
+    where id = target_patient_id and department_id = target_department_id and is_active
+    for update;
+    if not found then
+      raise exception 'Active device not found.' using errcode = 'P0002';
+    end if;
+    if expected_updated_at is distinct from patient.updated_at then
+      raise exception 'Device changed. Refresh and review before discontinuing.' using errcode = '40001';
+    end if;
+    event_at := (target_payload->>'discontinued_at')::timestamptz;
+    if event_at is null or not isfinite(event_at) then
+      raise exception 'Discontinued date and time are required.' using errcode = '22023';
+    end if;
+    outcome := case when patient.device_type = 'vent' then nullif(target_payload->>'ventilator_outcome', '') else null end;
+    if patient.device_type = 'vent' and outcome is null then
+      raise exception 'Select a ventilator outcome.' using errcode = '22023';
+    end if;
+    -- The existing table constraint validates the existing outcome vocabulary.
+    update public.icu_patients set is_active = false, discontinued_at = event_at,
+      discontinued_by_staff_profile_id = actor_id, updated_by_staff_profile_id = actor_id,
+      ventilator_outcome = outcome
+    where id = patient.id returning * into saved;
+    summary := case when outcome is null then 'Device discontinued.'
+      else 'Discontinued. Outcome: ' || coalesce(target_event_data->>'ventilatorOutcome', outcome) || '.' end;
+  else
+    raise exception 'Only add and discontinue are supported.' using errcode = '22023';
+  end if;
+
+  -- Both writes commit together. Keep shared formatted history, plus a canonical
+  -- server-derived snapshot; actor, record identity and event time cannot be forged.
+  insert into public.icu_patient_events (
+    department_id, icu_patient_id, event_type, event_time, event_summary, event_data,
+    created_by_staff_profile_id, created_by_name
+  ) values (
+    target_department_id, saved.id, case when target_action = 'add' then 'added' else 'discontinued' end,
+    event_at, summary, target_event_data || jsonb_build_object(
+      'bed', saved.bed, 'notes', saved.notes, 'record', to_jsonb(saved),
+      'action', case when target_action = 'add' then 'added' else 'discontinued' end,
+      'discontinuedAt', saved.discontinued_at, 'ventilatorOutcomeValue', saved.ventilator_outcome
+    ), actor_id, actor_name
+  );
+  return to_jsonb(saved);
+end;
+$$;
+revoke all on function private.manage_icu_device(uuid, text, jsonb, jsonb, uuid, timestamptz) from public, anon;
+grant execute on function private.manage_icu_device(uuid, text, jsonb, jsonb, uuid, timestamptz) to authenticated;
+
+
+notify pgrst, 'reload schema';
+
+-- Store only modality settings; patient identity, notes, flags and lifecycle stay independent.
+create or replace function public.icu_modality_profile(device text, source jsonb)
+returns jsonb language sql immutable security invoker set search_path=pg_catalog as $$
+select coalesce(jsonb_object_agg(key,value),'{}'::jsonb) from jsonb_each(source)
+where key=any(case device
+ when 'vent' then array['vent_mode','airway_type','airway_size','airway_at','airway_location','trach_type','trach_xlt','rate','tidal_volume','pressure_control','peep','fio2','ps','t_high','t_low','p_high','p_low','percent_min_vol']
+ when 'bipap' then array['ipap','epap','rate','fio2']
+ when 'cpap' then array['cpap','fio2']
+ when 'hfnc' then array['flow','fio2']
+ when 'cool_aerosol' then array['flow','fio2'] when 'nasal_cannula' then array['flow','fio2'] when 'non_rebreather' then array['flow','fio2'] when 'venturi_mask' then array['flow','fio2'] when 'ozymizer' then array['flow','fio2'] else array[]::text[] end);
+$$;
+revoke all on function public.icu_modality_profile(text,jsonb) from public, anon;
+grant execute on function public.icu_modality_profile(text,jsonb) to authenticated;
+
+create or replace function public.manage_icu_modality(target_patient_id uuid,target_modality text,target_settings jsonb,target_action text,expected_updated_at timestamptz)
+returns jsonb language plpgsql security invoker set search_path=pg_catalog as $$
+declare
+ patient public.icu_patients%rowtype; saved public.icu_patients%rowtype; candidate public.icu_patients%rowtype;
+ actor_id uuid; actor_name text; settings jsonb; snapshot jsonb; field text; value jsonb; summary text;
+begin
+ if target_modality is null or target_modality not in ('vent','bipap','cpap','hfnc','cool_aerosol','nasal_cannula','non_rebreather','venturi_mask','ozymizer')
+ or target_action is null or target_action not in ('save','switch','discontinue') then
+  raise exception 'Invalid modality action' using errcode='22023';
+ end if;
+ select p.* into patient from public.icu_patients p where p.id=target_patient_id and p.is_active
+ and public.user_can_manage_icu_patients(p.department_id) for update;
+ if not found then raise exception 'Patient unavailable or not authorized' using errcode='42501'; end if;
+ if expected_updated_at is null or patient.updated_at is distinct from expected_updated_at then
+  raise exception 'This patient was updated. Refresh the card and try again.' using errcode='40001';
+ end if;
+ if patient.device_type=target_modality then raise exception 'Use Update or Discontinue for current support' using errcode='22023'; end if;
+ actor_id:=public.current_staff_profile_id(patient.department_id);
+ select display_name into actor_name from public.profiles where id=public.current_profile_id();
+ if actor_id is null or actor_name is null then raise exception 'Active ICU actor required' using errcode='42501'; end if;
+ snapshot:=patient.rounding_data;
+ if target_action in ('switch','discontinue') then target_settings:=snapshot #> array['modalities',target_modality]; end if;
+ if target_settings is null or jsonb_typeof(target_settings)<>'object' then
+  raise exception 'Save settings for this modality first' using errcode='22023';
+ end if;
+ settings:=public.icu_modality_profile(target_modality,target_settings);
+ if target_action='discontinue' then
+  snapshot:=jsonb_set(snapshot,'{modalities}',(snapshot->'modalities')-target_modality);
+ else
+  for field,value in select key,val from jsonb_each(settings) as t(key,val) loop
+   if field=any(array['rate','tidal_volume','pressure_control','peep','fio2','ps','t_high','t_low','p_high','p_low','percent_min_vol','ipap','epap','cpap','flow']) and value<>'null'::jsonb then
+    if jsonb_typeof(value)<>'number' then raise exception 'Settings must be non-negative numbers' using errcode='22023'; end if;
+    if (value::text)::numeric<0 or (field='fio2' and (value::text)::numeric>100) then raise exception 'Invalid setting value' using errcode='22023'; end if;
+   end if;
+  end loop;
+  if target_modality='vent' then
+   if coalesce(settings->>'vent_mode','') not in ('apvcmv','scmv','spont','asv','pcmv','aprv') then raise exception 'Select a vent mode' using errcode='22023'; end if;
+   if coalesce(settings->>'airway_type','ett') not in ('ett','trach') then raise exception 'Invalid airway type' using errcode='22023'; end if;
+   if settings->>'airway_type'='trach' then
+    if coalesce(settings->>'trach_type','') not in ('shiley','portex','other') or coalesce(settings->>'airway_size','') not in ('4','5','6','7','8') then raise exception 'Select trach type and size' using errcode='22023'; end if;
+    settings:=settings || '{"airway_at":null,"airway_location":null}'::jsonb;
+   else
+    settings:=settings || '{"trach_type":null,"trach_xlt":false}'::jsonb;
+   end if;
+   if settings->>'airway_location' is not null and settings->>'airway_location' not in ('teeth','gum','nare') then raise exception 'Invalid airway location' using errcode='22023'; end if;
+   if settings->>'airway_at' is not null and ((settings->>'airway_at') !~ '^[0-9]+([.][0-9]+)?$') then raise exception 'Invalid airway depth' using errcode='22023'; end if;
+   if settings->>'airway_size' is not null and ((settings->>'airway_size') !~ '^[0-9]+([.][0-9]+)?$') then raise exception 'Invalid airway size' using errcode='22023'; end if;
+   if settings->'trach_xlt' is not null and jsonb_typeof(settings->'trach_xlt')<>'boolean' then raise exception 'Invalid XLT setting' using errcode='22023'; end if;
+  end if;
+  snapshot:=jsonb_set(snapshot,'{modalities}',coalesce(snapshot->'modalities','{}'::jsonb)||jsonb_build_object(target_modality,settings));
+ end if;
+ if target_action='switch' then
+  candidate:=jsonb_populate_record(null::public.icu_patients,settings);
+  update public.icu_patients set rounding_data=snapshot,device_type=target_modality,
+  vent_mode=candidate.vent_mode,
+  airway_type=candidate.airway_type,
+  airway_size=candidate.airway_size,
+  airway_at=candidate.airway_at,
+  airway_location=candidate.airway_location,
+  trach_type=candidate.trach_type,
+  trach_xlt=coalesce(candidate.trach_xlt,false),
+  rate=candidate.rate,
+  tidal_volume=candidate.tidal_volume,
+  pressure_control=candidate.pressure_control,
+  peep=candidate.peep,
+  fio2=candidate.fio2,
+  ps=candidate.ps,
+  t_high=candidate.t_high,
+  t_low=candidate.t_low,
+  p_high=candidate.p_high,
+  p_low=candidate.p_low,
+  percent_min_vol=candidate.percent_min_vol,
+  ipap=candidate.ipap,
+  epap=candidate.epap,
+  cpap=candidate.cpap,
+  flow=candidate.flow,
+  is_standby=false,updated_by_staff_profile_id=actor_id where id=patient.id returning * into saved;
+ else
+  update public.icu_patients set rounding_data=snapshot,updated_by_staff_profile_id=actor_id where id=patient.id returning * into saved;
+ end if;
+ summary:=case target_action when 'switch' then 'Switched to ' when 'discontinue' then 'Discontinued saved modality: ' else 'Saved additional modality: ' end ||
+ case target_modality when 'vent' then 'Vent' when 'bipap' then 'BiPAP' when 'cpap' then 'CPAP' when 'hfnc' then 'HFNC' when 'nasal_cannula' then 'Nasal Cannula' when 'non_rebreather' then 'Non Rebreather' when 'venturi_mask' then 'Venturi Mask' when 'ozymizer' then 'Ozymizer' else 'Cool Aerosol' end;
+ insert into public.icu_patient_events(department_id,icu_patient_id,event_type,event_time,event_summary,event_data,created_by_staff_profile_id,created_by_name)
+ values(saved.department_id,saved.id,'updated',clock_timestamp(),summary,
+ jsonb_build_object('action',case target_action when 'switch' then 'modality_switched' when 'discontinue' then 'modality_discontinued' else 'modality_saved' end,
+ 'modality',target_modality,'settings',settings,'record',to_jsonb(saved),'previousRecord',to_jsonb(patient),'bed',saved.bed),actor_id,actor_name);
+ return to_jsonb(saved);
+end;
+$$;
+revoke all on function public.manage_icu_modality(uuid,text,jsonb,text,timestamptz) from public,anon;
+grant execute on function public.manage_icu_modality(uuid,text,jsonb,text,timestamptz) to authenticated;
+
+
+create or replace function public.maintain_icu_rounding_snapshot()
+returns trigger language plpgsql security invoker set search_path = pg_catalog as $$
+declare
+  settings_keys text[] := array['device_type','vent_mode','rate','tidal_volume','pressure_control','peep','fio2','ps','t_high','t_low','p_high','p_low','percent_min_vol','ipap','epap','cpap','flow'];
+  old_settings jsonb;
+  new_settings jsonb;
+begin
+  select jsonb_object_agg(key, value) into old_settings from jsonb_each(to_jsonb(old)) where key = any(settings_keys);
+  select jsonb_object_agg(key, value) into new_settings from jsonb_each(to_jsonb(new)) where key = any(settings_keys);
+  if old_settings is distinct from new_settings then
+    new.rounding_data := jsonb_set(new.rounding_data, '{previousSettings}', old_settings);
+  end if;
+  -- Leaving continuous Pressure Support ends an explicitly documented weaning state.
+  -- Returning to Pressure Support never starts SBT implicitly.
+  if new.vent_mode is distinct from 'spont' or new.device_type <> 'vent' or not new.is_active then
+    new.is_sbt := false;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.maintain_icu_rounding_snapshot() from public, anon, authenticated;
+
+notify pgrst, 'reload schema';
+commit;

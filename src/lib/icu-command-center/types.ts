@@ -48,6 +48,7 @@ export type IcuPatientRecord = {
   vent_mode: IcuVentMode | null;
   rate: number | null;
   tidal_volume: number | null;
+  pressure_control?: number | null;
   peep: number | null;
   fio2: number | null;
   ps: number | null;

@@ -5,6 +5,18 @@ import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 
 const record = { device_type: "hfnc", updated_at: "2026-10-06T00:00:00Z" } as IcuPatientRecord;
 describe("saved ICU modalities", () => {
+  it("saves PCMV pressure control instead of tidal volume", async () => {
+    const save = vi.fn().mockResolvedValue(true);
+    render(<IcuModalityActions record={record} saving={false} onSave={save} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add additional" }));
+    fireEvent.change(screen.getByLabelText("Device"), { target: { value: "vent" } });
+    fireEvent.change(screen.getByLabelText("Vent Mode"), { target: { value: "pcmv" } });
+    expect(screen.queryByLabelText("Tidal Volume")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Pressure Control"), { target: { value: "18" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save modality" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("vent", expect.objectContaining({ pressure_control: 18 }), "save", record.updated_at));
+    expect(save.mock.calls[0][1]).not.toHaveProperty("tidal_volume");
+  });
   it("saves CPAP pressure and FiO2 together", async () => {
     const save = vi.fn().mockResolvedValue(true);
     render(<IcuModalityActions record={record} saving={false} onSave={save} />);
