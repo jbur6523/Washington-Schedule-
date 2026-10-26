@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
+import { icuDeviceLabels } from "@/lib/icu-command-center/utils";
 
 const areas = ["C Pod", "D Pod", "E Pod", "IMC A", "IMC B", "ED", "OR", "Other"] as const;
 type Area = typeof areas[number];
@@ -20,15 +21,30 @@ function areaForBed(bed: string): Area | "" {
   return "Other";
 }
 
-export function LeadBedSelector({ bed, onChange, records, editingId }: {
+export function LeadBedSelector({
+  bed,
+  onChange,
+  records,
+  editingId,
+  roomOptions,
+  allowOccupiedSelection = false
+}: {
   bed: string;
   onChange: (bed: string) => void;
   records: IcuPatientRecord[];
   editingId?: string;
+  roomOptions?: readonly string[];
+  allowOccupiedSelection?: boolean;
 }) {
   const [area, setArea] = useState<Area | "">(() => areaForBed(bed));
   const start = area ? starts[area] : undefined;
   const numbered = area === "ED" || area === "OR";
+  const selectOptions = start === undefined
+    ? []
+    : roomOptions?.filter(option => areaForBed(option) === area) ?? Array.from({ length: 10 }, (_, index) => {
+      const room = start + index;
+      return area.startsWith("IMC") ? `IMC - ${room}` : `${area[0]}${room}`;
+    });
   return <>
     <label className="block">
       <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Select bed</span>
@@ -41,11 +57,14 @@ export function LeadBedSelector({ bed, onChange, records, editingId }: {
       <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{area === "Other" ? "Location" : "Bed"}</span>
       {start !== undefined ? <select required className={fieldClass} value={bed} onChange={event => onChange(event.target.value)}>
         <option value="">Select room</option>
-        {Array.from({ length: 10 }, (_, index) => {
-          const room = start + index;
-          const value = area.startsWith("IMC") ? `IMC - ${room}` : `${area[0]}${room}`;
-          const occupied = records.some(record => record.is_active && record.id !== editingId && record.bed === value);
-          return <option key={value} value={value} disabled={occupied}>{room}{occupied ? " - Occupied" : ""}</option>;
+        {selectOptions.map(value => {
+          const room = value.match(/\d+$/)?.[0] ?? value;
+          const occupiedRecord = records.find(record => record.is_active && record.id !== editingId && record.bed === value);
+          const unavailable = Boolean(occupiedRecord) && !allowOccupiedSelection;
+          const occupiedLabel = occupiedRecord
+            ? allowOccupiedSelection ? icuDeviceLabels[occupiedRecord.device_type] : "Occupied"
+            : "";
+          return <option key={value} value={value} disabled={unavailable}>{room}{occupiedLabel ? ` - ${occupiedLabel}` : ""}</option>;
         })}
       </select> : <input required className={fieldClass} inputMode={numbered ? "numeric" : "text"}
         maxLength={numbered ? 17 : 20} pattern={numbered ? "[0-9]+" : undefined}

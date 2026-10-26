@@ -1763,41 +1763,24 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
             <form onSubmit={savePatient} className="mt-4 space-y-4">
               <div className="grid gap-3">
-                {isLeadSurface ? <LeadBedSelector bed={form.bed} onChange={bed => setForm({ ...form, bed })} records={records} editingId={editingRecord?.id} /> : (
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Bed</span>
-                  <select
-                    value={form.bed}
-                    onChange={(event) => {
-                      const bed = event.target.value;
-                      if (!formOpenedFromAdd) {
-                        setForm({ ...form, bed });
-                        return;
-                      }
-                      const existing = records.find((record) => record.is_active && record.bed === bed);
-                      if (existing && (isLeadSurface || !canEditIcuCommandCenter(authContext))) return;
-                      setEditingRecord(existing ?? null);
-                      setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
-                      setFormError("");
-                    }}
-                    required
-                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                  >
-                    <option value="">Select bed</option>
-                    {roomOptions.map((bedOption) => {
-                      const existing = records.find((record) => record.is_active && record.bed === bedOption);
-                      const unavailable = existing && (formOpenedFromAdd
-                        ? isLeadSurface || !canEditIcuCommandCenter(authContext)
-                        : existing.id !== editingRecord?.id);
-                      return (
-                        <option key={bedOption} value={bedOption} disabled={Boolean(unavailable)}>
-                          {bedOption}{existing ? ` - ${icuDeviceLabels[existing.device_type]}` : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                )}
+                <LeadBedSelector
+                  bed={form.bed}
+                  records={records}
+                  editingId={editingRecord?.id}
+                  roomOptions={isLeadSurface ? undefined : roomOptions}
+                  allowOccupiedSelection={!isLeadSurface && formOpenedFromAdd && canEditIcuCommandCenter(authContext)}
+                  onChange={(bed) => {
+                    if (isLeadSurface || !formOpenedFromAdd) {
+                      setForm({ ...form, bed });
+                      return;
+                    }
+                    const existing = records.find((record) => record.is_active && record.bed === bed);
+                    if (existing && !canEditIcuCommandCenter(authContext)) return;
+                    setEditingRecord(existing ?? null);
+                    setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
+                    setFormError("");
+                  }}
+                />
 
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>

@@ -230,7 +230,7 @@ describe("ICU patient notes", () => {
       const title = surface === "lead" ? "Add Device" : "Add Patient";
       fireEvent.click(await screen.findByRole("button", { name: title }));
       const dialog = within(screen.getByRole("dialog", { name: title }));
-      if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+      fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
       fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
       fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "oxygen" } });
       expect(within(dialog.getByLabelText("Oxygen Device")).getAllByRole("option").map(option => option.textContent)).toEqual(["Nasal Cannula", "Non Rebreather", "Venturi Mask", "Ozymizer"]);
@@ -256,7 +256,7 @@ describe("ICU patient notes", () => {
     const addLabel = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: addLabel }));
     const dialog = within(screen.getByRole("dialog", { name: addLabel }));
-    if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "vent" } });
     expect(dialog.getByRole("radio", { name: "ETT" })).toBeChecked();
@@ -338,6 +338,7 @@ describe("ICU patient notes", () => {
       expect(settings.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
 
+    fireEvent.change(within(dialog).getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(within(dialog).getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(deviceSelect, { target: { value: "hfnc" } });
     fireEvent.change(within(dialog).getByLabelText(/^Notes/), {
@@ -415,7 +416,7 @@ describe("ICU patient notes", () => {
     const title = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: title }));
     const dialog = within(screen.getByRole("dialog", { name: title }));
-    if (surface === "lead") fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "cpap" } });
     fireEvent.change(dialog.getByLabelText("CPAP"), { target: { value: "5" } });
@@ -433,8 +434,9 @@ describe("ICU patient notes", () => {
     await screen.findByRole("button", { name: "Update" });
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
     let dialog = within(screen.getByRole("dialog", { name: "Add Patient" }));
-    expect(dialog.getByRole("option", { name: "C223 - HFNC" })).toBeEnabled();
-    expect(dialog.getByRole("option", { name: "C224" })).toBeEnabled();
+    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+    expect(dialog.getByRole("option", { name: "223 - HFNC" })).toBeEnabled();
+    expect(dialog.getByRole("option", { name: "224" })).toBeEnabled();
     fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
     dialog = within(screen.getByRole("dialog", { name: "Update Patient" }));
     expect(dialog.getByLabelText("Device")).toHaveValue("hfnc");
@@ -453,6 +455,7 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={authContext} />);
     await screen.findByRole("button", { name: "Update" });
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
+    fireEvent.change(screen.getByLabelText("Select bed"), { target: { value: "C Pod" } });
     fireEvent.change(screen.getByLabelText("Bed"), { target: { value: "C223" } });
     fireEvent.change(screen.getByLabelText("Bed"), { target: { value: "C224" } });
     const dialog = within(screen.getByRole("dialog", { name: "Add Patient" }));
