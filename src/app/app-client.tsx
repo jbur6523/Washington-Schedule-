@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowLeftRight,
@@ -29,11 +29,10 @@ import { StatusChip } from "@/components/StatusChip";
 import { getProfileDashboardShortcut } from "@/lib/admin/navigation";
 import { canViewIcuCommandCenter } from "@/lib/auth/access";
 import { createClient } from "@/lib/supabase/client";
-import { fetchAllPages } from "@/lib/supabase/paginated-query";
+import { useActiveSchedule } from "@/lib/schedule/use-active-schedule";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import {
-  adaptActiveSchedule,
   dayNameFromDate,
   displayStaffType,
   firstStaffProfile,
@@ -43,16 +42,12 @@ import {
   standardTimesForShiftType,
   shiftTypeLabels,
   type ActiveSchedule,
-  type CoworkerTitleRow,
   type ScheduleEntryRow,
-  type ScheduleVersionRow,
   type ShiftRequestRow,
   type ShiftRequestOfferRow,
   type ShiftRequestType,
-  type ShiftShortageRow,
   type ShiftShortageSeverity,
-  type ShiftType,
-  type UserScheduleOverrideRow
+  type ShiftType
 } from "@/lib/schedule/supabase-schedule";
 import { allShiftPosts, fallbackSchedule, type ShiftPost } from "@/data/mockSchedule";
 import { useCurrentCoveragePosts } from "@/lib/schedule/use-current-coverage-posts";
@@ -67,14 +62,6 @@ const emptyShiftPosts: ShiftPost[] = [];
 type AppClientProps = {
   authContext: AuthenticatedUserContext;
   developmentFallback?: boolean;
-};
-
-type ScheduleLoadState = {
-  loading: boolean;
-  error: string;
-  activeSchedule: ActiveSchedule | null;
-  timezone: string;
-  checked: boolean;
 };
 
 type AddShiftForm = {
@@ -445,7 +432,9 @@ function ScheduleScreen({
   timezone,
   developmentFallback,
   onChanged,
-  onViewMySchedule
+  onViewMySchedule,
+  showPastDays,
+  onShowPastDaysChange
 }: {
   authContext: AuthenticatedUserContext;
   loading: boolean;
@@ -455,11 +444,12 @@ function ScheduleScreen({
   developmentFallback?: boolean;
   onChanged: () => Promise<void>;
   onViewMySchedule: () => void;
+  showPastDays: boolean;
+  onShowPastDaysChange: (show: boolean) => void;
 }) {
   const [availabilitySaving, setAvailabilitySaving] = useState(false);
   const [availabilityMessage, setAvailabilityMessage] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
-  const [showPastDays, setShowPastDays] = useState(false);
   const [todayValue, setTodayValue] = useState(() => todayInTimezone(timezone));
   const days = useMemo(
     () => (developmentFallback ? fallbackSchedule : schedule?.days ?? []),
@@ -625,8 +615,15 @@ function ScheduleScreen({
         <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
           <h2 className="text-xl font-black text-hospital-ink">No schedule entries.</h2>
           <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-            The active schedule version exists, but no schedule rows have been added yet.
+            {showPastDays ? "There are no shifts to display in the active schedule." : "There are no recent or upcoming shifts to display."}
           </p>
+          <button
+            type="button"
+            onClick={() => onShowPastDaysChange(!showPastDays)}
+            className="mt-3 min-h-11 text-sm font-extrabold text-cyan-700"
+          >
+            {showPastDays ? "Hide past days" : "Show past days"}
+          </button>
         </section>
       </div>
     );
@@ -736,7 +733,7 @@ function ScheduleScreen({
         <div className="flex items-center justify-between gap-3 px-1 text-xs font-extrabold">
           <button
             type="button"
-            onClick={() => setShowPastDays((current) => !current)}
+            onClick={() => onShowPastDaysChange(!showPastDays)}
             className="text-slate-500"
           >
             {showPastDays ? "Hide past days" : "Show past days"}
@@ -3106,12 +3103,10 @@ function ShiftBoardScreen({
 export default function AppClient({ authContext, developmentFallback }: AppClientProps) {
   const [activeTab, setActiveTab] = useState<TabId>("schedule");
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [scheduleState, setScheduleState] = useState<ScheduleLoadState>({
-    loading: !developmentFallback,
-    error: "",
-    activeSchedule: null,
-    timezone: "America/Los_Angeles",
-    checked: Boolean(developmentFallback)
+  const [showPastDays, setShowPastDays] = useState(false);
+  const includeHistory = showPastDays || activeTab === "manage-schedule" || activeTab === "shift-board";
+  const { state: scheduleState, refresh: loadActiveSchedule } = useActiveSchedule({
+    authContext, includeHistory, developmentFallback
   });
 
   useEffect(() => {
@@ -3128,227 +3123,6 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
     return () => window.clearTimeout(timer);
   }, []);
 
-  const loadActiveSchedule = useCallback(async (showLoading = true) => {
-    if (developmentFallback) {
-      return;
-    }
-
-    if (showLoading) {
-      setScheduleState((current) => ({ ...current, loading: true, error: "" }));
-    }
-
-    const supabase = createClient();
-    const { data: department, error: departmentError } = await supabase
-      .from("departments")
-      .select("active_schedule_version_id, timezone")
-      .eq("id", authContext.departmentId)
-      .maybeSingle();
-    const timezone = (department?.timezone as string | null | undefined) || "America/Los_Angeles";
-
-    if (departmentError) {
-      setScheduleState({
-        loading: false,
-        error: "Permission denied or department schedule settings could not be loaded.",
-        activeSchedule: null,
-        timezone,
-        checked: true
-      });
-      return;
-    }
-
-    const activeVersionId = department?.active_schedule_version_id as string | null | undefined;
-
-    if (!activeVersionId) {
-      setScheduleState({ loading: false, error: "", activeSchedule: null, timezone, checked: true });
-      return;
-    }
-
-    const { data: version, error: versionError } = await supabase
-      .from("schedule_versions")
-      .select("*")
-      .eq("id", activeVersionId)
-      .eq("status", "published")
-      .maybeSingle();
-
-    if (versionError || !version) {
-      setScheduleState({
-        loading: false,
-        error: "The active schedule version could not be loaded.",
-        activeSchedule: null,
-        timezone,
-        checked: true
-      });
-      return;
-    }
-
-    const [
-      { data: entries, error: entriesError },
-      { data: shortages, error: shortagesError },
-      { data: overrides, error: overridesError },
-      { data: requests, error: requestsError },
-      { data: offers, error: offersError },
-      { data: coworkerTitles, error: coworkerTitlesError }
-    ] = await Promise.all([
-      fetchAllPages((from, to) => supabase
-        .from("schedule_entries")
-        .select(
-          "id, schedule_version_id, department_id, staff_profile_id, shift_date, day_of_week, shift_type, shift_start, shift_end, entry_status, is_shift_lead, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
-        )
-        .eq("schedule_version_id", activeVersionId)
-        .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)),
-      fetchAllPages((from, to) => supabase
-        .from("shift_shortages")
-        .select("id, schedule_version_id, department_id, shift_date, shift_type, shift_start, shift_end, severity, status, message, created_by")
-        .eq("schedule_version_id", activeVersionId)
-        .eq("status", "active")
-        .order("shift_date", { ascending: true })
-        .order("shift_start", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)),
-      fetchAllPages((from, to) => supabase
-        .from("user_schedule_overrides")
-        .select(
-          "id, department_id, staff_profile_id, base_schedule_entry_id, override_type, shift_date, shift_type, shift_start, shift_end, note, is_active, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active)"
-        )
-        .eq("department_id", authContext.departmentId)
-        .eq("is_active", true)
-        .order("shift_date", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, to)),
-      fetchAllPages((from, to) => supabase
-        .from("shift_requests")
-        .select(
-          "id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
-        )
-        .eq("department_id", authContext.departmentId)
-        .eq("status", "active")
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: true })
-        .range(from, to)),
-      fetchAllPages((from, to) => supabase
-        .from("shift_request_offers")
-        .select(
-          "id, department_id, shift_request_id, offer_type, offered_by_staff_profile_id, offered_schedule_entry_id, offered_override_id, offered_date, offered_shift_type, offered_shift_start, offered_shift_end, note, status, created_at, updated_at, responded_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), shift_requests(id, department_id, schedule_entry_id, user_schedule_override_id, staff_profile_id, request_type, status, note, created_at, updated_at, staff_profiles(id, display_name, employment_type, home_assignment, operations_role, is_active), schedule_entries(id, shift_date, day_of_week, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)), schedule_entries(id, shift_date, shift_type, shift_start, shift_end), user_schedule_overrides(id, shift_date, shift_type, shift_start, shift_end)"
-        )
-        .eq("department_id", authContext.departmentId)
-        .in("status", ["offered", "accepted", "declined"])
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: true })
-        .range(from, to)),
-      authContext.staffProfileId
-        ? fetchAllPages((from, to) => supabase
-            .from("coworker_titles")
-            .select("id, department_id, owner_staff_profile_id, target_staff_profile_id, title, title_key, custom_title, custom_icon, is_custom")
-            .eq("department_id", authContext.departmentId)
-            .eq("owner_staff_profile_id", authContext.staffProfileId)
-            .order("id", { ascending: true })
-            .range(from, to))
-        : Promise.resolve({ data: [], error: null })
-    ]);
-
-    if (entriesError || shortagesError || overridesError || requestsError || offersError || coworkerTitlesError) {
-      setScheduleState({
-        loading: false,
-        error: "Schedule coordination data could not be loaded. Confirm required migrations are applied.",
-        activeSchedule: null,
-        timezone,
-        checked: true
-      });
-      return;
-    }
-
-    setScheduleState({
-      loading: false,
-      error: "",
-      timezone,
-      activeSchedule: adaptActiveSchedule(
-        version as ScheduleVersionRow,
-        (entries ?? []) as ScheduleEntryRow[],
-        (shortages ?? []) as ShiftShortageRow[],
-        (overrides ?? []) as UserScheduleOverrideRow[],
-        (requests ?? []) as ShiftRequestRow[],
-        (offers ?? []) as ShiftRequestOfferRow[],
-        (coworkerTitles ?? []) as CoworkerTitleRow[]
-      ),
-      checked: true
-    });
-  }, [authContext.departmentId, authContext.staffProfileId, developmentFallback]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadActiveSchedule();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [loadActiveSchedule]);
-
-  useEffect(() => {
-    if (developmentFallback) {
-      return;
-    }
-
-    let refreshTimer: number | undefined;
-    const refresh = () => {
-      window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
-        void loadActiveSchedule(false);
-      }, 250);
-    };
-    const interval = window.setInterval(refresh, 60_000);
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refresh();
-      }
-    };
-    const supabase = createClient();
-    let channel = supabase
-      .channel(`schedule-coordination-${authContext.departmentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "departments",
-          filter: `id=eq.${authContext.departmentId}`
-        },
-        refresh
-      );
-
-    for (const table of [
-      "schedule_versions",
-      "schedule_entries",
-      "shift_shortages",
-      "user_schedule_overrides",
-      "shift_requests",
-      "shift_request_offers"
-    ]) {
-      channel = channel.on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table,
-          filter: `department_id=eq.${authContext.departmentId}`
-        },
-        refresh
-      );
-    }
-
-    channel.subscribe();
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", refresh);
-
-    return () => {
-      window.clearTimeout(refreshTimer);
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", refresh);
-      void supabase.removeChannel(channel);
-    };
-  }, [authContext.departmentId, developmentFallback, loadActiveSchedule]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -3373,6 +3147,15 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
         />
         <div className="mx-auto max-w-xl px-4 pb-5 pt-3 sm:px-5">
           <AuthNotice authContext={authContext} developmentFallback={developmentFallback} />
+          {scheduleState.error && (activeTab === "schedule" || activeTab === "manage-schedule" || activeTab === "shift-board") && (
+            <button
+              type="button"
+              onClick={() => { void loadActiveSchedule(); }}
+              className="mb-3 min-h-11 rounded-full border border-cyan-100 bg-cyan-50 px-4 text-sm font-extrabold text-cyan-700"
+            >
+              Retry schedule
+            </button>
+          )}
           {activeTab === "schedule" && (
             <ScheduleScreen
               authContext={authContext}
@@ -3383,6 +3166,8 @@ export default function AppClient({ authContext, developmentFallback }: AppClien
               developmentFallback={developmentFallback}
               onChanged={loadActiveSchedule}
               onViewMySchedule={() => setActiveTab("manage-schedule")}
+              showPastDays={showPastDays}
+              onShowPastDaysChange={setShowPastDays}
             />
           )}
           {activeTab === "manage-schedule" && (
