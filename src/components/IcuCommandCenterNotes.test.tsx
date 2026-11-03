@@ -209,6 +209,27 @@ describe("ICU patient notes", () => {
     });
   });
 
+  it("lets schedule staff read, refresh and close the full ICU report without printing", async () => {
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    mocks.activeRecords = [patientRecord({ notes: "Rounding detail" }), patientRecord({ id: "patient-2", bed: "D232" })];
+    render(<IcuCommandCenterClient authContext={{ ...authContext, role: "staff", operationsRole: "none" }} />);
+    expect(screen.getByRole("link", { name: /Return to Schedule/ })).toHaveAttribute("href", "/");
+    fireEvent.click(screen.getByRole("button", { name: /ICU Report/ }));
+    const frame = await screen.findByTitle("Full ICU rounding report");
+    const report = new DOMParser().parseFromString(frame.getAttribute("srcdoc")!, "text/html");
+    expect(report.querySelectorAll("article")).toHaveLength(2);
+    expect(report.body.textContent).toContain("Rounding detail");
+    expect(report.body.textContent).toContain("D232");
+    expect(report.querySelector("button")).toBeNull();
+    expect(document.getElementById("icu-print-frame")).toBeNull();
+    mocks.activeRecords = [];
+    const dialog = within(screen.getByRole("dialog", { name: "ICU Report" }));
+    fireEvent.click(dialog.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(screen.getByTitle("Full ICU rounding report").getAttribute("srcdoc")).toContain("No active ICU patients listed."));
+    fireEvent.click(dialog.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "ICU Report" })).not.toBeInTheDocument();
+  });
+
   it.each(["full", "lead"] as const)("edits PCMV pressure independently of tidal volume on %s", async (surface) => {
     mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "pcmv", tidal_volume: 400, pressure_control: 18 })];
     render(<IcuCommandCenterClient authContext={authContext} surface={surface} />);

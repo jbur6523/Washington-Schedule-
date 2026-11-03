@@ -13,7 +13,7 @@ import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
 import { activeSbt, criticalDetail, procedureDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
-import { printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
+import { buildIcuRoundingReport, printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
 import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
@@ -844,6 +844,10 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [discontinuedTime, setDiscontinuedTime] = useState("");
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
   const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const roundingReport = useMemo(() => reportOpen
+    ? buildIcuRoundingReport(records, authContext.departmentName, new Date(), false)
+    : "", [reportOpen, records, authContext.departmentName]);
   const [historyEvents, setHistoryEvents] = useState<IcuPatientEventRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -1415,6 +1419,42 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
           </Link>
         )}
+
+        {!isIcuCommandCenter(authContext) && <button
+          type="button"
+          onClick={() => setReportOpen(true)}
+          aria-haspopup="dialog"
+          aria-controls="icu-rounding-report"
+          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
+        >
+          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+            <ClipboardList size={26} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-lg font-black text-sky-950">ICU Report</span>
+            <span className="mt-0.5 block text-xs font-bold text-sky-900">View the full report for rounds.</span>
+          </span>
+          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
+        </button>}
+
+        {reportOpen && <dialog
+          id="icu-rounding-report"
+          aria-labelledby="icu-rounding-report-title"
+          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
+          onClose={() => setReportOpen(false)}
+          className="fixed inset-0 m-auto h-[90dvh] max-h-[90dvh] w-[calc(100%-1rem)] max-w-4xl rounded-2xl border border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3">
+              <h2 id="icu-rounding-report-title" className="text-xl font-black">ICU Report</h2>
+              <div className="flex gap-2">
+                <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold disabled:opacity-50"><RefreshCw size={17} aria-hidden="true" />Refresh</button>
+                <button type="button" autoFocus onClick={() => setReportOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold"><X size={18} aria-hidden="true" />Close</button>
+              </div>
+            </header>
+            {error ? <p role="alert" className="p-4 text-rose-800">{error}</p> : loading ? <p role="status" className="p-4 text-slate-600">Loading ICU report…</p> : <iframe title="Full ICU rounding report" sandbox="allow-same-origin" srcDoc={roundingReport} className="min-h-0 w-full flex-1 border-0 bg-white" />}
+          </div>
+        </dialog>}
 
         <button
           type="button"
