@@ -64,7 +64,24 @@ describe("ICU rounding print report", () => {
     vi.restoreAllMocks();
   });
 
-  it("keeps SBAR to active beds, modalities and current settings only", () => {
+  it("includes the vent mode in the current settings row", () => {
+    const doc = new DOMParser().parseFromString(buildIcuRoundingReport([patient], "RT"), "text/html");
+    const current = Array.from(doc.querySelectorAll(".row")).find(row => row.querySelector("strong")?.textContent === "Current Settings");
+    expect(current?.textContent).toContain("Vent - SPONT · PS 8");
+  });
+
+  it.each([
+    { airway_type: "ett", airway_size: "7.5", expected: "ETT 7.5" },
+    { airway_type: "trach", airway_size: "8", trach_type: "shiley", expected: "Trach 8 Shiley" }
+  ] as const)("includes $expected under the SBAR modality without adding a column", ({ expected, ...airway }) => {
+    const doc = new DOMParser().parseFromString(buildIcuSbarReport([{ ...patient, ...airway }], "RT"), "text/html");
+    const cells = doc.querySelectorAll("tbody tr td");
+    expect(cells).toHaveLength(3);
+    expect(cells[1].textContent).toContain(expected);
+    expect(cells[2].textContent).toContain("PS 8");
+  });
+
+  it("keeps SBAR to active beds, modalities, airways and current settings only", () => {
     const html = buildIcuSbarReport([patient, { ...patient, bed: "OLD", is_active: false }], "RT");
     const doc = new DOMParser().parseFromString(html, "text/html");
     expect(doc.querySelectorAll("tbody tr")).toHaveLength(1);

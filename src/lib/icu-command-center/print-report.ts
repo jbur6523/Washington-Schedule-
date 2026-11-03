@@ -50,7 +50,7 @@ export function buildIcuRoundingReport(records: IcuPatientRecord[], department: 
     return `<article>
       <header class="patient-header"><h2>${escapeHtml(record.bed)}</h2><span>${escapeHtml(record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}</span></header>
       ${row("Airway", formatIcuAirway(record))}
-      ${row("Current Settings", formatIcuSettings(record))}
+      ${row("Current Settings", record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record))}
       ${previous ? row("Previous Settings", `${formatIcuDeviceSummary(previous as IcuPatientRecord)} · ${formatIcuSettings(previous as IcuPatientRecord)}`) : ""}
       ${sbt ? row(activeSbt(record) ? "SBT Started" : "Last SBT", activeSbt(record) ? roundingDate(sbt.at) : `${sbt.result === "Pass" ? "Passed" : "Failed"}${sbt.reason ? ` — ${sbt.reason}` : ""} — ${roundingDate(sbt.at)}`) : ""}
       ${row("Critical", criticalDetail(record))}
@@ -124,7 +124,10 @@ function simpleReport(title: string, subtitle: string, content: string, topConte
 export function buildIcuSbarReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
   const active = records.filter(record => record.is_active);
   return simpleReport("WHHS ICU SBAR", `${department} · ${active.length} active patients · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`,
-    `<table><thead><tr><th>Bed</th><th>Modality / Mode</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`).join("")}</tbody></table>`, deviceCountSummary(active));
+    `<table><thead><tr><th>Bed</th><th>Modality / Mode / Airway</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => {
+      const airway = formatIcuAirway(record);
+      return `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}${airway ? `<div style="font-size:9pt;line-height:1.2">${escapeHtml(airway)}</div>` : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`;
+    }).join("")}</tbody></table>`, deviceCountSummary(active));
 }
 
 export type IcuPrintableHistoryEntry = { title: string; author: string; lines: string[] };
