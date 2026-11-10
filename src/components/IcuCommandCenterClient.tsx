@@ -630,7 +630,7 @@ export function IcuPatientCard({
           <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
           <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
-            <p className="text-sm font-bold leading-6 text-hospital-ink">{formatIcuSettings(record)}</p>
+            <p className="text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
           </div>
           <div className="mt-2 rounded-2xl border border-sky-500 border-l-4 bg-white px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
