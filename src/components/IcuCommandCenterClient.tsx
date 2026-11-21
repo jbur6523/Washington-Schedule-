@@ -1863,8 +1863,15 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
               {form.device_type === "vent" && (
                 <>
-                  <section className="rounded-3xl border border-cyan-100 bg-cyan-50/60 p-3">
-                    <h3 className="text-sm font-black text-hospital-ink">Airway</h3>
+                  <details
+                    key={editingRecord?.id ?? "new-airway"}
+                    open={!editingRecord?.airway_size || (editingRecord.airway_type === "trach" && !editingRecord.trach_type)}
+                    onInvalidCapture={(event) => { event.currentTarget.open = true; }}
+                    className="rounded-3xl border border-cyan-100 bg-cyan-50/60 p-3"
+                  >
+                    <summary className="cursor-pointer rounded-xl py-2 text-sm font-black text-hospital-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-700">
+                      Airway{editingRecord?.airway_size ? " — expand to review or edit" : ""}
+                    </summary>
                     <div className="mt-3 grid gap-3">
                       <fieldset>
                         <legend className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Airway type</legend>
@@ -1942,7 +1949,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                         </>
                       )}
                     </div>
-                  </section>
+                  </details>
 
                   <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
                     <h3 className="text-sm font-black text-hospital-ink">Vent Settings</h3>
