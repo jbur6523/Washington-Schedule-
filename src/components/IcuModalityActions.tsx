@@ -18,7 +18,7 @@ export type SaveModality = (
   action: ModalityAction,
   version: string,
 ) => Promise<boolean>;
-function fieldsFor(type: IcuDeviceType, mode: string): string[][] {
+export function modalitySettingFields(type: IcuDeviceType, mode: string): string[][] {
   if (type === "bipap")
     return [
       ["ipap", "IPAP"],
@@ -79,7 +79,7 @@ export function IcuModalityActions({
   const [error, setError] = useState("");
   const label = icuDeviceLabels[modality];
   const [switching, setSwitching] = useState<IcuDeviceType | null>(null);
-  const fields = fieldsFor(modality, draft.vent_mode);
+  const fields = modalitySettingFields(modality, draft.vent_mode);
   const buttonClass =
     "inline-flex min-h-10 items-center gap-1.5 rounded-xl border-2 border-sky-700 bg-white px-3 text-xs font-extrabold text-sky-900 disabled:opacity-50";
   const inputClass =

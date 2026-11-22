@@ -1,0 +1,37 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions,pg_temp;
+select no_plan();
+set local role authenticated;
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-EXT","device_type":"vent","vent_mode":"apvcmv","fio2":40,"notes":"Keep note"}','{}');
+select public.record_icu_rounding_action(id,'treatment','{"name":"IPV","frequency":"Q6"}',updated_at) from public.icu_patients where bed='TEST-EXT';
+select throws_ok($$select public.extubate_icu_patient(id,'hfnc','{"flow":40,"fio2":101}',now(),updated_at) from public.icu_patients where bed='TEST-EXT'$$,'22023','Invalid setting value.','Invalid settings do not extubate');
+select throws_ok($$select public.extubate_icu_patient(id,'hfnc','{}',now(),updated_at-interval '1 second') from public.icu_patients where bed='TEST-EXT'$$,'40001','Patient changed. Refresh and review before extubating.','Stale version rejected');
+select lives_ok($$select public.extubate_icu_patient(id,'hfnc','{"flow":40,"fio2":35,"notes":"Forged"}',now(),updated_at) from public.icu_patients where bed='TEST-EXT'$$,'Extubation with new modality saves');
+select ok((select is_active and discontinued_at is null and device_type='hfnc' and flow=40 and fio2=35 and notes='Keep note' and rounding_data#>>'{treatment,name}'='IPV' from public.icu_patients where bed='TEST-EXT'),'Same active patient retains note and treatment');
+select ok((select rounding_data#>>'{previousSettings,device_type}'='vent' and rounding_data#>>'{extubation,modality}'='hfnc' and not (rounding_data->'modalities' ? 'vent') and airway_type is null and not is_sbt and not is_critical_vent from public.icu_patients where bed='TEST-EXT'),'Snapshot retains old settings and extubation, removes active vent');
+select is((select count(*)::int from public.icu_patients where bed='TEST-EXT'),1,'No new patient created');
+select is((select count(*)::int from public.icu_patient_events e join public.icu_patients p on p.id=e.icu_patient_id where p.bed='TEST-EXT' and e.event_type='added'),1,'One admission history');
+select is((select count(*)::int from public.icu_patient_events e join public.icu_patients p on p.id=e.icu_patient_id where p.bed='TEST-EXT' and e.event_data->>'action'='extubated'),1,'Extubation event on same record');
+select throws_ok($$select public.extubate_icu_patient(id,'hfnc','{}',now(),updated_at) from public.icu_patients where bed='TEST-EXT'$$,'22023','Patient is not on a ventilator.','Repeat extubation rejected');
+select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-EXT-NONE","device_type":"vent","vent_mode":"apvcmv"}','{}');
+select lives_ok($$select public.extubate_icu_patient(id,'none','{}',now(),updated_at) from public.icu_patients where bed='TEST-EXT-NONE'$$,'No replacement device needed');
+select ok((select is_active and device_type='none' from public.icu_patients where bed='TEST-EXT-NONE'),'No-device card remains active');
+select lives_ok($$select public.manage_icu_device(department_id,'discontinue',jsonb_build_object('discontinued_at',now()),'{}',id,updated_at) from public.icu_patients where bed='TEST-EXT'$$,'Explicit discontinue still ends episode');
+select ok((select not is_active from public.icu_patients where bed='TEST-EXT'),'Card removed only by explicit discontinue');
+-- A history failure must roll back the modality change as well.
+select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-EXT-FAIL","device_type":"vent","vent_mode":"apvcmv"}','{}');
+reset role;
+create function pg_temp.fail_extubation_audit() returns trigger language plpgsql as $$begin
+ if new.event_data->>'action'='extubated' then raise exception 'Audit unavailable'; end if; return new;
+end;$$;
+create trigger test_fail_extubation_audit before insert on public.icu_patient_events for each row execute function pg_temp.fail_extubation_audit();
+set local role authenticated;
+select throws_ok($$select public.extubate_icu_patient(id,'hfnc','{"flow":40}',now(),updated_at) from public.icu_patients where bed='TEST-EXT-FAIL'$$,'P0001','Audit unavailable','Audit failure rejects entire extubation');
+select ok((select is_active and device_type='vent' and rounding_data->'extubation' is null from public.icu_patients where bed='TEST-EXT-FAIL'),'Failed audit leaves ventilation unchanged');
+select set_config('test.extid',id::text,true) from public.icu_patients where bed='TEST-EXT-NONE';
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000003',true);
+select throws_ok($$select public.extubate_icu_patient(current_setting('test.extid')::uuid,'none','{}',now(),now())$$,'42501',null,'Unauthorized actor rejected');
+select * from finish();
+rollback;

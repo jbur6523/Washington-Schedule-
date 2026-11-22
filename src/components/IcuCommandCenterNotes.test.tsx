@@ -204,6 +204,13 @@ describe("ICU patient notes", () => {
     mocks.changed = [];
     mocks.remove.mockClear();
     mocks.rpc.mockReset().mockImplementation(async (_name, args) => {
+      if (_name === "extubate_icu_patient") {
+        const previous = mocks.activeRecords[0];
+        const record = patientRecord({ ...previous, device_type: args.target_modality, ...args.target_settings, vent_mode: null,
+          rounding_data: { ...previous.rounding_data, previousSettings: { device_type: previous.device_type, vent_mode: previous.vent_mode }, extubation: { at: args.extubated_at, modality: args.target_modality, settings: args.target_settings } } });
+        mocks.activeRecords = [record];
+        return { data: record, error: null };
+      }
       if (_name === "record_icu_rounding_action") {
         const record = patientRecord({ ...mocks.activeRecords[0], notes: args.target_payload.notes || null });
         mocks.activeRecords = [record];
@@ -697,14 +704,14 @@ describe("ICU patient notes", () => {
       fireEvent.click(confirm);
       expect(mocks.rpc).not.toHaveBeenCalled();
       expect(within(dialog).getByText(/Select a ventilator outcome before/)).toBeInTheDocument();
-      fireEvent.click(within(dialog).getByRole("radio", { name: "Extubation" }));
+      fireEvent.click(within(dialog).getByRole("radio", { name: "Transferred to another facility" }));
     } else {
       expect(within(dialog).queryByLabelText("Ventilator Outcome")).not.toBeInTheDocument();
     }
     fireEvent.click(confirm);
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
       target_action: "discontinue", target_patient_id: "patient-1", expected_updated_at: "2026-09-01T19:00:00.000Z",
-      target_payload: { discontinued_at: expect.any(String), ventilator_outcome: device_type === "vent" ? "extubation" : null },
+      target_payload: { discontinued_at: expect.any(String), ventilator_outcome: device_type === "vent" ? "transferred_to_another_facility" : null },
       target_event_data: expect.objectContaining({ previousState: expect.objectContaining({ isActive: true }), updatedState: expect.objectContaining({ isActive: false }) })
     })));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Discontinue C223" })).not.toBeInTheDocument());
@@ -766,12 +773,11 @@ describe("ICU patient notes", () => {
     fireEvent.click(dialog.getByRole("radio", { name: "Other/Unknown" }));
     expect(dialog.getByRole("textbox", { name: "Outcome comment (optional)" })).toHaveValue("");
     fireEvent.click(dialog.getByRole("radio", { name: "Extubation" }));
-    fireEvent.click(dialog.getByRole("button", { name: "Discontinue Vent" }));
-    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
-      target_payload: expect.objectContaining({ ventilator_outcome: "extubation" }),
-      target_event_data: expect.objectContaining({ ventilatorOutcomeComment: null })
+    fireEvent.click(dialog.getByRole("button", { name: "Extubate" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("extubate_icu_patient", expect.objectContaining({
+      target_modality: "none", target_settings: {}
     })));
-    expect(await screen.findByText("Device discontinued.")).toBeInTheDocument();
+    expect(await screen.findByText("Extubation saved. The patient card and history remain active.")).toBeInTheDocument();
   });
 
   it("shows saved outcome comments in ICU activity details", async () => {
@@ -801,19 +807,36 @@ describe("ICU patient notes", () => {
 
 });
 
-it("opens extubation without writing and carries the selected new modality into the existing add workflow", async () => {
-  mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv", rounding_data: { treatment: { name: "IPV", frequency: "Q6", at: "2026-11-22T12:00:00Z" } } })];
+it("saves inline extubation settings on the same card and shows rounding details by default", async () => {
+  mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv", notes: "Keep rounding note", rounding_data: { treatment: { name: "IPV", frequency: "Q6", at: "2026-11-22T12:00:00Z" } } })];
   render(<IcuCommandCenterClient authContext={authContext} />);
   fireEvent.click(await screen.findByRole("button", { name: "Extubate" }));
   const dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
   expect(dialog.getByRole("radio", { name: "Extubation" })).toBeChecked();
-  expect(mocks.rpc).not.toHaveBeenCalled();
   fireEvent.change(dialog.getByRole("combobox", { name: /New modality after extubation/ }), { target: { value: "hfnc" } });
-  fireEvent.click(dialog.getByRole("button", { name: "Extubate & Set Up Modality" }));
-  const add = within(await screen.findByRole("dialog", { name: "Add Patient" }));
-  expect(add.getByRole("button", { name: "HFNC" })).toHaveAttribute("aria-pressed", "true");
-  expect(add.getByRole("button", { name: /Room 223/ })).toHaveAttribute("aria-pressed", "true");
-  expect(add.getByRole("combobox", { name: "Treatment" })).toHaveValue("IPV");
-  fireEvent.click(add.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_action: "add", target_payload: expect.objectContaining({ bed: "C223", device_type: "hfnc" }) })));
+  fireEvent.change(dialog.getByRole("spinbutton", { name: "Flow (L/min)" }), { target: { value: "40" } });
+  fireEvent.change(dialog.getByRole("spinbutton", { name: "FiO₂ (%)" }), { target: { value: "35" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Extubate" }));
+  await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("extubate_icu_patient", expect.objectContaining({ target_patient_id: "patient-1", target_modality: "hfnc", target_settings: { flow: 40, fio2: 35 } })));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(screen.getByText("Extubated:")).toBeVisible();
+  expect(screen.getByText("Keep rounding note")).toBeVisible();
+  expect(screen.getByText("Treatment:")).toBeVisible();
+  expect(screen.queryByText("More rounding details")).not.toBeInTheDocument();
+  expect(mocks.activeRecords[0].id).toBe("patient-1");
+  expect(mocks.rpc).not.toHaveBeenCalledWith("manage_icu_device", expect.anything());
+});
+
+it("keeps extubation settings and the existing card when the atomic save fails", async () => {
+  mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv" })];
+  mocks.rpc.mockResolvedValueOnce({ error: { code: "40001" } });
+  render(<IcuCommandCenterClient authContext={authContext} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Extubate" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+  fireEvent.change(dialog.getByRole("combobox", { name: /New modality/ }), { target: { value: "bipap" } });
+  fireEvent.change(dialog.getByRole("spinbutton", { name: "IPAP" }), { target: { value: "12" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Extubate" }));
+  expect(await dialog.findByText(/This device changed/)).toBeInTheDocument();
+  expect(dialog.getByRole("spinbutton", { name: "IPAP" })).toHaveValue(12);
+  expect(mocks.activeRecords[0].device_type).toBe("vent");
 });

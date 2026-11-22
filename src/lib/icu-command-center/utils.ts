@@ -242,6 +242,7 @@ export function formatIcuSettings(record: IcuPatientRecord) {
 }
 
 export function formatIcuDeviceSummary(record: IcuPatientRecord) {
+  if (record.device_type === "none" && !record.rounding_data?.treatment) return "No respiratory device";
   if (record.device_type === "vent" && record.vent_mode) {
     return `${icuDeviceLabels[record.device_type]} - ${icuVentModeLabels[record.vent_mode]}`;
   }

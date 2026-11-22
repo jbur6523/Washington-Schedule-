@@ -1,0 +1,21 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path=public,extensions,pg_temp;
+select plan(5);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-REPAIR","device_type":"vent","vent_mode":"apvcmv","notes":"Keep old note"}','{}');
+select set_config('repair.original_id',id::text,true) from public.icu_patients where bed='TEST-REPAIR';
+select public.manage_icu_device(department_id,'discontinue',jsonb_build_object('discontinued_at',now(),'ventilator_outcome','extubation'),'{}',id,updated_at) from public.icu_patients where bed='TEST-REPAIR';
+select set_config('repair.original_version',updated_at::text,true) from public.icu_patients where bed='TEST-REPAIR';
+select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-REPAIR","device_type":"hfnc","flow":40,"fio2":35}','{}');
+select set_config('repair.replacement_id',id::text,true),set_config('repair.replacement_version',updated_at::text,true) from public.icu_patients where bed='TEST-REPAIR' and is_active;
+reset role;
+\i supabase/repairs/icu_extubation_continuity.sql
+select ok((select is_active and device_type='hfnc' and notes='Keep old note' and flow=40 and fio2=35 from public.icu_patients where id=current_setting('repair.original_id')::uuid),'Original identity restored with current settings');
+select is((select count(*)::int from public.icu_patients where bed='TEST-REPAIR' and is_active),1,'One active card');
+select ok((select rounding_data#>>'{extubation,modality}'='hfnc' and not (rounding_data->'modalities' ? 'vent') from public.icu_patients where id=current_setting('repair.original_id')::uuid),'Extubation and previous vent saved without active vent');
+select is((select count(*)::int from public.icu_patient_events where icu_patient_id=current_setting('repair.original_id')::uuid),4,'All three original events plus repair audit on same card');
+select is((select count(*)::int from public.icu_patients where bed='TEST-REPAIR'),2,'No original records deleted');
+select * from finish();
+rollback;
