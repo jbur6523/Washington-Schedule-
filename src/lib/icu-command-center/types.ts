@@ -1,103 +1,104 @@
-export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol" | "nasal_cannula" | "non_rebreather" | "venturi_mask" | "ozymizer";
-export type IcuAirwayLocation = "teeth" | "gum" | "nare";
-export type IcuAirwayType = "ett" | "trach";
-export type IcuTrachType = "shiley" | "portex" | "other";
-export type IcuVentMode = "apvcmv" | "scmv" | "spont" | "asv" | "pcmv" | "aprv";
-export type IcuVentStatusKey = "sbt" | "critical" | "flolan" | "prone";
-export type IcuVentShiftEventKey = "ct" | "mri";
-export type IcuOperationalShiftType = "day" | "night";
-export type VentilatorOutcome =
-  | "extubation"
-  | "trached_aerosol"
-  | "unplanned"
-  | "expired_on_ventilator"
-  | "transferred_to_another_facility"
-  | "donor_network"
-  | "discontinue_vent_support_palliative"
-  | "other_unknown";
-export type IcuPatientEventType =
-  | "added"
-  | "updated"
-  | "critical_status_updated"
-  | "sbt_status_updated"
-  | "flolan_status_updated"
-  | "prone_status_updated"
-  | "standby_status_updated"
-  | "ct_noted"
-  | "mri_noted"
-  | "discontinued";
-
-export type IcuPatientRecord = {
-  rounding_data?: {
-    modalities?: Partial<Record<IcuDeviceType, Record<string, string | number | boolean | null>>>;
-    sbt?: { result: "Pass" | "Fail"; at: string; reason?: string | null };
-    criticalOther?: string | null;
-    procedure?: { name: string; at: string; other?: string | null; trachType?: string; size?: string; xlt?: boolean; date?: string | null };
-    previousSettings?: Partial<IcuPatientRecord>;
-  };
-  id: string;
-  department_id: string;
-  bed: string;
-  device_type: IcuDeviceType;
-  airway_size: string | null;
-  airway_at: string | null;
-  airway_location: IcuAirwayLocation | null;
-  airway_type: IcuAirwayType | null;
-  trach_type: IcuTrachType | null;
-  trach_xlt: boolean;
-  vent_mode: IcuVentMode | null;
-  rate: number | null;
-  tidal_volume: number | null;
-  pressure_control?: number | null;
-  peep: number | null;
-  fio2: number | null;
-  ps: number | null;
-  t_high: number | null;
-  t_low: number | null;
-  p_high: number | null;
-  p_low: number | null;
-  percent_min_vol: number | null;
-  ipap: number | null;
-  epap: number | null;
-  cpap: number | null;
-  flow: number | null;
-  notes: string | null;
-  is_critical_vent: boolean;
-  is_sbt: boolean;
-  is_flolan: boolean;
-  is_prone: boolean;
-  is_standby: boolean;
-  ventilator_outcome: VentilatorOutcome | null;
-  discontinued_at: string | null;
-  discontinued_by_staff_profile_id: string | null;
-  is_active: boolean;
-  created_by_staff_profile_id: string | null;
-  updated_by_staff_profile_id: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type IcuPatientEventRecord = {
-  id: string;
-  department_id: string;
-  icu_patient_id: string;
-  event_type: IcuPatientEventType;
-  event_time: string;
-  event_summary: string | null;
-  event_data: Record<string, unknown> | null;
-  created_by_staff_profile_id: string | null;
-  created_by_name: string | null;
-  operational_shift_date: string | null;
-  operational_shift_type: IcuOperationalShiftType | null;
-  created_at: string;
-};
-
-export type IcuSnapshotCounts = {
-  vents: number;
-  hfnc: number;
-  bipap: number;
-  cpap: number;
-  criticalVents: number;
-  totalActive: number;
-  latestUpdatedAt: string | null;
-};
+export type IcuDeviceType = "vent" | "bipap" | "cpap" | "hfnc" | "cool_aerosol" | "nasal_cannula" | "non_rebreather" | "venturi_mask" | "ozymizer";
+export type IcuAirwayLocation = "teeth" | "gum" | "nare";
+export type IcuAirwayType = "ett" | "trach";
+export type IcuTrachType = "shiley" | "portex" | "other";
+export type IcuVentMode = "apvcmv" | "scmv" | "spont" | "asv" | "pcmv" | "aprv";
+export type IcuVentStatusKey = "sbt" | "critical" | "flolan" | "prone";
+export type IcuVentShiftEventKey = "ct" | "mri";
+export type IcuOperationalShiftType = "day" | "night";
+export type VentilatorOutcome =
+  | "extubation"
+  | "trached_aerosol"
+  | "unplanned"
+  | "expired_on_ventilator"
+  | "transferred_to_another_facility"
+  | "donor_network"
+  | "discontinue_vent_support_palliative"
+  | "other_unknown";
+export type IcuPatientEventType =
+  | "added"
+  | "updated"
+  | "critical_status_updated"
+  | "sbt_status_updated"
+  | "flolan_status_updated"
+  | "prone_status_updated"
+  | "standby_status_updated"
+  | "ct_noted"
+  | "mri_noted"
+  | "discontinued";
+
+export type IcuPatientRecord = {
+  rounding_data?: {
+    treatment?: { name: string; frequency: string; at: string };
+    modalities?: Partial<Record<IcuDeviceType, Record<string, string | number | boolean | null>>>;
+    sbt?: { result: "Pass" | "Fail"; at: string; reason?: string | null };
+    criticalOther?: string | null;
+    procedure?: { name: string; at: string; other?: string | null; trachType?: string; size?: string; xlt?: boolean; date?: string | null };
+    previousSettings?: Partial<IcuPatientRecord>;
+  };
+  id: string;
+  department_id: string;
+  bed: string;
+  device_type: IcuDeviceType;
+  airway_size: string | null;
+  airway_at: string | null;
+  airway_location: IcuAirwayLocation | null;
+  airway_type: IcuAirwayType | null;
+  trach_type: IcuTrachType | null;
+  trach_xlt: boolean;
+  vent_mode: IcuVentMode | null;
+  rate: number | null;
+  tidal_volume: number | null;
+  pressure_control?: number | null;
+  peep: number | null;
+  fio2: number | null;
+  ps: number | null;
+  t_high: number | null;
+  t_low: number | null;
+  p_high: number | null;
+  p_low: number | null;
+  percent_min_vol: number | null;
+  ipap: number | null;
+  epap: number | null;
+  cpap: number | null;
+  flow: number | null;
+  notes: string | null;
+  is_critical_vent: boolean;
+  is_sbt: boolean;
+  is_flolan: boolean;
+  is_prone: boolean;
+  is_standby: boolean;
+  ventilator_outcome: VentilatorOutcome | null;
+  discontinued_at: string | null;
+  discontinued_by_staff_profile_id: string | null;
+  is_active: boolean;
+  created_by_staff_profile_id: string | null;
+  updated_by_staff_profile_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type IcuPatientEventRecord = {
+  id: string;
+  department_id: string;
+  icu_patient_id: string;
+  event_type: IcuPatientEventType;
+  event_time: string;
+  event_summary: string | null;
+  event_data: Record<string, unknown> | null;
+  created_by_staff_profile_id: string | null;
+  created_by_name: string | null;
+  operational_shift_date: string | null;
+  operational_shift_type: IcuOperationalShiftType | null;
+  created_at: string;
+};
+
+export type IcuSnapshotCounts = {
+  vents: number;
+  hfnc: number;
+  bipap: number;
+  cpap: number;
+  criticalVents: number;
+  totalActive: number;
+  latestUpdatedAt: string | null;
+};
