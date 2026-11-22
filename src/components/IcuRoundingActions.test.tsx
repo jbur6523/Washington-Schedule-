@@ -30,3 +30,17 @@ describe("ICU treatment and critical actions", () => {
     await waitFor(() => expect(screen.queryByRole("form")).not.toBeInTheDocument());
   });
 });
+
+it("orders ventilator actions and hides SBT and Extubate on oxygen", () => {
+  const onExtubate = vi.fn();
+  const props = { saving: false, onSave: vi.fn(), onToggleStandby: vi.fn(), onExtubate };
+  const { rerender } = render(<IcuRoundingActions {...props} record={{ ...patient, device_type: "vent" }} />);
+  expect(screen.getAllByRole("button").map(button => button.textContent)).toEqual(["SBT", "Treatment", "Procedure", "Critical Vent", "Standby", "Extubate"]);
+  fireEvent.click(screen.getByRole("button", { name: "Extubate" }));
+  expect(onExtubate).toHaveBeenCalledOnce();
+  expect(props.onSave).not.toHaveBeenCalled();
+  rerender(<IcuRoundingActions {...props} record={patient} />);
+  expect(screen.queryByRole("button", { name: "SBT" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Critical Vent" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Extubate" })).not.toBeInTheDocument();
+});

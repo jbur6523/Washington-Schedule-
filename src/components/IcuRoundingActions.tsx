@@ -6,7 +6,7 @@ import { supportsIcuStandby } from "@/lib/icu-command-center/utils";
 import type { IcuPatientRecord } from "@/lib/icu-command-center/types";
 import { activeSbt, hasVentModality, treatmentOptions, treatmentFrequencies, sbtFailureReasons, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 
-export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: { record: IcuPatientRecord; saving: boolean; onSave: SaveRoundingAction; onToggleStandby?: () => void }) {
+export function IcuRoundingActions({ record, saving, onSave, onToggleStandby, onExtubate }: { record: IcuPatientRecord; saving: boolean; onSave: SaveRoundingAction; onToggleStandby?: () => void; onExtubate?: () => void }) {
   const [panel, setPanel] = useState<"sbt" | "critical" | "procedure" | "treatment" | null>(null);
   const [editingVersion, setEditingVersion] = useState(record.updated_at);
   const [result, setResult] = useState("");
@@ -32,8 +32,8 @@ export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: 
   return <div className="mt-3">
     <div className="flex flex-wrap gap-2" aria-label={`Quick actions for ${record.bed}`}>
       {([
-        ["sbt", "SBT", Activity, active], ["critical", "Critical Vent", AlertTriangle, record.is_critical_vent], ["procedure", "Procedure", ClipboardList, false], ["treatment", "Treatment", Stethoscope, Boolean(record.rounding_data?.treatment)]
-      ] as const).filter(([key]) => key !== "critical" || hasVent).map(([key, label, Icon, highlighted]) => <button key={key} type="button"
+        ["sbt", "SBT", Activity, active], ["treatment", "Treatment", Stethoscope, Boolean(record.rounding_data?.treatment)], ["procedure", "Procedure", ClipboardList, false], ["critical", "Critical Vent", AlertTriangle, record.is_critical_vent]
+      ] as const).filter(([key]) => (key !== "critical" || hasVent) && (key !== "sbt" || record.device_type === "vent")).map(([key, label, Icon, highlighted]) => <button key={key} type="button"
         disabled={saving || (key === "sbt" && record.device_type !== "vent")}
         title={key === "sbt" && record.device_type !== "vent" ? "SBT applies to ventilated patients" : undefined}
         aria-expanded={panel === key} aria-pressed={key === "procedure" ? undefined : highlighted}
@@ -59,8 +59,12 @@ export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: 
         className={`inline-flex min-h-11 flex-col items-center justify-center gap-1 rounded-xl border-2 px-1 text-[10px] sm:flex-row sm:gap-1.5 sm:px-2 sm:text-xs font-extrabold shadow-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:opacity-60 print:bg-white print:text-black print:border-slate-600 ${record.is_standby ? "border-amber-700 bg-amber-200 text-amber-950 ring-1 ring-inset ring-amber-700" : "border-amber-600 bg-amber-50 text-amber-950 hover:bg-amber-100"}`}>
         <Pause size={16} strokeWidth={2.5} aria-hidden="true" />{record.is_standby ? "Off Standby" : "Standby"}
       </button>}
+      {onExtubate && record.device_type === "vent" && <button type="button" onClick={onExtubate} disabled={saving}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl border-2 border-teal-600 bg-teal-50 px-2 text-[10px] font-extrabold text-teal-950 hover:bg-teal-100 disabled:opacity-60 sm:text-xs">
+        Extubate
+      </button>}
     </div>
-    {panel && (panel !== "critical" || hasVent) && <form aria-label={`${panel === "sbt" ? "SBT" : panel === "critical" ? "Critical" : panel === "treatment" ? "Treatment" : "Procedure"} for ${record.bed}`} className="mt-2 space-y-3 rounded-2xl border border-cyan-100 bg-slate-50 p-3"
+    {panel && (panel !== "critical" || hasVent) && (panel !== "sbt" || record.device_type === "vent") && <form aria-label={`${panel === "sbt" ? "SBT" : panel === "critical" ? "Critical" : panel === "treatment" ? "Treatment" : "Procedure"} for ${record.bed}`} className="mt-2 space-y-3 rounded-2xl border border-cyan-100 bg-slate-50 p-3"
       onSubmit={async event => {
         event.preventDefault(); if (!valid || saving) return;
         const payload = panel === "sbt" ? { result, reason, other } : panel === "critical" ? { flolan, proned, other: criticalOther ? other : "" } : panel === "treatment" ? { name: treatment, frequency } : { name: procedure, other, trachType, size, xlt, date };

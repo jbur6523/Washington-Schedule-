@@ -800,3 +800,20 @@ describe("ICU patient notes", () => {
   });
 
 });
+
+it("opens extubation without writing and carries the selected new modality into the existing add workflow", async () => {
+  mocks.activeRecords = [patientRecord({ device_type: "vent", vent_mode: "apvcmv", rounding_data: { treatment: { name: "IPV", frequency: "Q6", at: "2026-11-22T12:00:00Z" } } })];
+  render(<IcuCommandCenterClient authContext={authContext} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Extubate" }));
+  const dialog = within(screen.getByRole("dialog", { name: "Ventilator Outcome" }));
+  expect(dialog.getByRole("radio", { name: "Extubation" })).toBeChecked();
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  fireEvent.change(dialog.getByRole("combobox", { name: /New modality after extubation/ }), { target: { value: "hfnc" } });
+  fireEvent.click(dialog.getByRole("button", { name: "Extubate & Set Up Modality" }));
+  const add = within(await screen.findByRole("dialog", { name: "Add Patient" }));
+  expect(add.getByRole("button", { name: "HFNC" })).toHaveAttribute("aria-pressed", "true");
+  expect(add.getByRole("button", { name: /Room 223/ })).toHaveAttribute("aria-pressed", "true");
+  expect(add.getByRole("combobox", { name: "Treatment" })).toHaveValue("IPV");
+  fireEvent.click(add.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_action: "add", target_payload: expect.objectContaining({ bed: "C223", device_type: "hfnc" }) })));
+});

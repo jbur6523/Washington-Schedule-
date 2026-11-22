@@ -9,7 +9,7 @@ import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/acces
 import { IcuAddPatientDevices, IcuAddPatientSelections } from "@/components/IcuAddPatientSelections";
 import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
-import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
+import { areaForBed, availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
@@ -571,6 +571,7 @@ export function IcuPatientCard({
   onSaveNote,
   onUpdate,
   onDiscontinue,
+  onExtubate,
   onHistory,
   onToggleStandby
 }: {
@@ -581,6 +582,7 @@ export function IcuPatientCard({
   onSaveNote: (notes: string, expectedUpdatedAt: string) => Promise<boolean>;
   onUpdate: () => void;
   onDiscontinue: () => void;
+  onExtubate?: () => void;
   onHistory: () => void;
   onToggleStandby: () => void;
 }) {
@@ -637,7 +639,7 @@ export function IcuPatientCard({
         <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />
       </div>}
       <div className="order-2 flex min-w-0 flex-col md:col-start-2 md:row-span-2 md:row-start-1">
-          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
+          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} onExtubate={onExtubate} />
           <div className="order-first mb-3 rounded-xl bg-teal-100/70 md:order-none md:mb-0 md:mt-3 px-3 py-2 print:bg-white print:border-slate-600">
             <p className="inline text-xs font-extrabold text-slate-800">Current Settings: </p>
             <p className="inline text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
@@ -866,6 +868,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [actionSaving, setActionSaving] = useState(false);
+  const [postExtubationDevice, setPostExtubationDevice] = useState<IcuDeviceType | "">("");
+  const discontinueSaveLock = useRef(false);
   const [discontinueTarget, setDiscontinueTarget] = useState<IcuPatientRecord | null>(null);
   const [discontinueError, setDiscontinueError] = useState("");
   const [ventilatorOutcome, setVentilatorOutcome] = useState<VentilatorOutcome | "">("");
@@ -1246,11 +1250,12 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   const savePatientNote = (record: IcuPatientRecord, notes: string) => saveRoundingAction(record, "note", { notes: notes.trim() });
 
-  const openDiscontinue = (record: IcuPatientRecord) => {
+  const openDiscontinue = (record: IcuPatientRecord, extubate = false) => {
     if (!canManageIcuLifecycle(authContext)) return;
     const defaults = defaultIcuDateTime();
     setDiscontinueTarget(record);
-    setVentilatorOutcome("");
+    setPostExtubationDevice("");
+    setVentilatorOutcome(extubate && record.device_type === "vent" ? "extubation" : "");
     setVentilatorOutcomeComment("");
     setDiscontinuedDate(defaults.date);
     setDiscontinuedTime(defaults.time);
@@ -1260,7 +1265,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   };
 
   const confirmDiscontinue = async () => {
-    if (!discontinueTarget) {
+    if (!discontinueTarget || discontinueSaveLock.current) {
       return;
     }
 
@@ -1287,6 +1292,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     const supabase = createClient();
     const outcome: VentilatorOutcome | null =
       discontinueTarget.device_type === "vent" ? (ventilatorOutcome as VentilatorOutcome) : null;
+    discontinueSaveLock.current = true;
     const discontinuedRecord = { ...discontinueTarget, is_active: false, discontinued_at: discontinuedAt, ventilator_outcome: outcome };
     const { error: discontinueUpdateError } = await supabase.rpc("manage_icu_device", {
       target_department_id: authContext.departmentId,
@@ -1302,6 +1308,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       })
     });
     setActionSaving(false);
+    discontinueSaveLock.current = false;
     if (discontinueUpdateError) {
       setDiscontinueError(discontinueUpdateError.code === "40001"
         ? "This device changed. Close this dialog and review the refreshed record before discontinuing."
@@ -1316,6 +1323,14 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setDiscontinuedDate("");
     setDiscontinuedTime("");
     setMessage("Device discontinued.");
+    if (outcome === "extubation" && postExtubationDevice) {
+      openAdd();
+      setAddArea(areaForBed(discontinueTarget.bed));
+      setAddTreatment(discontinueTarget.rounding_data?.treatment?.name ?? "");
+      setAddFrequency(discontinueTarget.rounding_data?.treatment?.frequency ?? "");
+      setForm({ ...emptyForm, bed: discontinueTarget.bed, device_type: postExtubationDevice, notes: discontinueTarget.notes ?? "" });
+      setMessage("Extubation recorded. Enter the new modality settings and select Save to add it.");
+    }
     await loadRecords();
     await loadTodayActivity();
   };
@@ -1594,6 +1609,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 onSaveModality={(modality, settings, activate, version) => saveModality(record, modality, settings, activate, version)}
                 onUpdate={() => openEdit(record)}
                 onDiscontinue={() => openDiscontinue(record)}
+                onExtubate={() => openDiscontinue(record, true)}
                 onHistory={() => void openHistory(record)}
                 onToggleStandby={() => void toggleStandbyStatus(record)}
               />
@@ -2249,6 +2265,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                       checked={ventilatorOutcome === outcome}
                       onChange={() => {
                         setVentilatorOutcome(outcome);
+                        setPostExtubationDevice("");
                         setVentilatorOutcomeComment("");
                         setDiscontinueError("");
                       }}
@@ -2257,6 +2274,15 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     {ventilatorOutcomeLabels[outcome]}
                   </label>
                 ))}
+                {ventilatorOutcome === "extubation" && <label className="block pt-3 text-sm font-bold text-hospital-ink">
+                  New modality after extubation (optional)
+                  <select value={postExtubationDevice} disabled={actionSaving} onChange={event => setPostExtubationDevice(event.target.value as IcuDeviceType | "")}
+                    className="mt-2 min-h-12 w-full rounded-xl border border-slate-300 bg-white px-3">
+                    <option value="">No new modality</option>
+                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => device !== "vent" && device !== "none").map(device => <option key={device} value={device}>{icuDeviceLabels[device]}</option>)}
+                  </select>
+                  {postExtubationDevice && <span className="mt-2 block text-xs font-normal text-slate-600">After confirming extubation, enter the new device settings and select Save to add it to this room.</span>}
+                </label>}
                 {ventilatorOutcome === "other_unknown" && (
                   <label className="block pt-2">
                     <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Outcome comment (optional)</span>
@@ -2291,7 +2317,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 onClick={() => void confirmDiscontinue()}
                 className="min-h-12 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white shadow-md shadow-rose-900/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {actionSaving ? "Discontinuing..." : discontinueTarget.device_type === "vent" ? "Discontinue Vent" : "Discontinue"}
+                {actionSaving ? "Discontinuing..." : ventilatorOutcome === "extubation" && postExtubationDevice ? "Extubate & Set Up Modality" : discontinueTarget.device_type === "vent" ? "Discontinue Vent" : "Discontinue"}
               </button>
             </div>
           </section>
