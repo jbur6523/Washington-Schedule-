@@ -621,6 +621,11 @@ export function IcuPatientCard({
           <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
+          {record.rounding_data?.treatment && (
+            <p className={`mt-1 text-lg font-bold ${titleTextClass}`}>
+              {record.rounding_data.treatment.name} - {record.rounding_data.treatment.frequency}
+            </p>
+          )}
           {onSaveModality && <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />}
           {modifierLabels.length > 0 ? (
             <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
