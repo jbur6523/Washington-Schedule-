@@ -241,6 +241,11 @@ describe("ICU patient notes", () => {
     expect(openWindow).toHaveBeenCalledWith("/?view=schedule", "_blank", "popup,width=1200,height=850,noopener,noreferrer");
     expect(within(screen.getByLabelText("ICU quick actions")).getAllByRole("button")).toHaveLength(1);
     expect(within(screen.getByLabelText("ICU quick actions")).getByRole("button", { name: "Add Patient" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Update patient above patient cards" }));
+    const cardRooms = screen.getByRole("combobox", { name: "Occupied room" });
+    fireEvent.change(cardRooms, { target: { value: "patient-1" } });
+    expect(within(screen.getByRole("dialog", { name: "Update Patient" })).getByLabelText(/^Notes/)).toHaveValue("Existing settings");
+    expect(screen.queryByRole("combobox", { name: "Occupied room" })).not.toBeInTheDocument();
     openWindow.mockRestore();
   });
 

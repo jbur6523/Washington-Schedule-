@@ -878,7 +878,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
   const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
-  const [roomPickerOpen, setRoomPickerOpen] = useState(false);
+  const [roomPickerOpen, setRoomPickerOpen] = useState<false | "sidebar" | "cards">(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const roundingReport = useMemo(() => reportOpen
     ? buildIcuRoundingReport(records, authContext.departmentName, new Date(), false)
@@ -1480,15 +1480,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setPreviousDateResults((data ?? []) as unknown as IcuPatientEventRecord[]);
   };
 
-  return (
-    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8 lg:pl-60"}>
-      {!isLeadSurface && <aside className="mb-4 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:mb-0 lg:w-52 lg:rounded-none lg:bg-teal-950 lg:p-4 lg:text-white lg:shadow-sm">
-        <p className="mb-6 hidden text-xl font-black tracking-wide lg:block">WHHS</p>
-        <button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold lg:hidden" aria-expanded={mobileMenuOpen} aria-controls="icu-sidebar-nav" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>ICU Menu</button>
-        <nav id="icu-sidebar-nav" aria-label="ICU sidebar" className={`${mobileMenuOpen ? "block" : "hidden"} mt-2 space-y-2 rounded-xl bg-teal-950 p-2 text-white lg:mt-0 lg:block lg:p-0`}>
-          <button type="button" aria-label="Add Patient from sidebar" onClick={() => { openAdd(); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Plus size={18} />Add Patient</button>
-          <button type="button" aria-label="Update patient by room" aria-expanded={roomPickerOpen} aria-controls="icu-occupied-rooms" onClick={() => setRoomPickerOpen(!roomPickerOpen)} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Bed size={18} />Update</button>
-          {roomPickerOpen && <div id="icu-occupied-rooms" className="rounded-xl bg-white p-2 text-slate-800">
+  const occupiedRoomPicker = (
             <label className="block text-xs font-bold">Occupied room
               <select aria-label="Occupied room" value="" disabled={loading || records.length === 0} onChange={event => {
                 const record = records.find(item => item.id === event.target.value && item.is_active);
@@ -1498,6 +1490,18 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 {records.filter(record => record.is_active).map(record => <option key={record.id} value={record.id}>{record.bed} — {formatIcuDeviceSummary(record)}</option>)}
               </select>
             </label>
+  );
+
+  return (
+    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8 lg:pl-60"}>
+      {!isLeadSurface && <aside className="mb-4 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:mb-0 lg:w-52 lg:rounded-none lg:bg-teal-950 lg:p-4 lg:text-white lg:shadow-sm">
+        <p className="mb-6 hidden text-xl font-black tracking-wide lg:block">WHHS</p>
+        <button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold lg:hidden" aria-expanded={mobileMenuOpen} aria-controls="icu-sidebar-nav" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>ICU Menu</button>
+        <nav id="icu-sidebar-nav" aria-label="ICU sidebar" className={`${mobileMenuOpen ? "block" : "hidden"} mt-2 space-y-2 rounded-xl bg-teal-950 p-2 text-white lg:mt-0 lg:block lg:p-0`}>
+          <button type="button" aria-label="Add Patient from sidebar" onClick={() => { openAdd(); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Plus size={18} />Add Patient</button>
+          <button type="button" aria-label="Update patient by room" aria-expanded={roomPickerOpen === "sidebar"} aria-controls="icu-occupied-rooms" onClick={() => setRoomPickerOpen(roomPickerOpen === "sidebar" ? false : "sidebar")} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Bed size={18} />Update</button>
+          {roomPickerOpen === "sidebar" && <div id="icu-occupied-rooms" className="rounded-xl bg-white p-2 text-slate-800">
+            {occupiedRoomPicker}
           </div>}
           <button type="button" disabled={loading || records.length === 0} onClick={() => { printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800 disabled:opacity-50"><Printer size={18} />SBAR</button>
           <button type="button" onClick={() => { setReportOpen(true); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><ClipboardList size={18} />ICU Report</button>
@@ -1590,11 +1594,17 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </div>
           {(unitFilter !== "All" || deviceFilter !== "All") && <button type="button" onClick={() => { setUnitFilter("All"); setDeviceFilter("All"); }} className="min-h-11 text-sm font-bold text-teal-800 underline">Clear filters · Show all patients</button>}
           <p role="status" className="text-xs text-slate-500">Showing {visibleRecords.length} of {records.length} active patients{deviceFilter === "Noncritical Vent" ? " · Vents excluding Critical" : ""}</p>
-          <div className="flex justify-center py-2">
+          <div className="flex flex-wrap justify-center gap-3 py-2">
             <button type="button" aria-label="Add Patient above patient cards" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800">
               <Plus size={18} aria-hidden="true" />Add Patient
             </button>
+            <button type="button" aria-label="Update patient above patient cards" aria-expanded={roomPickerOpen === "cards"} aria-controls="icu-card-occupied-rooms" onClick={() => setRoomPickerOpen(roomPickerOpen === "cards" ? false : "cards")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-teal-700 bg-white px-5 text-sm font-bold text-teal-800 hover:bg-teal-50">
+              <Bed size={18} aria-hidden="true" />Update
+            </button>
           </div>
+          {roomPickerOpen === "cards" && <div id="icu-card-occupied-rooms" className="mx-auto w-full max-w-sm rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
+            {occupiedRoomPicker}
+          </div>}
           {loading && (
             <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
               Loading ICU patients...
