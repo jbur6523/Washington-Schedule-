@@ -1,18 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
+import { IcuAddPatientSelections } from "@/components/IcuAddPatientSelections";
 import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
-import { activeSbt, criticalDetail, procedureDetail, treatmentDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
+import { activeSbt, criticalDetail, procedureDetail, treatmentDetail, treatmentOptions, treatmentFrequencies, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
 import { buildIcuRoundingReport, printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
 import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
 import { signOutAndRedirect } from "@/lib/auth/client-session";
@@ -838,6 +839,21 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<IcuPatientRecord | null>(null);
   const [formOpenedFromAdd, setFormOpenedFromAdd] = useState(false);
+  const redesignedAdd = formOpenedFromAdd && !isLeadSurface;
+  const [addArea, setAddArea] = useState("");
+  const [addTreatment, setAddTreatment] = useState("");
+  const [addFrequency, setAddFrequency] = useState("");
+  const formDialogRef = useRef<HTMLElement>(null);
+  const patientSaveLock = useRef(false);
+  useEffect(() => {
+    if (!formOpen || !redesignedAdd) return;
+    const previous = document.activeElement as HTMLElement | null;
+    formDialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, [formOpen, redesignedAdd]);
+
   const [form, setForm] = useState<IcuPatientForm>(emptyForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -1003,8 +1019,21 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     };
   }, [authContext.departmentId, loadRecords, loadTodayActivity]);
 
+  const changeFormDevice = (value: string) => {
+                      const device = value === "oxygen" ? "nasal_cannula" : value;
+                      setForm({
+                        ...form,
+                        device_type: device as IcuDeviceType | "",
+                        ...(editingRecord?.rounding_data?.modalities?.[device as IcuDeviceType]
+                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[device as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
+                          : {}),
+                        is_standby: supportsIcuStandby(device as IcuDeviceType | "") ? form.is_standby : false
+                      });
+  };
+
   const openAdd = () => {
     if (!canManageIcuLifecycle(authContext)) return;
+    setAddArea(""); setAddTreatment(""); setAddFrequency("");
     setFormOpenedFromAdd(true);
     setEditingRecord(null);
     setForm(emptyForm);
@@ -1027,6 +1056,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   const savePatient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (patientSaveLock.current) return;
     if (!canManageIcuLifecycle(authContext) || (editingRecord && !canEditIcuCommandCenter(authContext))) return;
     setMessage("");
     setError("");
@@ -1060,7 +1090,12 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       return;
     }
 
+    if (redesignedAdd && addTreatment && (!treatmentOptions.some(value => value === addTreatment) || !treatmentFrequencies.some(value => value === addFrequency))) {
+      setFormError("Select a treatment frequency."); return;
+    }
+    patientSaveLock.current = true;
     setSaving(true);
+    try {
     const supabase = createClient();
     const payload = cleanPayload({ ...form, bed }, authContext);
     const result = editingRecord
@@ -1082,8 +1117,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           } as IcuPatientRecord, { action: "added" })
         });
 
-    setSaving(false);
-
     if (result.error || !result.data) {
       if (editingRecord && !result.error && !result.data) {
         await loadRecords(false);
@@ -1099,6 +1132,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     }
 
     const savedRecord = result.data as unknown as IcuPatientRecord | null;
+    if (savedRecord && redesignedAdd) setEditingRecord(savedRecord);
     if (savedRecord && editingRecord) {
       const eventResult = await createIcuPatientEvent(
         supabase,
@@ -1122,11 +1156,27 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
     }
 
+    if (redesignedAdd && addTreatment && savedRecord) {
+      const treatmentResult = await supabase.rpc("record_icu_rounding_action", {
+        target_patient_id: savedRecord.id, target_action: "treatment",
+        target_payload: { name: addTreatment, frequency: addFrequency }, expected_updated_at: savedRecord.updated_at
+      });
+      if (treatmentResult.error || !treatmentResult.data) {
+        setEditingRecord(savedRecord);
+        setFormError("Patient saved, but treatment was not saved. Your selections are kept. Retry Save to finish, or close and add Treatment from the patient card.");
+        await loadRecords(false);
+        return;
+      }
+    }
     setFormOpen(false);
     setEditingRecord(null);
     setForm(emptyForm);
     await loadRecords();
     await loadTodayActivity();
+    } catch {
+      setFormError("Could not finish saving. Refresh the room list before retrying if the patient was already created.");
+    } finally { patientSaveLock.current = false; setSaving(false); }
+
   };
 
   const saveRoundingAction = async (record: IcuPatientRecord, action: RoundingAction, payload: Record<string, unknown>) => {
@@ -1781,9 +1831,20 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             role="dialog"
             aria-modal="true"
             aria-labelledby="icu-form-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"
+            ref={formDialogRef}
+            onKeyDown={event => {
+              if (!redesignedAdd) return;
+              if (event.key === "Escape" && !saving) { setFormError(""); setFormOpen(false); }
+              if (event.key === "Tab") {
+                const elements = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]')).filter(element => element.getClientRects().length > 0);
+                const first = elements[0], last = elements[elements.length - 1];
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+                if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+              }
+            }}
+            className={redesignedAdd ? "flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-[2rem] border border-white bg-white shadow-2xl" : "max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"}
           >
-            <div className="flex items-start justify-between gap-3">
+            <div className={redesignedAdd ? "flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6" : "flex items-start justify-between gap-3"}>
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
                 <h2 id="icu-form-title" className="mt-1 text-2xl font-black text-hospital-ink">
@@ -1792,25 +1853,25 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               </div>
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => {
                   setFormError("");
                   setFormOpen(false);
                 }}
                 className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
               >
-                Close
+                {redesignedAdd ? <><X size={22} aria-hidden="true" /><span className="sr-only">Close</span></> : "Close"}
               </button>
             </div>
 
-            {formError && (
-              <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                {formError}
-              </p>
-            )}
-
-            <form onSubmit={savePatient} className="mt-4 space-y-4">
+            <form onSubmit={savePatient} className={redesignedAdd ? "flex min-h-0 flex-col" : "mt-4 space-y-4"}>
+              <div className={redesignedAdd ? "min-h-0 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6" : ""}>
+              {formError && <p role="alert" className="mb-4 rounded-2xl border border-rose-100 bg-rose-50 p-3 text-sm font-bold text-rose-700">{formError}</p>}
+              <fieldset disabled={saving} className="min-w-0 space-y-4">
               <div className="grid gap-3">
                 <LeadBedSelector
+                  variant={redesignedAdd ? "cards" : "select"}
+                  onAreaChange={setAddArea}
                   bed={form.bed}
                   records={records}
                   editingId={editingRecord?.id}
@@ -1823,26 +1884,25 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     }
                     const existing = records.find((record) => record.is_active && record.bed === bed);
                     if (existing && !canEditIcuCommandCenter(authContext)) return;
+                    if (existing || editingRecord) {
+                      setAddTreatment(existing?.rounding_data?.treatment?.name ?? "");
+                      setAddFrequency(existing?.rounding_data?.treatment?.frequency ?? "");
+                    }
                     setEditingRecord(existing ?? null);
                     setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
                     setFormError("");
                   }}
                 />
 
+                {redesignedAdd ? <IcuAddPatientSelections device={form.device_type} onDeviceChange={changeFormDevice}
+                  treatment={addTreatment} frequency={addFrequency} onTreatmentChange={value => { setAddTreatment(value); setAddFrequency(""); }} onFrequencyChange={setAddFrequency}
+                  area={addArea} bed={form.bed} updating={Boolean(editingRecord)} /> : (
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>
                   <select
                     value={isOxygenDevice(form.device_type) ? "oxygen" : form.device_type}
                     onChange={(event) => {
-                      const device = event.target.value === "oxygen" ? "nasal_cannula" : event.target.value;
-                      setForm({
-                        ...form,
-                        device_type: device as IcuDeviceType | "",
-                        ...(editingRecord?.rounding_data?.modalities?.[device as IcuDeviceType]
-                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[device as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
-                          : {}),
-                        is_standby: supportsIcuStandby(device as IcuDeviceType | "") ? form.is_standby : false
-                      });
+                      changeFormDevice(event.target.value);
                     }}
                     required
                     className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
@@ -1855,7 +1915,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     ))}
                     <option value="oxygen">Oxygen Device</option>
                   </select>
-                </label>
+                </label>)}
+                {redesignedAdd && editingRecord && <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">This room already has an active record. Saving updates its existing settings; it does not add another patient.</p>}
+
               </div>
 
               {isOxygenDevice(form.device_type) && (
@@ -2087,9 +2149,13 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                 </label>
               )}
 
-              <div className="grid grid-cols-2 gap-2">
+              </fieldset>
+              </div>
+              <div className={redesignedAdd ? "grid shrink-0 grid-cols-2 gap-3 border-t border-slate-200 bg-white px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6" : "grid grid-cols-2 gap-2"}>
+
                 <button
                   type="button"
+                  disabled={saving}
                   onClick={() => {
                     setFormError("");
                     setFormOpen(false);

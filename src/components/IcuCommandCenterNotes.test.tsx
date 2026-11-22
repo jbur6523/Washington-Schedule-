@@ -186,6 +186,12 @@ const authContext: AuthenticatedUserContext = {
   hasLinkedStaffProfile: true
 };
 
+function choose(scope: ReturnType<typeof within>, label: string, value: string) {
+  const select = scope.queryByLabelText(label);
+  if (select) { fireEvent.change(select, { target: { value } }); return; }
+  const deviceLabels: Record<string, string> = { vent: "Vent", hfnc: "HFNC", cpap: "CPAP", bipap: "BiPAP", cool_aerosol: "Cool Aerosol", oxygen: "Oxygen Device" };
+  fireEvent.click(scope.getByRole("button", { name: label === "Bed" ? new RegExp(`^Room ${value.match(/\d+$/)?.[0]} -`) : label === "Device" ? deviceLabels[value] : value, exact: label !== "Bed" }));
+}
 describe("ICU patient notes", () => {
   beforeEach(() => {
     mocks.activeRecords = [];
@@ -251,9 +257,9 @@ describe("ICU patient notes", () => {
       const title = surface === "lead" ? "Add Device" : "Add Patient";
       fireEvent.click(await screen.findByRole("button", { name: title }));
       const dialog = within(screen.getByRole("dialog", { name: title }));
-      fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
-      fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
-      fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "oxygen" } });
+      choose(dialog, "Select bed", "C Pod");
+      choose(dialog, "Bed", "C223");
+      choose(dialog, "Device", "oxygen");
       expect(within(dialog.getByLabelText("Oxygen Device")).getAllByRole("option").map(option => option.textContent)).toEqual(["Nasal Cannula", "Non Rebreather", "Venturi Mask", "Ozymizer"]);
       fireEvent.change(dialog.getByLabelText("Oxygen Device"), { target: { value: device } });
       fireEvent.change(dialog.getByLabelText("Flow"), { target: { value: "6" } });
@@ -277,9 +283,9 @@ describe("ICU patient notes", () => {
     const addLabel = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: addLabel }));
     const dialog = within(screen.getByRole("dialog", { name: addLabel }));
-    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
-    fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
-    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "vent" } });
+    choose(dialog, "Select bed", "C Pod");
+    choose(dialog, "Bed", "C223");
+    choose(dialog, "Device", "vent");
     expect(dialog.getByRole("radio", { name: "ETT" })).toBeChecked();
     fireEvent.change(dialog.getByLabelText("Airway size"), { target: { value: "7.5" } });
     fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });
@@ -321,7 +327,7 @@ describe("ICU patient notes", () => {
       fireEvent.change(dialog.getByLabelText("At"), { target: { value: "23" } });
       fireEvent.change(dialog.getByLabelText("Location"), { target: { value: "teeth" } });
     } else {
-      fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "hfnc" } });
+      choose(dialog, "Device", "hfnc");
     }
     fireEvent.click(dialog.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalledWith(expect.objectContaining({
@@ -343,7 +349,6 @@ describe("ICU patient notes", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
     const dialog = screen.getByRole("dialog", { name: "Add Patient" });
-    const deviceSelect = within(dialog).getByLabelText("Device");
     const devices: Array<[IcuDeviceType, string]> = [
       ["vent", "Vent Settings"],
       ["bipap", "BiPAP Settings"],
@@ -353,15 +358,15 @@ describe("ICU patient notes", () => {
     ];
 
     for (const [device, settingsHeading] of devices) {
-      fireEvent.change(deviceSelect, { target: { value: device } });
+      choose(within(dialog), "Device", device);
       const settings = within(dialog).getByRole("heading", { name: settingsHeading });
       const notes = within(dialog).getByLabelText(/^Notes/);
       expect(settings.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
 
-    fireEvent.change(within(dialog).getByLabelText("Select bed"), { target: { value: "C Pod" } });
-    fireEvent.change(within(dialog).getByLabelText("Bed"), { target: { value: "C223" } });
-    fireEvent.change(deviceSelect, { target: { value: "hfnc" } });
+    choose(within(dialog), "Select bed", "C Pod");
+    choose(within(dialog), "Bed", "C223");
+    choose(within(dialog), "Device", "hfnc");
     fireEvent.change(within(dialog).getByLabelText(/^Notes/), {
       target: { value: "  Weaning trial planned after rounds  " }
     });
@@ -437,9 +442,9 @@ describe("ICU patient notes", () => {
     const title = surface === "lead" ? "Add Device" : "Add Patient";
     fireEvent.click(await screen.findByRole("button", { name: title }));
     const dialog = within(screen.getByRole("dialog", { name: title }));
-    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
-    fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
-    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "cpap" } });
+    choose(dialog, "Select bed", "C Pod");
+    choose(dialog, "Bed", "C223");
+    choose(dialog, "Device", "cpap");
     fireEvent.change(dialog.getByLabelText("CPAP"), { target: { value: "5" } });
     fireEvent.change(dialog.getByLabelText("FiO2"), { target: { value: "40" } });
     fireEvent.click(dialog.getByRole("button", { name: "Save" }));
@@ -449,18 +454,70 @@ describe("ICU patient notes", () => {
     expect(await screen.findByText("CPAP 5 - FiO2 40%")).toBeInTheDocument();
   });
 
+  it("saves the selected treatment using the established rounding action after adding a patient", async () => {
+    const original = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation(async (name, args) => {
+      if (name === "record_icu_rounding_action" && args.target_action === "treatment") {
+        const record = patientRecord({ ...mocks.activeRecords[0], rounding_data: { treatment: { ...args.target_payload, at: "2026-11-22T12:00:00Z" } } });
+        mocks.activeRecords = [record]; return { data: record, error: null };
+      }
+      return original(name, args);
+    });
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Patient" }));
+    const dialog = within(screen.getByRole("dialog"));
+    choose(dialog, "Select bed", "C Pod"); choose(dialog, "Bed", "C223"); choose(dialog, "Device", "hfnc");
+    fireEvent.change(dialog.getByRole("combobox", { name: "Treatment" }), { target: { value: "IPV" } });
+    expect(dialog.getByLabelText("Frequency")).toBeRequired();
+    fireEvent.change(dialog.getByLabelText("Frequency"), { target: { value: "Q6" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("record_icu_rounding_action", expect.objectContaining({ target_patient_id: "patient-new", target_action: "treatment", target_payload: { name: "IPV", frequency: "Q6" } })));
+    expect(await screen.findByText("IPV - Q6")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+  it("retains treatment selections after a partial save and retries without adding a duplicate patient", async () => {
+    const original = mocks.rpc.getMockImplementation()!;
+    mocks.rpc.mockImplementation(async (name, args) => name === "record_icu_rounding_action" ? { data: null, error: { code: "500" } } : original(name, args));
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Patient" }));
+    const dialog = within(screen.getByRole("dialog"));
+    choose(dialog, "Select bed", "C Pod"); choose(dialog, "Bed", "C223"); choose(dialog, "Device", "hfnc");
+    fireEvent.change(dialog.getByRole("combobox", { name: "Treatment" }), { target: { value: "PEP" } });
+    fireEvent.change(dialog.getByLabelText("Frequency"), { target: { value: "BID" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Patient saved, but treatment was not saved");
+    expect(dialog.getByRole("combobox", { name: "Treatment" })).toHaveValue("PEP");
+    expect(dialog.getByLabelText("Frequency")).toHaveValue("BID");
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.patientUpdates).toHaveBeenCalled());
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "manage_icu_device")).toHaveLength(1);
+  });
+  it("changes room grids with the area and preserves a server-side occupied-room conflict", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: "23505" } });
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Patient" }));
+    const dialog = within(screen.getByRole("dialog"));
+    choose(dialog, "Select bed", "C Pod"); choose(dialog, "Bed", "C223");
+    choose(dialog, "Select bed", "E Pod");
+    expect(dialog.queryByRole("button", { name: /^Room 223/ })).not.toBeInTheDocument();
+    choose(dialog, "Bed", "E243"); choose(dialog, "Device", "hfnc");
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("already has an active record");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("opens an occupied bed from Add Patient as an update and preserves its history", async () => {
     mocks.activeRecords = [patientRecord({ notes: "Existing note", flow: 40, fio2: 35 })];
     render(<IcuCommandCenterClient authContext={authContext} />);
     await screen.findByRole("button", { name: "Update" });
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
     let dialog = within(screen.getByRole("dialog", { name: "Add Patient" }));
-    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: "C Pod" } });
-    expect(dialog.getByRole("option", { name: "223 - HFNC" })).toBeEnabled();
-    expect(dialog.getByRole("option", { name: "224" })).toBeEnabled();
-    fireEvent.change(dialog.getByLabelText("Bed"), { target: { value: "C223" } });
+    choose(dialog, "Select bed", "C Pod");
+    expect(dialog.getByRole("button", { name: "Room 223 - HFNC" })).toBeEnabled();
+    expect(dialog.getByRole("button", { name: "Room 224 - Available" })).toBeEnabled();
+    choose(dialog, "Bed", "C223");
     dialog = within(screen.getByRole("dialog", { name: "Update Patient" }));
-    expect(dialog.getByLabelText("Device")).toHaveValue("hfnc");
+    expect(dialog.getByRole("button", { name: "HFNC", pressed: true })).toBeInTheDocument();
     expect(dialog.getByLabelText("Flow")).toHaveValue(40);
     expect(dialog.getByLabelText("FiO2")).toHaveValue(35);
     expect(dialog.getByLabelText(/^Notes/)).toHaveValue("Existing note");
@@ -476,12 +533,12 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={authContext} />);
     await screen.findByRole("button", { name: "Update" });
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
-    fireEvent.change(screen.getByLabelText("Select bed"), { target: { value: "C Pod" } });
-    fireEvent.change(screen.getByLabelText("Bed"), { target: { value: "C223" } });
-    fireEvent.change(screen.getByLabelText("Bed"), { target: { value: "C224" } });
+    choose(screen, "Select bed", "C Pod");
+    choose(screen, "Bed", "C223");
+    choose(screen, "Bed", "C224");
     const dialog = within(screen.getByRole("dialog", { name: "Add Patient" }));
-    expect(dialog.getByLabelText("Device")).toHaveValue("");
-    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "cpap" } });
+    expect(dialog.queryByRole("button", { pressed: true, name: /^(Vent|HFNC|CPAP|BiPAP)$/ })).not.toBeInTheDocument();
+    choose(dialog, "Device", "cpap");
     expect(dialog.getByLabelText(/^Notes/)).toHaveValue("");
     fireEvent.click(dialog.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_action: "add", target_payload: expect.objectContaining({ bed: "C224", device_type: "cpap", notes: null }) })));
@@ -507,9 +564,9 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
     fireEvent.click(await screen.findByRole("button", { name: "Add Device" }));
     const dialog = within(screen.getByRole("dialog", { name: "Add Device" }));
-    fireEvent.change(dialog.getByLabelText("Select bed"), { target: { value: area } });
+    choose(dialog, "Select bed", area);
     fireEvent.change(dialog.getByLabelText(area === "Other" ? "Location" : "Bed"), { target: { value: room } });
-    fireEvent.change(dialog.getByLabelText("Device"), { target: { value: "hfnc" } });
+    choose(dialog, "Device", "hfnc");
     fireEvent.click(dialog.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({ target_payload: expect.objectContaining({ bed }) })));
     expect(await screen.findByRole("button", { name: `Update Device ${bed}` })).toBeInTheDocument();
@@ -520,7 +577,7 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={{ ...authContext, operationsRole: "none" }} surface="lead" />);
     await screen.findByRole("button", { name: "Discontinue C223" });
     fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
-    fireEvent.change(screen.getByLabelText("Select bed"), { target: { value: "C Pod" } });
+    choose(screen, "Select bed", "C Pod");
     expect(screen.getByRole("option", { name: "223 - Occupied" })).toBeDisabled();
     expect(screen.getByRole("option", { name: "224" })).toBeEnabled();
   });
@@ -530,9 +587,9 @@ describe("ICU patient notes", () => {
     await screen.findAllByText("No active respiratory devices.");
     fireEvent.click(screen.getByRole("button", { name: "Add Device" }));
     const dialog = screen.getByRole("dialog", { name: "Add Device" });
-    fireEvent.change(within(dialog).getByLabelText("Select bed"), { target: { value: "IMC A" } });
-    fireEvent.change(within(dialog).getByLabelText("Bed"), { target: { value: "IMC - 201" } });
-    fireEvent.change(within(dialog).getByLabelText("Device"), { target: { value: "hfnc" } });
+    choose(within(dialog), "Select bed", "IMC A");
+    choose(within(dialog), "Bed", "IMC - 201");
+    choose(within(dialog), "Device", "hfnc");
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
       target_action: "add", target_department_id: "department-1",
