@@ -217,6 +217,26 @@ describe("ICU patient notes", () => {
     });
   });
 
+  it("opens an occupied room from the sidebar and opens RT Schedule separately", async () => {
+    mocks.activeRecords = [patientRecord({ id: "patient-1", bed: "C223", notes: "Existing settings" })];
+    const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    await screen.findByRole("button", { name: "Update" });
+    const sidebar = within(screen.getByRole("navigation", { name: "ICU sidebar" }));
+    expect(sidebar.getAllByRole("button").map(button => button.textContent)).toEqual(["Add Patient", "Update", "ICU Report"]);
+    fireEvent.click(sidebar.getByRole("button", { name: "Update patient by room" }));
+    const rooms = sidebar.getByRole("combobox", { name: "Occupied room" });
+    expect(within(rooms).getByRole("option", { name: /C223/ })).toBeInTheDocument();
+    fireEvent.change(rooms, { target: { value: "patient-1" } });
+    expect(within(screen.getByRole("dialog", { name: "Update Patient" })).getByLabelText(/^Notes/)).toHaveValue("Existing settings");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(sidebar.getByRole("link", { name: /RT Schedule/ }));
+    expect(openWindow).toHaveBeenCalledWith("/?view=schedule", "_blank", "popup,width=1200,height=850,noopener,noreferrer");
+    expect(within(screen.getByLabelText("ICU quick actions")).getAllByRole("button")).toHaveLength(1);
+    expect(within(screen.getByLabelText("ICU quick actions")).getByRole("button", { name: "Add Patient" })).toBeInTheDocument();
+    openWindow.mockRestore();
+  });
+
   it("combines units, treatment and snapshot filters without changing patients", async () => {
     mocks.activeRecords = [
       patientRecord({ id: "a", bed: "C223", device_type: "vent", vent_mode: "apvcmv" }),
@@ -244,7 +264,7 @@ describe("ICU patient notes", () => {
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     mocks.activeRecords = [patientRecord({ notes: "Rounding detail" }), patientRecord({ id: "patient-2", bed: "D232" })];
     render(<IcuCommandCenterClient authContext={{ ...authContext, role: "staff", operationsRole: "none" }} />);
-    expect(screen.getByRole("link", { name: /RT Schedule/ })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /RT Schedule/ })).toHaveAttribute("href", "/?view=schedule");
     fireEvent.click(screen.getByRole("button", { name: /ICU Report/ }));
     const frame = await screen.findByTitle("Full ICU rounding report");
     const report = new DOMParser().parseFromString(frame.getAttribute("srcdoc")!, "text/html");

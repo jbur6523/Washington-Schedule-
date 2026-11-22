@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { Bed, CalendarDays, ChevronRight, ClipboardList, LogOut, Printer, Plus, RefreshCw, Save, Search, X } from "lucide-react";
 import { dashboardUnits, dashboardDevices, filterDashboardPatients, type DashboardUnit, type DashboardDevice } from "@/lib/icu-command-center/dashboard";
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
@@ -876,6 +875,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
   const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [roomPickerOpen, setRoomPickerOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const roundingReport = useMemo(() => reportOpen
     ? buildIcuRoundingReport(records, authContext.departmentName, new Date(), false)
     : "", [reportOpen, records, authContext.departmentName]);
@@ -1463,7 +1464,30 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   };
 
   return (
-    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
+    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8 lg:pl-60"}>
+      {!isLeadSurface && <aside className="mb-4 lg:fixed lg:inset-y-4 lg:left-4 lg:z-30 lg:mb-0 lg:w-52 lg:rounded-2xl lg:bg-teal-950 lg:p-4 lg:text-white lg:shadow-sm">
+        <p className="mb-6 hidden text-xl font-black tracking-wide lg:block">WHHS</p>
+        <button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold lg:hidden" aria-expanded={mobileMenuOpen} aria-controls="icu-sidebar-nav" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>ICU Menu</button>
+        <nav id="icu-sidebar-nav" aria-label="ICU sidebar" className={`${mobileMenuOpen ? "block" : "hidden"} mt-2 space-y-2 rounded-xl bg-teal-950 p-2 text-white lg:mt-0 lg:block lg:p-0`}>
+          <button type="button" aria-label="Add Patient from sidebar" onClick={() => { openAdd(); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Plus size={18} />Add Patient</button>
+          <button type="button" aria-label="Update patient by room" aria-expanded={roomPickerOpen} aria-controls="icu-occupied-rooms" onClick={() => setRoomPickerOpen(!roomPickerOpen)} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><Bed size={18} />Update</button>
+          {roomPickerOpen && <div id="icu-occupied-rooms" className="rounded-xl bg-white p-2 text-slate-800">
+            <label className="block text-xs font-bold">Occupied room
+              <select aria-label="Occupied room" value="" disabled={loading || records.length === 0} onChange={event => {
+                const record = records.find(item => item.id === event.target.value && item.is_active);
+                if (record) { openEdit(record); setRoomPickerOpen(false); setMobileMenuOpen(false); }
+              }} className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm">
+                <option value="">{loading ? "Loading rooms…" : records.length ? "Select room" : "No occupied rooms"}</option>
+                {records.filter(record => record.is_active).map(record => <option key={record.id} value={record.id}>{record.bed} — {formatIcuDeviceSummary(record)}</option>)}
+              </select>
+            </label>
+          </div>}
+          <button type="button" onClick={() => { setReportOpen(true); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><ClipboardList size={18} />ICU Report</button>
+          <a href="/?view=schedule" target="_blank" rel="noopener noreferrer" onClick={event => {
+            event.preventDefault(); window.open("/?view=schedule", "_blank", "popup,width=1200,height=850,noopener,noreferrer");
+          }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-sm font-bold hover:bg-teal-800"><CalendarDays size={18} />RT Schedule<span className="sr-only"> (opens a new window)</span></a>
+        </nav>
+      </aside>}
       {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-7xl space-y-5">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
@@ -1474,13 +1498,9 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </p>
         </section>
 
-        <nav aria-label="ICU quick actions" className="flex flex-wrap gap-3">
+        <div aria-label="ICU quick actions">
           <button type="button" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800"><Plus size={18} />Add Patient</button>
-          <button type="button" disabled={loading || records.length === 0} onClick={() => setPrintOptionsOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 disabled:opacity-50"><Printer size={18} />Print Report</button>
-          <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={18} />Refresh</button>
-          <Link href="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700"><CalendarDays size={18} />RT Schedule</Link>
-          <button type="button" onClick={() => setReportOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700"><ClipboardList size={18} />ICU Report</button>
-        </nav>
+        </div>
 
         {reportOpen && <dialog
           id="icu-rounding-report"
@@ -1492,7 +1512,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           <div className="flex h-full min-h-0 flex-col">
             <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3">
               <h2 id="icu-rounding-report-title" className="text-xl font-black">ICU Report</h2>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={loading || records.length === 0} onClick={() => { setReportOpen(false); setPrintOptionsOpen(true); }} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold disabled:opacity-50"><Printer size={17} />Print Report</button>
                 <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold disabled:opacity-50"><RefreshCw size={17} aria-hidden="true" />Refresh</button>
                 <button type="button" autoFocus onClick={() => setReportOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold"><X size={18} aria-hidden="true" />Close</button>
               </div>

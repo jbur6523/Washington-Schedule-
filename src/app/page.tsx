@@ -3,7 +3,7 @@ import AppClient from "@/app/app-client";
 import { AccountAccessNotice } from "@/components/AccountAccessNotice";
 import { AuthVerificationNotice } from "@/components/AuthVerificationNotice";
 import { getAuthenticatedUserContext } from "@/lib/auth/current-user";
-import { authenticatedLandingPath } from "@/lib/auth/access";
+import { authenticatedLandingPath, canViewIcuCommandCenter } from "@/lib/auth/access";
 import type { AuthenticatedUserContext } from "@/lib/auth/types";
 import { hasSupabaseServerConfig } from "@/lib/supabase/server";
 import { reviewer } from "@/lib/etime/server";
@@ -37,7 +37,7 @@ function ConfigurationRequired() {
   );
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> } = {}) {
   if (!hasSupabaseServerConfig()) {
     if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_AUTH_FALLBACK !== "true") {
       return <ConfigurationRequired />;
@@ -67,7 +67,8 @@ export default async function Home() {
   }
 
   const landingPath = authenticatedLandingPath(auth.context);
-  if (landingPath !== "/") {
+  const explicitScheduleView = (await searchParams)?.view === "schedule" && canViewIcuCommandCenter(auth.context);
+  if (landingPath !== "/" && !explicitScheduleView) {
     redirect(landingPath);
   }
 
