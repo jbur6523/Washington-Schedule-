@@ -1465,7 +1465,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   return (
     <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8 lg:pl-60"}>
-      {!isLeadSurface && <aside className="mb-4 lg:fixed lg:inset-y-4 lg:left-4 lg:z-30 lg:mb-0 lg:w-52 lg:rounded-2xl lg:bg-teal-950 lg:p-4 lg:text-white lg:shadow-sm">
+      {!isLeadSurface && <aside className="mb-4 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:mb-0 lg:w-52 lg:rounded-none lg:bg-teal-950 lg:p-4 lg:text-white lg:shadow-sm">
         <p className="mb-6 hidden text-xl font-black tracking-wide lg:block">WHHS</p>
         <button type="button" className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold lg:hidden" aria-expanded={mobileMenuOpen} aria-controls="icu-sidebar-nav" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>ICU Menu</button>
         <nav id="icu-sidebar-nav" aria-label="ICU sidebar" className={`${mobileMenuOpen ? "block" : "hidden"} mt-2 space-y-2 rounded-xl bg-teal-950 p-2 text-white lg:mt-0 lg:block lg:p-0`}>
@@ -1482,6 +1482,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
               </select>
             </label>
           </div>}
+          <button type="button" disabled={loading || records.length === 0} onClick={() => { printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800 disabled:opacity-50"><Printer size={18} />SBAR</button>
           <button type="button" onClick={() => { setReportOpen(true); setMobileMenuOpen(false); }} className="flex min-h-12 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-bold hover:bg-teal-800"><ClipboardList size={18} />ICU Report</button>
           <a href="/?view=schedule" target="_blank" rel="noopener noreferrer" onClick={event => {
             event.preventDefault(); window.open("/?view=schedule", "_blank", "popup,width=1200,height=850,noopener,noreferrer");

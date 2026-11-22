@@ -223,7 +223,7 @@ describe("ICU patient notes", () => {
     render(<IcuCommandCenterClient authContext={authContext} />);
     await screen.findByRole("button", { name: "Update" });
     const sidebar = within(screen.getByRole("navigation", { name: "ICU sidebar" }));
-    expect(sidebar.getAllByRole("button").map(button => button.textContent)).toEqual(["Add Patient", "Update", "ICU Report"]);
+    expect(sidebar.getAllByRole("button").map(button => button.textContent)).toEqual(["Add Patient", "Update", "SBAR", "ICU Report"]);
     fireEvent.click(sidebar.getByRole("button", { name: "Update patient by room" }));
     const rooms = sidebar.getByRole("combobox", { name: "Occupied room" });
     expect(within(rooms).getByRole("option", { name: /C223/ })).toBeInTheDocument();
