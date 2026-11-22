@@ -1590,6 +1590,11 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </div>
           {(unitFilter !== "All" || deviceFilter !== "All") && <button type="button" onClick={() => { setUnitFilter("All"); setDeviceFilter("All"); }} className="min-h-11 text-sm font-bold text-teal-800 underline">Clear filters · Show all patients</button>}
           <p role="status" className="text-xs text-slate-500">Showing {visibleRecords.length} of {records.length} active patients{deviceFilter === "Noncritical Vent" ? " · Vents excluding Critical" : ""}</p>
+          <div className="flex justify-center py-2">
+            <button type="button" aria-label="Add Patient above patient cards" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800">
+              <Plus size={18} aria-hidden="true" />Add Patient
+            </button>
+          </div>
           {loading && (
             <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
               Loading ICU patients...
