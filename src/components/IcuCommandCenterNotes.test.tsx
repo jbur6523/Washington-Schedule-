@@ -187,6 +187,8 @@ const authContext: AuthenticatedUserContext = {
 };
 
 function choose(scope: ReturnType<typeof within>, label: string, value: string) {
+  const dialog = screen.queryByRole("dialog");
+  if (dialog) scope = within(dialog);
   const select = scope.queryByLabelText(label);
   if (select) { fireEvent.change(select, { target: { value } }); return; }
   const deviceLabels: Record<string, string> = { vent: "Vent", hfnc: "HFNC", cpap: "CPAP", bipap: "BiPAP", cool_aerosol: "Cool Aerosol", oxygen: "Oxygen Device" };
@@ -215,11 +217,34 @@ describe("ICU patient notes", () => {
     });
   });
 
+  it("combines units, treatment and snapshot filters without changing patients", async () => {
+    mocks.activeRecords = [
+      patientRecord({ id: "a", bed: "C223", device_type: "vent", vent_mode: "apvcmv" }),
+      patientRecord({ id: "b", bed: "D230", device_type: "hfnc", rounding_data: { treatment: { name: "IPV", frequency: "Q6", at: "2026-11-22" } } }),
+      patientRecord({ id: "c", bed: "IMC - 201", device_type: "none", rounding_data: { treatment: { name: "PEP", frequency: "BID", at: "2026-11-22" } } })
+    ];
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(3));
+    fireEvent.click(within(screen.getByLabelText("Device filters")).getByRole("button", { name: "Treatment (2)" }));
+    expect(screen.getAllByRole("article")).toHaveLength(2);
+    fireEvent.click(within(screen.getByLabelText("Unit filters")).getByRole("button", { name: "IMC A" }));
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+    expect(screen.getByRole("article")).toHaveTextContent("IMC - 201");
+    fireEvent.click(screen.getByRole("button", { name: "Filter HFNC: 1" }));
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
+    expect(screen.getByText(/No active patients match/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Clear filters/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Filter Vents: 1" }));
+    expect(screen.getByRole("article")).toHaveTextContent("C223");
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.patientUpdates).not.toHaveBeenCalled();
+  });
+
   it("lets schedule staff read, refresh and close the full ICU report without printing", async () => {
     HTMLDialogElement.prototype.showModal = function () { this.open = true; };
     mocks.activeRecords = [patientRecord({ notes: "Rounding detail" }), patientRecord({ id: "patient-2", bed: "D232" })];
     render(<IcuCommandCenterClient authContext={{ ...authContext, role: "staff", operationsRole: "none" }} />);
-    expect(screen.getByRole("link", { name: /Return to Schedule/ })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: /RT Schedule/ })).toHaveAttribute("href", "/");
     fireEvent.click(screen.getByRole("button", { name: /ICU Report/ }));
     const frame = await screen.findByTitle("Full ICU rounding report");
     const report = new DOMParser().parseFromString(frame.getAttribute("srcdoc")!, "text/html");
@@ -345,7 +370,7 @@ describe("ICU patient notes", () => {
 
   it("shows the optional Notes field after every supported device settings section and saves a trimmed note", async () => {
     render(<IcuCommandCenterClient authContext={authContext} />);
-    await screen.findByText("No active ICU respiratory devices.");
+    await screen.findByText(/No active patients match these filters/);
 
     fireEvent.click(screen.getByRole("button", { name: "Add Patient" }));
     const dialog = screen.getByRole("dialog", { name: "Add Patient" });

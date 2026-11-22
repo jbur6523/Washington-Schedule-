@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { Bed, CalendarDays, ChevronRight, ClipboardList, LogOut, Printer, Plus, RefreshCw, Save, Search, X } from "lucide-react";
+import { dashboardUnits, dashboardDevices, filterDashboardPatients, type DashboardUnit, type DashboardDevice } from "@/lib/icu-command-center/dashboard";
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
-import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
+import { canEditIcuCommandCenter, canManageIcuLifecycle } from "@/lib/auth/access";
 import { IcuAddPatientDevices, IcuAddPatientSelections } from "@/components/IcuAddPatientSelections";
 import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
@@ -615,11 +616,10 @@ export function IcuPatientCard({
         : "text-hospital-ink";
 
   return (
-    <article className={`relative rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
-      <div>
-        <div className="min-w-0 flex-1">
+    <article className={`relative grid grid-cols-1 gap-4 rounded-2xl border p-4 text-left shadow-sm md:grid-cols-[minmax(0,190px)_minmax(0,1fr)_140px] md:grid-rows-[auto_1fr] ${cardClass}`}>
+      <div className="order-1 min-w-0 rounded-xl bg-teal-50/60 p-3 md:col-start-1 md:row-start-1">
           <p className={`text-3xl font-black uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
-          <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
+          <h3 className={`mt-1 text-base font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
           {record.rounding_data?.treatment && (
@@ -627,25 +627,32 @@ export function IcuPatientCard({
               {record.rounding_data.treatment.name} - {record.rounding_data.treatment.frequency}
             </p>
           )}
-          {onSaveModality && <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />}
           {modifierLabels.length > 0 ? (
             <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
               {modifierLabels.join(" · ")}
             </p>
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
+      </div>
+      {onSaveModality && <div className="order-4 min-w-0 self-start md:order-none md:col-start-1 md:row-start-2 md:[&:has(form)]:col-span-3 md:[&:has(form)]:row-start-3">
+        <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />
+      </div>}
+      <div className="order-2 flex min-w-0 flex-col md:col-start-2 md:row-span-2 md:row-start-1">
           <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
-          <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
-            <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
-            <p className="text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
+          <div className="order-first mb-3 rounded-xl bg-teal-100/70 md:order-none md:mb-0 md:mt-3 px-3 py-2 print:bg-white print:border-slate-600">
+            <p className="inline text-xs font-extrabold text-slate-800">Current Settings: </p>
+            <p className="inline text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
           </div>
-          <div className="mt-2 rounded-2xl border border-sky-500 border-l-4 bg-white px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
+          <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
             <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
             {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
+            <details className="mt-1">
+              <summary className="min-h-8 cursor-pointer text-xs font-bold text-teal-800">More rounding details</summary>
             {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
             {record.is_critical_vent && <p><strong>Critical:</strong> {criticalDetail(record)}</p>}
             {record.rounding_data?.treatment && <p><strong>Treatment:</strong> {treatmentDetail(record.rounding_data.treatment)}</p>}
             {record.rounding_data?.procedure && <p><strong>Last Procedure:</strong> {procedureDetail(record.rounding_data.procedure)}</p>}
+            </details>
           {noteEditorOpen ? (
             <form
               className="mt-2"
@@ -723,14 +730,13 @@ export function IcuPatientCard({
           )}
           </div>
           <p className="mt-2 text-xs font-bold text-slate-600">Updated {formatIcuLastUpdated(record.updated_at)}</p>
-        </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2">
+      <div className="order-3 grid grid-cols-3 items-start gap-2 self-start md:col-start-3 md:row-span-2 md:row-start-1 md:grid-cols-1 md:border-l md:border-slate-200 md:pl-4">
         <button
           type="button"
           onClick={onUpdate}
-          className="min-h-11 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20"
+          className="min-h-11 rounded-2xl bg-teal-700 px-3 text-sm font-bold text-white"
         >
           Update
         </button>
@@ -739,15 +745,13 @@ export function IcuPatientCard({
           onClick={onHistory}
           className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
         >
-          <History size={16} />
           History
         </button>
         <button
           type="button"
           onClick={onDiscontinue}
-          className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-sm font-black text-rose-700"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-transparent bg-white px-2 text-sm font-black text-rose-700"
         >
-          <Trash2 size={16} />
           Discontinue
         </button>
       </div>
@@ -836,6 +840,10 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
   const [records, setRecords] = useState<IcuPatientRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [unitFilter, setUnitFilter] = useState<DashboardUnit>("All");
+  const [deviceFilter, setDeviceFilter] = useState<DashboardDevice>("All");
+  const unitRecords = useMemo(() => filterDashboardPatients(records, unitFilter, "All"), [records, unitFilter]);
+  const visibleRecords = useMemo(() => filterDashboardPatients(records, unitFilter, deviceFilter), [records, unitFilter, deviceFilter]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<IcuPatientRecord | null>(null);
   const [formOpenedFromAdd, setFormOpenedFromAdd] = useState(false);
@@ -1456,7 +1464,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
 
   return (
     <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
-      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
+      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-7xl space-y-5">
         <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
           <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
           <h1 className="mt-2 text-3xl font-black text-hospital-ink">ICU Command Center</h1>
@@ -1466,38 +1474,13 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </p>
         </section>
 
-        {!isIcuCommandCenter(authContext) && (
-          <Link
-            href="/"
-            className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
-          >
-            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-              <CalendarDays size={26} strokeWidth={2.5} aria-hidden="true" />
-            </span>
-            <span className="flex-1">
-              <span className="block text-lg font-black text-sky-950">Return to Schedule</span>
-              <span className="mt-0.5 block text-xs font-bold text-sky-900">Back to your Schedule page.</span>
-            </span>
-            <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-          </Link>
-        )}
-
-        {!isIcuCommandCenter(authContext) && <button
-          type="button"
-          onClick={() => setReportOpen(true)}
-          aria-haspopup="dialog"
-          aria-controls="icu-rounding-report"
-          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
-        >
-          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-            <ClipboardList size={26} strokeWidth={2.5} aria-hidden="true" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-lg font-black text-sky-950">ICU Report</span>
-            <span className="mt-0.5 block text-xs font-bold text-sky-900">View the full report for rounds.</span>
-          </span>
-          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-        </button>}
+        <nav aria-label="ICU quick actions" className="flex flex-wrap gap-3">
+          <button type="button" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800"><Plus size={18} />Add Patient</button>
+          <button type="button" disabled={loading || records.length === 0} onClick={() => setPrintOptionsOpen(true)} aria-haspopup="dialog" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 disabled:opacity-50"><Printer size={18} />Print Report</button>
+          <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 disabled:opacity-50"><RefreshCw size={18} />Refresh</button>
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700"><CalendarDays size={18} />RT Schedule</Link>
+          <button type="button" onClick={() => setReportOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700"><ClipboardList size={18} />ICU Report</button>
+        </nav>
 
         {reportOpen && <dialog
           id="icu-rounding-report"
@@ -1517,24 +1500,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             {error ? <p role="alert" className="p-4 text-rose-800">{error}</p> : loading ? <p role="status" className="p-4 text-slate-600">Loading ICU report…</p> : <iframe title="Full ICU rounding report" sandbox="allow-same-origin" srcDoc={roundingReport} className="min-h-0 w-full flex-1 border-0 bg-white" />}
           </div>
         </dialog>}
-
-        <button
-          type="button"
-          disabled={loading || records.length === 0}
-          onClick={() => setPrintOptionsOpen(true)}
-          aria-haspopup="dialog"
-          aria-controls="icu-print-options"
-          className={`${isIcuCommandCenter(authContext) ? "flex" : "hidden md:flex"} min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60`}
-        >
-          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-            <Printer size={26} strokeWidth={2.5} aria-hidden="true" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-lg font-black text-sky-950">Print Report</span>
-            <span className="mt-0.5 block text-xs font-bold text-sky-900">Active ICU patients and rounding details.</span>
-          </span>
-          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-        </button>
 
         {printOptionsOpen && <dialog id="icu-print-options" aria-labelledby="icu-print-title"
           ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
@@ -1560,32 +1525,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </div>
         </dialog>}
 
-        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Snapshot</p>
-              <h2 className="mt-1 text-xl font-black text-hospital-ink">Active Devices</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadRecords()}
-              className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-            >
-              <RefreshCw size={15} />
-              Refresh
-            </button>
-          </div>
-          <IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} />
-        </section>
-
-        <button
-          type="button"
-          onClick={openAdd}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-base font-black text-white shadow-md shadow-cyan-900/20"
-        >
-          <Plus size={18} />
-          Add Patient
-        </button>
+        <IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} selected={deviceFilter} onFilter={setDeviceFilter} />
 
         {message && (
           <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
@@ -1603,18 +1543,26 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             <Bed size={18} className="text-cyan-700" />
             <h2 className="text-2xl font-black text-hospital-ink">Active ICU Patients</h2>
           </div>
+          <div aria-label="Unit filters" className="flex gap-2 overflow-x-auto pb-2">
+            {dashboardUnits.map(unit => <button type="button" key={unit} aria-pressed={unitFilter === unit} onClick={() => setUnitFilter(unit)} className={`min-h-11 shrink-0 rounded-xl border px-4 text-sm font-bold ${unitFilter === unit ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{unit}</button>)}
+          </div>
+          <div aria-label="Device filters" className="flex flex-wrap gap-2">
+            {dashboardDevices.map(device => <button type="button" key={device} aria-pressed={deviceFilter === device} onClick={() => setDeviceFilter(device)} className={`min-h-11 rounded-xl border px-3 text-sm font-bold ${deviceFilter === device ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{device} ({filterDashboardPatients(unitRecords, "All", device).length})</button>)}
+          </div>
+          {(unitFilter !== "All" || deviceFilter !== "All") && <button type="button" onClick={() => { setUnitFilter("All"); setDeviceFilter("All"); }} className="min-h-11 text-sm font-bold text-teal-800 underline">Clear filters · Show all patients</button>}
+          <p role="status" className="text-xs text-slate-500">Showing {visibleRecords.length} of {records.length} active patients{deviceFilter === "Noncritical Vent" ? " · Vents excluding Critical" : ""}</p>
           {loading && (
             <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
               Loading ICU patients...
             </p>
           )}
-          {!loading && records.length === 0 && (
+          {!loading && visibleRecords.length === 0 && (
             <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
-              No active ICU respiratory devices.
+              No active patients match these filters. Select All or clear the filters to see other patients.
             </p>
           )}
           {!loading &&
-            records.map((record) => (
+            visibleRecords.map((record) => (
               <IcuPatientCard
                 key={record.id}
                 record={record}

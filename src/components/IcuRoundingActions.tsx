@@ -30,7 +30,7 @@ export function IcuRoundingActions({ record, saving, onSave, onToggleStandby }: 
   const valid = (panel !== "critical" || hasVent) && (panel !== "treatment" || Boolean(treatment && frequency)) && (!needsOther || Boolean(other.trim())) && (panel === "sbt" ? result === "Pass" || (result === "Fail" && Boolean(reason)) : panel === "procedure" ? Boolean(procedure) && (procedure !== "Trach" || Boolean(trachType && size)) : true);
 
   return <div className="mt-3">
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label={`Quick actions for ${record.bed}`}>
+    <div className="flex flex-wrap gap-2" aria-label={`Quick actions for ${record.bed}`}>
       {([
         ["sbt", "SBT", Activity, active], ["critical", "Critical Vent", AlertTriangle, record.is_critical_vent], ["procedure", "Procedure", ClipboardList, false], ["treatment", "Treatment", Stethoscope, Boolean(record.rounding_data?.treatment)]
       ] as const).filter(([key]) => key !== "critical" || hasVent).map(([key, label, Icon, highlighted]) => <button key={key} type="button"

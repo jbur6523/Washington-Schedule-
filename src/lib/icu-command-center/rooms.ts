@@ -23,3 +23,16 @@ export function compareIcuBeds(left: string, right: string) {
 export function availableIcuBeds(records: Pick<IcuPatientRecord, "bed">[]) {
   return Array.from(new Set<string>([...icuBedOptions, ...records.map(record => record.bed)])).sort(compareIcuBeds);
 }
+
+export type IcuArea = "C Pod" | "D Pod" | "E Pod" | "IMC A" | "IMC B" | "ED" | "OR" | "Other";
+export function areaForBed(bed: string): IcuArea | "" {
+  if (!bed) return "";
+  if (/^C22\d$/.test(bed)) return "C Pod";
+  if (/^D23\d$/.test(bed)) return "D Pod";
+  if (/^E24\d$/.test(bed)) return "E Pod";
+  if (/^IMC - 20\d$/.test(bed)) return "IMC A";
+  if (/^IMC - 21\d$/.test(bed)) return "IMC B";
+  if (/^ED \d+$/.test(bed)) return "ED";
+  if (/^OR \d+$/.test(bed)) return "OR";
+  return "Other";
+}
