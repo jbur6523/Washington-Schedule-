@@ -622,7 +622,7 @@ export function IcuPatientCard({
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
           {record.rounding_data?.treatment && (
-            <p className={`mt-1 text-lg font-bold ${titleTextClass}`}>
+            <p className="mt-1 text-base font-bold text-blue-900">
               {record.rounding_data.treatment.name} - {record.rounding_data.treatment.frequency}
             </p>
           )}
