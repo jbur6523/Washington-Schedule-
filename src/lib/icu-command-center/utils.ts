@@ -59,6 +59,7 @@ export const icuBedOptions = [
 ] as const;
 
 export const icuDeviceLabels: Record<IcuDeviceType, string> = {
+  none: "Treatment Only",
   vent: "Vent",
   bipap: "BiPAP",
   cpap: "CPAP",
@@ -178,6 +179,7 @@ export function formatIcuAirway(record: IcuPatientRecord) {
 }
 
 export function formatIcuSettings(record: IcuPatientRecord) {
+  if (record.device_type === "none") return "No respiratory device";
   const parts: Array<string | null> = [];
 
   if (record.device_type === "vent") {

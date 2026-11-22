@@ -477,6 +477,24 @@ describe("ICU patient notes", () => {
     expect(dialog.queryByRole("button", { name: "Room 220 - Available" })).not.toBeInTheDocument();
   });
 
+  it("adds and reopens a treatment-only patient without a respiratory device", async () => {
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Patient" }));
+    const dialog = within(screen.getByRole("dialog"));
+    choose(dialog, "Select bed", "C Pod"); choose(dialog, "Bed", "C223");
+    fireEvent.change(dialog.getByRole("combobox", { name: "Treatment" }), { target: { value: "Nebulizer" } });
+    fireEvent.change(dialog.getByLabelText("Frequency"), { target: { value: "Q4WA" } });
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith("manage_icu_device", expect.objectContaining({
+      target_payload: expect.objectContaining({ device_type: "none", fio2: null, rounding_data: { treatment: expect.objectContaining({ name: "Nebulizer", frequency: "Q4WA" }) } })
+    })));
+    expect(await screen.findByText("Treatment Only")).toBeInTheDocument();
+    expect(screen.getByText("Nebulizer - Q4WA")).toBeInTheDocument();
+    expect(mocks.rpc).not.toHaveBeenCalledWith("record_icu_rounding_action", expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
+    expect(within(screen.getByRole("dialog")).getByLabelText("Device")).toHaveValue("none");
+  });
+
   it("saves the selected treatment using the established rounding action after adding a patient", async () => {
     const original = mocks.rpc.getMockImplementation()!;
     mocks.rpc.mockImplementation(async (name, args) => {

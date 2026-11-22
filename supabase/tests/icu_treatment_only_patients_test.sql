@@ -1,0 +1,13 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+set local search_path = public, extensions, pg_temp;
+select plan(5);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+select throws_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-TX","device_type":"none"}','{}')$$,'22023','Treatment and frequency are required without a device.','Empty treatment-only entry rejected');
+select lives_ok($$select public.manage_icu_device('30000000-0000-0000-0000-000000000002','add','{"bed":"TEST-TX","device_type":"none","rounding_data":{"treatment":{"name":"Nebulizer","frequency":"Q4WA"}}}','{}')$$,'Treatment-only patient added');
+select is((select rounding_data#>>'{treatment,frequency}' from public.icu_patients where bed='TEST-TX'),'Q4WA','Treatment persisted in same insert');
+select is((select count(*)::int from public.icu_patient_events e join public.icu_patients p on p.id=e.icu_patient_id where p.bed='TEST-TX'),1,'Patient and history save atomically');
+select lives_ok($$select public.record_icu_rounding_action(id,'treatment','{"name":"IPV","frequency":"Q6"}',updated_at) from public.icu_patients where bed='TEST-TX'$$,'Existing treatment workflow updates treatment-only patient');
+select * from finish();
+rollback;

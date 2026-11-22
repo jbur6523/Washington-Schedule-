@@ -288,7 +288,7 @@ function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
 }
 
 function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContext) {
-  const deviceType = form.device_type;
+  const deviceType = form.device_type || "none";
 
   return {
     department_id: authContext.departmentId,
@@ -305,7 +305,7 @@ function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContex
     tidal_volume: deviceType === "vent" && form.vent_mode !== "pcmv" ? numericOrNull(form.tidal_volume) : null,
     pressure_control: deviceType === "vent" && form.vent_mode === "pcmv" ? numericOrNull(form.pressure_control) : null,
     peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
-    fio2: numericOrNull(form.fio2),
+    fio2: deviceType === "none" ? null : numericOrNull(form.fio2),
     ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
     t_high: deviceType === "vent" ? numericOrNull(form.t_high) : null,
     t_low: deviceType === "vent" ? numericOrNull(form.t_low) : null,
@@ -1063,8 +1063,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setFormError("");
 
     const bed = form.bed.trim();
-    if (!bed || !form.device_type) {
-      setFormError("Bed and device are required.");
+    if (!bed || ((!form.device_type || form.device_type === "none") && !(redesignedAdd ? addTreatment : editingRecord?.rounding_data?.treatment))) {
+      setFormError("Bed and either a device or treatment are required.");
       return;
     }
 
@@ -1097,7 +1097,12 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
     setSaving(true);
     try {
     const supabase = createClient();
-    const payload = cleanPayload({ ...form, bed }, authContext);
+    const payload = {
+      ...cleanPayload({ ...form, bed }, authContext),
+      ...((!form.device_type || form.device_type === "none") && redesignedAdd && addTreatment ? {
+        rounding_data: { ...editingRecord?.rounding_data, treatment: { name: addTreatment, frequency: addFrequency, at: new Date().toISOString() } }
+      } : {})
+    };
     const result = editingRecord
       ? await supabase
           .from("icu_patients")
@@ -1112,7 +1117,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           target_action: "add",
           target_payload: payload,
           target_event_data: eventDataFromRecord({
-            ...payload, device_type: form.device_type as IcuDeviceType,
+            ...payload, device_type: payload.device_type as IcuDeviceType,
             is_active: true, is_critical_vent: false, is_sbt: false, is_flolan: false, is_prone: false
           } as IcuPatientRecord, { action: "added" })
         });
@@ -1156,7 +1161,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
       setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
     }
 
-    if (redesignedAdd && addTreatment && savedRecord) {
+    if (redesignedAdd && addTreatment && savedRecord && payload.device_type !== "none") {
       const treatmentResult = await supabase.rpc("record_icu_rounding_action", {
         target_patient_id: savedRecord.id, target_action: "treatment",
         target_payload: { name: addTreatment, frequency: addFrequency }, expected_updated_at: savedRecord.updated_at
@@ -1906,7 +1911,8 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                     className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
                   >
                     <option value="">Select device</option>
-                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => !isOxygenDevice(device)).map((device) => (
+                    {editingRecord?.device_type === "none" && <option value="none">Treatment Only (no device)</option>}
+                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => device !== "none" && !isOxygenDevice(device)).map((device) => (
                       <option key={device} value={device}>
                         {icuDeviceLabels[device]}
                       </option>

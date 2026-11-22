@@ -61,7 +61,7 @@ export function IcuModalityActions({
   saving: boolean;
   onSave: SaveModality;
 }) {
-  const types = Object.keys(icuDeviceLabels) as IcuDeviceType[];
+  const types = Object.keys(icuDeviceLabels).filter(type => type !== "none") as IcuDeviceType[];
   const available = types.filter(
     (type) =>
       type !== record.device_type && !record.rounding_data?.modalities?.[type],
