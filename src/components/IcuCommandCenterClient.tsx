@@ -1,2431 +1,2431 @@
-"use client";
-
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import Link from "next/link";
-import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
-import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
-import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
-import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
-import { LeadBedSelector } from "@/components/LeadBedSelector";
-import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
-import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
-import { fetchAllPages } from "@/lib/supabase/paginated-query";
-import { IcuRoundingActions } from "@/components/IcuRoundingActions";
-import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
-import { activeSbt, criticalDetail, procedureDetail, treatmentDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
-import { buildIcuRoundingReport, printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
-import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
-import { signOutAndRedirect } from "@/lib/auth/client-session";
-import type { AuthenticatedUserContext } from "@/lib/auth/types";
-import type {
-  IcuAirwayType,
-  IcuTrachType,
-  IcuDeviceType,
-  IcuPatientEventRecord,
-  IcuPatientRecord,
-  IcuVentMode,
-  VentilatorOutcome
-} from "@/lib/icu-command-center/types";
-import {
-  icuActivityStateFromEvent,
-  icuActivityStateFromRecord,
-  icuActivityStatusChanges,
-  type IcuActivityAuditState
-} from "@/lib/icu-command-center/activity-comparison";
-import {
-  airwayLocationOptions,
-  airwaySizeOptions,
-  trachSizeOptions,
-  trachTypeLabels,
-  formatIcuAirway,
-  formatIcuDeviceSummary,
-  formatIcuLastUpdated,
-  formatIcuSettings,
-  icuAirwayLocationLabels,
-  icuDeviceLabels,
-  icuVentModeLabels,
-  supportsIcuStandby,
-  ventilatorOutcomeLabels,
-  ventilatorOutcomeOptions,
-  ventModeOptions
-} from "@/lib/icu-command-center/utils";
-import {
-  activeVentModifierLabels,
-  formatVentCardTitle,
-  isBoardUpdateEvent,
-  nextIcuOperationalShiftBoundaryDelay,
-  ventCardTone,
-} from "@/lib/icu-command-center/vent-status";
-import { createClient } from "@/lib/supabase/client";
-import {
-  timeZoneParts,
-  wallTimeToIso
-} from "@/lib/time/zoned-date-time";
-
-type IcuCommandCenterClientProps = {
-  authContext: AuthenticatedUserContext;
-  surface?: "full" | "lead";
-};
-
-type IcuPatientForm = {
-  bed: string;
-  device_type: IcuDeviceType | "";
-  airway_size: string;
-  airway_at: string;
-  airway_location: string;
-  airway_type: IcuAirwayType;
-  trach_type: IcuTrachType | "";
-  trach_xlt: boolean;
-  vent_mode: IcuVentMode | "";
-  rate: string;
-  tidal_volume: string;
-  pressure_control: string;
-  peep: string;
-  fio2: string;
-  ps: string;
-  t_high: string;
-  t_low: string;
-  p_high: string;
-  p_low: string;
-  percent_min_vol: string;
-  ipap: string;
-  epap: string;
-  cpap: string;
-  flow: string;
-  notes: string;
-  is_standby: boolean;
-};
-
-const emptyForm: IcuPatientForm = {
-  bed: "",
-  device_type: "",
-  airway_size: "",
-  airway_at: "",
-  airway_location: "",
-  airway_type: "ett",
-  trach_type: "",
-  trach_xlt: false,
-  vent_mode: "",
-  rate: "",
-  tidal_volume: "",
-  pressure_control: "",
-  peep: "",
-  fio2: "",
-  ps: "",
-  t_high: "",
-  t_low: "",
-  p_high: "",
-  p_low: "",
-  percent_min_vol: "",
-  ipap: "",
-  epap: "",
-  cpap: "",
-  flow: "",
-  notes: "",
-  is_standby: false
-};
-
-const icuPatientSelect = [
-  "id",
-  "department_id",
-  "bed",
-  "device_type",
-  "airway_size",
-  "airway_at",
-  "airway_location",
-  "airway_type",
-  "trach_type",
-  "trach_xlt",
-  "vent_mode",
-  "rate",
-  "tidal_volume",
-  "pressure_control",
-  "peep",
-  "fio2",
-  "ps",
-  "t_high",
-  "t_low",
-  "p_high",
-  "p_low",
-  "percent_min_vol",
-  "ipap",
-  "epap",
-  "cpap",
-  "flow",
-  "notes",
-  "rounding_data",
-  "is_critical_vent",
-  "is_sbt",
-  "is_flolan",
-  "is_prone",
-  "is_standby",
-  "ventilator_outcome",
-  "discontinued_at",
-  "discontinued_by_staff_profile_id",
-  "is_active",
-  "created_by_staff_profile_id",
-  "updated_by_staff_profile_id",
-  "created_at",
-  "updated_at"
-].join(", ");
-
-const icuPatientEventSelect = [
-  "id",
-  "department_id",
-  "icu_patient_id",
-  "event_type",
-  "event_time",
-  "event_summary",
-  "event_data",
-  "created_by_staff_profile_id",
-  "created_by_name",
-  "operational_shift_date",
-  "operational_shift_type",
-  "created_at"
-].join(", ");
-
-const icuTimezone = "America/Los_Angeles";
-
-function formatIcuSnapshotUpdatedAt(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: icuTimezone,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).format(new Date(value));
-}
-
-function getLatestActiveIcuUpdatedAt(records: IcuPatientRecord[]) {
-  const latest = records
-    .filter((record) => record.is_active)
-    .map((record) => record.updated_at || record.created_at)
-    .filter(Boolean)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-
-  return latest ?? null;
-}
-
-function numericOrNull(value: string) {
-  const trimmed = value.trim();
-  return trimmed ? Number(trimmed) : null;
-}
-
-const numericFieldLabels: Array<[keyof IcuPatientForm, string]> = [
-  ["rate", "Rate"],
-  ["tidal_volume", "Tidal Volume"],
-  ["pressure_control", "Pressure Control"],
-  ["peep", "PEEP"],
-  ["fio2", "FiO2"],
-  ["ps", "Pressure Support"],
-  ["t_high", "T High"],
-  ["t_low", "T Low"],
-  ["p_high", "P High"],
-  ["p_low", "P Low"],
-  ["percent_min_vol", "% Min Vol"],
-  ["ipap", "IPAP"],
-  ["epap", "EPAP"],
-  ["cpap", "CPAP"],
-  ["flow", "Flow"]
-];
-
-function validateIcuNumericFields(form: IcuPatientForm) {
-  for (const [field, label] of numericFieldLabels) {
-    const value = form[field];
-    if (typeof value !== "string" || !value.trim()) {
-      continue;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      return `${label} must be a non-negative number.`;
-    }
-
-    if (field === "fio2" && parsed > 100) {
-      return "FiO2 must be between 0 and 100.";
-    }
-  }
-
-  return null;
-}
-
-function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
-  return {
-    bed: record.bed,
-    device_type: record.device_type,
-    airway_size: record.airway_size ?? "",
-    airway_at: record.airway_at ?? "",
-    airway_location: record.airway_location ?? "",
-    airway_type: record.airway_type ?? "ett",
-    trach_type: record.trach_type ?? "",
-    trach_xlt: record.trach_xlt ?? false,
-    vent_mode: record.vent_mode ?? "",
-    rate: record.rate?.toString() ?? "",
-    tidal_volume: record.tidal_volume?.toString() ?? "",
-    pressure_control: record.pressure_control?.toString() ?? "",
-    peep: record.peep?.toString() ?? "",
-    fio2: record.fio2?.toString() ?? "",
-    ps: record.ps?.toString() ?? "",
-    t_high: record.t_high?.toString() ?? "",
-    t_low: record.t_low?.toString() ?? "",
-    p_high: record.p_high?.toString() ?? "",
-    p_low: record.p_low?.toString() ?? "",
-    percent_min_vol: record.percent_min_vol?.toString() ?? "",
-    ipap: record.ipap?.toString() ?? "",
-    epap: record.epap?.toString() ?? "",
-    cpap: record.cpap?.toString() ?? "",
-    flow: record.flow?.toString() ?? "",
-    notes: record.notes ?? "",
-    is_standby: record.is_standby
-  };
-}
-
-function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContext) {
-  const deviceType = form.device_type;
-
-  return {
-    department_id: authContext.departmentId,
-    bed: form.bed,
-    device_type: deviceType,
-    airway_size: deviceType === "vent" ? form.airway_size || null : null,
-    airway_type: deviceType === "vent" ? form.airway_type : null,
-    airway_at: deviceType === "vent" && form.airway_type === "ett" ? form.airway_at.trim() || null : null,
-    airway_location: deviceType === "vent" && form.airway_type === "ett" ? form.airway_location || null : null,
-    trach_type: deviceType === "vent" && form.airway_type === "trach" ? form.trach_type || null : null,
-    trach_xlt: deviceType === "vent" && form.airway_type === "trach" && form.trach_xlt,
-    vent_mode: deviceType === "vent" ? form.vent_mode || null : null,
-    rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
-    tidal_volume: deviceType === "vent" && form.vent_mode !== "pcmv" ? numericOrNull(form.tidal_volume) : null,
-    pressure_control: deviceType === "vent" && form.vent_mode === "pcmv" ? numericOrNull(form.pressure_control) : null,
-    peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
-    fio2: numericOrNull(form.fio2),
-    ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
-    t_high: deviceType === "vent" ? numericOrNull(form.t_high) : null,
-    t_low: deviceType === "vent" ? numericOrNull(form.t_low) : null,
-    p_high: deviceType === "vent" ? numericOrNull(form.p_high) : null,
-    p_low: deviceType === "vent" ? numericOrNull(form.p_low) : null,
-    percent_min_vol: deviceType === "vent" ? numericOrNull(form.percent_min_vol) : null,
-    ipap: deviceType === "bipap" ? numericOrNull(form.ipap) : null,
-    epap: deviceType === "bipap" ? numericOrNull(form.epap) : null,
-    cpap: deviceType === "cpap" ? numericOrNull(form.cpap) : null,
-    flow: deviceType === "hfnc" || deviceType === "cool_aerosol" || isOxygenDevice(deviceType) ? numericOrNull(form.flow) : null,
-    notes: form.notes.trim() || null,
-    is_standby: supportsIcuStandby(deviceType) ? form.is_standby : false,
-    ventilator_outcome: null,
-    updated_by_staff_profile_id: authContext.staffProfileId
-  };
-}
-
-function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unknown> = {}) {
-  return {
-    bed: record.bed,
-    device: formatIcuDeviceSummary(record),
-    airway: formatIcuAirway(record) || null,
-    settings: formatIcuSettings(record),
-    notes: record.notes?.trim() || null,
-    ...(record.device_type === "vent" ? {
-      criticalVent: record.is_critical_vent,
-      sbt: record.is_sbt,
-      flolan: record.is_flolan,
-      prone: record.is_prone
-    } : {}),
-    ...(supportsIcuStandby(record.device_type) ? { standby: record.is_standby } : {}),
-    updatedState: icuActivityStateFromRecord(record),
-    ...extra
-  };
-}
-
-function defaultIcuDateTime() {
-  const parts = timeZoneParts(new Date(), icuTimezone);
-
-  return {
-    date: `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`,
-    time: `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`
-  };
-}
-
-function formatIcuActivityTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: icuTimezone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    hourCycle: "h23"
-  }).format(new Date(value));
-}
-
-function formatIcuActivityDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: icuTimezone,
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric"
-  }).format(new Date(value));
-}
-
-function todayIcuDateRange() {
-  const { date } = defaultIcuDateTime();
-
-  return {
-    startIso: wallTimeToIso(date, "00:00"),
-    endIso: wallTimeToIso(date, "23:59"),
-    label: formatIcuActivityDate(wallTimeToIso(date, "12:00"))
-  };
-}
-
-async function createIcuPatientEvent(
-  supabase: ReturnType<typeof createClient>,
-  authContext: AuthenticatedUserContext,
-  record: IcuPatientRecord,
-  eventType: IcuPatientEventRecord["event_type"],
-  eventSummary: string,
-  eventData: Record<string, unknown> = {},
-  eventTime?: string,
-  previousRecord?: IcuPatientRecord | null
-) {
-  return supabase.from("icu_patient_events").insert({
-    department_id: authContext.departmentId,
-    icu_patient_id: record.id,
-    event_type: eventType,
-    event_time: eventTime ?? new Date().toISOString(),
-    event_summary: eventSummary,
-    event_data: eventDataFromRecord(record, {
-      ...(previousRecord ? { previousState: icuActivityStateFromRecord(previousRecord), previousNotes: previousRecord.notes } : {}),
-      ...eventData
-    }),
-    created_by_staff_profile_id: authContext.staffProfileId,
-    created_by_name: authContext.displayName
-  });
-}
-
+"use client";
+
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printer, Plus, RefreshCw, Save, Search, Trash2, X } from "lucide-react";
+import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
+import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
+import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
+import { LeadBedSelector } from "@/components/LeadBedSelector";
+import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
+import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
+import { fetchAllPages } from "@/lib/supabase/paginated-query";
+import { IcuRoundingActions } from "@/components/IcuRoundingActions";
+import { IcuModalityActions, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
+import { activeSbt, criticalDetail, procedureDetail, treatmentDetail, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
+import { buildIcuRoundingReport, printIcuRoundingReport, printIcuDocument, buildIcuSbarReport, buildIcuHistoryReport } from "@/lib/icu-command-center/print-report";
+import { icuHistoryChanges } from "@/lib/icu-command-center/history-changes";
+import { signOutAndRedirect } from "@/lib/auth/client-session";
+import type { AuthenticatedUserContext } from "@/lib/auth/types";
+import type {
+  IcuAirwayType,
+  IcuTrachType,
+  IcuDeviceType,
+  IcuPatientEventRecord,
+  IcuPatientRecord,
+  IcuVentMode,
+  VentilatorOutcome
+} from "@/lib/icu-command-center/types";
+import {
+  icuActivityStateFromEvent,
+  icuActivityStateFromRecord,
+  icuActivityStatusChanges,
+  type IcuActivityAuditState
+} from "@/lib/icu-command-center/activity-comparison";
+import {
+  airwayLocationOptions,
+  airwaySizeOptions,
+  trachSizeOptions,
+  trachTypeLabels,
+  formatIcuAirway,
+  formatIcuDeviceSummary,
+  formatIcuLastUpdated,
+  formatIcuSettings,
+  icuAirwayLocationLabels,
+  icuDeviceLabels,
+  icuVentModeLabels,
+  supportsIcuStandby,
+  ventilatorOutcomeLabels,
+  ventilatorOutcomeOptions,
+  ventModeOptions
+} from "@/lib/icu-command-center/utils";
+import {
+  activeVentModifierLabels,
+  formatVentCardTitle,
+  isBoardUpdateEvent,
+  nextIcuOperationalShiftBoundaryDelay,
+  ventCardTone,
+} from "@/lib/icu-command-center/vent-status";
+import { createClient } from "@/lib/supabase/client";
+import {
+  timeZoneParts,
+  wallTimeToIso
+} from "@/lib/time/zoned-date-time";
+
+type IcuCommandCenterClientProps = {
+  authContext: AuthenticatedUserContext;
+  surface?: "full" | "lead";
+};
+
+type IcuPatientForm = {
+  bed: string;
+  device_type: IcuDeviceType | "";
+  airway_size: string;
+  airway_at: string;
+  airway_location: string;
+  airway_type: IcuAirwayType;
+  trach_type: IcuTrachType | "";
+  trach_xlt: boolean;
+  vent_mode: IcuVentMode | "";
+  rate: string;
+  tidal_volume: string;
+  pressure_control: string;
+  peep: string;
+  fio2: string;
+  ps: string;
+  t_high: string;
+  t_low: string;
+  p_high: string;
+  p_low: string;
+  percent_min_vol: string;
+  ipap: string;
+  epap: string;
+  cpap: string;
+  flow: string;
+  notes: string;
+  is_standby: boolean;
+};
+
+const emptyForm: IcuPatientForm = {
+  bed: "",
+  device_type: "",
+  airway_size: "",
+  airway_at: "",
+  airway_location: "",
+  airway_type: "ett",
+  trach_type: "",
+  trach_xlt: false,
+  vent_mode: "",
+  rate: "",
+  tidal_volume: "",
+  pressure_control: "",
+  peep: "",
+  fio2: "",
+  ps: "",
+  t_high: "",
+  t_low: "",
+  p_high: "",
+  p_low: "",
+  percent_min_vol: "",
+  ipap: "",
+  epap: "",
+  cpap: "",
+  flow: "",
+  notes: "",
+  is_standby: false
+};
+
+const icuPatientSelect = [
+  "id",
+  "department_id",
+  "bed",
+  "device_type",
+  "airway_size",
+  "airway_at",
+  "airway_location",
+  "airway_type",
+  "trach_type",
+  "trach_xlt",
+  "vent_mode",
+  "rate",
+  "tidal_volume",
+  "pressure_control",
+  "peep",
+  "fio2",
+  "ps",
+  "t_high",
+  "t_low",
+  "p_high",
+  "p_low",
+  "percent_min_vol",
+  "ipap",
+  "epap",
+  "cpap",
+  "flow",
+  "notes",
+  "rounding_data",
+  "is_critical_vent",
+  "is_sbt",
+  "is_flolan",
+  "is_prone",
+  "is_standby",
+  "ventilator_outcome",
+  "discontinued_at",
+  "discontinued_by_staff_profile_id",
+  "is_active",
+  "created_by_staff_profile_id",
+  "updated_by_staff_profile_id",
+  "created_at",
+  "updated_at"
+].join(", ");
+
+const icuPatientEventSelect = [
+  "id",
+  "department_id",
+  "icu_patient_id",
+  "event_type",
+  "event_time",
+  "event_summary",
+  "event_data",
+  "created_by_staff_profile_id",
+  "created_by_name",
+  "operational_shift_date",
+  "operational_shift_type",
+  "created_at"
+].join(", ");
+
+const icuTimezone = "America/Los_Angeles";
+
+function formatIcuSnapshotUpdatedAt(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value));
+}
+
+function getLatestActiveIcuUpdatedAt(records: IcuPatientRecord[]) {
+  const latest = records
+    .filter((record) => record.is_active)
+    .map((record) => record.updated_at || record.created_at)
+    .filter(Boolean)
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
+
+  return latest ?? null;
+}
+
+function numericOrNull(value: string) {
+  const trimmed = value.trim();
+  return trimmed ? Number(trimmed) : null;
+}
+
+const numericFieldLabels: Array<[keyof IcuPatientForm, string]> = [
+  ["rate", "Rate"],
+  ["tidal_volume", "Tidal Volume"],
+  ["pressure_control", "Pressure Control"],
+  ["peep", "PEEP"],
+  ["fio2", "FiO2"],
+  ["ps", "Pressure Support"],
+  ["t_high", "T High"],
+  ["t_low", "T Low"],
+  ["p_high", "P High"],
+  ["p_low", "P Low"],
+  ["percent_min_vol", "% Min Vol"],
+  ["ipap", "IPAP"],
+  ["epap", "EPAP"],
+  ["cpap", "CPAP"],
+  ["flow", "Flow"]
+];
+
+function validateIcuNumericFields(form: IcuPatientForm) {
+  for (const [field, label] of numericFieldLabels) {
+    const value = form[field];
+    if (typeof value !== "string" || !value.trim()) {
+      continue;
+    }
+
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return `${label} must be a non-negative number.`;
+    }
+
+    if (field === "fio2" && parsed > 100) {
+      return "FiO2 must be between 0 and 100.";
+    }
+  }
+
+  return null;
+}
+
+function formFromRecord(record: IcuPatientRecord): IcuPatientForm {
+  return {
+    bed: record.bed,
+    device_type: record.device_type,
+    airway_size: record.airway_size ?? "",
+    airway_at: record.airway_at ?? "",
+    airway_location: record.airway_location ?? "",
+    airway_type: record.airway_type ?? "ett",
+    trach_type: record.trach_type ?? "",
+    trach_xlt: record.trach_xlt ?? false,
+    vent_mode: record.vent_mode ?? "",
+    rate: record.rate?.toString() ?? "",
+    tidal_volume: record.tidal_volume?.toString() ?? "",
+    pressure_control: record.pressure_control?.toString() ?? "",
+    peep: record.peep?.toString() ?? "",
+    fio2: record.fio2?.toString() ?? "",
+    ps: record.ps?.toString() ?? "",
+    t_high: record.t_high?.toString() ?? "",
+    t_low: record.t_low?.toString() ?? "",
+    p_high: record.p_high?.toString() ?? "",
+    p_low: record.p_low?.toString() ?? "",
+    percent_min_vol: record.percent_min_vol?.toString() ?? "",
+    ipap: record.ipap?.toString() ?? "",
+    epap: record.epap?.toString() ?? "",
+    cpap: record.cpap?.toString() ?? "",
+    flow: record.flow?.toString() ?? "",
+    notes: record.notes ?? "",
+    is_standby: record.is_standby
+  };
+}
+
+function cleanPayload(form: IcuPatientForm, authContext: AuthenticatedUserContext) {
+  const deviceType = form.device_type;
+
+  return {
+    department_id: authContext.departmentId,
+    bed: form.bed,
+    device_type: deviceType,
+    airway_size: deviceType === "vent" ? form.airway_size || null : null,
+    airway_type: deviceType === "vent" ? form.airway_type : null,
+    airway_at: deviceType === "vent" && form.airway_type === "ett" ? form.airway_at.trim() || null : null,
+    airway_location: deviceType === "vent" && form.airway_type === "ett" ? form.airway_location || null : null,
+    trach_type: deviceType === "vent" && form.airway_type === "trach" ? form.trach_type || null : null,
+    trach_xlt: deviceType === "vent" && form.airway_type === "trach" && form.trach_xlt,
+    vent_mode: deviceType === "vent" ? form.vent_mode || null : null,
+    rate: deviceType === "vent" || deviceType === "bipap" ? numericOrNull(form.rate) : null,
+    tidal_volume: deviceType === "vent" && form.vent_mode !== "pcmv" ? numericOrNull(form.tidal_volume) : null,
+    pressure_control: deviceType === "vent" && form.vent_mode === "pcmv" ? numericOrNull(form.pressure_control) : null,
+    peep: deviceType === "vent" ? numericOrNull(form.peep) : null,
+    fio2: numericOrNull(form.fio2),
+    ps: deviceType === "vent" ? numericOrNull(form.ps) : null,
+    t_high: deviceType === "vent" ? numericOrNull(form.t_high) : null,
+    t_low: deviceType === "vent" ? numericOrNull(form.t_low) : null,
+    p_high: deviceType === "vent" ? numericOrNull(form.p_high) : null,
+    p_low: deviceType === "vent" ? numericOrNull(form.p_low) : null,
+    percent_min_vol: deviceType === "vent" ? numericOrNull(form.percent_min_vol) : null,
+    ipap: deviceType === "bipap" ? numericOrNull(form.ipap) : null,
+    epap: deviceType === "bipap" ? numericOrNull(form.epap) : null,
+    cpap: deviceType === "cpap" ? numericOrNull(form.cpap) : null,
+    flow: deviceType === "hfnc" || deviceType === "cool_aerosol" || isOxygenDevice(deviceType) ? numericOrNull(form.flow) : null,
+    notes: form.notes.trim() || null,
+    is_standby: supportsIcuStandby(deviceType) ? form.is_standby : false,
+    ventilator_outcome: null,
+    updated_by_staff_profile_id: authContext.staffProfileId
+  };
+}
+
+function eventDataFromRecord(record: IcuPatientRecord, extra: Record<string, unknown> = {}) {
+  return {
+    bed: record.bed,
+    device: formatIcuDeviceSummary(record),
+    airway: formatIcuAirway(record) || null,
+    settings: formatIcuSettings(record),
+    notes: record.notes?.trim() || null,
+    ...(record.device_type === "vent" ? {
+      criticalVent: record.is_critical_vent,
+      sbt: record.is_sbt,
+      flolan: record.is_flolan,
+      prone: record.is_prone
+    } : {}),
+    ...(supportsIcuStandby(record.device_type) ? { standby: record.is_standby } : {}),
+    updatedState: icuActivityStateFromRecord(record),
+    ...extra
+  };
+}
+
+function defaultIcuDateTime() {
+  const parts = timeZoneParts(new Date(), icuTimezone);
+
+  return {
+    date: `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`,
+    time: `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`
+  };
+}
+
+function formatIcuActivityTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).format(new Date(value));
+}
+
+function formatIcuActivityDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: icuTimezone,
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function todayIcuDateRange() {
+  const { date } = defaultIcuDateTime();
+
+  return {
+    startIso: wallTimeToIso(date, "00:00"),
+    endIso: wallTimeToIso(date, "23:59"),
+    label: formatIcuActivityDate(wallTimeToIso(date, "12:00"))
+  };
+}
+
+async function createIcuPatientEvent(
+  supabase: ReturnType<typeof createClient>,
+  authContext: AuthenticatedUserContext,
+  record: IcuPatientRecord,
+  eventType: IcuPatientEventRecord["event_type"],
+  eventSummary: string,
+  eventData: Record<string, unknown> = {},
+  eventTime?: string,
+  previousRecord?: IcuPatientRecord | null
+) {
+  return supabase.from("icu_patient_events").insert({
+    department_id: authContext.departmentId,
+    icu_patient_id: record.id,
+    event_type: eventType,
+    event_time: eventTime ?? new Date().toISOString(),
+    event_summary: eventSummary,
+    event_data: eventDataFromRecord(record, {
+      ...(previousRecord ? { previousState: icuActivityStateFromRecord(previousRecord), previousNotes: previousRecord.notes } : {}),
+      ...eventData
+    }),
+    created_by_staff_profile_id: authContext.staffProfileId,
+    created_by_name: authContext.displayName
+  });
+}
+
 function historyEventLabel(eventRecord: IcuPatientEventRecord) {
-  if (eventRecord.event_data?.action === "treatment_recorded") return "Treatment recorded";
-  if (eventRecord.event_data?.action === "procedure_recorded") return "Procedure recorded";
-  if (eventRecord.event_type === "updated" && eventRecord.event_data?.action === "note_updated") {
-    return "Note updated";
-  }
-
-  switch (eventRecord.event_type) {
-    case "added":
-      return "Added";
-    case "updated":
-      return "Updated settings";
-    case "critical_status_updated":
-      return "Critical status updated";
-    case "sbt_status_updated":
-      return "SBT status updated";
-    case "flolan_status_updated":
-      return "Flolan status updated";
-    case "prone_status_updated":
-      return "Prone status updated";
-    case "standby_status_updated":
-      return "Standby status updated";
-    case "ct_noted":
-      return "CT noted this shift";
-    case "mri_noted":
-      return "MRI noted this shift";
-    case "discontinued":
-      return "Discontinued";
-    default:
-      return "ICU update";
-  }
-}
-
-function eventDataText(event: IcuPatientEventRecord, key: string) {
-  const rawRecord = event.event_data?.record as IcuPatientRecord | undefined;
-  if (rawRecord?.device_type) {
-    if (key === "device") return formatIcuDeviceSummary(rawRecord);
-    if (key === "airway") return formatIcuAirway(rawRecord);
-    if (key === "settings") return formatIcuSettings(rawRecord);
-  }
-  const value = event.event_data?.[key];
-  return typeof value === "string" && value.trim() ? value : "";
-}
-
-function eventDataBoolean(event: IcuPatientEventRecord, key: string) {
-  const value = event.event_data?.[key];
-  return typeof value === "boolean" ? value : null;
-}
-
-function historyDetailLines(event: IcuPatientEventRecord) {
-  const lines: string[] = [];
-  const device = eventDataText(event, "device");
-  const airway = eventDataText(event, "airway");
-  const settings = eventDataText(event, "settings");
-  const notes = eventDataText(event, "notes");
-  const outcome = eventDataText(event, "ventilatorOutcome");
-  const outcomeComment = eventDataText(event, "ventilatorOutcomeComment");
-  const criticalVent = eventDataBoolean(event, "criticalVent");
-  const sbt = eventDataBoolean(event, "sbt");
-  const flolan = eventDataBoolean(event, "flolan");
-  const prone = eventDataBoolean(event, "prone");
-  const standby = eventDataBoolean(event, "standby");
-
-  if (device) {
-    lines.push(`Device: ${device}`);
-  }
-  if (airway) {
-    lines.push(`Airway: ${airway}`);
-  }
-  if (settings) {
-    lines.push(`Settings: ${settings}`);
-  }
-  if (notes) {
-    lines.push(`Note: ${notes}`);
-  }
-  if (criticalVent !== null) {
-    lines.push(`Critical Vent: ${criticalVent ? "Yes" : "No"}`);
-  }
-  if (sbt) {
-    lines.push("SBT: Active");
-  }
-  if (prone) {
-    lines.push("Prone: Active");
-  }
-  if (flolan) {
-    lines.push("Flolan: Active");
-  }
-  if (standby !== null) {
-    lines.push(`Standby: ${standby ? "Yes" : "No"}`);
-  }
-  if (outcome) {
-    lines.push(`Outcome: ${outcome}`);
-  }
-  if (outcomeComment) {
-    lines.push(`Outcome comment: ${outcomeComment}`);
-  }
-
-  return lines;
-}
-
-function parsePreviousDateInput(value: string) {
-  const digits = value.replace(/\D/g, "");
-  if (digits.length !== 6) {
-    return null;
-  }
-
-  const month = Number(digits.slice(0, 2));
-  const day = Number(digits.slice(2, 4));
-  const year = 2000 + Number(digits.slice(4, 6));
-  const date = new Date(year, month - 1, day);
-
-  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    return null;
-  }
-
-  const dateValue = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const label = new Intl.DateTimeFormat("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric"
-  }).format(date);
-
-  return {
-    startIso: wallTimeToIso(dateValue, "00:00"),
-    endIso: wallTimeToIso(dateValue, "23:59"),
-    label
-  };
-}
-
-function IcuNumberInput({
-  label,
-  value,
-  onChange,
-  placeholder
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
-      <input
-        type="number"
-        min={0}
-        max={label === "FiO2" ? 100 : undefined}
-        step="any"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        inputMode="decimal"
-        placeholder={placeholder}
-        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-      />
-    </label>
-  );
-}
-
-export function IcuPatientCard({
-  record,
-  actionSaving,
-  onRoundingAction,
-  onSaveModality,
-  onSaveNote,
-  onUpdate,
-  onDiscontinue,
-  onHistory,
-  onToggleStandby
-}: {
-  record: IcuPatientRecord;
-  onRoundingAction: SaveRoundingAction;
-  onSaveModality?: SaveModality;
-  actionSaving: boolean;
-  onSaveNote: (notes: string, expectedUpdatedAt: string) => Promise<boolean>;
-  onUpdate: () => void;
-  onDiscontinue: () => void;
-  onHistory: () => void;
-  onToggleStandby: () => void;
-}) {
-  const airway = formatIcuAirway(record);
-  const savedNotes = record.notes?.trim() ?? "";
-  const [noteDraft, setNoteDraft] = useState(savedNotes);
-  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
-  const [noteVersion, setNoteVersion] = useState(record.updated_at);
-  const noteChanged = noteDraft.trim() !== savedNotes;
-  const modifierLabels = activeVentModifierLabels(record);
-  const tone = record.is_standby ? "standby" : ventCardTone(record);
-  const cardClass = tone === "critical"
-    ? "border-rose-300 bg-rose-50"
-    : tone === "standby"
-      ? "border-amber-500 bg-amber-200"
-      : tone === "sbt"
-        ? "border-blue-300 bg-blue-50"
-        : "border-white bg-white/95";
-  const accentTextClass = tone === "critical"
-    ? "text-rose-800"
-    : tone === "standby"
-      ? "text-amber-900"
-      : tone === "sbt"
-        ? "text-blue-800"
-        : "text-cyan-700";
-  const titleTextClass = tone === "critical"
-    ? "text-rose-950"
-    : tone === "standby"
-      ? "text-amber-950"
-      : tone === "sbt"
-        ? "text-blue-950"
-        : "text-hospital-ink";
-
-  return (
-    <article className={`relative rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
-      <div>
-        <div className="min-w-0 flex-1">
-          <p className={`text-3xl font-black uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
-          <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
-            {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
-          </h3>
-          {onSaveModality && <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />}
-          {modifierLabels.length > 0 ? (
-            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
-              {modifierLabels.join(" · ")}
-            </p>
-          ) : null}
-          {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
-          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
-          <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
-            <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
-            <p className="text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
-          </div>
-          <div className="mt-2 rounded-2xl border border-sky-500 border-l-4 bg-white px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
-            <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
-            {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
-            {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
-            {record.is_critical_vent && <p><strong>Critical:</strong> {criticalDetail(record)}</p>}
-            {record.rounding_data?.treatment && <p><strong>Treatment:</strong> {treatmentDetail(record.rounding_data.treatment)}</p>}
-            {record.rounding_data?.procedure && <p><strong>Last Procedure:</strong> {procedureDetail(record.rounding_data.procedure)}</p>}
-          {noteEditorOpen ? (
-            <form
-              className="mt-2"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                if (noteChanged && await onSaveNote(noteDraft, noteVersion)) {
-                  setNoteEditorOpen(false);
-                }
-              }}
-            >
-              <label htmlFor={`icu-patient-note-${record.id}`} className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes</span>
-                <textarea
-                  id={`icu-patient-note-${record.id}`}
-                  value={noteDraft}
-                  onChange={(event) => setNoteDraft(event.target.value)}
-                  disabled={actionSaving}
-                  rows={2}
-                  maxLength={2000}
-                  placeholder="Add note…"
-                  className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
-                />
-              </label>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={actionSaving || !noteChanged}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-xs font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Save size={15} />
-                  {actionSaving ? "Saving..." : "Save Note"}
-                </button>
-                <button
-                  type="button"
-                  disabled={actionSaving}
-                  onClick={() => {
-                    setNoteDraft(savedNotes);
-                    setNoteEditorOpen(false);
-                  }}
-                  className="min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : savedNotes ? (
-            <div className="mt-2">
-              <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
-                <span className="font-black">Note:</span> {savedNotes}
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setNoteDraft(savedNotes);
-                  setNoteVersion(record.updated_at);
-                  setNoteEditorOpen(true);
-                }}
-                className="mt-1 text-xs font-black text-cyan-700"
-              >
-                Edit note
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setNoteDraft("");
-                setNoteVersion(record.updated_at);
-                setNoteEditorOpen(true);
-              }}
-              className="mt-2 text-xs font-black text-cyan-700"
-            >
-              + Add Note
-            </button>
-          )}
-          </div>
-          <p className="mt-2 text-xs font-bold text-slate-600">Updated {formatIcuLastUpdated(record.updated_at)}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={onUpdate}
-          className="min-h-11 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20"
-        >
-          Update
-        </button>
-        <button
-          type="button"
-          onClick={onHistory}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
-        >
-          <History size={16} />
-          History
-        </button>
-        <button
-          type="button"
-          onClick={onDiscontinue}
-          className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-sm font-black text-rose-700"
-        >
-          <Trash2 size={16} />
-          Discontinue
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function IcuActivitySettingsBlock({
-  title,
-  state,
-  emptyMessage,
-  showContext = false
-}: {
-  title: string;
-  state: IcuActivityAuditState | null;
-  emptyMessage: string;
-  showContext?: boolean;
-}) {
-  return (
-    <section className="rounded-2xl border border-slate-100 bg-white px-3 py-3">
-      <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{title}</p>
-      {state ? (
-        <div className="mt-1 space-y-1">
-          {showContext && (
-            <p className="text-xs font-bold leading-5 text-slate-500">
-              {[state.bed, state.device].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          {state.airway && <p className="text-sm font-black leading-6 text-slate-700">{state.airway}</p>}
-          <p className="text-sm font-black leading-6 text-hospital-ink">{state.settings.replaceAll(" - ", " · ")}</p>
-        </div>
-      ) : (
-        <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{emptyMessage}</p>
-      )}
-    </section>
-  );
-}
-
-function IcuActivityCard({
-  eventRecord,
-  onOpen
-}: {
-  eventRecord: IcuPatientEventRecord;
-  onOpen: () => void;
-}) {
-  const bed = eventDataText(eventRecord, "bed") || "ICU";
-  const device = eventDataText(eventRecord, "device") || "Device";
-  const settings = eventDataText(eventRecord, "settings");
-  const outcome = eventDataText(eventRecord, "ventilatorOutcome");
-  const action = historyEventLabel(eventRecord);
-  const boardUpdate = isBoardUpdateEvent(eventRecord.event_type);
-
-  return (
-    <button
-      type="button"
-      onClick={onOpen}
-      aria-label={`View details for ${bed} ${device} ${action.toLowerCase()}`}
-      className="w-full rounded-3xl border border-white bg-white/95 p-4 text-left shadow-sm transition active:scale-[0.99]"
-    >
-      <div className="flex items-start gap-3">
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-          <ClipboardList size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-black leading-5 text-hospital-ink">
-            {boardUpdate ? "Board updated " : ""}{formatIcuActivityTime(eventRecord.event_time)} {boardUpdate ? "·" : "-"} {bed} {device} {action.toLowerCase()} by{" "}
-            {eventRecord.created_by_name || "Unknown"}
-          </p>
-          {eventRecord.event_summary && (
-            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
-          )}
-          {outcome && <p className="mt-1 text-xs font-black leading-5 text-rose-700">Outcome: {outcome}</p>}
-          {settings && <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{settings}</p>}
-        </div>
-        <ChevronRight size={18} className="mt-2 shrink-0 text-cyan-700" />
-      </div>
-    </button>
-  );
-}
-
-export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCommandCenterClientProps) {
-  const isLeadSurface = surface === "lead";
-  const Container = isLeadSurface ? "div" : "main";
-  const [roomRecords, setRoomRecords] = useState<Array<Pick<IcuPatientRecord, "bed">>>([]);
-  const roomOptions = useMemo(() => availableIcuBeds(roomRecords), [roomRecords]);
-  const [records, setRecords] = useState<IcuPatientRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<IcuPatientRecord | null>(null);
-  const [formOpenedFromAdd, setFormOpenedFromAdd] = useState(false);
-  const [form, setForm] = useState<IcuPatientForm>(emptyForm);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [formError, setFormError] = useState("");
-  const [actionSaving, setActionSaving] = useState(false);
-  const [discontinueTarget, setDiscontinueTarget] = useState<IcuPatientRecord | null>(null);
-  const [discontinueError, setDiscontinueError] = useState("");
-  const [ventilatorOutcome, setVentilatorOutcome] = useState<VentilatorOutcome | "">("");
-  const [ventilatorOutcomeComment, setVentilatorOutcomeComment] = useState("");
-  const [discontinuedDate, setDiscontinuedDate] = useState("");
-  const [discontinuedTime, setDiscontinuedTime] = useState("");
-  const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
-  const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
-  const roundingReport = useMemo(() => reportOpen
-    ? buildIcuRoundingReport(records, authContext.departmentName, new Date(), false)
-    : "", [reportOpen, records, authContext.departmentName]);
-  const [historyEvents, setHistoryEvents] = useState<IcuPatientEventRecord[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [previousDateOpen, setPreviousDateOpen] = useState(false);
-  const [previousDateInput, setPreviousDateInput] = useState("");
-  const [previousDateLabel, setPreviousDateLabel] = useState("");
-  const [previousDateResults, setPreviousDateResults] = useState<IcuPatientEventRecord[]>([]);
-  const [previousDateLoading, setPreviousDateLoading] = useState(false);
-  const [previousDateError, setPreviousDateError] = useState("");
-  const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
-  const [todayActivityLoading, setTodayActivityLoading] = useState(true);
-  const [todayActivityError, setTodayActivityError] = useState("");
-  const [activityDetailEvent, setActivityDetailEvent] = useState<IcuPatientEventRecord | null>(null);
-  const [activityDetailPreviousState, setActivityDetailPreviousState] = useState<IcuActivityAuditState | null>(null);
-  const [activityDetailLoading, setActivityDetailLoading] = useState(false);
-  const [activityDetailError, setActivityDetailError] = useState("");
-
-  const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
-  const activityDetailUpdatedState = useMemo(
-    () => (activityDetailEvent ? icuActivityStateFromEvent(activityDetailEvent) : null),
-    [activityDetailEvent]
-  );
-  const activityDetailStatusChanges = useMemo(
-    () => icuActivityStatusChanges(activityDetailPreviousState, activityDetailUpdatedState),
-    [activityDetailPreviousState, activityDetailUpdatedState]
-  );
-
-  const signOut = async () => {
-    await signOutAndRedirect();
-  };
-
-  const loadRecords = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
-    }
-    setError("");
-
-    const supabase = createClient();
-    const patientQuery = fetchAllPages<IcuPatientRecord>((from, to) => supabase
-      .from("icu_patients")
-      .select(icuPatientSelect)
-      .eq("department_id", authContext.departmentId)
-      .eq("is_active", true)
-      .order("bed", { ascending: true }).order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: IcuPatientRecord[] | null; error: { message: string } | null }>);
-    // Existing saved rooms remain available after discontinuation on either surface.
-    const roomQuery = fetchAllPages<Pick<IcuPatientRecord, "bed">>((from, to) => supabase
-      .from("icu_patients").select("bed").eq("department_id", authContext.departmentId)
-      .order("id", { ascending: true }).range(from, to));
-    const [patientResult, roomResult] = await Promise.all([patientQuery, roomQuery]);
-    if (!roomResult.error) setRoomRecords(roomResult.data ?? []);
-
-    setLoading(false);
-
-    if (patientResult.error) {
-      setRecords([]);
-      setError("Could not load ICU Command Center.");
-      return;
-    }
-
-    setRecords((patientResult.data ?? []) as unknown as IcuPatientRecord[]);
-  }, [authContext.departmentId]);
-
-  const loadTodayActivity = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setTodayActivityLoading(true);
-    }
-    setTodayActivityError("");
-    const range = todayIcuDateRange();
-
-    const supabase = createClient();
-    const { data, error: activityLoadError } = await supabase
-      .from("icu_patient_events")
-      .select(icuPatientEventSelect)
-      .eq("department_id", authContext.departmentId)
-      .gte("event_time", range.startIso)
-      .lte("event_time", range.endIso)
-      .in("event_type", ["added", "updated", "critical_status_updated", "sbt_status_updated", "flolan_status_updated", "prone_status_updated", "standby_status_updated", "ct_noted", "mri_noted", "discontinued"])
-      .order("event_time", { ascending: false });
-
-    setTodayActivityLoading(false);
-
-    if (activityLoadError) {
-      setTodayActivity([]);
-      setTodayActivityError("Could not load today's ICU activity.");
-      return;
-    }
-
-    setTodayActivity((data ?? []) as unknown as IcuPatientEventRecord[]);
-  }, [authContext.departmentId]);
-
-  useEffect(() => {
-    queueMicrotask(() => {
-      void loadRecords();
-      void loadTodayActivity();
-    });
-  }, [loadRecords, loadTodayActivity]);
-
-  useEffect(() => {
-    let refreshTimer: number | undefined;
-    let shiftBoundaryTimer: number | undefined;
-    const refresh = () => {
-      window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => {
-        void loadRecords(false);
-        void loadTodayActivity(false);
-      }, 200);
-    };
-    const interval = window.setInterval(refresh, 60_000);
-    const scheduleShiftBoundaryRefresh = () => {
-      shiftBoundaryTimer = window.setTimeout(() => {
-        refresh();
-        scheduleShiftBoundaryRefresh();
-      }, nextIcuOperationalShiftBoundaryDelay() + 50);
-    };
-    scheduleShiftBoundaryRefresh();
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`icu-command-center-${authContext.departmentId}-${crypto.randomUUID()}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "icu_patients",
-          filter: `department_id=eq.${authContext.departmentId}`
-        },
-        refresh
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "icu_patient_events",
-          filter: `department_id=eq.${authContext.departmentId}`
-        },
-        refresh
-      )
-      .subscribe();
-
-    return () => {
-      window.clearTimeout(refreshTimer);
-      window.clearTimeout(shiftBoundaryTimer);
-      window.clearInterval(interval);
-      void supabase.removeChannel(channel);
-    };
-  }, [authContext.departmentId, loadRecords, loadTodayActivity]);
-
-  const openAdd = () => {
-    if (!canManageIcuLifecycle(authContext)) return;
-    setFormOpenedFromAdd(true);
-    setEditingRecord(null);
-    setForm(emptyForm);
-    setFormOpen(true);
-    setMessage("");
-    setError("");
-    setFormError("");
-  };
-
-  const openEdit = (record: IcuPatientRecord) => {
-    if (!canEditIcuCommandCenter(authContext)) return;
-    setFormOpenedFromAdd(false);
-    setEditingRecord(record);
-    setForm(formFromRecord(record));
-    setFormOpen(true);
-    setMessage("");
-    setError("");
-    setFormError("");
-  };
-
-  const savePatient = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canManageIcuLifecycle(authContext) || (editingRecord && !canEditIcuCommandCenter(authContext))) return;
-    setMessage("");
-    setError("");
-    setFormError("");
-
-    const bed = form.bed.trim();
-    if (!bed || !form.device_type) {
-      setFormError("Bed and device are required.");
-      return;
-    }
-
-    if (bed.length > 20) {
-      setFormError("Bed must be 20 characters or fewer.");
-      return;
-    }
-
-    if (form.device_type === "vent" && !form.vent_mode) {
-      setFormError("Vent Mode is required for Vent patients.");
-      return;
-    }
-
-    if (form.device_type === "vent" && form.airway_type === "trach" &&
-      (!trachSizeOptions.some((size) => size === form.airway_size) || !form.trach_type)) {
-      setFormError("Select a trach size and type.");
-      return;
-    }
-
-    const numericValidationError = validateIcuNumericFields(form);
-    if (numericValidationError) {
-      setFormError(numericValidationError);
-      return;
-    }
-
-    setSaving(true);
-    const supabase = createClient();
-    const payload = cleanPayload({ ...form, bed }, authContext);
-    const result = editingRecord
-      ? await supabase
-          .from("icu_patients")
-          .update(payload)
-          .eq("id", editingRecord.id)
-          .eq("updated_at", editingRecord.updated_at)
-          .eq("department_id", authContext.departmentId)
-          .select(icuPatientSelect)
-          .maybeSingle()
-      : await supabase.rpc("manage_icu_device", {
-          target_department_id: authContext.departmentId,
-          target_action: "add",
-          target_payload: payload,
-          target_event_data: eventDataFromRecord({
-            ...payload, device_type: form.device_type as IcuDeviceType,
-            is_active: true, is_critical_vent: false, is_sbt: false, is_flolan: false, is_prone: false
-          } as IcuPatientRecord, { action: "added" })
-        });
-
-    setSaving(false);
-
-    if (result.error || !result.data) {
-      if (editingRecord && !result.error && !result.data) {
-        await loadRecords(false);
-        setFormError("This patient changed. Close and reopen Update to review the latest settings.");
-        return;
-      }
-      setFormError(
-        result.error?.code === "23505"
-          ? "That ICU bed already has an active record."
-          : "Could not save ICU patient. Please try again."
-      );
-      return;
-    }
-
-    const savedRecord = result.data as unknown as IcuPatientRecord | null;
-    if (savedRecord && editingRecord) {
-      const eventResult = await createIcuPatientEvent(
-        supabase,
-        authContext,
-        savedRecord,
-        editingRecord ? "updated" : "added",
-        editingRecord ? "ICU device settings updated." : "ICU device added.",
-        {
-          action: editingRecord ? "updated" : "added"
-        },
-        undefined,
-        editingRecord
-      );
-
-      if (eventResult.error) {
-        setMessage("ICU patient saved, but history could not be recorded.");
-      } else {
-        setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
-      }
-    } else {
-      setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
-    }
-
-    setFormOpen(false);
-    setEditingRecord(null);
-    setForm(emptyForm);
-    await loadRecords();
-    await loadTodayActivity();
-  };
-
-  const saveRoundingAction = async (record: IcuPatientRecord, action: RoundingAction, payload: Record<string, unknown>) => {
-    setActionSaving(true);
-    setMessage("");
-    setError("");
-    try {
-      const { data, error: saveError } = await createClient().rpc("record_icu_rounding_action", {
-        target_patient_id: record.id,
-        target_action: action,
-        target_payload: payload,
-        expected_updated_at: record.updated_at
-      });
-      if (saveError || !data) {
-        if (saveError?.code === "40001") await loadRecords(false);
-        setError(saveError?.code === "40001" ? "This patient changed. Close and reopen the editor to review the refreshed card before saving." : "Could not save this rounding update. Please try again.");
-        return false;
-      }
-      const updatedRecord = data as unknown as IcuPatientRecord;
-      setRecords(current => current.map(item => item.id === updatedRecord.id ? updatedRecord : item));
-      setMessage(action === "note" ? "ICU note saved." : "Rounding update saved.");
-      await loadTodayActivity(false);
-      return true;
-    } catch {
-      setError("Could not save this rounding update. Please try again.");
-      return false;
-    } finally {
-      setActionSaving(false);
-    }
-  };
-
-  const saveModality = async (record: IcuPatientRecord, modality: IcuDeviceType, settings: ModalitySettings, action: ModalityAction, version: string) => {
-    setActionSaving(true);
-    setError("");
-    setMessage("");
-    try {
-      const { data, error: saveError } = await createClient().rpc("manage_icu_modality", {
-        target_patient_id: record.id, target_modality: modality, target_settings: settings,
-        target_action: action, expected_updated_at: version
-      });
-      if (saveError || !data) {
-        if (saveError?.code === "40001") await loadRecords(false);
-        return false;
-      }
-      const updated = data as unknown as IcuPatientRecord;
-      setRecords(current => current.map(item => item.id === updated.id ? updated : item));
-      setMessage(action === "switch" ? `Switched to ${icuDeviceLabels[modality]} with saved settings.` : action === "discontinue" ? `Saved ${icuDeviceLabels[modality]} discontinued.` : "Additional modality saved.");
-      await loadTodayActivity(false);
-      return true;
-    } catch { return false; }
-    finally { setActionSaving(false); }
-  };
-
-  const savePatientNote = (record: IcuPatientRecord, notes: string) => saveRoundingAction(record, "note", { notes: notes.trim() });
-
-  const openDiscontinue = (record: IcuPatientRecord) => {
-    if (!canManageIcuLifecycle(authContext)) return;
-    const defaults = defaultIcuDateTime();
-    setDiscontinueTarget(record);
-    setVentilatorOutcome("");
-    setVentilatorOutcomeComment("");
-    setDiscontinuedDate(defaults.date);
-    setDiscontinuedTime(defaults.time);
-    setDiscontinueError("");
-    setMessage("");
-    setError("");
-  };
-
-  const confirmDiscontinue = async () => {
-    if (!discontinueTarget) {
-      return;
-    }
-
-    if (discontinueTarget.device_type === "vent" && !ventilatorOutcome) {
-      setDiscontinueError("Select a ventilator outcome before discontinuing this ventilator.");
-      return;
-    }
-
-    if (!discontinuedDate || !discontinuedTime) {
-      setDiscontinueError("Discontinued Date and Discontinued Time are required.");
-      return;
-    }
-
-    const discontinuedAt = wallTimeToIso(discontinuedDate, discontinuedTime);
-    if (!discontinuedAt) {
-      setDiscontinueError("Enter a valid discontinued date and time.");
-      return;
-    }
-
-    setActionSaving(true);
-    setMessage("");
-    setError("");
-    setDiscontinueError("");
-    const supabase = createClient();
-    const outcome: VentilatorOutcome | null =
-      discontinueTarget.device_type === "vent" ? (ventilatorOutcome as VentilatorOutcome) : null;
-    const discontinuedRecord = { ...discontinueTarget, is_active: false, discontinued_at: discontinuedAt, ventilator_outcome: outcome };
-    const { error: discontinueUpdateError } = await supabase.rpc("manage_icu_device", {
-      target_department_id: authContext.departmentId,
-      target_action: "discontinue",
-      target_patient_id: discontinueTarget.id,
-      expected_updated_at: discontinueTarget.updated_at,
-      target_payload: { discontinued_at: discontinuedAt, ventilator_outcome: outcome },
-      target_event_data: eventDataFromRecord(discontinuedRecord, {
-        previousState: icuActivityStateFromRecord(discontinueTarget),
-        ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
-        ventilatorOutcomeComment: outcome === "other_unknown" ? ventilatorOutcomeComment.trim() || null : null,
-        discontinuedAt
-      })
-    });
-    setActionSaving(false);
-    if (discontinueUpdateError) {
-      setDiscontinueError(discontinueUpdateError.code === "40001"
-        ? "This device changed. Close this dialog and review the refreshed record before discontinuing."
-        : "Could not discontinue ICU device. Please try again.");
-      await loadRecords(false);
-      return;
-    }
-
-    setDiscontinueTarget(null);
-    setVentilatorOutcome("");
-    setVentilatorOutcomeComment("");
-    setDiscontinuedDate("");
-    setDiscontinuedTime("");
-    setMessage("Device discontinued.");
-    await loadRecords();
-    await loadTodayActivity();
-  };
-
-  const toggleStandbyStatus = async (record: IcuPatientRecord) => {
-    if (!supportsIcuStandby(record.device_type)) {
-      return;
-    }
-
-    setActionSaving(true);
-    setMessage("");
-    setError("");
-    const nextStandby = !record.is_standby;
-    const supabase = createClient();
-    const { data, error: updateError } = await supabase
-      .from("icu_patients")
-      .update({
-        is_standby: nextStandby,
-        updated_by_staff_profile_id: authContext.staffProfileId
-      })
-      .eq("id", record.id)
-      .eq("department_id", authContext.departmentId)
-      .select(icuPatientSelect)
-      .maybeSingle();
-
-    setActionSaving(false);
-
-    if (updateError || !data) {
-      setError("Could not update standby status. Please try again.");
-      return;
-    }
-
-    const updatedRecord = (data as unknown as IcuPatientRecord | null) ?? {
-      ...record,
-      is_standby: nextStandby
-    };
-    const eventResult = await createIcuPatientEvent(
-      supabase,
-      authContext,
-      updatedRecord,
-      "standby_status_updated",
-      `Standby: ${nextStandby ? "Yes" : "No"}.`,
-      { standby: nextStandby },
-      undefined,
-      record
-    );
-
-    setMessage(eventResult.error ? "Standby status updated, but history could not be recorded." : "Standby status updated.");
-    await loadRecords();
-    await loadTodayActivity();
-  };
-
-  const openActivityDetail = async (eventRecord: IcuPatientEventRecord) => {
-    setActivityDetailEvent(eventRecord);
-    setActivityDetailError("");
-
-    const embeddedPreviousState = icuActivityStateFromEvent(eventRecord, "previousState");
-    if (embeddedPreviousState || eventRecord.event_type === "added") {
-      setActivityDetailPreviousState(embeddedPreviousState);
-      setActivityDetailLoading(false);
-      return;
-    }
-
-    setActivityDetailPreviousState(null);
-    setActivityDetailLoading(true);
-    const supabase = createClient();
-    const { data, error: previousLoadError } = await supabase
-      .from("icu_patient_events")
-      .select(icuPatientEventSelect)
-      .eq("department_id", authContext.departmentId)
-      .eq("icu_patient_id", eventRecord.icu_patient_id)
-      .lt("event_time", eventRecord.event_time)
-      .order("event_time", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    setActivityDetailLoading(false);
-
-    if (previousLoadError) {
-      setActivityDetailError("Could not load the previous settings for this activity.");
-      return;
-    }
-
-    setActivityDetailPreviousState(
-      data ? icuActivityStateFromEvent(data as unknown as IcuPatientEventRecord) : null
-    );
-  };
-
-  const openHistory = async (record: IcuPatientRecord) => {
-    setHistoryTarget(record);
-    setHistoryEvents([]);
-    setHistoryError("");
-    setHistoryLoading(true);
-
-    const supabase = createClient();
-    const { data, error: historyLoadError } = await supabase
-      .from("icu_patient_events")
-      .select(icuPatientEventSelect)
-      .eq("department_id", authContext.departmentId)
-      .eq("icu_patient_id", record.id)
-      .order("event_time", { ascending: false });
-
-    setHistoryLoading(false);
-
-    if (historyLoadError) {
-      setHistoryEvents([]);
-      setHistoryError("Could not load ICU history.");
-      return;
-    }
-
-    setHistoryEvents((data ?? []) as unknown as IcuPatientEventRecord[]);
-  };
-
-  const searchPreviousDate = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const parsed = parsePreviousDateInput(previousDateInput);
-    setPreviousDateError("");
-    setPreviousDateResults([]);
-    setPreviousDateLabel("");
-
-    if (!parsed) {
-      setPreviousDateError("Enter date as MMDDYY.");
-      return;
-    }
-
-    setPreviousDateLoading(true);
-    const supabase = createClient();
-    const { data, error: searchError } = await supabase
-      .from("icu_patient_events")
-      .select(icuPatientEventSelect)
-      .eq("department_id", authContext.departmentId)
-      .gte("event_time", parsed.startIso)
-      .lte("event_time", parsed.endIso)
-      .in("event_type", ["added", "updated", "critical_status_updated", "sbt_status_updated", "flolan_status_updated", "prone_status_updated", "standby_status_updated", "ct_noted", "mri_noted", "discontinued"])
-      .order("event_time", { ascending: false });
-
-    setPreviousDateLoading(false);
-
-    if (searchError) {
-      setPreviousDateError("Could not search ICU history. Please try again.");
-      return;
-    }
-
-    setPreviousDateLabel(parsed.label);
-    setPreviousDateResults((data ?? []) as unknown as IcuPatientEventRecord[]);
-  };
-
-  return (
-    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
-      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
-        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
-          <h1 className="mt-2 text-3xl font-black text-hospital-ink">ICU Command Center</h1>
-          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Track ICU respiratory devices and settings.</p>
-          <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
-            Use bed/room only. Do not enter patient names, MRNs, DOBs, diagnoses, or clinical notes.
-          </p>
-        </section>
-
-        {!isIcuCommandCenter(authContext) && (
-          <Link
-            href="/"
-            className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
-          >
-            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-              <CalendarDays size={26} strokeWidth={2.5} aria-hidden="true" />
-            </span>
-            <span className="flex-1">
-              <span className="block text-lg font-black text-sky-950">Return to Schedule</span>
-              <span className="mt-0.5 block text-xs font-bold text-sky-900">Back to your Schedule page.</span>
-            </span>
-            <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-          </Link>
-        )}
-
-        {!isIcuCommandCenter(authContext) && <button
-          type="button"
-          onClick={() => setReportOpen(true)}
-          aria-haspopup="dialog"
-          aria-controls="icu-rounding-report"
-          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
-        >
-          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-            <ClipboardList size={26} strokeWidth={2.5} aria-hidden="true" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-lg font-black text-sky-950">ICU Report</span>
-            <span className="mt-0.5 block text-xs font-bold text-sky-900">View the full report for rounds.</span>
-          </span>
-          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-        </button>}
-
-        {reportOpen && <dialog
-          id="icu-rounding-report"
-          aria-labelledby="icu-rounding-report-title"
-          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
-          onClose={() => setReportOpen(false)}
-          className="fixed inset-0 m-auto h-[90dvh] max-h-[90dvh] w-[calc(100%-1rem)] max-w-4xl rounded-2xl border border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45"
-        >
-          <div className="flex h-full min-h-0 flex-col">
-            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3">
-              <h2 id="icu-rounding-report-title" className="text-xl font-black">ICU Report</h2>
-              <div className="flex gap-2">
-                <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold disabled:opacity-50"><RefreshCw size={17} aria-hidden="true" />Refresh</button>
-                <button type="button" autoFocus onClick={() => setReportOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold"><X size={18} aria-hidden="true" />Close</button>
-              </div>
-            </header>
-            {error ? <p role="alert" className="p-4 text-rose-800">{error}</p> : loading ? <p role="status" className="p-4 text-slate-600">Loading ICU report…</p> : <iframe title="Full ICU rounding report" sandbox="allow-same-origin" srcDoc={roundingReport} className="min-h-0 w-full flex-1 border-0 bg-white" />}
-          </div>
-        </dialog>}
-
-        <button
-          type="button"
-          disabled={loading || records.length === 0}
-          onClick={() => setPrintOptionsOpen(true)}
-          aria-haspopup="dialog"
-          aria-controls="icu-print-options"
-          className={`${isIcuCommandCenter(authContext) ? "flex" : "hidden md:flex"} min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60`}
-        >
-          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
-            <Printer size={26} strokeWidth={2.5} aria-hidden="true" />
-          </span>
-          <span className="flex-1">
-            <span className="block text-lg font-black text-sky-950">Print Report</span>
-            <span className="mt-0.5 block text-xs font-bold text-sky-900">Active ICU patients and rounding details.</span>
-          </span>
-          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
-        </button>
-
-        {printOptionsOpen && <dialog id="icu-print-options" aria-labelledby="icu-print-title"
-          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
-          onClose={() => setPrintOptionsOpen(false)}
-          onClick={event => { if (event.target === event.currentTarget) setPrintOptionsOpen(false); }}
-          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border-2 border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45 backdrop:backdrop-blur-sm">
-          <div className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 id="icu-print-title" className="text-xl font-black">Print Report</h2>
-              <button type="button" onClick={() => setPrintOptionsOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-100"><X size={18} />Close</button>
-            </div>
-            <p className="mb-4 text-sm font-semibold text-slate-600">Choose a report to print.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
-            <span className="flex items-center gap-2 font-black"><Printer size={18} />SBAR</span>
-            <span className="mt-1 block text-xs font-semibold">Quick board sheet: beds, modalities and current settings.</span>
-          </button>
-          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuRoundingReport(records, authContext.departmentName); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
-            <span className="flex items-center gap-2 font-black"><Printer size={18} />ICU Report</span>
-            <span className="mt-1 block text-xs font-semibold">Full rounding details, notes, current and previous settings.</span>
-          </button>
-            </div>
-          </div>
-        </dialog>}
-
-        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Snapshot</p>
-              <h2 className="mt-1 text-xl font-black text-hospital-ink">Active Devices</h2>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadRecords()}
-              className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-            >
-              <RefreshCw size={15} />
-              Refresh
-            </button>
-          </div>
-          <IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} />
-        </section>
-
-        <button
-          type="button"
-          onClick={openAdd}
-          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-base font-black text-white shadow-md shadow-cyan-900/20"
-        >
-          <Plus size={18} />
-          Add Patient
-        </button>
-
-        {message && (
-          <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
-            {message}
-          </p>
-        )}
-        {error && (
-          <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-            {error}
-          </p>
-        )}
-
-        <section className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Bed size={18} className="text-cyan-700" />
-            <h2 className="text-2xl font-black text-hospital-ink">Active ICU Patients</h2>
-          </div>
-          {loading && (
-            <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
-              Loading ICU patients...
-            </p>
-          )}
-          {!loading && records.length === 0 && (
-            <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
-              No active ICU respiratory devices.
-            </p>
-          )}
-          {!loading &&
-            records.map((record) => (
-              <IcuPatientCard
-                key={record.id}
-                record={record}
-                actionSaving={actionSaving}
-                onSaveNote={(notes, version) => savePatientNote({ ...record, updated_at: version }, notes)}
-                onRoundingAction={(action, payload, version) => saveRoundingAction({ ...record, updated_at: version }, action, payload)}
-                onSaveModality={(modality, settings, activate, version) => saveModality(record, modality, settings, activate, version)}
-                onUpdate={() => openEdit(record)}
-                onDiscontinue={() => openDiscontinue(record)}
-                onHistory={() => void openHistory(record)}
-                onToggleStandby={() => void toggleStandbyStatus(record)}
-              />
-            ))}
-        </section>
-
-        <section className="space-y-3 rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-black text-hospital-ink">Today&apos;s ICU Activity</h2>
-              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Updates and discontinued devices for today.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadTodayActivity()}
-              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-            >
-              <RefreshCw size={15} />
-              Refresh
-            </button>
-          </div>
-
-          {todayActivityLoading && (
-            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
-              Loading ICU activity...
-            </p>
-          )}
-          {todayActivityError && (
-            <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-              {todayActivityError}
-            </p>
-          )}
-          {!todayActivityLoading && !todayActivityError && todayActivity.length === 0 && (
-            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
-              No ICU updates or discontinued devices recorded today.
-            </p>
-          )}
-          {!todayActivityLoading &&
-            !todayActivityError &&
-            todayActivity.map((eventRecord) => (
-              <IcuActivityCard
-                key={eventRecord.id}
-                eventRecord={eventRecord}
-                onOpen={() => void openActivityDetail(eventRecord)}
-              />
-            ))}
-
-          <div className="rounded-3xl border border-cyan-100 bg-cyan-50/40 p-3">
-            <div className="flex items-center gap-2">
-              <Search size={16} className="text-cyan-700" />
-              <p className="text-sm font-black text-hospital-ink">Search Previous Date</p>
-            </div>
-            <p className="mt-1 text-xs font-bold text-slate-500">Enter a previous ICU activity date as MMDDYY.</p>
-            <form onSubmit={searchPreviousDate} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-              <label className="block">
-                <span className="sr-only">Previous ICU activity date</span>
-                <input
-                  value={previousDateInput}
-                  onChange={(event) => setPreviousDateInput(event.target.value)}
-                  inputMode="numeric"
-                  placeholder="070626"
-                  className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-base font-black text-hospital-ink outline-none focus:border-cyan-400"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={previousDateLoading}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Search size={16} />
-                {previousDateLoading ? "Searching..." : "Search"}
-              </button>
-            </form>
-
-            {previousDateError && (
-              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                {previousDateError}
-              </p>
-            )}
-
-            <div className="mt-3 space-y-3">
-              {previousDateLabel && (
-                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
-              )}
-              {previousDateLabel && previousDateResults.length === 0 && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No ICU activity found for this date.
-                </p>
-              )}
-              {previousDateResults.map((eventRecord) => (
-                <IcuActivityCard
-                  key={eventRecord.id}
-                  eventRecord={eventRecord}
-                  onOpen={() => void openActivityDetail(eventRecord)}
-                />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
-        >
-          <LogOut size={16} />
-          Sign out
-        </button>
-      </div>}
-
-      {activityDetailEvent && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="icu-activity-detail-title"
-            className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Activity Details</p>
-                <h2 id="icu-activity-detail-title" className="mt-1 text-xl font-black text-hospital-ink">
-                  {activityDetailUpdatedState?.bed || eventDataText(activityDetailEvent, "bed") || "ICU"}
-                  {" · "}
-                  {activityDetailUpdatedState?.device || eventDataText(activityDetailEvent, "device") || "Device"}
-                </h2>
-                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
-                  {isBoardUpdateEvent(activityDetailEvent.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(activityDetailEvent.event_time)} · {historyEventLabel(activityDetailEvent)}
-                  {activityDetailEvent.created_by_name ? ` by ${activityDetailEvent.created_by_name}` : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setActivityDetailEvent(null);
-                  setActivityDetailPreviousState(null);
-                  setActivityDetailError("");
-                }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {activityDetailLoading ? (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  Loading previous settings...
-                </p>
-              ) : (
-                <IcuActivitySettingsBlock
-                  title="Previous Settings"
-                  state={activityDetailPreviousState}
-                  emptyMessage={activityDetailEvent.event_type === "added" ? "No previous settings — device added." : "Previous settings unavailable for this activity."}
-                  showContext={Boolean(
-                    activityDetailPreviousState &&
-                    activityDetailUpdatedState &&
-                    (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
-                      activityDetailPreviousState.device !== activityDetailUpdatedState.device)
-                  )}
-                />
-              )}
-
-              <IcuActivitySettingsBlock
-                title="Updated Settings"
-                state={activityDetailUpdatedState}
-                emptyMessage="Updated settings unavailable for this activity."
-                showContext={Boolean(
-                  activityDetailPreviousState &&
-                  activityDetailUpdatedState &&
-                  (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
-                    activityDetailPreviousState.device !== activityDetailUpdatedState.device)
-                )}
-              />
-
-              {activityDetailStatusChanges.length > 0 && (
-                <section className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
-                  <p className="text-xs font-extrabold uppercase tracking-wide text-amber-800">Status Changes</p>
-                  <p className="mt-1 text-sm font-black leading-6 text-amber-950">
-                    {activityDetailStatusChanges.join(" · ")}
-                  </p>
-                </section>
-              )}
-
-              {activityDetailEvent.event_type === "discontinued" && eventDataText(activityDetailEvent, "ventilatorOutcome") && (
-                <section className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3">
-                  <p className="text-sm font-black text-rose-900">Outcome: {eventDataText(activityDetailEvent, "ventilatorOutcome")}</p>
-                  {eventDataText(activityDetailEvent, "ventilatorOutcomeComment") && (
-                    <p className="mt-2 whitespace-pre-wrap break-words text-sm font-bold text-slate-700">
-                      Outcome comment: {eventDataText(activityDetailEvent, "ventilatorOutcomeComment")}
-                    </p>
-                  )}
-                </section>
-              )}
-
-              {activityDetailError && (
-                <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                  {activityDetailError}
-                </p>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="icu-form-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
-                <h2 id="icu-form-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  {editingRecord ? (isLeadSurface ? "Update Device" : "Update Patient") : isLeadSurface ? "Add Device" : "Add Patient"}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setFormError("");
-                  setFormOpen(false);
-                }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                Close
-              </button>
-            </div>
-
-            {formError && (
-              <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                {formError}
-              </p>
-            )}
-
-            <form onSubmit={savePatient} className="mt-4 space-y-4">
-              <div className="grid gap-3">
-                <LeadBedSelector
-                  bed={form.bed}
-                  records={records}
-                  editingId={editingRecord?.id}
-                  roomOptions={isLeadSurface ? undefined : roomOptions}
-                  allowOccupiedSelection={!isLeadSurface && formOpenedFromAdd && canEditIcuCommandCenter(authContext)}
-                  onChange={(bed) => {
-                    if (isLeadSurface || !formOpenedFromAdd) {
-                      setForm({ ...form, bed });
-                      return;
-                    }
-                    const existing = records.find((record) => record.is_active && record.bed === bed);
-                    if (existing && !canEditIcuCommandCenter(authContext)) return;
-                    setEditingRecord(existing ?? null);
-                    setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
-                    setFormError("");
-                  }}
-                />
-
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>
-                  <select
-                    value={isOxygenDevice(form.device_type) ? "oxygen" : form.device_type}
-                    onChange={(event) => {
-                      const device = event.target.value === "oxygen" ? "nasal_cannula" : event.target.value;
-                      setForm({
-                        ...form,
-                        device_type: device as IcuDeviceType | "",
-                        ...(editingRecord?.rounding_data?.modalities?.[device as IcuDeviceType]
-                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[device as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
-                          : {}),
-                        is_standby: supportsIcuStandby(device as IcuDeviceType | "") ? form.is_standby : false
-                      });
-                    }}
-                    required
-                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                  >
-                    <option value="">Select device</option>
-                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => !isOxygenDevice(device)).map((device) => (
-                      <option key={device} value={device}>
-                        {icuDeviceLabels[device]}
-                      </option>
-                    ))}
-                    <option value="oxygen">Oxygen Device</option>
-                  </select>
-                </label>
-              </div>
-
-              {isOxygenDevice(form.device_type) && (
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Oxygen Device</span>
-                  <select value={form.device_type} onChange={event => setForm({ ...form, device_type: event.target.value as IcuDeviceType })}
-                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink">
-                    {oxygenDeviceTypes.map(device => <option key={device} value={device}>{icuDeviceLabels[device]}</option>)}
-                  </select>
-                </label>
-              )}
-
-              {form.device_type === "vent" && (
-                <>
-                  <details
-                    key={editingRecord?.id ?? "new-airway"}
-                    open={!editingRecord?.airway_size || (editingRecord.airway_type === "trach" && !editingRecord.trach_type)}
-                    onInvalidCapture={(event) => { event.currentTarget.open = true; }}
-                    className="rounded-3xl border border-cyan-100 bg-cyan-50/60 p-3"
-                  >
-                    <summary className="cursor-pointer rounded-xl py-2 text-sm font-black text-hospital-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-700">
-                      Airway{editingRecord?.airway_size ? " — expand to review or edit" : ""}
-                    </summary>
-                    <div className="mt-3 grid gap-3">
-                      <fieldset>
-                        <legend className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Airway type</legend>
-                        <div className="mt-2 grid grid-cols-2 gap-2">
-                          {(["ett", "trach"] as const).map((airwayType) => (
-                            <label key={airwayType} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-bold ${form.airway_type === airwayType ? "border-cyan-600 bg-white text-hospital-ink" : "border-slate-200 text-slate-700"}`}>
-                              <input type="radio" name="airway-type" value={airwayType}
-                                checked={form.airway_type === airwayType}
-                                onChange={() => setForm({ ...form, airway_type: airwayType, airway_size: "", airway_at: "", airway_location: "", trach_type: "", trach_xlt: false })}
-                                className="h-4 w-4 accent-cyan-700" />
-                              {airwayType === "ett" ? "ETT" : "Trach"}
-                            </label>
-                          ))}
-                        </div>
-                      </fieldset>
-                      <label className="block">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{form.airway_type === "trach" ? "Trach size" : "Airway size"}</span>
-                        <select
-                          value={form.airway_size}
-                          onChange={(event) => setForm({ ...form, airway_size: event.target.value })}
-                          required={form.airway_type === "trach"}
-                          className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                        >
-                          <option value="">Select size</option>
-                          {(form.airway_type === "trach" ? trachSizeOptions : airwaySizeOptions).map((size) => (
-                            <option key={size} value={size}>
-                              {size}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {form.airway_type === "trach" ? (
-                        <>
-                          <label className="block">
-                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Trach type</span>
-                            <select value={form.trach_type} required
-                              onChange={(event) => setForm({ ...form, trach_type: event.target.value as IcuTrachType | "" })}
-                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200">
-                              <option value="">Select type</option>
-                              {(Object.keys(trachTypeLabels) as IcuTrachType[]).map((type) => (
-                                <option key={type} value={type}>{trachTypeLabels[type]}</option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold text-hospital-ink">
-                            <input type="checkbox" checked={form.trach_xlt}
-                              onChange={(event) => setForm({ ...form, trach_xlt: event.target.checked })}
-                              className="h-5 w-5 accent-cyan-700" />
-                            XLT
-                          </label>
-                        </>
-                      ) : (
-                        <>
-                          <IcuNumberInput
-                            label="At"
-                            value={form.airway_at}
-                            onChange={(value) => setForm({ ...form, airway_at: value })}
-                            placeholder="Example: 23"
-                          />
-                          <label className="block">
-                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Location</span>
-                            <select
-                              value={form.airway_location}
-                              onChange={(event) => setForm({ ...form, airway_location: event.target.value })}
-                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                            >
-                              <option value="">Select location</option>
-                              {airwayLocationOptions.map((location) => (
-                                <option key={location} value={location}>
-                                  {icuAirwayLocationLabels[location]}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                        </>
-                      )}
-                    </div>
-                  </details>
-
-                  <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                    <h3 className="text-sm font-black text-hospital-ink">Vent Settings</h3>
-                    <label className="mt-3 block">
-                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Vent Mode</span>
-                      <select
-                        value={form.vent_mode}
-                        onChange={(event) => setForm({ ...form, vent_mode: event.target.value as IcuVentMode | "" })}
-                        required
-                        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                      >
-                        <option value="">Select mode</option>
-                        {ventModeOptions.map((mode) => (
-                          <option key={mode} value={mode}>
-                            {icuVentModeLabels[mode]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      {["apvcmv", "scmv", "pcmv"].includes(form.vent_mode) && (
-                        <>
-                          <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
-                          {form.vent_mode === "pcmv" ? (
-                            <IcuNumberInput label="Pressure Control" value={form.pressure_control} onChange={(value) => setForm({ ...form, pressure_control: value })} />
-                          ) : (
-                            <IcuNumberInput label="Tidal Volume" value={form.tidal_volume} onChange={(value) => setForm({ ...form, tidal_volume: value })} />
-                          )}
-                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
-                        </>
-                      )}
-                      {form.vent_mode === "spont" && (
-                        <>
-                          <IcuNumberInput label="PS" value={form.ps} onChange={(value) => setForm({ ...form, ps: value })} />
-                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
-                        </>
-                      )}
-                      {form.vent_mode === "aprv" && (
-                        <>
-                          <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
-                          <IcuNumberInput label="T-High" value={form.t_high} onChange={(value) => setForm({ ...form, t_high: value })} />
-                          <IcuNumberInput label="T-Low" value={form.t_low} onChange={(value) => setForm({ ...form, t_low: value })} />
-                          <IcuNumberInput label="P-High" value={form.p_high} onChange={(value) => setForm({ ...form, p_high: value })} />
-                          <IcuNumberInput label="P-Low" value={form.p_low} onChange={(value) => setForm({ ...form, p_low: value })} />
-                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                        </>
-                      )}
-                      {form.vent_mode === "asv" && (
-                        <>
-                          <IcuNumberInput label="% Min Vol" value={form.percent_min_vol} onChange={(value) => setForm({ ...form, percent_min_vol: value })} />
-                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
-                        </>
-                      )}
-                    </div>
-                  </section>
-                </>
-              )}
-
-              {form.device_type === "bipap" && (
-                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                  <h3 className="text-sm font-black text-hospital-ink">BiPAP Settings</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="IPAP" value={form.ipap} onChange={(value) => setForm({ ...form, ipap: value })} />
-                    <IcuNumberInput label="EPAP" value={form.epap} onChange={(value) => setForm({ ...form, epap: value })} />
-                    <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
-                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                  </div>
-                </section>
-              )}
-
-              {form.device_type === "cpap" && (
-                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                  <h3 className="text-sm font-black text-hospital-ink">CPAP Settings</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="CPAP" value={form.cpap} onChange={(value) => setForm({ ...form, cpap: value })} />
-                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                  </div>
-                </section>
-              )}
-
-              {form.device_type === "hfnc" && (
-                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                  <h3 className="text-sm font-black text-hospital-ink">HFNC Settings</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
-                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                  </div>
-                </section>
-              )}
-
-              {(form.device_type === "cool_aerosol" || isOxygenDevice(form.device_type)) && (
-                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
-                  <h3 className="text-sm font-black text-hospital-ink">{icuDeviceLabels[form.device_type as IcuDeviceType]} Settings</h3>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
-                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
-                  </div>
-                </section>
-              )}
-
-              {form.device_type ? (
-                <label className="block">
-                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                    Notes <span className="normal-case tracking-normal text-slate-400">(optional)</span>
-                  </span>
-                  <textarea
-                    value={form.notes}
-                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                    rows={3}
-                    placeholder="Add an optional patient/device note"
-                    className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                  />
-                </label>
-              ) : null}
-
-              {supportsIcuStandby(form.device_type) && (
-                <label className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-sm font-black text-hospital-ink">
-                  <input
-                    type="checkbox"
-                    checked={form.is_standby}
-                    onChange={(event) => setForm({ ...form, is_standby: event.target.checked })}
-                    className="h-5 w-5 accent-amber-600"
-                  />
-                  Standby
-                </label>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormError("");
-                    setFormOpen(false);
-                  }}
-                  className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <Save size={16} />
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {discontinueTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="icu-discontinue-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
-                <h2 id="icu-discontinue-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  {discontinueTarget.device_type === "vent" ? "Ventilator Outcome" : "Discontinue Device?"}
-                </h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
-                  {discontinueTarget.device_type === "vent"
-                    ? "Select the outcome before discontinuing this ventilator."
-                    : "This will remove this device from the active ICU list."}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setDiscontinueTarget(null);
-                  setDiscontinueError("");
-                  setDiscontinuedDate("");
-                  setDiscontinuedTime("");
-                }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            {discontinueError && (
-              <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                {discontinueError}
-              </p>
-            )}
-
-            <div className="mt-4 rounded-3xl border border-slate-100 bg-slate-50 p-3">
-              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{discontinueTarget.bed}</p>
-              <h3 className="mt-1 text-xl font-black text-hospital-ink">{formatIcuDeviceSummary(discontinueTarget)}</h3>
-              {formatIcuAirway(discontinueTarget) && (
-                <p className="mt-1 text-sm font-black text-slate-700">{formatIcuAirway(discontinueTarget)}</p>
-              )}
-              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(discontinueTarget)}</p>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Date</span>
-                <input
-                  type="date"
-                  value={discontinuedDate}
-                  onChange={(event) => {
-                    setDiscontinuedDate(event.target.value);
-                    setDiscontinueError("");
-                  }}
-                  required
-                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Time</span>
-                <input
-                  type="time"
-                  value={discontinuedTime}
-                  onChange={(event) => {
-                    setDiscontinuedTime(event.target.value);
-                    setDiscontinueError("");
-                  }}
-                  required
-                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                />
-              </label>
-            </div>
-
-            {discontinueTarget.device_type === "vent" && (
-              <div className="mt-4 space-y-2">
-                {ventilatorOutcomeOptions.map((outcome) => (
-                  <label
-                    key={outcome}
-                    className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-hospital-ink"
-                  >
-                    <input
-                      type="radio"
-                      name="ventilator-outcome"
-                      value={outcome}
-                      checked={ventilatorOutcome === outcome}
-                      onChange={() => {
-                        setVentilatorOutcome(outcome);
-                        setVentilatorOutcomeComment("");
-                        setDiscontinueError("");
-                      }}
-                      className="h-5 w-5 accent-cyan-700"
-                    />
-                    {ventilatorOutcomeLabels[outcome]}
-                  </label>
-                ))}
-                {ventilatorOutcome === "other_unknown" && (
-                  <label className="block pt-2">
-                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Outcome comment (optional)</span>
-                    <textarea
-                      value={ventilatorOutcomeComment}
-                      onChange={(event) => setVentilatorOutcomeComment(event.target.value)}
-                      rows={3}
-                      placeholder="Add details about this outcome"
-                      className="mt-1 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                    />
-                  </label>
-                )}
-              </div>
-            )}
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setDiscontinueTarget(null);
-                  setDiscontinueError("");
-                  setDiscontinuedDate("");
-                  setDiscontinuedTime("");
-                }}
-                className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={actionSaving}
-                onClick={() => void confirmDiscontinue()}
-                className="min-h-12 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white shadow-md shadow-rose-900/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {actionSaving ? "Discontinuing..." : discontinueTarget.device_type === "vent" ? "Discontinue Vent" : "Discontinue"}
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {historyTarget && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="icu-history-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{historyTarget.bed}</p>
-                <h2 id="icu-history-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  ICU History
-                </h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">{formatIcuDeviceSummary(historyTarget)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setHistoryTarget(null);
-                  setHistoryError("");
-                }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            <button type="button" disabled={historyLoading || Boolean(historyError) || historyEvents.length === 0}
-              onClick={() => printIcuDocument(buildIcuHistoryReport(historyTarget.bed, authContext.departmentName, historyEvents.map(event => {
-                const changes = icuHistoryChanges(event);
-                const lines = changes !== null
-                  ? changes.length ? changes.map(change => `${change.label}\nPrevious: ${change.previous}\nCurrent: ${change.current}`) : ["No changes recorded."]
-                  : [event.event_summary || "", ...(event.event_type === "added" || event.event_type === "discontinued" ? historyDetailLines(event) : []),
-                    ...(event.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(event.event_data?.action)) ? ["Previous values were not recorded for this entry."] : []),
-                    ...(event.event_data?.action === "note_updated" && eventDataText(event, "notes") ? [`Note: ${eventDataText(event, "notes")}`] : [])].filter(Boolean);
-                return { title: `${formatIcuLastUpdated(event.event_time)} PT — ${historyEventLabel(event)}`, author: event.created_by_name || "Unknown", lines };
-              })))}
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-sky-700 bg-sky-200 px-4 font-bold text-sky-950 hover:bg-sky-300 disabled:opacity-50">
-              <Printer size={18} />Print History
-            </button>
-            <div className="mt-4 space-y-3">
-              {historyLoading && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-sm font-bold text-slate-500">Loading ICU history...</p>
-              )}
-              {historyError && (
-                <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                  {historyError}
-                </p>
-              )}
-              {!historyLoading && !historyError && historyEvents.length === 0 && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No history events recorded yet.
-                </p>
-              )}
-              {!historyLoading &&
-                historyEvents.map((eventRecord) => {
-                  const changes = icuHistoryChanges(eventRecord);
-                  return (
-                  <article key={eventRecord.id} className="rounded-3xl border border-white bg-white p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
-                        <ClipboardList size={18} />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-black text-hospital-ink">
-                          {isBoardUpdateEvent(eventRecord.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(eventRecord.event_time)} - {historyEventLabel(eventRecord)}
-                        </p>
-                        <p className="mt-1 text-xs font-bold text-slate-500">
-                          By {eventRecord.created_by_name || "Unknown"}
-                        </p>
-                        {changes === null && eventRecord.event_summary && (
-                          <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
-                        )}
-                        {changes !== null ? (
-                          <div className="mt-3 space-y-2">
-                            {changes.length === 0 ? <p className="text-sm text-slate-700">No changes recorded.</p> : changes.map(change => (
-                              <div key={change.label} className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-                                <p className="font-extrabold">{change.label}</p>
-                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Previous:</span> {change.previous}</p>
-                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Current:</span> {change.current}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : eventRecord.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(eventRecord.event_data?.action)) ? (
-                          <p className="mt-2 text-xs text-slate-600">Previous values were not recorded for this entry.</p>
-                        ) : eventRecord.event_data?.action === "note_updated" && eventDataText(eventRecord, "notes") ? (
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">Note: {eventDataText(eventRecord, "notes")}</p>
-                        ) : eventRecord.event_type === "added" || eventRecord.event_type === "discontinued" ? historyDetailLines(eventRecord).map((line) => (
-                          <p key={line} className="mt-1 text-xs font-bold leading-5 text-slate-700">
-                            {line}
-                          </p>
-                        )) : null}
-                      </div>
-                    </div>
-                  </article>
-                ); })}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {previousDateOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="icu-date-search-title"
-            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Search Previous Date</p>
-                <h2 id="icu-date-search-title" className="mt-1 text-2xl font-black text-hospital-ink">
-                  ICU Activity
-                </h2>
-                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Enter a date as MMDDYY.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviousDateOpen(false)}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
-              >
-                <X size={16} />
-                Close
-              </button>
-            </div>
-
-            <form onSubmit={searchPreviousDate} className="mt-4 grid gap-2">
-              <label className="block">
-                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date</span>
-                <input
-                  value={previousDateInput}
-                  onChange={(event) => setPreviousDateInput(event.target.value)}
-                  inputMode="numeric"
-                  placeholder="070626"
-                  className="mt-1 min-h-12 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-base font-black text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={previousDateLoading}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <Search size={16} />
-                {previousDateLoading ? "Searching..." : "Search"}
-              </button>
-            </form>
-
-            {previousDateError && (
-              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
-                {previousDateError}
-              </p>
-            )}
-
-            <div className="mt-4 space-y-3">
-              {previousDateLabel && (
-                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
-              )}
-              {previousDateLabel && previousDateResults.length === 0 && (
-                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
-                  No ICU activity found for this date.
-                </p>
-              )}
-              {previousDateResults.map((eventRecord) => (
-                <IcuActivityCard
-                  key={eventRecord.id}
-                  eventRecord={eventRecord}
-                  onOpen={() => void openActivityDetail(eventRecord)}
-                />
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
-    </Container>
-  );
-}
+  if (eventRecord.event_data?.action === "treatment_recorded") return "Treatment recorded";
+  if (eventRecord.event_data?.action === "procedure_recorded") return "Procedure recorded";
+  if (eventRecord.event_type === "updated" && eventRecord.event_data?.action === "note_updated") {
+    return "Note updated";
+  }
+
+  switch (eventRecord.event_type) {
+    case "added":
+      return "Added";
+    case "updated":
+      return "Updated settings";
+    case "critical_status_updated":
+      return "Critical status updated";
+    case "sbt_status_updated":
+      return "SBT status updated";
+    case "flolan_status_updated":
+      return "Flolan status updated";
+    case "prone_status_updated":
+      return "Prone status updated";
+    case "standby_status_updated":
+      return "Standby status updated";
+    case "ct_noted":
+      return "CT noted this shift";
+    case "mri_noted":
+      return "MRI noted this shift";
+    case "discontinued":
+      return "Discontinued";
+    default:
+      return "ICU update";
+  }
+}
+
+function eventDataText(event: IcuPatientEventRecord, key: string) {
+  const rawRecord = event.event_data?.record as IcuPatientRecord | undefined;
+  if (rawRecord?.device_type) {
+    if (key === "device") return formatIcuDeviceSummary(rawRecord);
+    if (key === "airway") return formatIcuAirway(rawRecord);
+    if (key === "settings") return formatIcuSettings(rawRecord);
+  }
+  const value = event.event_data?.[key];
+  return typeof value === "string" && value.trim() ? value : "";
+}
+
+function eventDataBoolean(event: IcuPatientEventRecord, key: string) {
+  const value = event.event_data?.[key];
+  return typeof value === "boolean" ? value : null;
+}
+
+function historyDetailLines(event: IcuPatientEventRecord) {
+  const lines: string[] = [];
+  const device = eventDataText(event, "device");
+  const airway = eventDataText(event, "airway");
+  const settings = eventDataText(event, "settings");
+  const notes = eventDataText(event, "notes");
+  const outcome = eventDataText(event, "ventilatorOutcome");
+  const outcomeComment = eventDataText(event, "ventilatorOutcomeComment");
+  const criticalVent = eventDataBoolean(event, "criticalVent");
+  const sbt = eventDataBoolean(event, "sbt");
+  const flolan = eventDataBoolean(event, "flolan");
+  const prone = eventDataBoolean(event, "prone");
+  const standby = eventDataBoolean(event, "standby");
+
+  if (device) {
+    lines.push(`Device: ${device}`);
+  }
+  if (airway) {
+    lines.push(`Airway: ${airway}`);
+  }
+  if (settings) {
+    lines.push(`Settings: ${settings}`);
+  }
+  if (notes) {
+    lines.push(`Note: ${notes}`);
+  }
+  if (criticalVent !== null) {
+    lines.push(`Critical Vent: ${criticalVent ? "Yes" : "No"}`);
+  }
+  if (sbt) {
+    lines.push("SBT: Active");
+  }
+  if (prone) {
+    lines.push("Prone: Active");
+  }
+  if (flolan) {
+    lines.push("Flolan: Active");
+  }
+  if (standby !== null) {
+    lines.push(`Standby: ${standby ? "Yes" : "No"}`);
+  }
+  if (outcome) {
+    lines.push(`Outcome: ${outcome}`);
+  }
+  if (outcomeComment) {
+    lines.push(`Outcome comment: ${outcomeComment}`);
+  }
+
+  return lines;
+}
+
+function parsePreviousDateInput(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 6) {
+    return null;
+  }
+
+  const month = Number(digits.slice(0, 2));
+  const day = Number(digits.slice(2, 4));
+  const year = 2000 + Number(digits.slice(4, 6));
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  const dateValue = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const label = new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric"
+  }).format(date);
+
+  return {
+    startIso: wallTimeToIso(dateValue, "00:00"),
+    endIso: wallTimeToIso(dateValue, "23:59"),
+    label
+  };
+}
+
+function IcuNumberInput({
+  label,
+  value,
+  onChange,
+  placeholder
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">{label}</span>
+      <input
+        type="number"
+        min={0}
+        max={label === "FiO2" ? 100 : undefined}
+        step="any"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        inputMode="decimal"
+        placeholder={placeholder}
+        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+      />
+    </label>
+  );
+}
+
+export function IcuPatientCard({
+  record,
+  actionSaving,
+  onRoundingAction,
+  onSaveModality,
+  onSaveNote,
+  onUpdate,
+  onDiscontinue,
+  onHistory,
+  onToggleStandby
+}: {
+  record: IcuPatientRecord;
+  onRoundingAction: SaveRoundingAction;
+  onSaveModality?: SaveModality;
+  actionSaving: boolean;
+  onSaveNote: (notes: string, expectedUpdatedAt: string) => Promise<boolean>;
+  onUpdate: () => void;
+  onDiscontinue: () => void;
+  onHistory: () => void;
+  onToggleStandby: () => void;
+}) {
+  const airway = formatIcuAirway(record);
+  const savedNotes = record.notes?.trim() ?? "";
+  const [noteDraft, setNoteDraft] = useState(savedNotes);
+  const [noteEditorOpen, setNoteEditorOpen] = useState(false);
+  const [noteVersion, setNoteVersion] = useState(record.updated_at);
+  const noteChanged = noteDraft.trim() !== savedNotes;
+  const modifierLabels = activeVentModifierLabels(record);
+  const tone = record.is_standby ? "standby" : ventCardTone(record);
+  const cardClass = tone === "critical"
+    ? "border-rose-300 bg-rose-50"
+    : tone === "standby"
+      ? "border-amber-500 bg-amber-200"
+      : tone === "sbt"
+        ? "border-blue-300 bg-blue-50"
+        : "border-white bg-white/95";
+  const accentTextClass = tone === "critical"
+    ? "text-rose-800"
+    : tone === "standby"
+      ? "text-amber-900"
+      : tone === "sbt"
+        ? "text-blue-800"
+        : "text-cyan-700";
+  const titleTextClass = tone === "critical"
+    ? "text-rose-950"
+    : tone === "standby"
+      ? "text-amber-950"
+      : tone === "sbt"
+        ? "text-blue-950"
+        : "text-hospital-ink";
+
+  return (
+    <article className={`relative rounded-3xl border p-4 text-left shadow-soft ${cardClass}`}>
+      <div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-3xl font-black uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
+          <h3 className={`mt-1 text-xl font-black ${titleTextClass}`}>
+            {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
+          </h3>
+          {onSaveModality && <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />}
+          {modifierLabels.length > 0 ? (
+            <p className={`mt-1 text-sm font-black ${tone === "critical" ? "text-rose-800" : tone === "standby" ? "text-amber-900" : tone === "sbt" ? "text-blue-800" : "text-slate-700"}`}>
+              {modifierLabels.join(" · ")}
+            </p>
+          ) : null}
+          {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
+          <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} />
+          <div className="mt-3 rounded-2xl border-2 border-sky-600 bg-sky-100 px-3 py-2 print:bg-white print:border-slate-600">
+            <p className="text-xs font-extrabold text-slate-800">Current Settings</p>
+            <p className="text-sm font-bold leading-6 text-hospital-ink">{record.device_type === "vent" ? `${formatIcuDeviceSummary(record)} · ${formatIcuSettings(record)}` : formatIcuSettings(record)}</p>
+          </div>
+          <div className="mt-2 rounded-2xl border border-sky-500 border-l-4 bg-white px-3 py-2 text-sm leading-6 text-slate-900 print:bg-white print:border-slate-600">
+            <p className="text-xs font-extrabold text-slate-800">Rounding Snapshot</p>
+            {record.rounding_data?.previousSettings && <p><strong>Previous Settings:</strong> {formatIcuDeviceSummary(record.rounding_data.previousSettings as IcuPatientRecord)} · {formatIcuSettings(record.rounding_data.previousSettings as IcuPatientRecord)}</p>}
+            {record.rounding_data?.sbt && <p><strong>{activeSbt(record) ? "SBT Started:" : "Last SBT:"}</strong> {activeSbt(record) ? roundingDate(record.rounding_data.sbt.at) : `${record.rounding_data.sbt.result === "Pass" ? "Passed" : "Failed"}${record.rounding_data.sbt.reason ? ` — ${record.rounding_data.sbt.reason}` : ""} — ${roundingDate(record.rounding_data.sbt.at)}`}</p>}
+            {record.is_critical_vent && <p><strong>Critical:</strong> {criticalDetail(record)}</p>}
+            {record.rounding_data?.treatment && <p><strong>Treatment:</strong> {treatmentDetail(record.rounding_data.treatment)}</p>}
+            {record.rounding_data?.procedure && <p><strong>Last Procedure:</strong> {procedureDetail(record.rounding_data.procedure)}</p>}
+          {noteEditorOpen ? (
+            <form
+              className="mt-2"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (noteChanged && await onSaveNote(noteDraft, noteVersion)) {
+                  setNoteEditorOpen(false);
+                }
+              }}
+            >
+              <label htmlFor={`icu-patient-note-${record.id}`} className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Notes</span>
+                <textarea
+                  id={`icu-patient-note-${record.id}`}
+                  value={noteDraft}
+                  onChange={(event) => setNoteDraft(event.target.value)}
+                  disabled={actionSaving}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="Add note…"
+                  className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                />
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={actionSaving || !noteChanged}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-3 text-xs font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save size={15} />
+                  {actionSaving ? "Saving..." : "Save Note"}
+                </button>
+                <button
+                  type="button"
+                  disabled={actionSaving}
+                  onClick={() => {
+                    setNoteDraft(savedNotes);
+                    setNoteEditorOpen(false);
+                  }}
+                  className="min-h-10 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : savedNotes ? (
+            <div className="mt-2">
+              <p className="whitespace-pre-wrap text-sm font-bold leading-6 text-slate-700">
+                <span className="font-black">Note:</span> {savedNotes}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setNoteDraft(savedNotes);
+                  setNoteVersion(record.updated_at);
+                  setNoteEditorOpen(true);
+                }}
+                className="mt-1 text-xs font-black text-cyan-700"
+              >
+                Edit note
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setNoteDraft("");
+                setNoteVersion(record.updated_at);
+                setNoteEditorOpen(true);
+              }}
+              className="mt-2 text-xs font-black text-cyan-700"
+            >
+              + Add Note
+            </button>
+          )}
+          </div>
+          <p className="mt-2 text-xs font-bold text-slate-600">Updated {formatIcuLastUpdated(record.updated_at)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onUpdate}
+          className="min-h-11 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20"
+        >
+          Update
+        </button>
+        <button
+          type="button"
+          onClick={onHistory}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700"
+        >
+          <History size={16} />
+          History
+        </button>
+        <button
+          type="button"
+          onClick={onDiscontinue}
+          className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-rose-100 bg-rose-50 px-4 text-sm font-black text-rose-700"
+        >
+          <Trash2 size={16} />
+          Discontinue
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function IcuActivitySettingsBlock({
+  title,
+  state,
+  emptyMessage,
+  showContext = false
+}: {
+  title: string;
+  state: IcuActivityAuditState | null;
+  emptyMessage: string;
+  showContext?: boolean;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-100 bg-white px-3 py-3">
+      <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{title}</p>
+      {state ? (
+        <div className="mt-1 space-y-1">
+          {showContext && (
+            <p className="text-xs font-bold leading-5 text-slate-500">
+              {[state.bed, state.device].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {state.airway && <p className="text-sm font-black leading-6 text-slate-700">{state.airway}</p>}
+          <p className="text-sm font-black leading-6 text-hospital-ink">{state.settings.replaceAll(" - ", " · ")}</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-sm font-bold leading-6 text-slate-500">{emptyMessage}</p>
+      )}
+    </section>
+  );
+}
+
+function IcuActivityCard({
+  eventRecord,
+  onOpen
+}: {
+  eventRecord: IcuPatientEventRecord;
+  onOpen: () => void;
+}) {
+  const bed = eventDataText(eventRecord, "bed") || "ICU";
+  const device = eventDataText(eventRecord, "device") || "Device";
+  const settings = eventDataText(eventRecord, "settings");
+  const outcome = eventDataText(eventRecord, "ventilatorOutcome");
+  const action = historyEventLabel(eventRecord);
+  const boardUpdate = isBoardUpdateEvent(eventRecord.event_type);
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`View details for ${bed} ${device} ${action.toLowerCase()}`}
+      className="w-full rounded-3xl border border-white bg-white/95 p-4 text-left shadow-sm transition active:scale-[0.99]"
+    >
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+          <ClipboardList size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-black leading-5 text-hospital-ink">
+            {boardUpdate ? "Board updated " : ""}{formatIcuActivityTime(eventRecord.event_time)} {boardUpdate ? "·" : "-"} {bed} {device} {action.toLowerCase()} by{" "}
+            {eventRecord.created_by_name || "Unknown"}
+          </p>
+          {eventRecord.event_summary && (
+            <p className="mt-1 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
+          )}
+          {outcome && <p className="mt-1 text-xs font-black leading-5 text-rose-700">Outcome: {outcome}</p>}
+          {settings && <p className="mt-1 text-xs font-bold leading-5 text-slate-500">{settings}</p>}
+        </div>
+        <ChevronRight size={18} className="mt-2 shrink-0 text-cyan-700" />
+      </div>
+    </button>
+  );
+}
+
+export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCommandCenterClientProps) {
+  const isLeadSurface = surface === "lead";
+  const Container = isLeadSurface ? "div" : "main";
+  const [roomRecords, setRoomRecords] = useState<Array<Pick<IcuPatientRecord, "bed">>>([]);
+  const roomOptions = useMemo(() => availableIcuBeds(roomRecords), [roomRecords]);
+  const [records, setRecords] = useState<IcuPatientRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<IcuPatientRecord | null>(null);
+  const [formOpenedFromAdd, setFormOpenedFromAdd] = useState(false);
+  const [form, setForm] = useState<IcuPatientForm>(emptyForm);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [actionSaving, setActionSaving] = useState(false);
+  const [discontinueTarget, setDiscontinueTarget] = useState<IcuPatientRecord | null>(null);
+  const [discontinueError, setDiscontinueError] = useState("");
+  const [ventilatorOutcome, setVentilatorOutcome] = useState<VentilatorOutcome | "">("");
+  const [ventilatorOutcomeComment, setVentilatorOutcomeComment] = useState("");
+  const [discontinuedDate, setDiscontinuedDate] = useState("");
+  const [discontinuedTime, setDiscontinuedTime] = useState("");
+  const [historyTarget, setHistoryTarget] = useState<IcuPatientRecord | null>(null);
+  const [printOptionsOpen, setPrintOptionsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const roundingReport = useMemo(() => reportOpen
+    ? buildIcuRoundingReport(records, authContext.departmentName, new Date(), false)
+    : "", [reportOpen, records, authContext.departmentName]);
+  const [historyEvents, setHistoryEvents] = useState<IcuPatientEventRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [previousDateOpen, setPreviousDateOpen] = useState(false);
+  const [previousDateInput, setPreviousDateInput] = useState("");
+  const [previousDateLabel, setPreviousDateLabel] = useState("");
+  const [previousDateResults, setPreviousDateResults] = useState<IcuPatientEventRecord[]>([]);
+  const [previousDateLoading, setPreviousDateLoading] = useState(false);
+  const [previousDateError, setPreviousDateError] = useState("");
+  const [todayActivity, setTodayActivity] = useState<IcuPatientEventRecord[]>([]);
+  const [todayActivityLoading, setTodayActivityLoading] = useState(true);
+  const [todayActivityError, setTodayActivityError] = useState("");
+  const [activityDetailEvent, setActivityDetailEvent] = useState<IcuPatientEventRecord | null>(null);
+  const [activityDetailPreviousState, setActivityDetailPreviousState] = useState<IcuActivityAuditState | null>(null);
+  const [activityDetailLoading, setActivityDetailLoading] = useState(false);
+  const [activityDetailError, setActivityDetailError] = useState("");
+
+  const snapshotLastUpdated = useMemo(() => formatIcuSnapshotUpdatedAt(getLatestActiveIcuUpdatedAt(records)), [records]);
+  const activityDetailUpdatedState = useMemo(
+    () => (activityDetailEvent ? icuActivityStateFromEvent(activityDetailEvent) : null),
+    [activityDetailEvent]
+  );
+  const activityDetailStatusChanges = useMemo(
+    () => icuActivityStatusChanges(activityDetailPreviousState, activityDetailUpdatedState),
+    [activityDetailPreviousState, activityDetailUpdatedState]
+  );
+
+  const signOut = async () => {
+    await signOutAndRedirect();
+  };
+
+  const loadRecords = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+    }
+    setError("");
+
+    const supabase = createClient();
+    const patientQuery = fetchAllPages<IcuPatientRecord>((from, to) => supabase
+      .from("icu_patients")
+      .select(icuPatientSelect)
+      .eq("department_id", authContext.departmentId)
+      .eq("is_active", true)
+      .order("bed", { ascending: true }).order("id", { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: IcuPatientRecord[] | null; error: { message: string } | null }>);
+    // Existing saved rooms remain available after discontinuation on either surface.
+    const roomQuery = fetchAllPages<Pick<IcuPatientRecord, "bed">>((from, to) => supabase
+      .from("icu_patients").select("bed").eq("department_id", authContext.departmentId)
+      .order("id", { ascending: true }).range(from, to));
+    const [patientResult, roomResult] = await Promise.all([patientQuery, roomQuery]);
+    if (!roomResult.error) setRoomRecords(roomResult.data ?? []);
+
+    setLoading(false);
+
+    if (patientResult.error) {
+      setRecords([]);
+      setError("Could not load ICU Command Center.");
+      return;
+    }
+
+    setRecords((patientResult.data ?? []) as unknown as IcuPatientRecord[]);
+  }, [authContext.departmentId]);
+
+  const loadTodayActivity = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setTodayActivityLoading(true);
+    }
+    setTodayActivityError("");
+    const range = todayIcuDateRange();
+
+    const supabase = createClient();
+    const { data, error: activityLoadError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .gte("event_time", range.startIso)
+      .lte("event_time", range.endIso)
+      .in("event_type", ["added", "updated", "critical_status_updated", "sbt_status_updated", "flolan_status_updated", "prone_status_updated", "standby_status_updated", "ct_noted", "mri_noted", "discontinued"])
+      .order("event_time", { ascending: false });
+
+    setTodayActivityLoading(false);
+
+    if (activityLoadError) {
+      setTodayActivity([]);
+      setTodayActivityError("Could not load today's ICU activity.");
+      return;
+    }
+
+    setTodayActivity((data ?? []) as unknown as IcuPatientEventRecord[]);
+  }, [authContext.departmentId]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadRecords();
+      void loadTodayActivity();
+    });
+  }, [loadRecords, loadTodayActivity]);
+
+  useEffect(() => {
+    let refreshTimer: number | undefined;
+    let shiftBoundaryTimer: number | undefined;
+    const refresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => {
+        void loadRecords(false);
+        void loadTodayActivity(false);
+      }, 200);
+    };
+    const interval = window.setInterval(refresh, 60_000);
+    const scheduleShiftBoundaryRefresh = () => {
+      shiftBoundaryTimer = window.setTimeout(() => {
+        refresh();
+        scheduleShiftBoundaryRefresh();
+      }, nextIcuOperationalShiftBoundaryDelay() + 50);
+    };
+    scheduleShiftBoundaryRefresh();
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`icu-command-center-${authContext.departmentId}-${crypto.randomUUID()}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patients",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        refresh
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "icu_patient_events",
+          filter: `department_id=eq.${authContext.departmentId}`
+        },
+        refresh
+      )
+      .subscribe();
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearTimeout(shiftBoundaryTimer);
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, [authContext.departmentId, loadRecords, loadTodayActivity]);
+
+  const openAdd = () => {
+    if (!canManageIcuLifecycle(authContext)) return;
+    setFormOpenedFromAdd(true);
+    setEditingRecord(null);
+    setForm(emptyForm);
+    setFormOpen(true);
+    setMessage("");
+    setError("");
+    setFormError("");
+  };
+
+  const openEdit = (record: IcuPatientRecord) => {
+    if (!canEditIcuCommandCenter(authContext)) return;
+    setFormOpenedFromAdd(false);
+    setEditingRecord(record);
+    setForm(formFromRecord(record));
+    setFormOpen(true);
+    setMessage("");
+    setError("");
+    setFormError("");
+  };
+
+  const savePatient = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManageIcuLifecycle(authContext) || (editingRecord && !canEditIcuCommandCenter(authContext))) return;
+    setMessage("");
+    setError("");
+    setFormError("");
+
+    const bed = form.bed.trim();
+    if (!bed || !form.device_type) {
+      setFormError("Bed and device are required.");
+      return;
+    }
+
+    if (bed.length > 20) {
+      setFormError("Bed must be 20 characters or fewer.");
+      return;
+    }
+
+    if (form.device_type === "vent" && !form.vent_mode) {
+      setFormError("Vent Mode is required for Vent patients.");
+      return;
+    }
+
+    if (form.device_type === "vent" && form.airway_type === "trach" &&
+      (!trachSizeOptions.some((size) => size === form.airway_size) || !form.trach_type)) {
+      setFormError("Select a trach size and type.");
+      return;
+    }
+
+    const numericValidationError = validateIcuNumericFields(form);
+    if (numericValidationError) {
+      setFormError(numericValidationError);
+      return;
+    }
+
+    setSaving(true);
+    const supabase = createClient();
+    const payload = cleanPayload({ ...form, bed }, authContext);
+    const result = editingRecord
+      ? await supabase
+          .from("icu_patients")
+          .update(payload)
+          .eq("id", editingRecord.id)
+          .eq("updated_at", editingRecord.updated_at)
+          .eq("department_id", authContext.departmentId)
+          .select(icuPatientSelect)
+          .maybeSingle()
+      : await supabase.rpc("manage_icu_device", {
+          target_department_id: authContext.departmentId,
+          target_action: "add",
+          target_payload: payload,
+          target_event_data: eventDataFromRecord({
+            ...payload, device_type: form.device_type as IcuDeviceType,
+            is_active: true, is_critical_vent: false, is_sbt: false, is_flolan: false, is_prone: false
+          } as IcuPatientRecord, { action: "added" })
+        });
+
+    setSaving(false);
+
+    if (result.error || !result.data) {
+      if (editingRecord && !result.error && !result.data) {
+        await loadRecords(false);
+        setFormError("This patient changed. Close and reopen Update to review the latest settings.");
+        return;
+      }
+      setFormError(
+        result.error?.code === "23505"
+          ? "That ICU bed already has an active record."
+          : "Could not save ICU patient. Please try again."
+      );
+      return;
+    }
+
+    const savedRecord = result.data as unknown as IcuPatientRecord | null;
+    if (savedRecord && editingRecord) {
+      const eventResult = await createIcuPatientEvent(
+        supabase,
+        authContext,
+        savedRecord,
+        editingRecord ? "updated" : "added",
+        editingRecord ? "ICU device settings updated." : "ICU device added.",
+        {
+          action: editingRecord ? "updated" : "added"
+        },
+        undefined,
+        editingRecord
+      );
+
+      if (eventResult.error) {
+        setMessage("ICU patient saved, but history could not be recorded.");
+      } else {
+        setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
+      }
+    } else {
+      setMessage(editingRecord ? "ICU patient updated." : "ICU patient added.");
+    }
+
+    setFormOpen(false);
+    setEditingRecord(null);
+    setForm(emptyForm);
+    await loadRecords();
+    await loadTodayActivity();
+  };
+
+  const saveRoundingAction = async (record: IcuPatientRecord, action: RoundingAction, payload: Record<string, unknown>) => {
+    setActionSaving(true);
+    setMessage("");
+    setError("");
+    try {
+      const { data, error: saveError } = await createClient().rpc("record_icu_rounding_action", {
+        target_patient_id: record.id,
+        target_action: action,
+        target_payload: payload,
+        expected_updated_at: record.updated_at
+      });
+      if (saveError || !data) {
+        if (saveError?.code === "40001") await loadRecords(false);
+        setError(saveError?.code === "40001" ? "This patient changed. Close and reopen the editor to review the refreshed card before saving." : "Could not save this rounding update. Please try again.");
+        return false;
+      }
+      const updatedRecord = data as unknown as IcuPatientRecord;
+      setRecords(current => current.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      setMessage(action === "note" ? "ICU note saved." : "Rounding update saved.");
+      await loadTodayActivity(false);
+      return true;
+    } catch {
+      setError("Could not save this rounding update. Please try again.");
+      return false;
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const saveModality = async (record: IcuPatientRecord, modality: IcuDeviceType, settings: ModalitySettings, action: ModalityAction, version: string) => {
+    setActionSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const { data, error: saveError } = await createClient().rpc("manage_icu_modality", {
+        target_patient_id: record.id, target_modality: modality, target_settings: settings,
+        target_action: action, expected_updated_at: version
+      });
+      if (saveError || !data) {
+        if (saveError?.code === "40001") await loadRecords(false);
+        return false;
+      }
+      const updated = data as unknown as IcuPatientRecord;
+      setRecords(current => current.map(item => item.id === updated.id ? updated : item));
+      setMessage(action === "switch" ? `Switched to ${icuDeviceLabels[modality]} with saved settings.` : action === "discontinue" ? `Saved ${icuDeviceLabels[modality]} discontinued.` : "Additional modality saved.");
+      await loadTodayActivity(false);
+      return true;
+    } catch { return false; }
+    finally { setActionSaving(false); }
+  };
+
+  const savePatientNote = (record: IcuPatientRecord, notes: string) => saveRoundingAction(record, "note", { notes: notes.trim() });
+
+  const openDiscontinue = (record: IcuPatientRecord) => {
+    if (!canManageIcuLifecycle(authContext)) return;
+    const defaults = defaultIcuDateTime();
+    setDiscontinueTarget(record);
+    setVentilatorOutcome("");
+    setVentilatorOutcomeComment("");
+    setDiscontinuedDate(defaults.date);
+    setDiscontinuedTime(defaults.time);
+    setDiscontinueError("");
+    setMessage("");
+    setError("");
+  };
+
+  const confirmDiscontinue = async () => {
+    if (!discontinueTarget) {
+      return;
+    }
+
+    if (discontinueTarget.device_type === "vent" && !ventilatorOutcome) {
+      setDiscontinueError("Select a ventilator outcome before discontinuing this ventilator.");
+      return;
+    }
+
+    if (!discontinuedDate || !discontinuedTime) {
+      setDiscontinueError("Discontinued Date and Discontinued Time are required.");
+      return;
+    }
+
+    const discontinuedAt = wallTimeToIso(discontinuedDate, discontinuedTime);
+    if (!discontinuedAt) {
+      setDiscontinueError("Enter a valid discontinued date and time.");
+      return;
+    }
+
+    setActionSaving(true);
+    setMessage("");
+    setError("");
+    setDiscontinueError("");
+    const supabase = createClient();
+    const outcome: VentilatorOutcome | null =
+      discontinueTarget.device_type === "vent" ? (ventilatorOutcome as VentilatorOutcome) : null;
+    const discontinuedRecord = { ...discontinueTarget, is_active: false, discontinued_at: discontinuedAt, ventilator_outcome: outcome };
+    const { error: discontinueUpdateError } = await supabase.rpc("manage_icu_device", {
+      target_department_id: authContext.departmentId,
+      target_action: "discontinue",
+      target_patient_id: discontinueTarget.id,
+      expected_updated_at: discontinueTarget.updated_at,
+      target_payload: { discontinued_at: discontinuedAt, ventilator_outcome: outcome },
+      target_event_data: eventDataFromRecord(discontinuedRecord, {
+        previousState: icuActivityStateFromRecord(discontinueTarget),
+        ventilatorOutcome: outcome ? ventilatorOutcomeLabels[outcome] : null,
+        ventilatorOutcomeComment: outcome === "other_unknown" ? ventilatorOutcomeComment.trim() || null : null,
+        discontinuedAt
+      })
+    });
+    setActionSaving(false);
+    if (discontinueUpdateError) {
+      setDiscontinueError(discontinueUpdateError.code === "40001"
+        ? "This device changed. Close this dialog and review the refreshed record before discontinuing."
+        : "Could not discontinue ICU device. Please try again.");
+      await loadRecords(false);
+      return;
+    }
+
+    setDiscontinueTarget(null);
+    setVentilatorOutcome("");
+    setVentilatorOutcomeComment("");
+    setDiscontinuedDate("");
+    setDiscontinuedTime("");
+    setMessage("Device discontinued.");
+    await loadRecords();
+    await loadTodayActivity();
+  };
+
+  const toggleStandbyStatus = async (record: IcuPatientRecord) => {
+    if (!supportsIcuStandby(record.device_type)) {
+      return;
+    }
+
+    setActionSaving(true);
+    setMessage("");
+    setError("");
+    const nextStandby = !record.is_standby;
+    const supabase = createClient();
+    const { data, error: updateError } = await supabase
+      .from("icu_patients")
+      .update({
+        is_standby: nextStandby,
+        updated_by_staff_profile_id: authContext.staffProfileId
+      })
+      .eq("id", record.id)
+      .eq("department_id", authContext.departmentId)
+      .select(icuPatientSelect)
+      .maybeSingle();
+
+    setActionSaving(false);
+
+    if (updateError || !data) {
+      setError("Could not update standby status. Please try again.");
+      return;
+    }
+
+    const updatedRecord = (data as unknown as IcuPatientRecord | null) ?? {
+      ...record,
+      is_standby: nextStandby
+    };
+    const eventResult = await createIcuPatientEvent(
+      supabase,
+      authContext,
+      updatedRecord,
+      "standby_status_updated",
+      `Standby: ${nextStandby ? "Yes" : "No"}.`,
+      { standby: nextStandby },
+      undefined,
+      record
+    );
+
+    setMessage(eventResult.error ? "Standby status updated, but history could not be recorded." : "Standby status updated.");
+    await loadRecords();
+    await loadTodayActivity();
+  };
+
+  const openActivityDetail = async (eventRecord: IcuPatientEventRecord) => {
+    setActivityDetailEvent(eventRecord);
+    setActivityDetailError("");
+
+    const embeddedPreviousState = icuActivityStateFromEvent(eventRecord, "previousState");
+    if (embeddedPreviousState || eventRecord.event_type === "added") {
+      setActivityDetailPreviousState(embeddedPreviousState);
+      setActivityDetailLoading(false);
+      return;
+    }
+
+    setActivityDetailPreviousState(null);
+    setActivityDetailLoading(true);
+    const supabase = createClient();
+    const { data, error: previousLoadError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .eq("icu_patient_id", eventRecord.icu_patient_id)
+      .lt("event_time", eventRecord.event_time)
+      .order("event_time", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setActivityDetailLoading(false);
+
+    if (previousLoadError) {
+      setActivityDetailError("Could not load the previous settings for this activity.");
+      return;
+    }
+
+    setActivityDetailPreviousState(
+      data ? icuActivityStateFromEvent(data as unknown as IcuPatientEventRecord) : null
+    );
+  };
+
+  const openHistory = async (record: IcuPatientRecord) => {
+    setHistoryTarget(record);
+    setHistoryEvents([]);
+    setHistoryError("");
+    setHistoryLoading(true);
+
+    const supabase = createClient();
+    const { data, error: historyLoadError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .eq("icu_patient_id", record.id)
+      .order("event_time", { ascending: false });
+
+    setHistoryLoading(false);
+
+    if (historyLoadError) {
+      setHistoryEvents([]);
+      setHistoryError("Could not load ICU history.");
+      return;
+    }
+
+    setHistoryEvents((data ?? []) as unknown as IcuPatientEventRecord[]);
+  };
+
+  const searchPreviousDate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsed = parsePreviousDateInput(previousDateInput);
+    setPreviousDateError("");
+    setPreviousDateResults([]);
+    setPreviousDateLabel("");
+
+    if (!parsed) {
+      setPreviousDateError("Enter date as MMDDYY.");
+      return;
+    }
+
+    setPreviousDateLoading(true);
+    const supabase = createClient();
+    const { data, error: searchError } = await supabase
+      .from("icu_patient_events")
+      .select(icuPatientEventSelect)
+      .eq("department_id", authContext.departmentId)
+      .gte("event_time", parsed.startIso)
+      .lte("event_time", parsed.endIso)
+      .in("event_type", ["added", "updated", "critical_status_updated", "sbt_status_updated", "flolan_status_updated", "prone_status_updated", "standby_status_updated", "ct_noted", "mri_noted", "discontinued"])
+      .order("event_time", { ascending: false });
+
+    setPreviousDateLoading(false);
+
+    if (searchError) {
+      setPreviousDateError("Could not search ICU history. Please try again.");
+      return;
+    }
+
+    setPreviousDateLabel(parsed.label);
+    setPreviousDateResults((data ?? []) as unknown as IcuPatientEventRecord[]);
+  };
+
+  return (
+    <Container className={isLeadSurface ? undefined : "min-h-screen px-4 py-8"}>
+      {isLeadSurface ? <LeadIcuSnapshot records={records} loading={loading} error={error} message={message} busy={actionSaving} onAdd={openAdd} onUpdate={openEdit} onDiscontinue={openDiscontinue} /> : <div className="mx-auto max-w-xl space-y-4">
+        <section className="rounded-3xl border border-white bg-white/95 p-5 shadow-soft">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">WHHS RT Schedule</p>
+          <h1 className="mt-2 text-3xl font-black text-hospital-ink">ICU Command Center</h1>
+          <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Track ICU respiratory devices and settings.</p>
+          <p className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
+            Use bed/room only. Do not enter patient names, MRNs, DOBs, diagnoses, or clinical notes.
+          </p>
+        </section>
+
+        {!isIcuCommandCenter(authContext) && (
+          <Link
+            href="/"
+            className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
+          >
+            <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+              <CalendarDays size={26} strokeWidth={2.5} aria-hidden="true" />
+            </span>
+            <span className="flex-1">
+              <span className="block text-lg font-black text-sky-950">Return to Schedule</span>
+              <span className="mt-0.5 block text-xs font-bold text-sky-900">Back to your Schedule page.</span>
+            </span>
+            <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
+          </Link>
+        )}
+
+        {!isIcuCommandCenter(authContext) && <button
+          type="button"
+          onClick={() => setReportOpen(true)}
+          aria-haspopup="dialog"
+          aria-controls="icu-rounding-report"
+          className="flex min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] md:hidden"
+        >
+          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+            <ClipboardList size={26} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-lg font-black text-sky-950">ICU Report</span>
+            <span className="mt-0.5 block text-xs font-bold text-sky-900">View the full report for rounds.</span>
+          </span>
+          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
+        </button>}
+
+        {reportOpen && <dialog
+          id="icu-rounding-report"
+          aria-labelledby="icu-rounding-report-title"
+          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
+          onClose={() => setReportOpen(false)}
+          className="fixed inset-0 m-auto h-[90dvh] max-h-[90dvh] w-[calc(100%-1rem)] max-w-4xl rounded-2xl border border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45"
+        >
+          <div className="flex h-full min-h-0 flex-col">
+            <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3">
+              <h2 id="icu-rounding-report-title" className="text-xl font-black">ICU Report</h2>
+              <div className="flex gap-2">
+                <button type="button" disabled={loading} onClick={() => void loadRecords()} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold disabled:opacity-50"><RefreshCw size={17} aria-hidden="true" />Refresh</button>
+                <button type="button" autoFocus onClick={() => setReportOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 px-3 text-sm font-bold"><X size={18} aria-hidden="true" />Close</button>
+              </div>
+            </header>
+            {error ? <p role="alert" className="p-4 text-rose-800">{error}</p> : loading ? <p role="status" className="p-4 text-slate-600">Loading ICU report…</p> : <iframe title="Full ICU rounding report" sandbox="allow-same-origin" srcDoc={roundingReport} className="min-h-0 w-full flex-1 border-0 bg-white" />}
+          </div>
+        </dialog>}
+
+        <button
+          type="button"
+          disabled={loading || records.length === 0}
+          onClick={() => setPrintOptionsOpen(true)}
+          aria-haspopup="dialog"
+          aria-controls="icu-print-options"
+          className={`${isIcuCommandCenter(authContext) ? "flex" : "hidden md:flex"} min-h-20 w-full items-center gap-3 rounded-2xl border-2 border-sky-700 bg-sky-200 px-4 py-3 text-left shadow-md shadow-sky-900/15 transition duration-150 hover:bg-sky-300 focus-visible:outline-sky-900 active:scale-[0.99] disabled:opacity-60`}
+        >
+          <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-sky-700 bg-white text-sky-900 shadow-sm">
+            <Printer size={26} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-lg font-black text-sky-950">Print Report</span>
+            <span className="mt-0.5 block text-xs font-bold text-sky-900">Active ICU patients and rounding details.</span>
+          </span>
+          <ChevronRight size={22} className="shrink-0 text-sky-900" aria-hidden="true" />
+        </button>
+
+        {printOptionsOpen && <dialog id="icu-print-options" aria-labelledby="icu-print-title"
+          ref={dialog => { if (dialog && !dialog.open) dialog.showModal(); }}
+          onClose={() => setPrintOptionsOpen(false)}
+          onClick={event => { if (event.target === event.currentTarget) setPrintOptionsOpen(false); }}
+          className="fixed inset-0 m-auto w-[calc(100%-2rem)] max-w-lg rounded-3xl border-2 border-sky-700 bg-white p-0 text-hospital-ink shadow-2xl backdrop:bg-slate-950/45 backdrop:backdrop-blur-sm">
+          <div className="p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 id="icu-print-title" className="text-xl font-black">Print Report</h2>
+              <button type="button" onClick={() => setPrintOptionsOpen(false)} className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-100"><X size={18} />Close</button>
+            </div>
+            <p className="mb-4 text-sm font-semibold text-slate-600">Choose a report to print.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuDocument(buildIcuSbarReport(records, authContext.departmentName)); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
+            <span className="flex items-center gap-2 font-black"><Printer size={18} />SBAR</span>
+            <span className="mt-1 block text-xs font-semibold">Quick board sheet: beds, modalities and current settings.</span>
+          </button>
+          <button type="button" onClick={() => { setPrintOptionsOpen(false); printIcuRoundingReport(records, authContext.departmentName); }} className="rounded-xl border border-sky-600 bg-sky-100 p-4 text-left text-sky-950 hover:bg-sky-200">
+            <span className="flex items-center gap-2 font-black"><Printer size={18} />ICU Report</span>
+            <span className="mt-1 block text-xs font-semibold">Full rounding details, notes, current and previous settings.</span>
+          </button>
+            </div>
+          </div>
+        </dialog>}
+
+        <section className="rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Snapshot</p>
+              <h2 className="mt-1 text-xl font-black text-hospital-ink">Active Devices</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadRecords()}
+              className="inline-flex min-h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </div>
+          <IcuDeviceOverview records={records} lastUpdated={snapshotLastUpdated} />
+        </section>
+
+        <button
+          type="button"
+          onClick={openAdd}
+          className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-base font-black text-white shadow-md shadow-cyan-900/20"
+        >
+          <Plus size={18} />
+          Add Patient
+        </button>
+
+        {message && (
+          <p className="rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">
+            {message}
+          </p>
+        )}
+        {error && (
+          <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+            {error}
+          </p>
+        )}
+
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Bed size={18} className="text-cyan-700" />
+            <h2 className="text-2xl font-black text-hospital-ink">Active ICU Patients</h2>
+          </div>
+          {loading && (
+            <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
+              Loading ICU patients...
+            </p>
+          )}
+          {!loading && records.length === 0 && (
+            <p className="rounded-3xl border border-slate-100 bg-white/95 px-4 py-5 text-center text-sm font-bold text-slate-500 shadow-soft">
+              No active ICU respiratory devices.
+            </p>
+          )}
+          {!loading &&
+            records.map((record) => (
+              <IcuPatientCard
+                key={record.id}
+                record={record}
+                actionSaving={actionSaving}
+                onSaveNote={(notes, version) => savePatientNote({ ...record, updated_at: version }, notes)}
+                onRoundingAction={(action, payload, version) => saveRoundingAction({ ...record, updated_at: version }, action, payload)}
+                onSaveModality={(modality, settings, activate, version) => saveModality(record, modality, settings, activate, version)}
+                onUpdate={() => openEdit(record)}
+                onDiscontinue={() => openDiscontinue(record)}
+                onHistory={() => void openHistory(record)}
+                onToggleStandby={() => void toggleStandbyStatus(record)}
+              />
+            ))}
+        </section>
+
+        <section className="space-y-3 rounded-3xl border border-white bg-white/95 p-4 shadow-soft">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black text-hospital-ink">Today&apos;s ICU Activity</h2>
+              <p className="mt-1 text-sm font-bold leading-6 text-slate-500">Updates and discontinued devices for today.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void loadTodayActivity()}
+              className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+            >
+              <RefreshCw size={15} />
+              Refresh
+            </button>
+          </div>
+
+          {todayActivityLoading && (
+            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+              Loading ICU activity...
+            </p>
+          )}
+          {todayActivityError && (
+            <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+              {todayActivityError}
+            </p>
+          )}
+          {!todayActivityLoading && !todayActivityError && todayActivity.length === 0 && (
+            <p className="rounded-2xl bg-slate-50 px-3 py-4 text-center text-sm font-bold text-slate-500">
+              No ICU updates or discontinued devices recorded today.
+            </p>
+          )}
+          {!todayActivityLoading &&
+            !todayActivityError &&
+            todayActivity.map((eventRecord) => (
+              <IcuActivityCard
+                key={eventRecord.id}
+                eventRecord={eventRecord}
+                onOpen={() => void openActivityDetail(eventRecord)}
+              />
+            ))}
+
+          <div className="rounded-3xl border border-cyan-100 bg-cyan-50/40 p-3">
+            <div className="flex items-center gap-2">
+              <Search size={16} className="text-cyan-700" />
+              <p className="text-sm font-black text-hospital-ink">Search Previous Date</p>
+            </div>
+            <p className="mt-1 text-xs font-bold text-slate-500">Enter a previous ICU activity date as MMDDYY.</p>
+            <form onSubmit={searchPreviousDate} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <label className="block">
+                <span className="sr-only">Previous ICU activity date</span>
+                <input
+                  value={previousDateInput}
+                  onChange={(event) => setPreviousDateInput(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="070626"
+                  className="min-h-12 w-full rounded-2xl border border-slate-300 bg-white px-3 text-base font-black text-hospital-ink outline-none focus:border-cyan-400"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={previousDateLoading}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Search size={16} />
+                {previousDateLoading ? "Searching..." : "Search"}
+              </button>
+            </form>
+
+            {previousDateError && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                {previousDateError}
+              </p>
+            )}
+
+            <div className="mt-3 space-y-3">
+              {previousDateLabel && (
+                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
+              )}
+              {previousDateLabel && previousDateResults.length === 0 && (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  No ICU activity found for this date.
+                </p>
+              )}
+              {previousDateResults.map((eventRecord) => (
+                <IcuActivityCard
+                  key={eventRecord.id}
+                  eventRecord={eventRecord}
+                  onOpen={() => void openActivityDetail(eventRecord)}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={() => void signOut()}
+          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-700"
+        >
+          <LogOut size={16} />
+          Sign out
+        </button>
+      </div>}
+
+      {activityDetailEvent && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-activity-detail-title"
+            className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Activity Details</p>
+                <h2 id="icu-activity-detail-title" className="mt-1 text-xl font-black text-hospital-ink">
+                  {activityDetailUpdatedState?.bed || eventDataText(activityDetailEvent, "bed") || "ICU"}
+                  {" · "}
+                  {activityDetailUpdatedState?.device || eventDataText(activityDetailEvent, "device") || "Device"}
+                </h2>
+                <p className="mt-1 text-xs font-bold leading-5 text-slate-500">
+                  {isBoardUpdateEvent(activityDetailEvent.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(activityDetailEvent.event_time)} · {historyEventLabel(activityDetailEvent)}
+                  {activityDetailEvent.created_by_name ? ` by ${activityDetailEvent.created_by_name}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActivityDetailEvent(null);
+                  setActivityDetailPreviousState(null);
+                  setActivityDetailError("");
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {activityDetailLoading ? (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  Loading previous settings...
+                </p>
+              ) : (
+                <IcuActivitySettingsBlock
+                  title="Previous Settings"
+                  state={activityDetailPreviousState}
+                  emptyMessage={activityDetailEvent.event_type === "added" ? "No previous settings — device added." : "Previous settings unavailable for this activity."}
+                  showContext={Boolean(
+                    activityDetailPreviousState &&
+                    activityDetailUpdatedState &&
+                    (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
+                      activityDetailPreviousState.device !== activityDetailUpdatedState.device)
+                  )}
+                />
+              )}
+
+              <IcuActivitySettingsBlock
+                title="Updated Settings"
+                state={activityDetailUpdatedState}
+                emptyMessage="Updated settings unavailable for this activity."
+                showContext={Boolean(
+                  activityDetailPreviousState &&
+                  activityDetailUpdatedState &&
+                  (activityDetailPreviousState.bed !== activityDetailUpdatedState.bed ||
+                    activityDetailPreviousState.device !== activityDetailUpdatedState.device)
+                )}
+              />
+
+              {activityDetailStatusChanges.length > 0 && (
+                <section className="rounded-2xl border border-amber-100 bg-amber-50 px-3 py-3">
+                  <p className="text-xs font-extrabold uppercase tracking-wide text-amber-800">Status Changes</p>
+                  <p className="mt-1 text-sm font-black leading-6 text-amber-950">
+                    {activityDetailStatusChanges.join(" · ")}
+                  </p>
+                </section>
+              )}
+
+              {activityDetailEvent.event_type === "discontinued" && eventDataText(activityDetailEvent, "ventilatorOutcome") && (
+                <section className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3">
+                  <p className="text-sm font-black text-rose-900">Outcome: {eventDataText(activityDetailEvent, "ventilatorOutcome")}</p>
+                  {eventDataText(activityDetailEvent, "ventilatorOutcomeComment") && (
+                    <p className="mt-2 whitespace-pre-wrap break-words text-sm font-bold text-slate-700">
+                      Outcome comment: {eventDataText(activityDetailEvent, "ventilatorOutcomeComment")}
+                    </p>
+                  )}
+                </section>
+              )}
+
+              {activityDetailError && (
+                <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                  {activityDetailError}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {formOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-form-title"
+            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
+                <h2 id="icu-form-title" className="mt-1 text-2xl font-black text-hospital-ink">
+                  {editingRecord ? (isLeadSurface ? "Update Device" : "Update Patient") : isLeadSurface ? "Add Device" : "Add Patient"}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormError("");
+                  setFormOpen(false);
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                Close
+              </button>
+            </div>
+
+            {formError && (
+              <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                {formError}
+              </p>
+            )}
+
+            <form onSubmit={savePatient} className="mt-4 space-y-4">
+              <div className="grid gap-3">
+                <LeadBedSelector
+                  bed={form.bed}
+                  records={records}
+                  editingId={editingRecord?.id}
+                  roomOptions={isLeadSurface ? undefined : roomOptions}
+                  allowOccupiedSelection={!isLeadSurface && formOpenedFromAdd && canEditIcuCommandCenter(authContext)}
+                  onChange={(bed) => {
+                    if (isLeadSurface || !formOpenedFromAdd) {
+                      setForm({ ...form, bed });
+                      return;
+                    }
+                    const existing = records.find((record) => record.is_active && record.bed === bed);
+                    if (existing && !canEditIcuCommandCenter(authContext)) return;
+                    setEditingRecord(existing ?? null);
+                    setForm(existing ? formFromRecord(existing) : editingRecord ? { ...emptyForm, bed } : { ...form, bed });
+                    setFormError("");
+                  }}
+                />
+
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>
+                  <select
+                    value={isOxygenDevice(form.device_type) ? "oxygen" : form.device_type}
+                    onChange={(event) => {
+                      const device = event.target.value === "oxygen" ? "nasal_cannula" : event.target.value;
+                      setForm({
+                        ...form,
+                        device_type: device as IcuDeviceType | "",
+                        ...(editingRecord?.rounding_data?.modalities?.[device as IcuDeviceType]
+                          ? Object.fromEntries(Object.entries(editingRecord.rounding_data.modalities[device as IcuDeviceType]!).map(([key, value]) => [key, typeof value === "boolean" ? value : value == null ? "" : String(value)]))
+                          : {}),
+                        is_standby: supportsIcuStandby(device as IcuDeviceType | "") ? form.is_standby : false
+                      });
+                    }}
+                    required
+                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                  >
+                    <option value="">Select device</option>
+                    {(Object.keys(icuDeviceLabels) as IcuDeviceType[]).filter(device => !isOxygenDevice(device)).map((device) => (
+                      <option key={device} value={device}>
+                        {icuDeviceLabels[device]}
+                      </option>
+                    ))}
+                    <option value="oxygen">Oxygen Device</option>
+                  </select>
+                </label>
+              </div>
+
+              {isOxygenDevice(form.device_type) && (
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Oxygen Device</span>
+                  <select value={form.device_type} onChange={event => setForm({ ...form, device_type: event.target.value as IcuDeviceType })}
+                    className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink">
+                    {oxygenDeviceTypes.map(device => <option key={device} value={device}>{icuDeviceLabels[device]}</option>)}
+                  </select>
+                </label>
+              )}
+
+              {form.device_type === "vent" && (
+                <>
+                  <details
+                    key={editingRecord?.id ?? "new-airway"}
+                    open={!editingRecord?.airway_size || (editingRecord.airway_type === "trach" && !editingRecord.trach_type)}
+                    onInvalidCapture={(event) => { event.currentTarget.open = true; }}
+                    className="rounded-3xl border border-cyan-100 bg-cyan-50/60 p-3"
+                  >
+                    <summary className="cursor-pointer rounded-xl py-2 text-sm font-black text-hospital-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-sky-700">
+                      Airway{editingRecord?.airway_size ? " — expand to review or edit" : ""}
+                    </summary>
+                    <div className="mt-3 grid gap-3">
+                      <fieldset>
+                        <legend className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Airway type</legend>
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          {(["ett", "trach"] as const).map((airwayType) => (
+                            <label key={airwayType} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-3 text-sm font-bold ${form.airway_type === airwayType ? "border-cyan-600 bg-white text-hospital-ink" : "border-slate-200 text-slate-700"}`}>
+                              <input type="radio" name="airway-type" value={airwayType}
+                                checked={form.airway_type === airwayType}
+                                onChange={() => setForm({ ...form, airway_type: airwayType, airway_size: "", airway_at: "", airway_location: "", trach_type: "", trach_xlt: false })}
+                                className="h-4 w-4 accent-cyan-700" />
+                              {airwayType === "ett" ? "ETT" : "Trach"}
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                      <label className="block">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">{form.airway_type === "trach" ? "Trach size" : "Airway size"}</span>
+                        <select
+                          value={form.airway_size}
+                          onChange={(event) => setForm({ ...form, airway_size: event.target.value })}
+                          required={form.airway_type === "trach"}
+                          className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                        >
+                          <option value="">Select size</option>
+                          {(form.airway_type === "trach" ? trachSizeOptions : airwaySizeOptions).map((size) => (
+                            <option key={size} value={size}>
+                              {size}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {form.airway_type === "trach" ? (
+                        <>
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600">Trach type</span>
+                            <select value={form.trach_type} required
+                              onChange={(event) => setForm({ ...form, trach_type: event.target.value as IcuTrachType | "" })}
+                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200">
+                              <option value="">Select type</option>
+                              {(Object.keys(trachTypeLabels) as IcuTrachType[]).map((type) => (
+                                <option key={type} value={type}>{trachTypeLabels[type]}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-bold text-hospital-ink">
+                            <input type="checkbox" checked={form.trach_xlt}
+                              onChange={(event) => setForm({ ...form, trach_xlt: event.target.checked })}
+                              className="h-5 w-5 accent-cyan-700" />
+                            XLT
+                          </label>
+                        </>
+                      ) : (
+                        <>
+                          <IcuNumberInput
+                            label="At"
+                            value={form.airway_at}
+                            onChange={(value) => setForm({ ...form, airway_at: value })}
+                            placeholder="Example: 23"
+                          />
+                          <label className="block">
+                            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Location</span>
+                            <select
+                              value={form.airway_location}
+                              onChange={(event) => setForm({ ...form, airway_location: event.target.value })}
+                              className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                            >
+                              <option value="">Select location</option>
+                              {airwayLocationOptions.map((location) => (
+                                <option key={location} value={location}>
+                                  {icuAirwayLocationLabels[location]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  </details>
+
+                  <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
+                    <h3 className="text-sm font-black text-hospital-ink">Vent Settings</h3>
+                    <label className="mt-3 block">
+                      <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Vent Mode</span>
+                      <select
+                        value={form.vent_mode}
+                        onChange={(event) => setForm({ ...form, vent_mode: event.target.value as IcuVentMode | "" })}
+                        required
+                        className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                      >
+                        <option value="">Select mode</option>
+                        {ventModeOptions.map((mode) => (
+                          <option key={mode} value={mode}>
+                            {icuVentModeLabels[mode]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      {["apvcmv", "scmv", "pcmv"].includes(form.vent_mode) && (
+                        <>
+                          <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
+                          {form.vent_mode === "pcmv" ? (
+                            <IcuNumberInput label="Pressure Control" value={form.pressure_control} onChange={(value) => setForm({ ...form, pressure_control: value })} />
+                          ) : (
+                            <IcuNumberInput label="Tidal Volume" value={form.tidal_volume} onChange={(value) => setForm({ ...form, tidal_volume: value })} />
+                          )}
+                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
+                        </>
+                      )}
+                      {form.vent_mode === "spont" && (
+                        <>
+                          <IcuNumberInput label="PS" value={form.ps} onChange={(value) => setForm({ ...form, ps: value })} />
+                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
+                        </>
+                      )}
+                      {form.vent_mode === "aprv" && (
+                        <>
+                          <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
+                          <IcuNumberInput label="T-High" value={form.t_high} onChange={(value) => setForm({ ...form, t_high: value })} />
+                          <IcuNumberInput label="T-Low" value={form.t_low} onChange={(value) => setForm({ ...form, t_low: value })} />
+                          <IcuNumberInput label="P-High" value={form.p_high} onChange={(value) => setForm({ ...form, p_high: value })} />
+                          <IcuNumberInput label="P-Low" value={form.p_low} onChange={(value) => setForm({ ...form, p_low: value })} />
+                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                        </>
+                      )}
+                      {form.vent_mode === "asv" && (
+                        <>
+                          <IcuNumberInput label="% Min Vol" value={form.percent_min_vol} onChange={(value) => setForm({ ...form, percent_min_vol: value })} />
+                          <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                          <IcuNumberInput label="PEEP" value={form.peep} onChange={(value) => setForm({ ...form, peep: value })} />
+                        </>
+                      )}
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {form.device_type === "bipap" && (
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
+                  <h3 className="text-sm font-black text-hospital-ink">BiPAP Settings</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <IcuNumberInput label="IPAP" value={form.ipap} onChange={(value) => setForm({ ...form, ipap: value })} />
+                    <IcuNumberInput label="EPAP" value={form.epap} onChange={(value) => setForm({ ...form, epap: value })} />
+                    <IcuNumberInput label="Rate" value={form.rate} onChange={(value) => setForm({ ...form, rate: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                  </div>
+                </section>
+              )}
+
+              {form.device_type === "cpap" && (
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
+                  <h3 className="text-sm font-black text-hospital-ink">CPAP Settings</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <IcuNumberInput label="CPAP" value={form.cpap} onChange={(value) => setForm({ ...form, cpap: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                  </div>
+                </section>
+              )}
+
+              {form.device_type === "hfnc" && (
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
+                  <h3 className="text-sm font-black text-hospital-ink">HFNC Settings</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                  </div>
+                </section>
+              )}
+
+              {(form.device_type === "cool_aerosol" || isOxygenDevice(form.device_type)) && (
+                <section className="rounded-3xl border border-sky-400 bg-sky-100 p-3">
+                  <h3 className="text-sm font-black text-hospital-ink">{icuDeviceLabels[form.device_type as IcuDeviceType]} Settings</h3>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <IcuNumberInput label="Flow" value={form.flow} onChange={(value) => setForm({ ...form, flow: value })} />
+                    <IcuNumberInput label="FiO2" value={form.fio2} onChange={(value) => setForm({ ...form, fio2: value })} />
+                  </div>
+                </section>
+              )}
+
+              {form.device_type ? (
+                <label className="block">
+                  <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    Notes <span className="normal-case tracking-normal text-slate-400">(optional)</span>
+                  </span>
+                  <textarea
+                    value={form.notes}
+                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    rows={3}
+                    placeholder="Add an optional patient/device note"
+                    className="mt-1 w-full resize-y rounded-2xl border-2 border-slate-500 bg-white px-3 py-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                  />
+                </label>
+              ) : null}
+
+              {supportsIcuStandby(form.device_type) && (
+                <label className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-white px-3 py-3 text-sm font-black text-hospital-ink">
+                  <input
+                    type="checkbox"
+                    checked={form.is_standby}
+                    onChange={(event) => setForm({ ...form, is_standby: event.target.checked })}
+                    className="h-5 w-5 accent-amber-600"
+                  />
+                  Standby
+                </label>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormError("");
+                    setFormOpen(false);
+                  }}
+                  className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Save size={16} />
+                  {saving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {discontinueTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-discontinue-title"
+            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-white p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">ICU Command Center</p>
+                <h2 id="icu-discontinue-title" className="mt-1 text-2xl font-black text-hospital-ink">
+                  {discontinueTarget.device_type === "vent" ? "Ventilator Outcome" : "Discontinue Device?"}
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">
+                  {discontinueTarget.device_type === "vent"
+                    ? "Select the outcome before discontinuing this ventilator."
+                    : "This will remove this device from the active ICU list."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscontinueTarget(null);
+                  setDiscontinueError("");
+                  setDiscontinuedDate("");
+                  setDiscontinuedTime("");
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
+
+            {discontinueError && (
+              <p className="mt-4 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                {discontinueError}
+              </p>
+            )}
+
+            <div className="mt-4 rounded-3xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{discontinueTarget.bed}</p>
+              <h3 className="mt-1 text-xl font-black text-hospital-ink">{formatIcuDeviceSummary(discontinueTarget)}</h3>
+              {formatIcuAirway(discontinueTarget) && (
+                <p className="mt-1 text-sm font-black text-slate-700">{formatIcuAirway(discontinueTarget)}</p>
+              )}
+              <p className="mt-2 text-sm font-bold leading-6 text-slate-600">{formatIcuSettings(discontinueTarget)}</p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Date</span>
+                <input
+                  type="date"
+                  value={discontinuedDate}
+                  onChange={(event) => {
+                    setDiscontinuedDate(event.target.value);
+                    setDiscontinueError("");
+                  }}
+                  required
+                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Discontinued Time</span>
+                <input
+                  type="time"
+                  value={discontinuedTime}
+                  onChange={(event) => {
+                    setDiscontinuedTime(event.target.value);
+                    setDiscontinueError("");
+                  }}
+                  required
+                  className="mt-1 min-h-11 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                />
+              </label>
+            </div>
+
+            {discontinueTarget.device_type === "vent" && (
+              <div className="mt-4 space-y-2">
+                {ventilatorOutcomeOptions.map((outcome) => (
+                  <label
+                    key={outcome}
+                    className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-hospital-ink"
+                  >
+                    <input
+                      type="radio"
+                      name="ventilator-outcome"
+                      value={outcome}
+                      checked={ventilatorOutcome === outcome}
+                      onChange={() => {
+                        setVentilatorOutcome(outcome);
+                        setVentilatorOutcomeComment("");
+                        setDiscontinueError("");
+                      }}
+                      className="h-5 w-5 accent-cyan-700"
+                    />
+                    {ventilatorOutcomeLabels[outcome]}
+                  </label>
+                ))}
+                {ventilatorOutcome === "other_unknown" && (
+                  <label className="block pt-2">
+                    <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Outcome comment (optional)</span>
+                    <textarea
+                      value={ventilatorOutcomeComment}
+                      onChange={(event) => setVentilatorOutcomeComment(event.target.value)}
+                      rows={3}
+                      placeholder="Add details about this outcome"
+                      className="mt-1 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 py-2 text-sm font-bold text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDiscontinueTarget(null);
+                  setDiscontinueError("");
+                  setDiscontinuedDate("");
+                  setDiscontinuedTime("");
+                }}
+                className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionSaving}
+                onClick={() => void confirmDiscontinue()}
+                className="min-h-12 rounded-2xl bg-rose-600 px-4 text-sm font-black text-white shadow-md shadow-rose-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {actionSaving ? "Discontinuing..." : discontinueTarget.device_type === "vent" ? "Discontinue Vent" : "Discontinue"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {historyTarget && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-history-title"
+            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">{historyTarget.bed}</p>
+                <h2 id="icu-history-title" className="mt-1 text-2xl font-black text-hospital-ink">
+                  ICU History
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">{formatIcuDeviceSummary(historyTarget)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryTarget(null);
+                  setHistoryError("");
+                }}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
+
+            <button type="button" disabled={historyLoading || Boolean(historyError) || historyEvents.length === 0}
+              onClick={() => printIcuDocument(buildIcuHistoryReport(historyTarget.bed, authContext.departmentName, historyEvents.map(event => {
+                const changes = icuHistoryChanges(event);
+                const lines = changes !== null
+                  ? changes.length ? changes.map(change => `${change.label}\nPrevious: ${change.previous}\nCurrent: ${change.current}`) : ["No changes recorded."]
+                  : [event.event_summary || "", ...(event.event_type === "added" || event.event_type === "discontinued" ? historyDetailLines(event) : []),
+                    ...(event.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(event.event_data?.action)) ? ["Previous values were not recorded for this entry."] : []),
+                    ...(event.event_data?.action === "note_updated" && eventDataText(event, "notes") ? [`Note: ${eventDataText(event, "notes")}`] : [])].filter(Boolean);
+                return { title: `${formatIcuLastUpdated(event.event_time)} PT — ${historyEventLabel(event)}`, author: event.created_by_name || "Unknown", lines };
+              })))}
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-sky-700 bg-sky-200 px-4 font-bold text-sky-950 hover:bg-sky-300 disabled:opacity-50">
+              <Printer size={18} />Print History
+            </button>
+            <div className="mt-4 space-y-3">
+              {historyLoading && (
+                <p className="rounded-2xl bg-white px-3 py-4 text-sm font-bold text-slate-500">Loading ICU history...</p>
+              )}
+              {historyError && (
+                <p className="rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                  {historyError}
+                </p>
+              )}
+              {!historyLoading && !historyError && historyEvents.length === 0 && (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  No history events recorded yet.
+                </p>
+              )}
+              {!historyLoading &&
+                historyEvents.map((eventRecord) => {
+                  const changes = icuHistoryChanges(eventRecord);
+                  return (
+                  <article key={eventRecord.id} className="rounded-3xl border border-white bg-white p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
+                        <ClipboardList size={18} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-hospital-ink">
+                          {isBoardUpdateEvent(eventRecord.event_type) ? "Board updated " : ""}{formatIcuLastUpdated(eventRecord.event_time)} - {historyEventLabel(eventRecord)}
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          By {eventRecord.created_by_name || "Unknown"}
+                        </p>
+                        {changes === null && eventRecord.event_summary && (
+                          <p className="mt-2 text-sm font-bold leading-6 text-slate-700">{eventRecord.event_summary}</p>
+                        )}
+                        {changes !== null ? (
+                          <div className="mt-3 space-y-2">
+                            {changes.length === 0 ? <p className="text-sm text-slate-700">No changes recorded.</p> : changes.map(change => (
+                              <div key={change.label} className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                                <p className="font-extrabold">{change.label}</p>
+                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Previous:</span> {change.previous}</p>
+                                <p className="whitespace-pre-wrap break-words"><span className="font-semibold">Current:</span> {change.current}</p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : eventRecord.event_type === "updated" && !["note_updated", "procedure_recorded"].includes(String(eventRecord.event_data?.action)) ? (
+                          <p className="mt-2 text-xs text-slate-600">Previous values were not recorded for this entry.</p>
+                        ) : eventRecord.event_data?.action === "note_updated" && eventDataText(eventRecord, "notes") ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-800">Note: {eventDataText(eventRecord, "notes")}</p>
+                        ) : eventRecord.event_type === "added" || eventRecord.event_type === "discontinued" ? historyDetailLines(eventRecord).map((line) => (
+                          <p key={line} className="mt-1 text-xs font-bold leading-5 text-slate-700">
+                            {line}
+                          </p>
+                        )) : null}
+                      </div>
+                    </div>
+                  </article>
+                ); })}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {previousDateOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-sm sm:items-center">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="icu-date-search-title"
+            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border border-white bg-slate-50 p-4 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">Search Previous Date</p>
+                <h2 id="icu-date-search-title" className="mt-1 text-2xl font-black text-hospital-ink">
+                  ICU Activity
+                </h2>
+                <p className="mt-2 text-sm font-bold leading-6 text-slate-500">Enter a date as MMDDYY.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviousDateOpen(false)}
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-600"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
+
+            <form onSubmit={searchPreviousDate} className="mt-4 grid gap-2">
+              <label className="block">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Date</span>
+                <input
+                  value={previousDateInput}
+                  onChange={(event) => setPreviousDateInput(event.target.value)}
+                  inputMode="numeric"
+                  placeholder="070626"
+                  className="mt-1 min-h-12 w-full rounded-2xl border-2 border-slate-500 bg-white px-3 text-base font-black text-hospital-ink placeholder:text-slate-500 outline-none focus:border-sky-700 focus:ring-2 focus:ring-sky-200"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={previousDateLoading}
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-cyan-700 px-4 text-sm font-black text-white shadow-md shadow-cyan-900/20 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Search size={16} />
+                {previousDateLoading ? "Searching..." : "Search"}
+              </button>
+            </form>
+
+            {previousDateError && (
+              <p className="mt-3 rounded-2xl border border-rose-100 bg-rose-50 px-3 py-3 text-sm font-bold text-rose-700">
+                {previousDateError}
+              </p>
+            )}
+
+            <div className="mt-4 space-y-3">
+              {previousDateLabel && (
+                <p className="text-sm font-black text-hospital-ink">ICU Activity · {previousDateLabel}</p>
+              )}
+              {previousDateLabel && previousDateResults.length === 0 && (
+                <p className="rounded-2xl bg-white px-3 py-4 text-center text-sm font-bold text-slate-500">
+                  No ICU activity found for this date.
+                </p>
+              )}
+              {previousDateResults.map((eventRecord) => (
+                <IcuActivityCard
+                  key={eventRecord.id}
+                  eventRecord={eventRecord}
+                  onOpen={() => void openActivityDetail(eventRecord)}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+    </Container>
+  );
+}
