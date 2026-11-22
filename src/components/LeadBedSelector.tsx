@@ -55,7 +55,7 @@ export function LeadBedSelector({
       <legend className="mb-3 flex items-center gap-2 text-lg font-black text-hospital-ink"><LayoutGrid size={21} className="text-teal-700" />Select Area</legend>
       <div className="grid grid-cols-4 gap-2">
         {areas.map(value => <button key={value} type="button" aria-pressed={area === value}
-          onClick={() => { setArea(value); onAreaChange?.(value); onChange(""); }}
+          onClick={() => { const nextArea = area === value ? "" : value; setArea(nextArea); onAreaChange?.(nextArea); onChange(""); }}
           className={`flex min-h-11 items-center justify-center gap-1 rounded-full border px-1 text-xs font-bold sm:text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${area === value ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"}`}>
           {area === value && <Check size={14} aria-hidden="true" />}{value}
         </button>)}
@@ -73,7 +73,7 @@ export function LeadBedSelector({
           // Include the selected existing record in its occupied status.
           const assigned = records.find(record => record.is_active && record.bed === value);
           return <button key={value} type="button" aria-label={`Room ${room} - ${assigned ? icuDeviceLabels[assigned.device_type] : "Available"}`}
-            aria-pressed={bed === value} disabled={Boolean(occupied) && !allowOccupiedSelection} onClick={() => onChange(value)}
+            aria-pressed={bed === value} disabled={Boolean(occupied) && !allowOccupiedSelection} onClick={() => onChange(bed === value ? "" : value)}
             className={`relative min-h-20 min-w-0 rounded-2xl border-2 p-2 text-left disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 ${bed === value ? "border-teal-600 bg-teal-50" : "border-slate-200 bg-white hover:border-teal-300"}`}>
             <span className="block text-lg font-black text-hospital-ink">{room}</span>
             {bed === value && <Check size={17} className="absolute right-1 top-1 rounded-full bg-teal-700 p-0.5 text-white" aria-hidden="true" />}

@@ -454,6 +454,29 @@ describe("ICU patient notes", () => {
     expect(await screen.findByText("CPAP 5 - FiO2 40%")).toBeInTheDocument();
   });
 
+  it("places device settings before treatment and toggles selected cards off", async () => {
+    render(<IcuCommandCenterClient authContext={authContext} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add Patient" }));
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByRole("button", { name: "C Pod" }));
+    const room = dialog.getByRole("button", { name: "Room 220 - Available" });
+    fireEvent.click(room);
+    fireEvent.click(dialog.getByRole("button", { name: "Oxygen Device" }));
+    const settings = dialog.getByRole("heading", { name: "Nasal Cannula Settings" });
+    const treatment = dialog.getByRole("heading", { name: "Treatment" });
+    expect(settings.compareDocumentPosition(treatment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(dialog.getByRole("button", { name: "Oxygen Device" }));
+    expect(dialog.queryByRole("heading", { name: "Nasal Cannula Settings" })).not.toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Oxygen Device" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(dialog.getByRole("button", { name: "Save" }));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    fireEvent.click(room);
+    expect(room).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(dialog.getByRole("button", { name: "C Pod" }));
+    expect(dialog.getByRole("button", { name: "C Pod" })).toHaveAttribute("aria-pressed", "false");
+    expect(dialog.queryByRole("button", { name: "Room 220 - Available" })).not.toBeInTheDocument();
+  });
+
   it("saves the selected treatment using the established rounding action after adding a patient", async () => {
     const original = mocks.rpc.getMockImplementation()!;
     mocks.rpc.mockImplementation(async (name, args) => {

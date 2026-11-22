@@ -6,7 +6,7 @@ import { Bed, CalendarDays, ChevronRight, ClipboardList, History, LogOut, Printe
 import { IcuDeviceOverview } from "@/components/IcuDeviceOverview";
 import { LeadIcuSnapshot } from "@/components/LeadIcuSnapshot";
 import { canEditIcuCommandCenter, canManageIcuLifecycle, isIcuCommandCenter } from "@/lib/auth/access";
-import { IcuAddPatientSelections } from "@/components/IcuAddPatientSelections";
+import { IcuAddPatientDevices, IcuAddPatientSelections } from "@/components/IcuAddPatientSelections";
 import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
@@ -1894,9 +1894,7 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                   }}
                 />
 
-                {redesignedAdd ? <IcuAddPatientSelections device={form.device_type} onDeviceChange={changeFormDevice}
-                  treatment={addTreatment} frequency={addFrequency} onTreatmentChange={value => { setAddTreatment(value); setAddFrequency(""); }} onFrequencyChange={setAddFrequency}
-                  area={addArea} bed={form.bed} updating={Boolean(editingRecord)} /> : (
+                {redesignedAdd ? <IcuAddPatientDevices device={form.device_type} onDeviceChange={changeFormDevice} /> : (
                 <label className="block">
                   <span className="text-xs font-extrabold uppercase tracking-wide text-slate-500">Device</span>
                   <select
@@ -2121,6 +2119,10 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
                   </div>
                 </section>
               )}
+
+              {redesignedAdd && <IcuAddPatientSelections device={form.device_type}
+                  treatment={addTreatment} frequency={addFrequency} onTreatmentChange={value => { setAddTreatment(value); setAddFrequency(""); }} onFrequencyChange={setAddFrequency}
+                  area={addArea} bed={form.bed} updating={Boolean(editingRecord)} />}
 
               {form.device_type ? (
                 <label className="block">
