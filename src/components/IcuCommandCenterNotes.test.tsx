@@ -263,9 +263,14 @@ describe("ICU patient notes", () => {
     ];
     render(<IcuCommandCenterClient authContext={authContext} />);
     await waitFor(() => expect(screen.getAllByRole("article")).toHaveLength(3));
+    const units = within(screen.getByLabelText("Unit filters"));
+    expect(units.getByRole("button", { name: "All (3)" })).toBeInTheDocument();
+    expect(units.getByRole("button", { name: "C Pod (1)" })).toBeInTheDocument();
+    expect(units.getByRole("button", { name: "E Pod (0)" })).toBeInTheDocument();
+    expect(within(screen.getByLabelText("Device filters")).queryByRole("button", { name: /CPAP/ })).not.toBeInTheDocument();
     fireEvent.click(within(screen.getByLabelText("Device filters")).getByRole("button", { name: "Treatment (2)" }));
     expect(screen.getAllByRole("article")).toHaveLength(2);
-    fireEvent.click(within(screen.getByLabelText("Unit filters")).getByRole("button", { name: "IMC A" }));
+    fireEvent.click(within(screen.getByLabelText("Unit filters")).getByRole("button", { name: "IMC A (1)" }));
     expect(screen.getAllByRole("article")).toHaveLength(1);
     expect(screen.getByRole("article")).toHaveTextContent("IMC - 201");
     fireEvent.click(screen.getByRole("button", { name: "Filter HFNC: 1" }));

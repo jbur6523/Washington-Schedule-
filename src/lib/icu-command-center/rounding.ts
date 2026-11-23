@@ -1,6 +1,6 @@
 import type { IcuPatientRecord } from "./types";
 
-export type RoundingAction = "sbt" | "critical" | "procedure" | "treatment" | "note";
+export type RoundingAction = "sbt" | "critical" | "procedure" | "treatment" | "note" | "flag";
 export type SaveRoundingAction = (action: RoundingAction, payload: Record<string, unknown>, expectedUpdatedAt: string) => Promise<boolean>;
 export const sbtFailureReasons = ["Poor neuro status", "Excessive secretions", "High RSBI", "Hemodynamic instability", "Oxygenation", "Other"];
 export function roundingDate(value: string) {

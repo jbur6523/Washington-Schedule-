@@ -11,6 +11,7 @@ import { LeadBedSelector } from "@/components/LeadBedSelector";
 import { oxygenDeviceTypes, isOxygenDevice } from "@/lib/icu-command-center/utils";
 import { availableIcuBeds } from "@/lib/icu-command-center/rooms";
 import { fetchAllPages } from "@/lib/supabase/paginated-query";
+import { IcuRoomFlag } from "@/components/IcuRoomFlag";
 import { IcuRoundingActions } from "@/components/IcuRoundingActions";
 import { IcuModalityActions, modalitySettingFields, type SaveModality, type ModalitySettings, type ModalityAction } from "@/components/IcuModalityActions";
 import { activeSbt, criticalDetail, procedureDetail, treatmentDetail, treatmentOptions, treatmentFrequencies, roundingDate, type RoundingAction, type SaveRoundingAction } from "@/lib/icu-command-center/rounding";
@@ -619,7 +620,7 @@ export function IcuPatientCard({
   return (
     <article className={`relative grid grid-cols-1 gap-4 rounded-2xl border p-4 text-left shadow-sm md:grid-cols-[minmax(0,190px)_minmax(0,1fr)_140px] md:grid-rows-[auto_1fr] ${cardClass}`}>
       <div className="order-1 min-w-0 rounded-xl bg-teal-50/60 p-3 md:col-start-1 md:row-start-1">
-          <p className={`text-3xl font-black uppercase tracking-wide ${accentTextClass}`}>{record.bed}</p>
+          <IcuRoomFlag record={record} saving={actionSaving} onSave={onRoundingAction} roomClass={accentTextClass} />
           <h3 className={`mt-1 text-base font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
           </h3>
@@ -1583,10 +1584,10 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
             <h2 className="text-2xl font-black text-hospital-ink">Active ICU Patients</h2>
           </div>
           <div aria-label="Unit filters" className="flex gap-2 overflow-x-auto pb-2">
-            {dashboardUnits.map(unit => <button type="button" key={unit} aria-pressed={unitFilter === unit} onClick={() => setUnitFilter(unit)} className={`min-h-11 shrink-0 rounded-xl border px-4 text-sm font-bold ${unitFilter === unit ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{unit}</button>)}
+            {dashboardUnits.map(unit => <button type="button" key={unit} aria-pressed={unitFilter === unit} onClick={() => setUnitFilter(unit)} className={`min-h-11 shrink-0 rounded-xl border px-4 text-sm font-bold ${unitFilter === unit ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{unit} ({filterDashboardPatients(records, unit, "All").length})</button>)}
           </div>
           <div aria-label="Device filters" className="flex flex-wrap gap-2">
-            {dashboardDevices.map(device => <button type="button" key={device} aria-pressed={deviceFilter === device} onClick={() => setDeviceFilter(device)} className={`min-h-11 rounded-xl border px-3 text-sm font-bold ${deviceFilter === device ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{device} ({filterDashboardPatients(unitRecords, "All", device).length})</button>)}
+            {dashboardDevices.filter(device => device === "All" || filterDashboardPatients(unitRecords, "All", device).length > 0).map(device => <button type="button" key={device} aria-pressed={deviceFilter === device} onClick={() => setDeviceFilter(device)} className={`min-h-11 rounded-xl border px-3 text-sm font-bold ${deviceFilter === device ? "border-teal-700 bg-teal-700 text-white" : "border-slate-200 bg-white text-slate-700"}`}>{device} ({filterDashboardPatients(unitRecords, "All", device).length})</button>)}
           </div>
           {(unitFilter !== "All" || deviceFilter !== "All") && <button type="button" onClick={() => { setUnitFilter("All"); setDeviceFilter("All"); }} className="min-h-11 text-sm font-bold text-teal-800 underline">Clear filters · Show all patients</button>}
           <p role="status" className="text-xs text-slate-500">Showing {visibleRecords.length} of {records.length} active patients{deviceFilter === "Noncritical Vent" ? " · Vents excluding Critical" : ""}</p>

@@ -29,6 +29,7 @@ export type IcuPatientEventType =
 
 export type IcuPatientRecord = {
   rounding_data?: {
+    flag?: { active: boolean; note: string | null; at: string };
     extubation?: { at: string; modality: IcuDeviceType; settings: Record<string, number | null> };
     treatment?: { name: string; frequency: string; at: string };
     modalities?: Partial<Record<IcuDeviceType, Record<string, string | number | boolean | null>>>;
