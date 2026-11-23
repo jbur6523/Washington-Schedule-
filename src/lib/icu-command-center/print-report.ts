@@ -125,9 +125,9 @@ function simpleReport(title: string, subtitle: string, content: string, topConte
 export function buildIcuSbarReport(records: IcuPatientRecord[], department: string, generatedAt = new Date()) {
   const active = records.filter(record => record.is_active);
   return simpleReport("WHHS ICU SBAR", `${department} · ${active.length} active patients · Prepared: ${formatIcuLastUpdated(generatedAt.toISOString())} PT`,
-    `<table><thead><tr><th>Bed</th><th>Modality / Mode / Airway</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => {
+    `<table style="table-layout:fixed"><colgroup><col style="width:12%"><col style="width:18%"><col style="width:32%"><col style="width:38%"></colgroup><thead><tr><th>Bed</th><th>Name/Initial</th><th>Modality / Mode / Airway</th><th>Current Settings</th></tr></thead><tbody>${active.map(record => {
       const airway = formatIcuAirway(record);
-      return `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}${airway ? `<div style="font-size:9pt;line-height:1.2">${escapeHtml(airway)}</div>` : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`;
+      return `<tr><td><strong>${escapeHtml(record.bed)}</strong></td><td></td><td>${escapeHtml(formatIcuDeviceSummary(record))}${record.is_standby ? " · Standby" : ""}${airway ? `<div style="font-size:9pt;line-height:1.2">${escapeHtml(airway)}</div>` : ""}</td><td>${escapeHtml(formatIcuSettings(record))}</td></tr>`;
     }).join("")}</tbody></table>`, deviceCountSummary(active));
 }
 

@@ -76,9 +76,11 @@ describe("ICU rounding print report", () => {
   ] as const)("includes $expected under the SBAR modality without adding a column", ({ expected, ...airway }) => {
     const doc = new DOMParser().parseFromString(buildIcuSbarReport([{ ...patient, ...airway }], "RT"), "text/html");
     const cells = doc.querySelectorAll("tbody tr td");
-    expect(cells).toHaveLength(3);
-    expect(cells[1].textContent).toContain(expected);
-    expect(cells[2].textContent).toContain("PS 8");
+    expect(cells).toHaveLength(4);
+    expect(cells[1].textContent).toBe("");
+    expect(Array.from(doc.querySelectorAll("thead th")).map(cell => cell.textContent)).toEqual(["Bed", "Name/Initial", "Modality / Mode / Airway", "Current Settings"]);
+    expect(cells[2].textContent).toContain(expected);
+    expect(cells[3].textContent).toContain("PS 8");
   });
 
   it("keeps SBAR to active beds, modalities, airways and current settings only", () => {
