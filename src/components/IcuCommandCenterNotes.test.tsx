@@ -239,7 +239,13 @@ describe("ICU patient notes", () => {
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
     fireEvent.click(sidebar.getByRole("link", { name: /RT Schedule/ }));
     expect(openWindow).toHaveBeenCalledWith("/?view=schedule", "_blank", "popup,width=1200,height=850,noopener,noreferrer");
-    expect(within(screen.getByLabelText("ICU quick actions")).getAllByRole("button")).toHaveLength(1);
+    expect(within(screen.getByLabelText("ICU quick actions")).getAllByRole("button").map(button => button.textContent)).toEqual(["Add Patient", "Update", "Print"]);
+    HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    fireEvent.click(screen.getByRole("button", { name: "Print" }));
+    const printDialog = within(screen.getByRole("dialog", { name: "Print Report" }));
+    expect(printDialog.getByRole("button", { name: /^SBAR/ })).toBeInTheDocument();
+    expect(printDialog.getByRole("button", { name: /^ICU Report/ })).toBeInTheDocument();
+    fireEvent.click(printDialog.getByRole("button", { name: "Close" }));
     expect(within(screen.getByLabelText("ICU quick actions")).getByRole("button", { name: "Add Patient" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Update patient above patient cards" }));
     const cardRooms = screen.getByRole("combobox", { name: "Occupied room" });

@@ -1520,10 +1520,6 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </p>
         </section>
 
-        <div aria-label="ICU quick actions">
-          <button type="button" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800"><Plus size={18} />Add Patient</button>
-        </div>
-
         {reportOpen && <dialog
           id="icu-rounding-report"
           aria-labelledby="icu-rounding-report-title"
@@ -1594,12 +1590,15 @@ export function IcuCommandCenterClient({ authContext, surface = "full" }: IcuCom
           </div>
           {(unitFilter !== "All" || deviceFilter !== "All") && <button type="button" onClick={() => { setUnitFilter("All"); setDeviceFilter("All"); }} className="min-h-11 text-sm font-bold text-teal-800 underline">Clear filters · Show all patients</button>}
           <p role="status" className="text-xs text-slate-500">Showing {visibleRecords.length} of {records.length} active patients{deviceFilter === "Noncritical Vent" ? " · Vents excluding Critical" : ""}</p>
-          <div className="flex flex-wrap justify-center gap-3 py-2">
-            <button type="button" aria-label="Add Patient above patient cards" onClick={openAdd} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-teal-700 px-5 text-sm font-bold text-white hover:bg-teal-800">
+          <div aria-label="ICU quick actions" className="mx-auto grid w-full max-w-lg grid-cols-3 gap-2 py-2 sm:gap-3">
+            <button type="button" onClick={openAdd} className="inline-flex h-12 min-w-0 items-center justify-center gap-1 rounded-xl bg-teal-700 px-2 text-xs font-bold sm:text-sm text-white hover:bg-teal-800">
               <Plus size={18} aria-hidden="true" />Add Patient
             </button>
-            <button type="button" aria-label="Update patient above patient cards" aria-expanded={roomPickerOpen === "cards"} aria-controls="icu-card-occupied-rooms" onClick={() => setRoomPickerOpen(roomPickerOpen === "cards" ? false : "cards")} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-teal-700 bg-white px-5 text-sm font-bold text-teal-800 hover:bg-teal-50">
+            <button type="button" aria-label="Update patient above patient cards" aria-expanded={roomPickerOpen === "cards"} aria-controls="icu-card-occupied-rooms" onClick={() => setRoomPickerOpen(roomPickerOpen === "cards" ? false : "cards")} className="inline-flex h-12 min-w-0 items-center justify-center gap-1 rounded-xl border border-teal-700 bg-white px-2 text-xs font-bold sm:text-sm text-teal-800 hover:bg-teal-50">
               <Bed size={18} aria-hidden="true" />Update
+            </button>
+            <button type="button" disabled={loading || records.length === 0} onClick={() => setPrintOptionsOpen(true)} className="inline-flex h-12 min-w-0 items-center justify-center gap-1 rounded-xl border border-teal-700 bg-white px-2 text-xs font-bold text-teal-800 hover:bg-teal-50 disabled:opacity-50 sm:text-sm">
+              <Printer size={18} aria-hidden="true" />Print
             </button>
           </div>
           {roomPickerOpen === "cards" && <div id="icu-card-occupied-rooms" className="mx-auto w-full max-w-sm rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
