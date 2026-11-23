@@ -617,9 +617,15 @@ export function IcuPatientCard({
         ? "text-blue-950"
         : "text-hospital-ink";
 
+  const hasSavedVent = record.device_type !== "vent" && Boolean(record.rounding_data?.modalities?.vent);
+  const modalityActions = onSaveModality && <div className={`${hasSavedVent ? "px-3 pb-3 md:p-0" : "order-4"} min-w-0 self-start md:order-none md:col-start-1 md:row-start-2 md:[&:has(form)]:col-span-3 md:[&:has(form)]:row-start-3`}>
+        <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />
+      </div>;
+
   return (
     <article className={`relative grid grid-cols-1 gap-4 rounded-2xl border p-4 text-left shadow-sm md:grid-cols-[minmax(0,190px)_minmax(0,1fr)_140px] md:grid-rows-[auto_1fr] ${cardClass}`}>
-      <div className="order-1 min-w-0 rounded-xl bg-teal-50/60 p-3 md:col-start-1 md:row-start-1">
+      <div className={hasSavedVent ? "order-1 min-w-0 rounded-xl bg-teal-50/60 md:contents" : "contents"}>
+      <div className={`order-1 min-w-0 rounded-xl p-3 md:col-start-1 md:row-start-1 ${hasSavedVent ? "md:bg-teal-50/60" : "bg-teal-50/60"}`}>
           <IcuRoomFlag record={record} saving={actionSaving} onSave={onRoundingAction} roomClass={accentTextClass} />
           <h3 className={`mt-1 text-base font-black ${titleTextClass}`}>
             {record.device_type === "vent" ? formatVentCardTitle(record) : formatIcuDeviceSummary(record)}
@@ -636,9 +642,9 @@ export function IcuPatientCard({
           ) : null}
           {airway && <p className="mt-1 text-sm font-black text-slate-700">{airway}</p>}
       </div>
-      {onSaveModality && <div className="order-4 min-w-0 self-start md:order-none md:col-start-1 md:row-start-2 md:[&:has(form)]:col-span-3 md:[&:has(form)]:row-start-3">
-        <IcuModalityActions key={record.device_type} record={record} saving={actionSaving} onSave={onSaveModality} />
-      </div>}
+      {hasSavedVent && modalityActions}
+      </div>
+      {!hasSavedVent && modalityActions}
       <div className="order-2 flex min-w-0 flex-col md:col-start-2 md:row-span-2 md:row-start-1">
           <IcuRoundingActions record={record} saving={actionSaving} onSave={onRoundingAction} onToggleStandby={onToggleStandby} onExtubate={onExtubate} />
           <div className="order-first mb-3 rounded-xl bg-teal-100/70 md:order-none md:mb-0 md:mt-3 px-3 py-2 print:bg-white print:border-slate-600">
